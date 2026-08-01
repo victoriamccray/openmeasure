@@ -234,14 +234,42 @@ class TestSplitHalf(unittest.TestCase):
         with self.assertRaises(ValueError):
             rel.split_half_reliability(data)
 
-    def test_rejects_odd_number_of_items(self) -> None:
+    def test_default_allows_odd_number_of_items(self) -> None:
+        """By default (require_equal_halves=False), an odd item count
+        should succeed using unequal-sized halves rather than raising."""
+        data = pd.DataFrame(
+            np.arange(50, dtype=float).reshape(10, 5),
+            columns=[f"q{index}" for index in range(5)],
+        )
+
+        correlation, corrected = rel.split_half_reliability(data)
+
+        self.assertIsInstance(correlation, float)
+        self.assertIsInstance(corrected, float)
+
+    def test_require_equal_halves_rejects_odd_number_of_items(self) -> None:
+        """With require_equal_halves=True, an odd item count should raise,
+        since the two halves would be unequal length."""
         data = pd.DataFrame(
             np.arange(50, dtype=float).reshape(10, 5),
             columns=[f"q{index}" for index in range(5)],
         )
 
         with self.assertRaises(ValueError):
-            rel.split_half_reliability(data)
+            rel.split_half_reliability(data, require_equal_halves=True)
+
+    def test_require_equal_halves_accepts_even_number_of_items(self) -> None:
+        data = pd.DataFrame(
+            np.arange(60, dtype=float).reshape(10, 6),
+            columns=[f"q{index}" for index in range(6)],
+        )
+
+        correlation, corrected = rel.split_half_reliability(
+            data, require_equal_halves=True
+        )
+
+        self.assertIsInstance(correlation, float)
+        self.assertIsInstance(corrected, float)
 
     def test_returns_two_floats_for_valid_input(self) -> None:
         rng = np.random.RandomState(0)
@@ -289,6 +317,35 @@ class TestSplitHalf(unittest.TestCase):
             expected_corrected,
             places=6,
         )
+
+    def test_uses_unequal_odd_even_item_positions_by_default(self) -> None:
+        """For an odd item count, the odd half should have one more item
+        than the even half (positions 1,3,5 vs 2,4), and the default
+        (require_equal_halves=False) should compute from exactly those
+        unequal-sized groups."""
+        data = pd.DataFrame(
+            {
+                "q1": [1, 2, 3, 4, 5],
+                "q2": [2, 4, 6, 8, 10],
+                "q3": [3, 6, 9, 12, 15],
+                "q4": [4, 8, 12, 16, 20],
+                "q5": [5, 10, 15, 20, 25],
+            }
+        )
+
+        correlation, corrected = rel.split_half_reliability(data)
+
+        odd_scores = data[["q1", "q3", "q5"]].sum(axis=1)
+        even_scores = data[["q2", "q4"]].sum(axis=1)
+
+        expected_correlation = odd_scores.corr(even_scores)
+        expected_corrected = (
+            2 * expected_correlation
+            / (1 + expected_correlation)
+        )
+
+        self.assertAlmostEqual(correlation, expected_correlation, places=6)
+        self.assertAlmostEqual(corrected, expected_corrected, places=6)
 
     def test_raises_when_one_half_has_zero_variance(self) -> None:
         data = pd.DataFrame(
@@ -377,7 +434,10 @@ class TestAnalyzePipeline(unittest.TestCase):
         self.assertIsNone(result.spearman_brown)
         self.assertEqual(len(result.item_diagnostics), 2)
 
-    def test_split_half_is_optional_for_odd_item_count(self) -> None:
+    def test_split_half_available_by_default_for_odd_item_count(self) -> None:
+        """analyze() with default settings (require_equal_halves=False)
+        should populate split-half values even for an odd number of items,
+        using unequal-sized halves."""
         data = pd.DataFrame(
             {
                 "q1": [1, 2, 3, 4, 5],
@@ -389,6 +449,25 @@ class TestAnalyzePipeline(unittest.TestCase):
         )
 
         result = rel.analyze(data)
+
+        self.assertIsNotNone(result.split_half_correlation)
+        self.assertIsNotNone(result.spearman_brown)
+
+    def test_split_half_none_when_equal_halves_required_for_odd_item_count(self) -> None:
+        """analyze() with require_equal_halves=True should return None for
+        split-half values when the item count is odd, rather than raising
+        out of the whole analysis."""
+        data = pd.DataFrame(
+            {
+                "q1": [1, 2, 3, 4, 5],
+                "q2": [2, 3, 4, 5, 6],
+                "q3": [1, 3, 2, 4, 5],
+                "q4": [2, 4, 3, 5, 6],
+                "q5": [3, 5, 4, 6, 7],
+            }
+        )
+
+        result = rel.analyze(data, require_equal_halves=True)
 
         self.assertIsNone(result.split_half_correlation)
         self.assertIsNone(result.spearman_brown)
