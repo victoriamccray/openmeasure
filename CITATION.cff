@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use OpenMeasure in your research or work, please cite it using the metadata below."
+title: "OpenMeasure"
+abstract: >
+  OpenMeasure is an open-source validation toolkit for research data,
+  measures, models, and programs.
+
+type: software
+
+authors:
+  - family-names: "McCray"
+    given-names: "Victoria"
+
+version: "0.1.0"
+date-released: "2026-08-01"
+
+license: "MIT"
+
+repository-code: "https://github.com/victoriamccray/openmeasure"
+url: "https://github.com/victoriamccray/openmeasure"
+
+keywords:
+  - research methods
+  - validation
+  - reliability
+  - psychometrics
+  - Cronbach alpha
+  - fairness auditing
+  - program evaluation
+  - open source
