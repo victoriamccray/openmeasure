@@ -197,6 +197,8 @@ def alpha_if_item_dropped(data: pd.DataFrame) -> pd.Series:
 
 def split_half_reliability(
     data: pd.DataFrame,
+    *,
+    require_equal_halves: bool = False,
 ) -> tuple[float, float]:
     """
     Compute odd-even split-half reliability.
@@ -204,8 +206,18 @@ def split_half_reliability(
     Items in positions 1, 3, 5, ... form the odd half, and items in
     positions 2, 4, 6, ... form the even half.
 
-    The function requires at least four items and an even number of items
-    so that both halves contain the same number of items.
+    Parameters
+    ----------
+    data:
+        Complete item-level data, at least 4 items.
+    require_equal_halves:
+        If True, require an even number of items so both halves have
+        equal length (the textbook-exact case for the Spearman-Brown
+        correction). Raises ValueError otherwise.
+        If False (default), retain all items and allow unequal halves
+        when the item count is odd. The Spearman-Brown correction was
+        derived assuming equal-length halves, so with an odd item count
+        the corrected value is an approximation, not textbook-exact.
 
     Returns:
         A tuple containing:
@@ -216,10 +228,11 @@ def split_half_reliability(
 
     number_of_items = data.shape[1]
 
-    if number_of_items % 2 != 0:
+    if require_equal_halves and number_of_items % 2 != 0:
         raise ValueError(
-            "Odd-even split-half reliability currently requires an "
-            "even number of items."
+            "Equal-half analysis requires an even number of items. "
+            "Deselect one item, or use the all-items option to allow "
+            "an approximate estimate with unequal halves."
         )
 
     odd_items = data.columns[::2]
@@ -259,13 +272,23 @@ def split_half_reliability(
     return correlation, float(corrected)
 
 
-def analyze(data: pd.DataFrame) -> ReliabilityResult:
+def analyze(
+    data: pd.DataFrame,
+    *,
+    require_equal_halves: bool = False,
+) -> ReliabilityResult:
     """
     Run the complete reliability analysis.
 
     Rows containing a missing value in any selected item are removed using
     listwise deletion. The number and percentage of excluded participants
     and missing cells are included in the result.
+
+    require_equal_halves controls the split-half method: False (default)
+    allows odd item counts with unequal halves and an approximate
+    Spearman-Brown estimate; True requires an even item count and returns
+    None for both split-half values otherwise. This does not affect
+    Cronbach's alpha, which is unaffected by item count parity.
     """
     _validate_dataframe(
         data,
@@ -308,7 +331,8 @@ def analyze(data: pd.DataFrame) -> ReliabilityResult:
 
     try:
         split_correlation, spearman_brown = split_half_reliability(
-            complete
+            complete,
+            require_equal_halves=require_equal_halves,
         )
     except ValueError:
         split_correlation = None
