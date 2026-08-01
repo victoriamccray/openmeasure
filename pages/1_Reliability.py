@@ -57,6 +57,19 @@ item_cols = st.multiselect(
     default=numeric_cols,
 )
 
+split_half_method = st.radio(
+    "Split-half method",
+    options=["Use all items", "Require equal-sized halves"],
+    index=0,
+    help=(
+        "Using all items allows odd-length scales but may produce unequal "
+        "halves, making the Spearman-Brown estimate an approximation. "
+        "Equal-sized halves is methodologically stricter but requires an "
+        "even number of selected items."
+    ),
+)
+require_equal_halves = split_half_method == "Require equal-sized halves"
+
 analyze_clicked = st.button("Analyze", type="primary", disabled=len(item_cols) < 2)
 
 if len(item_cols) < 2:
@@ -66,7 +79,7 @@ if analyze_clicked:
     item_data = df[item_cols].apply(pd.to_numeric, errors="coerce")
 
     try:
-        result = rel.analyze(item_data)
+        result = rel.analyze(item_data, require_equal_halves=require_equal_halves)
     except (ValueError, TypeError) as e:
         st.error(str(e))
         st.stop()
@@ -87,14 +100,33 @@ if analyze_clicked:
     section_header("Reliability")
     m1, m2, m3 = st.columns(3)
     m1.metric("Cronbach's α", f"{result.cronbach_alpha:.2f}")
+
+    n_items = len(item_cols)
+    odd_n = (n_items + 1) // 2
+    even_n = n_items // 2
+    unequal_halves = odd_n != even_n and not require_equal_halves
+
     if result.split_half_correlation is not None:
         m2.metric("Split-half r", f"{result.split_half_correlation:.2f}")
         m3.metric("Spearman-Brown", f"{result.spearman_brown:.2f}")
+        if unequal_halves:
+            caveat(
+                f"Halves are unequal length ({odd_n} vs {even_n} items). "
+                "Spearman-Brown assumes equal-length halves, so this is "
+                "an approximation, not a textbook-exact estimate."
+            )
     else:
         m2.metric("Split-half r", "Not available")
         m3.metric("Spearman-Brown", "Not available")
-        caveat("Odd-even split-half reliability requires at least four items, an even "
-               "number of items, and nonzero variance in both halves.")
+        if require_equal_halves and n_items % 2 != 0:
+            st.warning(
+                f"Equal-sized halves requires an even number of items. "
+                f"You selected {n_items}. Deselect one item, or switch to "
+                "\"Use all items\" above."
+            )
+        else:
+            caveat("Split-half reliability requires at least four items and "
+                   "nonzero variance in both halves.")
 
     bands = [
         Band(0.00, "Unacceptable internal consistency", "error"),
