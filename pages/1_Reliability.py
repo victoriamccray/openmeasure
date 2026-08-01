@@ -26,6 +26,88 @@ st.set_page_config(page_title="OpenMeasure · Reliability", page_icon="📊", la
 st.title("📊 Reliability")
 st.caption("Cronbach's alpha and item diagnostics for a scale or survey.")
 
+st.divider()
+
+with st.expander("📖 What is Cronbach's alpha?"):
+    st.markdown(
+        """
+### What does reliability mean?
+
+Researchers often use **scales** to estimate **latent variables**, which are concepts that cannot be measured directly, such as extroversion, anxiety, satisfaction, or depression.
+
+A scale combines several questions intended to measure the same underlying construct. The items should be **meaningfully related**, but not simply repeat one another.
+
+**Cronbach's alpha** estimates **internal consistency**, or the extent to which the selected items produce related responses as a group. In other words, it helps answer the question:
+
+> *How consistently do these items measure the same construct?*
+
+For example, an extroversion scale may include questions about sociability, assertiveness, and enjoyment of group activities. Cronbach's alpha assesses whether those items behave consistently as one scale.
+
+Cronbach's alpha depends on:
+
+- the number of items;
+- variation within each item; and
+- covariance among the items.
+
+### Item diagnostics
+
+**Corrected item-total correlations** show how strongly each item relates to the remaining scale.
+
+**Alpha if item dropped** shows how the overall alpha would change if an item were removed. These results should support item review rather than automatic deletion.
+
+### Conventional interpretation
+
+| Cronbach's α | Interpretation |
+|--------------|----------------|
+| ≥ 0.90 | Excellent |
+| ≥ 0.80 | Good |
+| ≥ 0.70 | Acceptable |
+| ≥ 0.60 | Questionable |
+| ≥ 0.50 | Poor |
+| < 0.50 | Unacceptable |
+
+These labels are commonly used guidelines rather than strict statistical standards. Interpretation should also consider the scale's purpose, length, population, and intended use.
+"""
+    )
+
+with st.expander("⚖️ Assumptions & limitations"):
+    st.markdown(
+        """
+### Assumptions
+
+- The selected items are intended to measure the same underlying construct.
+- Items should be coded in the same direction. Reverse-coded items should be recoded before analysis.
+- Cronbach's alpha estimates **reliability (internal consistency)**, not **validity**.
+
+### Tradeoffs
+
+**Missing data**
+
+- OpenMeasure uses **listwise deletion**.
+- Participants missing one or more selected items are excluded from all reliability calculations.
+- This approach is simple and reproducible but may reduce sample size if missingness is common.
+
+**Item diagnostics**
+
+- Corrected item-total correlations below **0.30** are flagged as items to review.
+- A flagged item should not be removed automatically. Low values may reflect reverse coding, limited variability, multidimensionality, or poor conceptual fit.
+
+**Split-half reliability**
+
+- OpenMeasure computes odd-even split-half reliability.
+- By default, all selected items are retained. When an odd number of items is selected, the two halves contain different numbers of items.
+- Retaining all items preserves information but makes the Spearman-Brown estimate approximate.
+- Users who prefer equal-sized halves may instead analyze an even number of selected items.
+
+### Limitations
+
+- A high alpha does **not** prove that a scale measures only one construct.
+- High alpha can result from redundant or highly similar items.
+- Scale dimensionality should be evaluated separately using methods such as exploratory or confirmatory factor analysis.
+- Reliability should always be interpreted alongside the study design, target population, and purpose of the measure.
+"""
+    )
+
 section_header("1. Upload your data", "CSV file in wide format, one row per participant")
 
 uploaded = st.file_uploader("CSV file", type="csv", label_visibility="collapsed")
