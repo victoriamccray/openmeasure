@@ -2,9 +2,8 @@
 
 An open-source validation toolkit for research data, measures, models, and programs.
 
-## Live Application
-
-https://openmeasure.streamlit.app
+[![Live Demo](https://img.shields.io/badge/Live-Demo-64748B?style=flat)](https://openmeasure.streamlit.app)
+[![GitHub](https://img.shields.io/badge/GitHub-Repository-64748B?style=flat&logo=github&logoColor=white)](https://github.com/victoriamccray/openmeasure)
 
 OpenMeasure brings together statistical methods, transparent reporting, and plain-language interpretation to help researchers evaluate measurements, datasets, analytical models, and program evaluations.
 
