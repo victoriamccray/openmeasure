@@ -78,3 +78,17 @@ Every `core/` function has:
 - At least one test for a degenerate/edge case (zero variance, too few
   cases, duplicate columns, etc.) that raises a clear, typed exception
 - No test that merely asserts "runs without crashing" as its only check
+
+## Methodological transparency
+
+OpenMeasure recommends analytical methods based on the reported study design and data structure, but it does not assume there is always a single correct approach.
+
+Where multiple established methods are reasonable, each module should:
+
+- Recommend a default method and explain why it was selected.
+- Document the assumptions required for that method.
+- Explain important tradeoffs relative to common alternatives.
+- Allow users to override the recommendation when appropriate.
+- State how alternative methodological choices may affect interpretation.
+
+The goal is not to prescribe a single workflow, but to support transparent, reproducible, and well-documented analyses.
