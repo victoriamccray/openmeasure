@@ -294,3 +294,5 @@ if "pe_recommendation" in st.session_state:
 
         except (ValueError, TypeError) as e:
             st.error(str(e))
+
+show_case_studies("program_validation")
