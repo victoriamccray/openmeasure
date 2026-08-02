@@ -16,6 +16,8 @@ from typing import Sequence
 
 import streamlit as st
 
+from shared.case_studies import get_case_studies
+
 
 @dataclass(frozen=True)
 class Band:
@@ -83,3 +85,30 @@ def caveat(text: str) -> None:
     """Consistent styling for a methodological caveat shown under a
     headline result (e.g. 'these are conventions, not laws')."""
     st.caption(text)
+
+
+def show_case_studies(module: str) -> None:
+    """
+    Display research case studies relevant to a module, if any exist.
+
+    module should match one of the taxonomy keys used in
+    shared/case_studies.py (e.g. "measurement_validation",
+    "program_validation", "model_validation", "data_validation"), not
+    necessarily the folder name of the calling module.
+
+    Renders nothing if no case studies are tagged for the given module,
+    so it's safe to call from every page without an empty expander
+    showing up before content exists for that module.
+    """
+    studies = get_case_studies(module)
+
+    if not studies:
+        return
+
+    with st.expander("Why these assumptions matter"):
+        for study in studies:
+            st.markdown(f"#### {study.title}")
+            st.markdown(f"**Principle:** {study.principle}")
+            st.write(study.summary)
+            st.info(study.takeaway)
+            st.caption(study.citation)
