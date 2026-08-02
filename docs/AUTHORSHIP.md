@@ -17,12 +17,11 @@ The Reliability module's formulas and interpretation conventions draw on
 established psychometric literature; see `CITATION.md` and each module's
 `README.md` for full references.
 
-## A note on AI-assisted development
+## Generative AI Use
 
 Portions of this codebase were developed with the assistance of AI tools
 (Claude, GitHub Copilot) for code drafting, debugging, and documentation.
 All statistical formulas were independently verified against known values
 before inclusion, and all design decisions (module scope, what a module
 does and does not claim, how results are interpreted) were made by the
-project's author. Tools were used to accelerate implementation of
-decisions already made, not to make the decisions themselves.
+project's author.
