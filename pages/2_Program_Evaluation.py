@@ -23,14 +23,14 @@ from shared.report import section_header, caveat, flagged_item_note, show_case_s
 
 st.set_page_config(page_title="OpenMeasure · Program Evaluation", page_icon=":bar_chart:", layout="centered")
 
-st.title("Program Evaluation")
+st.title("Program Validation: Evaluation")
 st.caption("Compare outcomes across groups, or across time, and see which test fits your data before running it.")
 
 show_case_studies("program_validation")
 
 st.divider()
 
-with st.expander("How method selection works"):
+with st.expander("Method Selection"):
     st.markdown(
         """
 This module looks at the shape of your data, how many groups you're
