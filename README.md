@@ -2,50 +2,46 @@
 
 An open-source validation toolkit for research data, measures, models, and programs.
 
-## Live Application Demo 
+## Live Application
 
 https://openmeasure.streamlit.app
 
-OpenMeasure is an open-source validation toolkit for research data, measures, models, and programs.
+OpenMeasure brings together statistical methods, transparent reporting, and plain-language interpretation to help researchers evaluate measurements, datasets, analytical models, and program evaluations.
 
-It brings together statistical methods, transparent reporting, and plain-language interpretation to help researchers evaluate the quality of measurements, datasets, analytical models, and program evaluations.
+OpenMeasure is designed for researchers and practitioners working in community health, social services, education, public policy, and applied research. The toolkit emphasizes validation methods that are accessible, reproducible, transparent, and adaptable across disciplines.
 
-```
-OpenMeasure
+## Modules
 
-Measurement Validation
-    Reliability (v0.1)
+### Measurement Validation
 
-Data Validation
-    Data quality, completeness, and integrity
+Evaluates the consistency and quality of research instruments and supports future assessment of additional measurement properties.
 
-Model Validation
-    Performance, subgroup evaluation, and fairness analyses
+**Available:** Reliability v0.1
 
-Program Validation
-    Study design and program evaluation
-```
+### Data Validation
 
-- **Measurement validation** evaluates whether instruments consistently measure the intended construct and supports future assessment of additional measurement properties.
+Evaluates data quality, completeness, consistency, and integrity before analysis.
 
-- **Data validation** evaluates the quality, completeness, consistency, and integrity of datasets before analysis.
+### Model Validation
 
-- **Model validation** evaluates predictive performance, robustness, calibration, subgroup behavior, and fairness using transparent, documented metrics.
+Evaluates predictive performance, robustness, calibration, subgroup behavior, and fairness using transparent, documented metrics.
 
-- **Program validation** supports evaluation of interventions using established research designs and statistical analyses appropriate to the study context.
+OpenMeasure does not prescribe a single definition of fairness. Future modules will present multiple established metrics alongside their assumptions, tradeoffs, and ethical considerations.
 
-OpenMeasure is designed for researchers and practitioners working in community health, social services, education, public policy, and applied research. The toolkit emphasizes transparent validation methods that are accessible, reproducible, and adaptable across disciplines.
+### Program Validation
 
-### Design principles
+Supports evaluation of interventions using research designs and statistical methods appropriate to the program, population, and evaluation goals.
+
+## Design principles
 
 Every module follows the same principles:
 
-- transparent statistical methods
-- reproducible analyses
-- explicit assumptions and limitations
-- plain-language interpretation
-- documented references
-- responsible use aligned with established research and professional ethics
+- Transparent statistical methods
+- Reproducible analyses
+- Explicit assumptions and limitations
+- Plain-language interpretation
+- Documented references
+- Responsible use aligned with research and professional ethics
 
 ## Quickstart
 
@@ -54,33 +50,28 @@ git clone https://github.com/victoriamccray/openmeasure.git
 cd openmeasure
 pip install -r requirements.txt
 streamlit run Home.py
-```
-
-Then open the local URL Streamlit prints (usually `http://localhost:8501`).
-Use the sidebar to open the Reliability module, currently the only module
-with a working UI.
 
 ## Repository structure
 
 ```
 openmeasure/
-├── Home.py                     # landing page (Streamlit multipage entry point)
+├── Home.py
 ├── pages/
-│   └── 1_Reliability.py        # Reliability module UI
+│   └── 1_Reliability.py
 ├── modules/
 │   ├── reliability/
 │   │   ├── README.md
-│   │   ├── core/                # pure statistics, fully unit tested
+│   │   ├── core/
 │   │   ├── tests/
 │   │   └── sample_data/
 │   ├── fairness/
-│   │   └── README.md            # scope defined, not yet built
+│   │   └── README.md
 │   └── program_evaluation/
-│       └── README.md            # scope defined, not yet built
+│       └── README.md
 ├── shared/
-│   └── report.py                # standardized verdicts, sections, layout
+│   └── report.py
 ├── docs/
-│   └── design-standards.md      # conventions every module must follow
+│   └── design-standards.md
 └── requirements.txt
 ```
 
@@ -102,9 +93,24 @@ OpenMeasure does not prescribe a single definition of fairness.
 
 Where appropriate, modules will present multiple established evaluation metrics alongside their assumptions, tradeoffs, and ethical considerations. The goal is to support transparent evaluation rather than prescribe a single framework.
 
-**Program evaluation**: scoped, not yet built. See `modules/program_evaluation/README.md`.
+## Current release
+### Reliability v0.1
 
-**Data validation**: not yet scoped.
+The first measurement-validation module includes:
+
+- Cronbach's alpha
+- Corrected item-total correlations
+- Alpha if item dropped
+- Odd-even split-half reliability
+- Spearman-Brown correction
+- Listwise missing-data handling
+- Plain-language interpretation
+- Assumptions and limitations
+- 24 passing unit tests
+
+See modules/reliability/README.md for methodology and references.
+
+Future releases will expand OpenMeasure with data validation, model validation, and program evaluation modules.
 
 ## Running tests
 
@@ -115,11 +121,9 @@ pytest modules/reliability/tests/ -v
 
 ## Contributing
 
-OpenMeasure is early-stage. If you're a researcher, clinician, or
-technologist interested in contributing to a module, open an issue to
-discuss scope before submitting a pull request, especially for the
-fairness and program evaluation modules, where getting the framing right
-matters more than getting code merged quickly.
+OpenMeasure is an early-stage project. Researchers, clinicians, technologists, and evaluators are welcome to contribute.
+
+Please open an issue before submitting a pull request so proposed changes can be discussed and aligned with the project's scope and design principles.
 
 ## License
 
