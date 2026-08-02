@@ -121,7 +121,7 @@ See `modules/reliability/README.md` for methodology and references.
 
 See `modules/program_evaluation/README.md` for methodology and references.
 
-### Model Validation (Fairness) — core built, page in progress
+### Model Validation (Fairness) v0.05
 
 - Pre-model bias detection: disparate impact and statistical parity difference on raw outcome labels
 - Post-model fairness metrics: demographic parity, equal opportunity, predictive equality, and calibration by group
