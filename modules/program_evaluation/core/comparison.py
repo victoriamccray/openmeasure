@@ -76,6 +76,28 @@ class MultiGroupResult:
 
 
 @dataclass(frozen=True)
+class MultiGroupWelchResult:
+    """
+    Welch's one-way ANOVA with Games-Howell post-hoc, for 3+ groups.
+
+    Unlike standard ANOVA, neither the omnibus test nor the post-hoc
+    comparisons assume equal variances across groups, matching the same
+    philosophy as using Welch's t-test (rather than Student's) for the
+    2-group case.
+    """
+
+    group_labels: list[str]
+    group_ns: dict[str, int]
+    group_means: dict[str, float]
+    f_statistic: float
+    df_between: float
+    df_within: float  # fractional (Welch-Satterthwaite), unlike standard ANOVA's integer df
+    p_value: float
+    pairwise_comparisons: list[PairwiseComparison]
+    small_groups_flagged: list[str]
+
+
+@dataclass(frozen=True)
 class ChiSquareResult:
     """Chi-square test of independence for a categorical outcome."""
 
@@ -293,6 +315,129 @@ def compare_multiple_groups(
         df_between=df_between,
         df_within=df_within,
         p_value=float(p_value),
+        pairwise_comparisons=pairwise,
+        small_groups_flagged=small_groups,
+    )
+
+
+def compare_multiple_groups_welch(
+    data: pd.DataFrame,
+    group_col: str,
+    outcome_col: str,
+    *,
+    alpha: float = 0.05,
+) -> MultiGroupWelchResult:
+    """
+    Compare a continuous outcome across 3 or more groups using Welch's
+    one-way ANOVA, followed by Games-Howell post-hoc pairwise comparisons.
+
+    Unlike compare_multiple_groups (standard ANOVA + Tukey HSD), neither
+    step here assumes equal variances across groups, matching the same
+    philosophy as compare_two_groups' use of Welch's t-test rather than
+    Student's.
+
+    References:
+        Welch, B. L. (1951). On the comparison of several mean values:
+        An alternative approach. Biometrika, 38(3/4), 330-336.
+
+        Games, P. A., & Howell, J. F. (1976). Pairwise multiple
+        comparison procedures with unequal n's and/or variances: A
+        Monte Carlo study. Journal of Educational Statistics, 1(2),
+        113-125.
+
+    Implemented directly with scipy and statsmodels' studentized range
+    distribution functions (statsmodels.stats.libqsturng), rather than a
+    separate dependency, since statsmodels is already required for
+    compare_multiple_groups' Tukey HSD step.
+    """
+    _validate_two_columns(data, group_col, outcome_col)
+
+    clean = data[[group_col, outcome_col]].dropna()
+    labels = sorted(clean[group_col].unique().tolist(), key=str)
+
+    if len(labels) < 3:
+        raise ValueError(
+            f"compare_multiple_groups_welch requires 3 or more groups, found "
+            f"{len(labels)}. Use compare_two_groups for exactly 2 groups."
+        )
+
+    groups = [clean.loc[clean[group_col] == label, outcome_col].to_numpy(dtype=float) for label in labels]
+    small_groups = [str(label) for label, g in zip(labels, groups) if len(g) < MIN_GROUP_SIZE]
+
+    k = len(groups)
+    ns = np.array([len(g) for g in groups], dtype=float)
+    means = np.array([np.mean(g) for g in groups])
+    variances = np.array([np.var(g, ddof=1) for g in groups])
+
+    if (variances == 0).any():
+        raise ValueError(
+            "One or more groups have zero variance; Welch's ANOVA is undefined."
+        )
+
+    weights = ns / variances
+    sum_w = weights.sum()
+    grand_mean = float((weights * means).sum() / sum_w)
+
+    numerator = float((weights * (means - grand_mean) ** 2).sum() / (k - 1))
+    term = float(((1 - weights / sum_w) ** 2 / (ns - 1)).sum())
+    denominator = 1 + (2 * (k - 2) / (k ** 2 - 1)) * term
+
+    f_stat = numerator / denominator
+    df_between = float(k - 1)
+    df_within = float((k ** 2 - 1) / (3 * term))
+    p_value = float(stats.f.sf(f_stat, df_between, df_within))
+
+    # Only the Games-Howell post-hoc step needs statsmodels' studentized
+    # range distribution functions, everything above is scipy-only.
+    try:
+        from statsmodels.stats.libqsturng import psturng, qsturng
+    except ImportError as exc:
+        raise ImportError(
+            "compare_multiple_groups_welch requires statsmodels for the "
+            "Games-Howell post-hoc step. Install it with: "
+            "pip install statsmodels"
+        ) from exc
+
+    # Games-Howell pairwise comparisons: each pair uses its own
+    # Welch-Satterthwaite degrees of freedom (same logic as compare_two_groups),
+    # with critical values and p-values from the studentized range
+    # distribution instead of the t-distribution, correcting for the
+    # number of groups being compared.
+    pairwise: list[PairwiseComparison] = []
+    for (i, label_a), (j, label_b) in combinations(enumerate(labels), 2):
+        mean_a, mean_b = means[i], means[j]
+        var_a, var_b = variances[i], variances[j]
+        n_a, n_b = ns[i], ns[j]
+
+        se = float(np.sqrt(var_a / n_a + var_b / n_b))
+        mean_diff = float(mean_a - mean_b)
+
+        pair_df = (var_a / n_a + var_b / n_b) ** 2 / (
+            (var_a / n_a) ** 2 / (n_a - 1) + (var_b / n_b) ** 2 / (n_b - 1)
+        )
+
+        t_stat = mean_diff / se
+        q_stat = abs(t_stat) * np.sqrt(2)
+        p_adj = float(psturng(q_stat, k, pair_df))
+
+        pairwise.append(
+            PairwiseComparison(
+                group_a=str(label_a),
+                group_b=str(label_b),
+                mean_difference=mean_diff,
+                p_value=p_adj,
+                significant=bool(p_adj < alpha),
+            )
+        )
+
+    return MultiGroupWelchResult(
+        group_labels=[str(l) for l in labels],
+        group_ns={str(label): len(g) for label, g in zip(labels, groups)},
+        group_means={str(label): float(np.mean(g)) for label, g in zip(labels, groups)},
+        f_statistic=float(f_stat),
+        df_between=df_between,
+        df_within=df_within,
+        p_value=p_value,
         pairwise_comparisons=pairwise,
         small_groups_flagged=small_groups,
     )
