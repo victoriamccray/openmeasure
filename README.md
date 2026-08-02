@@ -76,12 +76,10 @@ openmeasure/
 └── requirements.txt
 ```
 
-Each module's `README.md` documents its formulas, thresholds, references,
-and explicit non-goals before any code is written, and `docs/design-standards.md`
-defines the conventions every module follows so the tool feels consistent
-as it grows.
+Each module documents its methods, assumptions, limitations, references,
+and intended use. Shared design standards keep reporting, interpretation,
+and presentation consistent across the toolkit.
 
-**Fairness auditing**: See `modules/fairness/README.md`.
 
 ## Current release
 ### Reliability v0.1
@@ -103,6 +101,9 @@ See `modules/reliability/README.md` for methodology and references.
 Future releases will expand OpenMeasure with data validation, model validation, and program evaluation modules.
 
 ## Screenshots
+
+The Reliability module provides an interactive workflow for data upload,
+reliability analysis, interpretation, and transparent reporting.
 
 ### Home
 
@@ -135,6 +136,6 @@ See `LICENSE.md`.
 
 # Authorship
 
-OpenMeasure was created and is maintained by **Victoria McCray**. Contributions are welcome (see `CONTRIBUTING.md`). Portions of the codebase were developed with the assistance of generative AI tools for code drafting, debugging, and documentation; all statistical methods were independently verified, and all design and implementation decisions were made by the project author.
+OpenMeasure was created and is maintained by **Victoria McCray**. Contributions are welcome (see `CONTRIBUTING.md`). Portions of the codebase were developed with the assistance of generative AI tools for code drafting, debugging, and documentation. All statistical methods were independently verified, and all design and implementation decisions were made by the project author.
 
-See `docs/AUTHORSHIP.md`.
+See `docs/AUTHORSHIP.md` for details.
