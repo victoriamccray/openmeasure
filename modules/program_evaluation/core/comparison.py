@@ -1,0 +1,501 @@
+"""
+Core program evaluation statistics.
+
+All functions are pure: they accept pandas data structures and return
+frozen dataclasses. No I/O, no UI logic. Follows the same design pattern
+as modules/reliability/core/reliability.py.
+
+Test selection follows McCray, Dukes, & Pittman (in press), Oxford Open
+Neuroscience: Welch's t-test for two groups, one-way ANOVA + Tukey HSD
+for three or more groups, chi-square for categorical outcomes, and a
+sensitivity-analysis pattern for multi-select categorical predictors.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from itertools import combinations
+
+import numpy as np
+import pandas as pd
+from scipy import stats
+
+
+MIN_GROUP_SIZE = 5  # below this, warn rather than compute an unstable estimate
+
+
+# ---------------------------------------------------------------------------
+# Result objects
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class TwoGroupResult:
+    """Welch's t-test comparing two groups on a continuous outcome."""
+
+    group_a_label: str
+    group_b_label: str
+    n_a: int
+    n_b: int
+    mean_a: float
+    mean_b: float
+    sd_a: float
+    sd_b: float
+    t_statistic: float
+    degrees_of_freedom: float
+    p_value: float
+    cohens_d: float
+    mean_difference: float
+    ci_95_low: float
+    ci_95_high: float
+
+
+@dataclass(frozen=True)
+class PairwiseComparison:
+    """One pairwise post-hoc comparison from Tukey HSD."""
+
+    group_a: str
+    group_b: str
+    mean_difference: float
+    p_value: float
+    significant: bool
+
+
+@dataclass(frozen=True)
+class MultiGroupResult:
+    """One-way ANOVA with Tukey HSD post-hoc, for 3+ groups."""
+
+    group_labels: list[str]
+    group_ns: dict[str, int]
+    group_means: dict[str, float]
+    f_statistic: float
+    df_between: int
+    df_within: int
+    p_value: float
+    pairwise_comparisons: list[PairwiseComparison]
+    small_groups_flagged: list[str]
+
+
+@dataclass(frozen=True)
+class ChiSquareResult:
+    """Chi-square test of independence for a categorical outcome."""
+
+    chi2_statistic: float
+    degrees_of_freedom: int
+    p_value: float
+    contingency_table: pd.DataFrame
+    expected_frequencies: pd.DataFrame
+    low_expected_frequency_warning: bool
+
+
+@dataclass(frozen=True)
+class PairedResult:
+    """Paired t-test for a single-group pre/post comparison."""
+
+    n: int
+    mean_pre: float
+    mean_post: float
+    mean_difference: float
+    t_statistic: float
+    degrees_of_freedom: int
+    p_value: float
+    cohens_d: float
+
+
+@dataclass(frozen=True)
+class SensitivityResult:
+    """
+    Result of re-running a group comparison under multiple codings of a
+    multi-select categorical predictor (e.g. participants who could select
+    more than one demographic category).
+    """
+
+    coding_results: dict[str, "MultiGroupResult | TwoGroupResult"]
+    p_values_by_coding: dict[str, float]
+    consistent_conclusion: bool
+    alpha: float
+
+
+# ---------------------------------------------------------------------------
+# Validation helpers
+# ---------------------------------------------------------------------------
+
+def _validate_two_columns(data: pd.DataFrame, group_col: str, outcome_col: str) -> None:
+    if not isinstance(data, pd.DataFrame):
+        raise TypeError("Data must be provided as a pandas DataFrame.")
+    if group_col not in data.columns:
+        raise ValueError(f"Group column '{group_col}' not found in data.")
+    if outcome_col not in data.columns:
+        raise ValueError(f"Outcome column '{outcome_col}' not found in data.")
+
+
+def _cohens_d_independent(a: np.ndarray, b: np.ndarray) -> float:
+    """Cohen's d for independent samples, using pooled standard deviation."""
+    n_a, n_b = len(a), len(b)
+    var_a, var_b = np.var(a, ddof=1), np.var(b, ddof=1)
+    pooled_sd = np.sqrt(((n_a - 1) * var_a + (n_b - 1) * var_b) / (n_a + n_b - 2))
+    if pooled_sd == 0:
+        raise ValueError("Pooled standard deviation is zero; Cohen's d is undefined.")
+    return float((np.mean(a) - np.mean(b)) / pooled_sd)
+
+
+def _cohens_d_paired(differences: np.ndarray) -> float:
+    """Cohen's d for paired samples: mean difference divided by SD of differences."""
+    sd_diff = np.std(differences, ddof=1)
+    if sd_diff == 0:
+        raise ValueError("Standard deviation of differences is zero; Cohen's d is undefined.")
+    return float(np.mean(differences) / sd_diff)
+
+
+# ---------------------------------------------------------------------------
+# Two-group comparison: Welch's t-test
+# ---------------------------------------------------------------------------
+
+def compare_two_groups(
+    data: pd.DataFrame,
+    group_col: str,
+    outcome_col: str,
+) -> TwoGroupResult:
+    """
+    Compare a continuous outcome between exactly two groups using Welch's
+    t-test (does not assume equal variances between groups).
+
+    Reference: Welch, B. L. (1947). The generalization of "Student's"
+    problem when several different population variances are involved.
+    Biometrika, 34(1-2), 28-35.
+    """
+    _validate_two_columns(data, group_col, outcome_col)
+
+    clean = data[[group_col, outcome_col]].dropna()
+    labels = clean[group_col].unique().tolist()
+
+    if len(labels) != 2:
+        raise ValueError(
+            f"compare_two_groups requires exactly 2 groups, found {len(labels)}: {labels}. "
+            "Use compare_multiple_groups for 3 or more groups."
+        )
+
+    group_a_label, group_b_label = sorted(labels, key=str)
+    a = clean.loc[clean[group_col] == group_a_label, outcome_col].to_numpy(dtype=float)
+    b = clean.loc[clean[group_col] == group_b_label, outcome_col].to_numpy(dtype=float)
+
+    if len(a) < 2 or len(b) < 2:
+        raise ValueError("Each group needs at least 2 observations.")
+
+    t_stat, p_value = stats.ttest_ind(a, b, equal_var=False)
+
+    # Welch-Satterthwaite degrees of freedom (what scipy uses internally for equal_var=False)
+    var_a, var_b = np.var(a, ddof=1), np.var(b, ddof=1)
+    n_a, n_b = len(a), len(b)
+    df = (var_a / n_a + var_b / n_b) ** 2 / (
+        (var_a / n_a) ** 2 / (n_a - 1) + (var_b / n_b) ** 2 / (n_b - 1)
+    )
+
+    mean_diff = float(np.mean(a) - np.mean(b))
+    se_diff = float(np.sqrt(var_a / n_a + var_b / n_b))
+    t_crit = stats.t.ppf(0.975, df)
+    ci_low = mean_diff - t_crit * se_diff
+    ci_high = mean_diff + t_crit * se_diff
+
+    d = _cohens_d_independent(a, b)
+
+    return TwoGroupResult(
+        group_a_label=str(group_a_label),
+        group_b_label=str(group_b_label),
+        n_a=n_a,
+        n_b=n_b,
+        mean_a=float(np.mean(a)),
+        mean_b=float(np.mean(b)),
+        sd_a=float(np.std(a, ddof=1)),
+        sd_b=float(np.std(b, ddof=1)),
+        t_statistic=float(t_stat),
+        degrees_of_freedom=float(df),
+        p_value=float(p_value),
+        cohens_d=d,
+        mean_difference=mean_diff,
+        ci_95_low=float(ci_low),
+        ci_95_high=float(ci_high),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Multi-group comparison: one-way ANOVA + Tukey HSD
+# ---------------------------------------------------------------------------
+
+def compare_multiple_groups(
+    data: pd.DataFrame,
+    group_col: str,
+    outcome_col: str,
+    *,
+    alpha: float = 0.05,
+) -> MultiGroupResult:
+    """
+    Compare a continuous outcome across 3 or more groups using one-way
+    ANOVA, followed by Tukey HSD post-hoc pairwise comparisons.
+
+    References:
+        Tukey, J. W. (1949). Comparing individual means in the analysis
+        of variance. Biometrics, 5(2), 99-114.
+    """
+    _validate_two_columns(data, group_col, outcome_col)
+
+    clean = data[[group_col, outcome_col]].dropna()
+    labels = sorted(clean[group_col].unique().tolist(), key=str)
+
+    if len(labels) < 3:
+        raise ValueError(
+            f"compare_multiple_groups requires 3 or more groups, found {len(labels)}. "
+            "Use compare_two_groups for exactly 2 groups."
+        )
+
+    try:
+        from statsmodels.stats.multicomp import pairwise_tukeyhsd
+    except ImportError as exc:
+        raise ImportError(
+            "compare_multiple_groups requires statsmodels. "
+            "Install it with: pip install statsmodels"
+        ) from exc
+
+    groups = [clean.loc[clean[group_col] == label, outcome_col].to_numpy(dtype=float) for label in labels]
+
+    small_groups = [str(label) for label, g in zip(labels, groups) if len(g) < MIN_GROUP_SIZE]
+
+    f_stat, p_value = stats.f_oneway(*groups)
+
+    k = len(groups)
+    n_total = sum(len(g) for g in groups)
+    df_between = k - 1
+    df_within = n_total - k
+
+    tukey = pairwise_tukeyhsd(
+        endog=clean[outcome_col].to_numpy(dtype=float),
+        groups=clean[group_col].astype(str).to_numpy(),
+        alpha=alpha,
+    )
+
+    pairwise = []
+    for row in tukey.summary().data[1:]:
+        group_a, group_b, mean_diff, p_adj, lower, upper, reject = row
+        pairwise.append(
+            PairwiseComparison(
+                group_a=str(group_a),
+                group_b=str(group_b),
+                mean_difference=float(mean_diff),
+                p_value=float(p_adj),
+                significant=bool(reject),
+            )
+        )
+
+    return MultiGroupResult(
+        group_labels=[str(l) for l in labels],
+        group_ns={str(label): len(g) for label, g in zip(labels, groups)},
+        group_means={str(label): float(np.mean(g)) for label, g in zip(labels, groups)},
+        f_statistic=float(f_stat),
+        df_between=df_between,
+        df_within=df_within,
+        p_value=float(p_value),
+        pairwise_comparisons=pairwise,
+        small_groups_flagged=small_groups,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Categorical outcome: chi-square test of independence
+# ---------------------------------------------------------------------------
+
+def compare_categorical(
+    data: pd.DataFrame,
+    group_col: str,
+    outcome_col: str,
+) -> ChiSquareResult:
+    """
+    Test whether a categorical outcome is independent of group membership,
+    using a chi-square test of independence.
+
+    Reference: Pearson, K. (1900). On the criterion that a given system
+    of deviations from the probable in the case of a correlated system of
+    variables is such that it can be reasonably supposed to have arisen
+    from random sampling. Philosophical Magazine, 50(302), 157-175.
+    """
+    _validate_two_columns(data, group_col, outcome_col)
+
+    clean = data[[group_col, outcome_col]].dropna()
+    contingency = pd.crosstab(clean[group_col], clean[outcome_col])
+
+    if contingency.shape[0] < 2 or contingency.shape[1] < 2:
+        raise ValueError(
+            "Chi-square test requires at least 2 groups and 2 outcome categories."
+        )
+
+    chi2, p_value, dof, expected = stats.chi2_contingency(contingency)
+
+    expected_df = pd.DataFrame(
+        expected, index=contingency.index, columns=contingency.columns
+    )
+    low_expected = bool((expected_df < 5).any().any())
+
+    return ChiSquareResult(
+        chi2_statistic=float(chi2),
+        degrees_of_freedom=int(dof),
+        p_value=float(p_value),
+        contingency_table=contingency,
+        expected_frequencies=expected_df,
+        low_expected_frequency_warning=low_expected,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Pre/post, single group: paired t-test
+# ---------------------------------------------------------------------------
+
+def compare_pre_post(pre: pd.Series, post: pd.Series) -> PairedResult:
+    """
+    Paired t-test comparing pre- and post-program scores for the same
+    participants.
+
+    pre and post must be the same length and aligned by participant
+    (e.g. by index or row order); rows with a missing value in either
+    are excluded via listwise deletion.
+    """
+    if len(pre) != len(post):
+        raise ValueError("pre and post must have the same number of observations.")
+
+    combined = pd.DataFrame({"pre": pre.to_numpy(), "post": post.to_numpy()}).dropna()
+
+    if combined.shape[0] < 2:
+        raise ValueError("At least 2 complete paired observations are required.")
+
+    pre_clean = combined["pre"].to_numpy(dtype=float)
+    post_clean = combined["post"].to_numpy(dtype=float)
+    differences = post_clean - pre_clean
+
+    if np.var(differences, ddof=1) == 0:
+        raise ValueError("All differences are identical; the paired t-test is undefined.")
+
+    t_stat, p_value = stats.ttest_rel(post_clean, pre_clean)
+    n = len(differences)
+    d = _cohens_d_paired(differences)
+
+    return PairedResult(
+        n=n,
+        mean_pre=float(np.mean(pre_clean)),
+        mean_post=float(np.mean(post_clean)),
+        mean_difference=float(np.mean(differences)),
+        t_statistic=float(t_stat),
+        degrees_of_freedom=n - 1,
+        p_value=float(p_value),
+        cohens_d=d,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Multi-select sensitivity analysis
+# ---------------------------------------------------------------------------
+
+def expand_multiselect(
+    data: pd.DataFrame,
+    multiselect_col: str,
+    delimiter: str = ",",
+) -> pd.DataFrame:
+    """
+    'Expanded' coding: a row with multiple selections (e.g. "Black/African,
+    Black/Caribbean") becomes one row per selection, each keeping the same
+    outcome value. A participant who selected 2 categories contributes to
+    both group comparisons.
+    """
+    rows = []
+    for _, row in data.iterrows():
+        raw = row[multiselect_col]
+        if pd.isna(raw):
+            continue
+        categories = [c.strip() for c in str(raw).split(delimiter) if c.strip()]
+        for category in categories:
+            new_row = row.copy()
+            new_row[multiselect_col] = category
+            rows.append(new_row)
+    return pd.DataFrame(rows).reset_index(drop=True)
+
+
+def single_select_multiselect(
+    data: pd.DataFrame,
+    multiselect_col: str,
+    delimiter: str = ",",
+) -> pd.DataFrame:
+    """'Single-selection' coding: keep only the first listed category per row."""
+    result = data.copy()
+    result[multiselect_col] = result[multiselect_col].apply(
+        lambda raw: str(raw).split(delimiter)[0].strip() if pd.notna(raw) else raw
+    )
+    return result
+
+
+def combined_category_multiselect(
+    data: pd.DataFrame,
+    multiselect_col: str,
+    delimiter: str = ",",
+    combined_label: str = "Multiple categories",
+) -> pd.DataFrame:
+    """'Combined-category' coding: anyone who selected more than one
+    category is relabeled under a single combined group."""
+    result = data.copy()
+
+    def recode(raw):
+        if pd.isna(raw):
+            return raw
+        categories = [c.strip() for c in str(raw).split(delimiter) if c.strip()]
+        if len(categories) > 1:
+            return combined_label
+        return categories[0] if categories else raw
+
+    result[multiselect_col] = result[multiselect_col].apply(recode)
+    return result
+
+
+def sensitivity_analysis(
+    data: pd.DataFrame,
+    multiselect_col: str,
+    outcome_col: str,
+    *,
+    delimiter: str = ",",
+    alpha: float = 0.05,
+) -> SensitivityResult:
+    """
+    Re-run a group comparison under three codings of a multi-select
+    categorical predictor, and report whether the conclusion (significant
+    vs. not, at the given alpha) is consistent across all three.
+
+    This generalizes the sensitivity-analysis approach used in McCray,
+    Dukes, & Pittman (in press), where race/ethnicity was a multi-select
+    field and results were checked against expanded, single-selection, and
+    combined-category codings before being trusted.
+    """
+    codings = {
+        "expanded": expand_multiselect(data, multiselect_col, delimiter),
+        "single_selection": single_select_multiselect(data, multiselect_col, delimiter),
+        "combined_category": combined_category_multiselect(data, multiselect_col, delimiter),
+    }
+
+    coding_results: dict[str, object] = {}
+    p_values: dict[str, float] = {}
+
+    for name, coded_data in codings.items():
+        n_groups = coded_data[multiselect_col].dropna().nunique()
+        if n_groups == 2:
+            result = compare_two_groups(coded_data, multiselect_col, outcome_col)
+        elif n_groups >= 3:
+            result = compare_multiple_groups(coded_data, multiselect_col, outcome_col, alpha=alpha)
+        else:
+            raise ValueError(
+                f"Coding '{name}' produced fewer than 2 groups; cannot compare."
+            )
+        coding_results[name] = result
+        p_values[name] = result.p_value
+
+    significances = {name: (p < alpha) for name, p in p_values.items()}
+    consistent = len(set(significances.values())) == 1
+
+    return SensitivityResult(
+        coding_results=coding_results,
+        p_values_by_coding=p_values,
+        consistent_conclusion=consistent,
+        alpha=alpha,
+    )
