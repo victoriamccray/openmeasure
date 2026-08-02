@@ -12,23 +12,40 @@ It brings together statistical methods, transparent reporting, and plain-languag
 
 ```
 OpenMeasure
-├── Measurement Validation
-│   └── Reliability (v0.1)          ✅ available
-├── Data Validation                  planned
-├── Model Validation
-│   └── Fairness auditing            🚧 in progress (synthetic biomedical classification data)
-└── Program Validation
-    └── Pre/post & treatment/control 🚧 in progress
+
+Measurement Validation
+    Reliability (v0.1)
+
+Data Validation
+    Data quality, completeness, and integrity
+
+Model Validation
+    Performance, subgroup evaluation, and fairness analyses
+
+Program Validation
+    Study design and program evaluation
 ```
 
-- **Measurement validation**: can you trust a scale or survey to measure consistently? (Reliability)
-- **Data validation**: can you trust your dataset to be clean and well-understood before analyzing it?
-- **Model validation**: can you trust a model to behave fairly across groups? (Fairness auditing)
-- **Program validation**: can you trust that a program caused the effect you observed? (Program evaluation)
+- **Measurement validation** evaluates whether instruments consistently measure the intended construct and supports future assessment of additional measurement properties.
 
-Built for people running community health, social service, and applied
-research programs who need trustworthy statistical validation without a
-dedicated data science team or an expensive statistics package.
+- **Data validation** evaluates the quality, completeness, consistency, and integrity of datasets before analysis.
+
+- **Model validation** evaluates predictive performance, robustness, calibration, subgroup behavior, and fairness using transparent, documented metrics.
+
+- **Program validation** supports evaluation of interventions using established research designs and statistical analyses appropriate to the study context.
+
+OpenMeasure is designed for researchers and practitioners working in community health, social services, education, public policy, and applied research. The toolkit emphasizes transparent validation methods that are accessible, reproducible, and adaptable across disciplines.
+
+### Design principles
+
+Every module follows the same principles:
+
+- transparent statistical methods
+- reproducible analyses
+- explicit assumptions and limitations
+- plain-language interpretation
+- documented references
+- responsible use aligned with established research and professional ethics
 
 ## Quickstart
 
@@ -79,7 +96,11 @@ correlations, alpha-if-item-dropped, split-half/Spearman-Brown, missing
 data handling via listwise deletion, and plain-language interpretation.
 24 unit tests passing. See `modules/reliability/README.md`.
 
-**Fairness auditing**: scoped, not yet built. See `modules/fairness/README.md`.
+**Fairness auditing**: See `modules/fairness/README.md`.
+
+OpenMeasure does not prescribe a single definition of fairness.
+
+Where appropriate, modules will present multiple established evaluation metrics alongside their assumptions, tradeoffs, and ethical considerations. The goal is to support transparent evaluation rather than prescribe a single framework.
 
 **Program evaluation**: scoped, not yet built. See `modules/program_evaluation/README.md`.
 
