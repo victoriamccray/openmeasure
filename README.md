@@ -104,6 +104,8 @@ Future releases will expand OpenMeasure with data validation, model validation, 
 The Reliability module provides an interactive workflow for data upload,
 reliability analysis, interpretation, and transparent reporting.
 
+Visit live application: https://openmeasure.streamlit.app
+
 ### Home
 
 ![Home](docs/images/home.png)
