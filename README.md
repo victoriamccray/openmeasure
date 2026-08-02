@@ -2,7 +2,7 @@
 
 An open-source validation toolkit for research data, measures, models, and programs.
 
-Live Application: 
+## Live Application Demo 
 
 https://openmeasure.streamlit.app
 
