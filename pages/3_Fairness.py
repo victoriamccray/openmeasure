@@ -1,5 +1,5 @@
 """
-OpenMeasure — Model Validation: Fairness module.
+OpenMeasure — Fairness module.
 
 Guides users toward fairness metrics based on the evaluation goal and
 examines whether favorable labels are distributed differently across
@@ -25,10 +25,7 @@ import pandas as pd
 import streamlit as st
 
 from modules.fairness.core import pre_model_metrics as pm
-from modules.fairness.core.recommend import (
-    FAIRNESS_GOALS,
-    recommend_fairness_metric,
-)
+from modules.fairness.core.recommend import recommend_fairness_metric
 from shared.report import (
     caveat,
     flagged_item_note,
@@ -38,14 +35,14 @@ from shared.report import (
 
 
 st.set_page_config(
-    page_title="OpenMeasure · Model Validation · Fairness",
+    page_title="OpenMeasure · Fairness",
     layout="centered",
 )
 
-st.title("Model Validation: Fairness")
+st.title("Fairness")
 st.caption(
-    "Review group-level outcome distributions and select fairness metrics "
-    "based on the harms and protections that matter in the application."
+    "Evaluate group fairness, understand the assumptions behind common "
+    "fairness metrics, and review tradeoffs between competing definitions."
 )
 
 st.divider()
@@ -72,6 +69,8 @@ application. Different metrics protect against different harms.
   help are identified at similar rates across groups.
 - **Predictive equality** asks whether people are wrongly flagged at
   similar rates across groups.
+- **Equalized odds** asks whether both true-positive and false-positive
+  rates are similar across groups.
 - **Calibration within groups** asks whether the same predicted score has
   the same observed meaning across groups.
 
@@ -90,7 +89,7 @@ with st.expander("Current scope and limitations"):
 
 The current module performs **pre-model label-distribution analysis**.
 It evaluates how frequently a favorable observed label occurs within
-different groups before a classifier is trained.
+different groups.
 
 Available pre-model metrics include:
 
@@ -115,7 +114,7 @@ Observed disparities may reflect:
 
 Equal opportunity, predictive equality, equalized odds, and calibration
 require model predictions—and, for most metrics, observed ground-truth
-outcomes. Those analyses belong to a later model-performance stage.
+outcomes. Those analyses belong to a later post-model stage.
 """
     )
 
@@ -170,22 +169,22 @@ with st.expander("Alternative metrics"):
     for item in recommendation.alternatives:
         st.markdown(f"- {item}")
 
-
 if recommendation.metric != "demographic_parity":
     st.info(
         f"{recommendation.display_name} requires model predictions and is "
-        "not calculated by the current pre-model module. The analysis below "
-        "can still examine favorable-label rates already present in the data."
+        "not calculated by the current pre-model analysis. The analysis "
+        "below can still examine favorable-label rates already present "
+        "in the data."
     )
 
 
 # ---------------------------------------------------------------------
-# Upload
+# Upload and sample data
 # ---------------------------------------------------------------------
 
 section_header(
     "2. Upload your data",
-    "CSV file, one row per participant or observation",
+    "CSV file, one row per participant, observation, or prediction",
 )
 
 uploaded = st.file_uploader(
@@ -198,6 +197,35 @@ if uploaded is None:
     st.info(
         "Upload a CSV to begin an analysis, or download the sample dataset."
     )
+
+    with st.expander("About the sample dataset"):
+        st.markdown(
+            """
+The sample dataset represents a **simulated binary classification
+problem**. Each row contains one observed outcome and one model
+prediction.
+
+| Column | Description |
+|---|---|
+| `true_label` | The observed or ground-truth outcome |
+| `predicted_label` | The model's binary decision after applying a threshold |
+| `predicted_probability` | The model's estimated probability or risk score |
+| `sex` | An example group attribute used for fairness comparisons |
+
+These columns can support several fairness analyses:
+
+- **Demographic parity** compares favorable prediction rates across groups.
+- **Equal opportunity** compares true-positive rates across groups.
+- **Predictive equality** compares false-positive rates across groups.
+- **Equalized odds** compares both true-positive and false-positive rates.
+- **Calibration within groups** evaluates whether predicted probabilities
+  have the same meaning across groups.
+
+The current OpenMeasure analysis focuses on favorable-label rates.
+Later versions can use the prediction and probability columns for
+post-model fairness and calibration analyses.
+"""
+        )
 
     sample_candidates = [
         (
@@ -228,15 +256,15 @@ if uploaded is None:
     if sample_path is not None:
         with sample_path.open("rb") as sample_file:
             st.download_button(
-                "Download sample fairness dataset",
-                sample_file,
+                label="Download sample fairness dataset",
+                data=sample_file,
                 file_name=sample_path.name,
                 mime="text/csv",
             )
     else:
-        st.caption(
-            "Add a sample CSV under modules/fairness/sample_data to enable "
-            "the sample-data download."
+        st.warning(
+            "Sample fairness dataset could not be found. Add a CSV under "
+            "modules/fairness/sample_data."
         )
 
 else:
@@ -268,8 +296,8 @@ else:
             "Observed label or outcome column",
             options=list(df.columns),
             help=(
-                "This should be the observed binary outcome, not a model "
-                "prediction or participant identifier."
+                "Select the observed binary outcome. Do not select a "
+                "participant identifier or continuous probability column."
             ),
         )
 
@@ -333,13 +361,13 @@ else:
             "Reference or privileged group",
             options=group_values,
             help=(
-                "This is the comparison group used in the denominator of "
+                "This group is used as the reference in the denominator of "
                 "disparate impact and as the reference for statistical "
                 "parity difference."
             ),
         )
 
-        available_unprivileged_groups = [
+        available_comparison_groups = [
             group
             for group in group_values
             if group != privileged_group
@@ -347,7 +375,7 @@ else:
 
         unprivileged_group = st.selectbox(
             "Comparison or unprivileged group",
-            options=available_unprivileged_groups,
+            options=available_comparison_groups,
         )
 
         analyze_clicked = st.button(
@@ -408,9 +436,7 @@ else:
 
                 metric_4.metric(
                     "Statistical parity difference",
-                    (
-                        f"{bias_result.statistical_parity_difference:+.3f}"
-                    ),
+                    f"{bias_result.statistical_parity_difference:+.3f}",
                 )
 
                 st.caption(
@@ -425,11 +451,11 @@ else:
 
                 # -----------------------------------------------------
                 # Interpretation
-                # -----------------------------------------------------
+                # -------------------------------------------------------------
 
                 section_header("Interpretation")
 
-                if bias_result.disparate_impact == 1:
+                if abs(bias_result.disparate_impact - 1.0) < 1e-12:
                     st.info(
                         "The two selected groups have equal favorable-label "
                         "rates in this dataset."
@@ -446,8 +472,8 @@ else:
                     st.info(
                         f"The favorable-label rate for {unprivileged_group} "
                         f"is {bias_result.disparate_impact:.1%} of the rate "
-                        f"for {privileged_group}, meaning the selected "
-                        "comparison group has the higher favorable rate."
+                        f"for {privileged_group}. The selected comparison "
+                        "group has the higher favorable rate."
                     )
 
                 caveat(
@@ -458,56 +484,30 @@ else:
 
                 # -----------------------------------------------------
                 # All-group table
-                # -----------------------------------------------------
+                # -------------------------------------------------------------
 
                 section_header(
                     "Favorable-label rates by group",
                     "Review all groups rather than only one selected pair",
                 )
 
-                rate_rows = []
-
-                for group_result in group_rates:
-                    favorable_rate = getattr(
-                        group_result,
-                        "favorable_rate",
-                        getattr(
-                            group_result,
-                            "rate",
-                            getattr(
-                                group_result,
-                                "selection_rate",
-                                None,
-                            ),
+                rate_rows = [
+                    {
+                        "Group": group_result.group,
+                        "n": group_result.n,
+                        "Favorable count": group_result.favorable_count,
+                        "Favorable rate": round(
+                            group_result.favorable_rate,
+                            3,
                         ),
-                    )
-
-                    group_n = getattr(
-                        group_result,
-                        "n",
-                        getattr(
-                            group_result,
-                            "sample_size",
-                            None,
+                        "Small sample": (
+                            "Yes"
+                            if group_result.small_sample
+                            else "No"
                         ),
-                    )
-
-                    rate_rows.append(
-                        {
-                            "Group": group_result.group,
-                            "n": group_n,
-                            "Favorable rate": (
-                                round(favorable_rate, 3)
-                                if favorable_rate is not None
-                                else None
-                            ),
-                            "Small sample": (
-                                "Yes"
-                                if group_result.small_sample
-                                else "No"
-                            ),
-                        }
-                    )
+                    }
+                    for group_result in group_rates
+                ]
 
                 rates_df = pd.DataFrame(rate_rows)
 
@@ -530,12 +530,9 @@ else:
 
                 # -----------------------------------------------------
                 # Chart
-                # -----------------------------------------------------
+                # -------------------------------------------------------------
 
-                if (
-                    not rates_df.empty
-                    and rates_df["Favorable rate"].notna().any()
-                ):
+                if not rates_df.empty:
                     section_header("Group-rate chart")
 
                     chart_df = (
@@ -549,7 +546,7 @@ else:
 
                 # -----------------------------------------------------
                 # Limitations
-                # -----------------------------------------------------
+                # -------------------------------------------------------------
 
                 section_header("What this result does not establish")
 
@@ -557,8 +554,8 @@ else:
                     """
 - It does not determine why the group rates differ.
 - It does not establish discrimination or unfair treatment.
-- It does not evaluate model errors because no predictions are being
-  analyzed.
+- It does not evaluate model errors because predictions are not used in
+  the current calculation.
 - It does not show whether labels are valid, unbiased, or measured
   consistently across groups.
 - It does not determine which fairness metric should govern a real
