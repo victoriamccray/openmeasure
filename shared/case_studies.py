@@ -122,6 +122,39 @@ CASE_STUDIES = {
         ),
         modules=("program_validation",),
     ),
+    "fairness_impossibility": CaseStudy(
+        title="Why you can't satisfy every fairness metric at once",
+        category="Fairness metric tradeoffs",
+        principle="Mathematical incompatibility between fairness definitions",
+        summary=(
+            "Two independent proofs showed that when the true outcome rate "
+            "genuinely differs between groups, which is the normal case in "
+            "real data, no method can simultaneously satisfy calibration "
+            "(a predicted score means the same thing in every group) and "
+            "equalized odds (equal true positive and false positive rates "
+            "across groups), except in narrow special cases."
+        ),
+        takeaway=(
+            "Choosing a fairness metric is choosing which kind of fairness "
+            "guarantee you are willing to give up, not finding the one "
+            "metric that satisfies everyone. A model that is well "
+            "calibrated can still fail equal opportunity, and a model "
+            "with equal error rates can still be miscalibrated. This "
+            "module reports multiple metrics side by side rather than "
+            "producing a single 'is this model fair' verdict, because no "
+            "single verdict can be mathematically complete."
+        ),
+        citation=(
+            "Kleinberg, J., Mullainathan, S., & Raghavan, M. (2017). "
+            "Inherent trade-offs in the fair determination of risk "
+            "scores. Proceedings of the 8th Innovations in Theoretical "
+            "Computer Science Conference (ITCS). arXiv:1609.05807. "
+            "See also: Chouldechova, A. (2017). Fair prediction with "
+            "disparate impact: A study of bias in recidivism prediction "
+            "instruments. Big Data, 5(2), 153-163."
+        ),
+        modules=("model_validation",),
+    ),
     "confounding_video_games": CaseStudy(
         title="Spatial cognition and video-game experience",
         category="Confounding variables",
