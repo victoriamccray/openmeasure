@@ -16,6 +16,29 @@ class CaseStudy:
 
 
 CASE_STUDIES = {
+    "reverse_coding_artifact": CaseStudy(
+        title="The Rosenberg Self-Esteem Scale's 'two factors'",
+        principle="Reverse-coded items and method artifacts",
+        summary=(
+            "The widely used Rosenberg Self-Esteem Scale mixes positively "
+            "and negatively worded items. Factor analyses repeatedly found "
+            "what looked like two separate self-esteem factors, but "
+            "follow-up work showed the split tracked item wording "
+            "direction, not two genuine underlying constructs."
+        ),
+        takeaway=(
+            "Apparent multidimensionality in a scale can be a wording "
+            "artifact rather than evidence of multiple real constructs. "
+            "Check whether reverse-coded items were correctly recoded "
+            "before concluding a scale measures more than one thing."
+        ),
+        citation=(
+            "Marsh, H. W. (1996). Positive and negative self-esteem: A "
+            "substantively meaningful distinction or artifactors? Journal "
+            "of Personality and Social Psychology, 70, 810-819."
+        ),
+        modules=("measurement_validation",),
+    ),
     "confounding_video_games": CaseStudy(
         title="Spatial cognition and video-game experience",
         principle="Confounding and alternative explanations",
