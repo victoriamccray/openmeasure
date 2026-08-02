@@ -177,5 +177,90 @@ class TestPrePostRecommendation(unittest.TestCase):
         self.assertTrue(any("maturation" in w for w in result.warnings))
 
 
+class TestIdentifierColumnSafeguard(unittest.TestCase):
+    def test_sequential_integer_group_column_flagged_as_identifier(self):
+        rng = np.random.RandomState(5)
+        data = pd.DataFrame({
+            "participant_id": range(1, 21),
+            "score": rng.normal(4, 0.5, 20),
+        })
+        result = rec.recommend_method(data, outcome_col="score", group_col="participant_id")
+        self.assertTrue(any("row identifier" in w for w in result.warnings))
+
+    def test_sequential_integer_outcome_column_flagged_as_identifier(self):
+        rng = np.random.RandomState(6)
+        data = pd.DataFrame({
+            "participant_id": range(1, 61),
+            "format": ["a"] * 30 + ["b"] * 30,
+        })
+        result = rec.recommend_method(data, outcome_col="participant_id", group_col="format")
+        self.assertTrue(any("identifier" in w for w in result.warnings))
+
+    def test_legitimate_columns_produce_no_identifier_warning(self):
+        rng = np.random.RandomState(7)
+        data = pd.DataFrame({
+            "format": ["a"] * 30 + ["b"] * 30,
+            "satisfaction": rng.randint(1, 6, 60),
+        })
+        result = rec.recommend_method(data, outcome_col="satisfaction", group_col="format")
+        self.assertFalse(any("identifier" in w for w in result.warnings))
+
+    def test_name_based_id_detection_without_sequential_values(self):
+        """A column named like an ID should be flagged even if values
+        aren't a clean sequential run, as long as every value is unique."""
+        rng = np.random.RandomState(8)
+        data = pd.DataFrame({
+            "record_id": rng.choice(range(1000, 9999), size=20, replace=False),
+            "score": rng.normal(4, 0.5, 20),
+        })
+        result = rec.recommend_method(data, outcome_col="score", group_col="record_id")
+        self.assertTrue(any("identifier" in w for w in result.warnings))
+
+
+class TestMultiselectDelimiterSafeguard(unittest.TestCase):
+    def test_raises_when_delimiter_never_appears(self):
+        rng = np.random.RandomState(9)
+        data = pd.DataFrame({
+            "format": ["online"] * 20 + ["in_person"] * 20,
+            "score": rng.normal(4, 0.5, 40),
+        })
+        with self.assertRaises(ValueError):
+            rec.recommend_method(
+                data, outcome_col="score", group_col="format", is_multiselect_group=True
+            )
+
+    def test_succeeds_when_delimiter_present_in_at_least_one_value(self):
+        rng = np.random.RandomState(10)
+        data = pd.DataFrame({
+            "race": ["A"] * 15 + ["B"] * 15 + ["A, B"] * 3,
+            "score": rng.normal(4, 0.5, 33),
+        })
+        result = rec.recommend_method(
+            data, outcome_col="score", group_col="race", is_multiselect_group=True
+        )
+        self.assertEqual(result.method, "sensitivity_analysis")
+
+    def test_respects_custom_delimiter(self):
+        rng = np.random.RandomState(11)
+        data = pd.DataFrame({
+            "race": ["A"] * 15 + ["B"] * 15 + ["A; B"] * 3,
+            "score": rng.normal(4, 0.5, 33),
+        })
+        # default delimiter "," won't match "; ", should raise
+        with self.assertRaises(ValueError):
+            rec.recommend_method(
+                data, outcome_col="score", group_col="race", is_multiselect_group=True
+            )
+        # correct delimiter should succeed
+        result = rec.recommend_method(
+            data,
+            outcome_col="score",
+            group_col="race",
+            is_multiselect_group=True,
+            multiselect_delimiter=";",
+        )
+        self.assertEqual(result.method, "sensitivity_analysis")
+
+
 if __name__ == "__main__":
     unittest.main()
