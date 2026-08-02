@@ -1,56 +1,83 @@
 """
 OpenMeasure — landing page.
 
-This is the entry point for the Streamlit multipage app. Individual
-modules live in pages/ and are auto-discovered by Streamlit's sidebar
-navigation.
+Entry point for the Streamlit multipage application.
+Individual modules live in pages/ and are automatically
+discovered by Streamlit's sidebar navigation.
 """
 
 import streamlit as st
 
-st.set_page_config(page_title="OpenMeasure", page_icon="✅", layout="centered")
+st.set_page_config(
+    page_title="OpenMeasure",
+    layout="centered",
+)
 
-st.title("✅ OpenMeasure")
-st.caption("An open-source validation toolkit for research data, measures, models, and programs.")
+st.title("OpenMeasure")
+st.caption(
+    "An open-source validation toolkit for research data, measures, models, and programs."
+)
 
 st.divider()
 
 st.markdown(
     """
-OpenMeasure answers one question, applied to four different objects:
+OpenMeasure brings together statistical methods, transparent reporting, and
+plain-language interpretation to support validation throughout the research
+process.
 
-**Can you trust this?**
+Rather than focusing on a single statistical method, OpenMeasure provides
+modular tools for evaluating different parts of a study:
 
-- Can you trust this **measure** to score consistently? → Reliability
-- Can you trust this **data** to be clean and well-understood? → Data Validation
-- Can you trust this **model** to behave fairly across groups? → Model Validation
-- Can you trust this **program** to have caused the effect you're seeing? → Program Validation
+- **Measurement validation** evaluates whether instruments consistently measure the intended construct and supports future assessment of additional measurement properties.
+- **Data validation** evaluates the quality, completeness, consistency, and integrity of datasets before analysis.
+- **Model validation** evaluates predictive performance, robustness, calibration, subgroup behavior, and fairness using transparent, documented metrics.
+- **Program validation** supports evaluation of interventions using established study designs and statistical analyses appropriate to the research context.
 
 Use the sidebar to open a module.
 """
 )
 
 st.divider()
-st.subheader("Roadmap")
+
+st.subheader("Modules")
 
 st.markdown(
     """
 ```
 OpenMeasure
 ├── Measurement Validation
-│   └── Reliability (v0.1)         ✅ available
-├── Data Validation                 planned
+│   └── Reliability (v0.1)
+├── Data Validation
+│   └── Data quality and integrity
 ├── Model Validation
-│   └── Fairness auditing           🚧 in progress (synthetic biomedical classification data)
+│   └── Performance, subgroup evaluation, and fairness
 └── Program Validation
-    └── Pre/post & treatment/control 🚧 in progress
+    └── Study design and program evaluation
 ```
 """
 )
 
+st.divider()
+
+st.subheader("Design principles")
+
+st.markdown(
+    """
+Every module follows the same principles:
+
+- Transparent statistical methods
+- Reproducible analyses
+- Plain-language interpretation
+- Explicit assumptions and limitations
+- Documented references
+- Responsible use grounded in established research and professional ethics
+"""
+)
+
 st.caption(
-    "Every module follows the same design: a plain-language verdict first, "
-    "diagnostics second, and an explicit statement of what the result does "
-    "NOT tell you. See docs/design-standards.md for the conventions used "
-    "across modules."
+    "OpenMeasure is designed for researchers and practitioners working in "
+    "community health, social services, education, public policy, and applied "
+    "research. The toolkit emphasizes transparent validation methods that are "
+    "accessible, reproducible, and adaptable across disciplines."
 )

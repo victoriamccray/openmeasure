@@ -1,55 +1,69 @@
-# Program Evaluation Module (planned)
+# Program Validation Module
 
 **Status: not yet built.** This document defines the scope before any code is written.
 
 ## What this module answers
 
-Given outcome data from a program (before/after a single group, or a
-treatment group vs. a control/comparison group), is there evidence the
-program had an effect, and how confident should you be in that evidence?
+Given data from a program or intervention, what conclusions are supported by the available evidence?
 
-This is a **program validation** question: reliability asks if a measure
-is consistent, this asks if an observed change is real and attributable
-to the program rather than noise, regression to the mean, or a confound.
+This is a **program validation** question. Reliability asks whether a measure is consistent; program validation asks whether an observed change is likely attributable to the program rather than chance, bias, or limitations of the study design.
 
-## Scope for v0.1 (deliberately narrow)
+## Scope for v0.1 (MVP)
 
 - **Design 1: Pre/post, single group**
-  - Paired t-test (or Wilcoxon signed-rank if normality assumption fails)
-  - Effect size: Cohen's d for paired samples
-  - Explicit warning that pre/post-only designs cannot rule out maturation,
-    regression to the mean, or concurrent external events as alternative
-    explanations
-- **Design 2: Treatment vs. control/comparison group**
-  - Independent-samples t-test (or Mann-Whitney U if normality fails)
-  - Effect size: Cohen's d for independent samples
-  - Baseline balance check between groups (are they comparable *before*
-    treatment, since imbalance undermines the comparison)
-- **Explicit non-goal for v0.1**: no difference-in-differences, no
-  regression adjustment/covariates, no propensity score matching, no
-  multi-arm designs. These are natural v0.2 extensions once the two basic
-  designs are solid and well-explained.
+  - Paired t-test (or Wilcoxon signed-rank test)
+  - Effect size
+  - Design-specific limitations
 
-## Why this needs to be handled carefully
+- **Design 2: Treatment vs. comparison group**
+  - Independent-samples t-test (or Mann-Whitney U test)
+  - Effect size
+  - Baseline comparison
 
-A statistically significant result from a weak design (no control group,
-small sample, self-selected participants) can produce false confidence
-that a program works, which is arguably worse than no evaluation, since it
-can justify continued funding or scaling of something that isn't actually
-effective. This module will pair every result with an explicit statement
-of what the chosen design can and cannot establish, not just a p-value.
+- Plain-language interpretation
+- Assumptions and limitations
+- Standardized reporting
 
-## Planned output shape (matches shared/report.py conventions)
+## Non-goals for v0.1
 
-1. Design summary (which design was detected/selected, sample sizes per group)
-2. Effect estimate with confidence interval and effect size, not just p-value
-3. Design-specific caveats (stated automatically based on which design was run)
-4. Plain-language verdict banded by effect size and precision, not just
-   "significant/not significant"
+- Regression-based causal inference
+- Propensity score methods
+- Automated qualitative coding
+- Automated causal conclusions
+- Multi-arm study designs
 
-## References (for when this is built)
+## Interpretations
 
-- Shadish, W. R., Cook, T. D., & Campbell, D. T. (2002). *Experimental and
-  Quasi-Experimental Designs for Generalized Causal Inference.* Houghton Mifflin.
-- Cohen, J. (1988). *Statistical Power Analysis for the Behavioral
-  Sciences* (2nd ed.). Lawrence Erlbaum Associates.
+A statistically significant result does not necessarily demonstrate that a program caused an observed effect. Every analysis will include explicit statements about what the selected design can and cannot support.
+
+## Planned output
+
+1. Study design summary
+2. Selected analysis and rationale
+3. Effect estimate with confidence interval and effect size
+4. Plain-language interpretation
+5. Assumptions and design-specific limitations
+
+```
+modules/
+└── program_validation/
+    ├── README.md
+    ├── core/
+    │   ├── __init__.py
+    │   ├── validation.py
+    │   ├── comparison.py
+    │   ├── interpret.py
+    │   └── recommend.py      
+    ├── tests/
+    │   ├── test_validation.py
+    │   ├── test_comparison.py
+    │   ├── test_interpret.py
+    │   └── test_recommend.py
+    └── sample_data/
+```
+
+## References
+
+- McCray, V. P., Dukes, A. J., & Pittman, N. (in press). *Community-driven programming to strengthen scientific conference experiences: A first look at Black In Neuro and Black In Micro event outcomes.* *Oxford Open Neuroscience.*
+- Shadish, W. R., Cook, T. D., & Campbell, D. T. (2002). *Experimental and Quasi-Experimental Designs for Generalized Causal Inference.*
+- Cohen, J. (1988). *Statistical Power Analysis for the Behavioral Sciences* (2nd ed.).
