@@ -2,7 +2,7 @@
 
 **Status**: In Development
 
-## What this module answers
+## Purpose
 
 Given data from a program or intervention, what conclusions are supported by the available evidence?
 
