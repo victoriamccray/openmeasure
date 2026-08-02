@@ -113,7 +113,7 @@ def show_case_studies(module: str) -> None:
         st.info(study.takeaway)
         st.caption(study.citation)
 
-    with st.expander("Why these assumptions matter"):
+    with st.expander("Research Examples and Case Studies"):
         categories = list(grouped.keys())
 
         if len(categories) == 1:
