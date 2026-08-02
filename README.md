@@ -102,6 +102,20 @@ See `modules/reliability/README.md` for methodology and references.
 
 Future releases will expand OpenMeasure with data validation, model validation, and program evaluation modules.
 
+## Screenshots
+
+### Home
+
+![Home](docs/images/home.png)
+
+### Reliability Analysis
+
+![Reliability](docs/images/reliability-results.png)
+
+### Assumptions & Limitations
+
+![Assumptions](docs/images/assumptions.png)
+
 ## Running tests
 
 ```bash
