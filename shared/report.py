@@ -105,7 +105,7 @@ def show_case_studies(module: str) -> None:
     if not studies:
         return
 
-    with st.expander("Why these assumptions matter"):
+    with st.expander("Case study"):
         for study in studies:
             st.markdown(f"#### {study.title}")
             st.markdown(f"**Principle:** {study.principle}")
