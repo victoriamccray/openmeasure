@@ -8,7 +8,8 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class CaseStudy:
     title: str
-    principle: str
+    category: str  # broad grouping used to organize display within a page
+    principle: str  # specific principle this individual case illustrates
     summary: str
     takeaway: str
     citation: str
@@ -18,6 +19,7 @@ class CaseStudy:
 CASE_STUDIES = {
     "reverse_coding_artifact": CaseStudy(
         title="The Rosenberg Self-Esteem Scale's 'two factors'",
+        category="Measurement & scale construction",
         principle="Reverse-coded items and method artifacts",
         summary=(
             "The widely used Rosenberg Self-Esteem Scale mixes positively "
@@ -41,6 +43,7 @@ CASE_STUDIES = {
     ),
     "head_start_impact_study": CaseStudy(
         title="Head Start Impact Study: rigorous design, and why timing matters",
+        category="Study design & causal inference",
         principle="Strong design (randomization) does not fix the timing question",
         summary=(
             "The national Head Start evaluation randomly assigned nearly "
@@ -53,7 +56,7 @@ CASE_STUDIES = {
         takeaway=(
             "This is an affirmative example of a well-designed evaluation, "
             "random assignment rules out the selection-bias problem seen "
-            "in the LaLonde example above. But it also shows a separate "
+            "in the LaLonde example below. But it also shows a separate "
             "issue: even a rigorous design only tells you about the time "
             "point(s) you measured. A short-term pre/post result and a "
             "longer-term follow-up can genuinely disagree, and both can be "
@@ -69,6 +72,7 @@ CASE_STUDIES = {
     ),
     "scared_straight": CaseStudy(
         title="'Scared Straight' juvenile deterrence programs",
+        category="Study design & causal inference",
         principle="Comparison groups vs. pre/post-only evidence",
         summary=(
             "Prison-visit programs for at-risk youth were widely adopted "
@@ -94,6 +98,7 @@ CASE_STUDIES = {
     ),
     "lalonde_1986": CaseStudy(
         title="Job training programs: experimental vs. non-experimental estimates",
+        category="Study design & causal inference",
         principle="Selection bias in non-randomized comparison groups",
         summary=(
             "LaLonde compared results from a randomized job-training "
@@ -119,6 +124,7 @@ CASE_STUDIES = {
     ),
     "confounding_video_games": CaseStudy(
         title="Spatial cognition and video-game experience",
+        category="Confounding variables",
         principle="Confounding and alternative explanations",
         summary=(
             "Action-video-game training substantially improved spatial "
@@ -139,6 +145,7 @@ CASE_STUDIES = {
     ),
     "dead_salmon": CaseStudy(
         title="The dead-salmon fMRI demonstration",
+        category="Multiple testing & false positives",
         principle="Multiple testing and false positives",
         summary=(
             "Researchers demonstrated apparently significant fMRI activation "
@@ -148,17 +155,20 @@ CASE_STUDIES = {
         takeaway=(
             "Large numbers of statistical tests increase false-positive risk. "
             "Multiplicity must be addressed before interpreting isolated "
-            "significant findings."
+            "significant findings, e.g. this is why pairwise post-hoc group "
+            "comparisons need a correction like Tukey HSD rather than "
+            "running many uncorrected t-tests."
         ),
         citation=(
             "Bennett, C. M., Wolford, G. L., & Miller, M. B. (2009). "
             "The principled control of false positives in neuroimaging. "
             "Social Cognitive and Affective Neuroscience, 4(4), 417-422."
         ),
-        modules=("data_validation", "model_validation", "program_validation"),
+        modules=("model_validation", "program_validation"),
     ),
     "narps": CaseStudy(
         title="Many analysts, one neuroimaging dataset",
+        category="Analytic robustness & sensitivity",
         principle="Analytic variability",
         summary=(
             "Seventy independent teams analyzed the same dataset and tested "
@@ -168,14 +178,15 @@ CASE_STUDIES = {
         takeaway=(
             "Reasonable analytical choices can affect results. Sensitivity "
             "analyses and transparent reporting help show whether conclusions "
-            "are robust to those choices."
+            "are robust to those choices, this is the direct inspiration for "
+            "this module's multi-coding sensitivity analysis feature."
         ),
         citation=(
             "Botvinik-Nezer, R., Holzmeister, F., Camerer, C. F., et al. "
             "(2020). Variability in the analysis of a single neuroimaging "
             "dataset by many teams. Nature, 582, 84-88."
         ),
-        modules=("data_validation", "model_validation", "program_validation"),
+        modules=("model_validation", "program_validation"),
     ),
 }
 
@@ -187,3 +198,15 @@ def get_case_studies(module: str) -> list[CaseStudy]:
         for case_study in CASE_STUDIES.values()
         if module in case_study.modules
     ]
+
+
+def get_case_studies_grouped(module: str) -> dict[str, list[CaseStudy]]:
+    """
+    Return case studies relevant to a module, grouped by category, in the
+    order categories first appear. Used to render tabs instead of one
+    long flat list once a module accumulates several case studies.
+    """
+    grouped: dict[str, list[CaseStudy]] = {}
+    for case_study in get_case_studies(module):
+        grouped.setdefault(case_study.category, []).append(case_study)
+    return grouped
