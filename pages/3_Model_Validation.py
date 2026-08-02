@@ -38,7 +38,7 @@ from shared.report import (
 
 
 st.set_page_config(
-    page_title="OpenMeasure · Model Validation · Fairness",
+    page_title="OpenMeasure · Fairness",
     layout="centered",
 )
 
