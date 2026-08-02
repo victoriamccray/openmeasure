@@ -16,7 +16,7 @@ from typing import Sequence
 
 import streamlit as st
 
-from shared.case_studies import get_case_studies
+from shared.case_studies import get_case_studies_grouped
 
 
 @dataclass(frozen=True)
@@ -89,7 +89,8 @@ def caveat(text: str) -> None:
 
 def show_case_studies(module: str) -> None:
     """
-    Display research case studies relevant to a module, if any exist.
+    Display research case studies relevant to a module, if any exist,
+    grouped into tabs by category when a module has more than one.
 
     module should match one of the taxonomy keys used in
     shared/case_studies.py (e.g. "measurement_validation",
@@ -100,15 +101,27 @@ def show_case_studies(module: str) -> None:
     so it's safe to call from every page without an empty expander
     showing up before content exists for that module.
     """
-    studies = get_case_studies(module)
+    grouped = get_case_studies_grouped(module)
 
-    if not studies:
+    if not grouped:
         return
 
-    with st.expander("Case study"):
-        for study in studies:
-            st.markdown(f"#### {study.title}")
-            st.markdown(f"**Principle:** {study.principle}")
-            st.write(study.summary)
-            st.info(study.takeaway)
-            st.caption(study.citation)
+    def _render_study(study) -> None:
+        st.markdown(f"#### {study.title}")
+        st.caption(f"Principle: {study.principle}")
+        st.write(study.summary)
+        st.info(study.takeaway)
+        st.caption(study.citation)
+
+    with st.expander("Why these assumptions matter"):
+        categories = list(grouped.keys())
+
+        if len(categories) == 1:
+            for study in grouped[categories[0]]:
+                _render_study(study)
+        else:
+            tabs = st.tabs(categories)
+            for tab, category in zip(tabs, categories):
+                with tab:
+                    for study in grouped[category]:
+                        _render_study(study)
