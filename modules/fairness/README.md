@@ -1,6 +1,6 @@
 # Fairness Module
 
-**Status: not yet built.** This document defines the scope before any code is written.
+**Status:** In Development
 
 ## What this module answers
 
