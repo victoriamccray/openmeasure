@@ -174,7 +174,7 @@ CASE_STUDIES = {
             "video game reduces gender differences in spatial cognition. "
             "Psychological Science, 18(10), 850-855."
         ),
-        modules=("program_validation", "model_validation"),
+        modules=("model_validation",),
     ),
     "dead_salmon": CaseStudy(
         title="The dead-salmon fMRI demonstration",
