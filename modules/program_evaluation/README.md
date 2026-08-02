@@ -8,7 +8,7 @@ Given data from a program or intervention, what conclusions are supported by the
 
 This is a **program validation** question. Reliability asks whether a measure is consistent; program validation asks whether an observed change is likely attributable to the program rather than chance, bias, or limitations of the study design.
 
-## Scope for v0.1 (deliberately narrow)
+## Scope for v0.1 (MVP)
 
 - **Design 1: Pre/post, single group**
   - Paired t-test (or Wilcoxon signed-rank test)
