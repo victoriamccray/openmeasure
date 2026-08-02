@@ -23,7 +23,7 @@ from shared.report import Band, classify, render_verdict, section_header, flagge
 
 st.set_page_config(page_title="OpenMeasure · Reliability", page_icon="∑", layout="centered")
 
-st.title("Reliability")
+st.title("Measurement Validation: Reliability")
 st.caption("Cronbach's alpha and item diagnostics for a scale or survey.")
 
 st.divider()
