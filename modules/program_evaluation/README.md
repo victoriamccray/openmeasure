@@ -32,7 +32,7 @@ This is a **program validation** question. Reliability asks whether a measure is
 - Automated causal conclusions
 - Multi-arm study designs
 
-## Why this needs to be handled carefully
+## Interpretations
 
 A statistically significant result does not necessarily demonstrate that a program caused an observed effect. Every analysis will include explicit statements about what the selected design can and cannot support.
 
@@ -43,6 +43,24 @@ A statistically significant result does not necessarily demonstrate that a progr
 3. Effect estimate with confidence interval and effect size
 4. Plain-language interpretation
 5. Assumptions and design-specific limitations
+
+```
+modules/
+└── program_validation/
+    ├── README.md
+    ├── core/
+    │   ├── __init__.py
+    │   ├── validation.py
+    │   ├── comparison.py
+    │   ├── interpret.py
+    │   └── recommend.py      
+    ├── tests/
+    │   ├── test_validation.py
+    │   ├── test_comparison.py
+    │   ├── test_interpret.py
+    │   └── test_recommend.py
+    └── sample_data/
+```
 
 ## References
 
