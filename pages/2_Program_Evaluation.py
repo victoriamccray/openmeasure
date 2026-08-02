@@ -9,7 +9,12 @@ modules/program_evaluation/core, this file is presentation only.
 
 import sys
 from pathlib import Path
-
+from shared.report import (
+    section_header,
+    caveat,
+    flagged_item_note,
+    show_case_studies,
+)
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
