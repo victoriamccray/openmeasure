@@ -6,9 +6,9 @@ An open-source validation toolkit for research data, measures, models, and progr
 
 https://openmeasure.streamlit.app
 
-OpenMeasure answers one question, applied to four different objects:
+OpenMeasure is an open-source validation toolkit for research data, measures, models, and programs.
 
-**Can you trust this?**
+It brings together statistical methods, transparent reporting, and plain-language interpretation to help researchers evaluate the quality of measurements, datasets, analytical models, and program evaluations.
 
 ```
 OpenMeasure
