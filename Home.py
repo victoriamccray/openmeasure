@@ -19,7 +19,7 @@ st.markdown(
     """
 OpenMeasure answers one question, applied to four different objects:
 
-**Can you trust this?**
+**Transparent validation for applied research.**
 
 - Can you trust this **measure** to score consistently? → Reliability
 - Can you trust this **data** to be clean and well-understood? → Data Validation
@@ -41,9 +41,9 @@ OpenMeasure
 │   └── Reliability (v0.1)         ✅ available
 ├── Data Validation                 planned
 ├── Model Validation
-│   └── Fairness auditing           🚧 in progress (synthetic biomedical classification data)
+│   └── Fairness auditing           # model validation roadmap
 └── Program Validation
-    └── Pre/post & treatment/control 🚧 in progress
+    └── Pre/post & treatment/control # program validation roadmap
 ```
 """
 )
