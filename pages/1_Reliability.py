@@ -8,7 +8,11 @@ presentation only, built on the shared reporting helpers in shared/.
 
 import sys
 from pathlib import Path
+from shared.report import Band, classify, render_verdict, section_header, flagged_item_note, caveat, show_case_studies
+# ^ add show_case_studies to this existing import line
 
+# then right after st.title(...) and st.caption(...):
+show_case_studies("measurement_validation")
 # Allow imports from the repo root regardless of where Streamlit is launched from.
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
