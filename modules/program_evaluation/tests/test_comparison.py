@@ -200,5 +200,106 @@ class TestSensitivityAnalysis(unittest.TestCase):
         self.assertIsInstance(result.consistent_conclusion, bool)
 
 
+class TestCompareMultipleGroupsWelch(unittest.TestCase):
+    def test_f_statistic_and_df_match_manual_welch_formula(self):
+        """Cross-check the F-statistic and fractional df against an
+        independently written implementation of Welch's ANOVA (1951),
+        not just against the module's own internal consistency."""
+        rng = np.random.RandomState(0)
+        a = rng.normal(4.0, 0.5, 25)
+        b = rng.normal(4.5, 1.2, 18)
+        c = rng.normal(5.0, 0.3, 22)
+        data = pd.DataFrame({
+            "group": ["A"] * 25 + ["B"] * 18 + ["C"] * 22,
+            "score": list(a) + list(b) + list(c),
+        })
+
+        def welch_anova_manual(groups):
+            k = len(groups)
+            ns = np.array([len(g) for g in groups], dtype=float)
+            means = np.array([np.mean(g) for g in groups])
+            variances = np.array([np.var(g, ddof=1) for g in groups])
+            weights = ns / variances
+            sum_w = weights.sum()
+            grand_mean = (weights * means).sum() / sum_w
+            numerator = (weights * (means - grand_mean) ** 2).sum() / (k - 1)
+            term = ((1 - weights / sum_w) ** 2 / (ns - 1)).sum()
+            denominator = 1 + (2 * (k - 2) / (k ** 2 - 1)) * term
+            F = numerator / denominator
+            df2 = (k ** 2 - 1) / (3 * term)
+            p = scipy_stats.f.sf(F, k - 1, df2)
+            return F, k - 1, df2, p
+
+        F_expected, df1_expected, df2_expected, p_expected = welch_anova_manual([a, b, c])
+
+        try:
+            result = pe.compare_multiple_groups_welch(data, "group", "score")
+        except ImportError:
+            self.skipTest("statsmodels not installed")
+            return
+
+        self.assertAlmostEqual(result.f_statistic, F_expected, places=9)
+        self.assertAlmostEqual(result.df_between, df1_expected, places=9)
+        self.assertAlmostEqual(result.df_within, df2_expected, places=9)
+        self.assertAlmostEqual(result.p_value, p_expected, places=9)
+
+    def test_raises_on_fewer_than_three_groups(self):
+        data = pd.DataFrame({"group": ["A", "B"], "score": [1, 2]})
+        with self.assertRaises(ValueError):
+            pe.compare_multiple_groups_welch(data, "group", "score")
+
+    def test_raises_on_zero_variance_group(self):
+        data = pd.DataFrame({
+            "group": ["A"] * 5 + ["B"] * 5 + ["C"] * 5,
+            "score": [3, 3, 3, 3, 3] + [1, 2, 3, 4, 5] + [2, 3, 4, 5, 6],
+        })
+        with self.assertRaises(ValueError):
+            pe.compare_multiple_groups_welch(data, "group", "score")
+
+    def test_produces_correct_number_of_pairwise_comparisons(self):
+        rng = np.random.RandomState(1)
+        data = pd.DataFrame({
+            "group": ["A"] * 10 + ["B"] * 10 + ["C"] * 10 + ["D"] * 10,
+            "score": list(rng.normal(4, 1, 40)),
+        })
+        try:
+            result = pe.compare_multiple_groups_welch(data, "group", "score")
+        except ImportError:
+            self.skipTest("statsmodels not installed")
+            return
+        # 4 groups -> C(4,2) = 6 pairwise comparisons
+        self.assertEqual(len(result.pairwise_comparisons), 6)
+
+    def test_flags_small_groups(self):
+        rng = np.random.RandomState(2)
+        data = pd.DataFrame({
+            "group": ["A"] * 20 + ["B"] * 20 + ["C"] * 3,
+            "score": list(rng.normal(4, 1, 43)),
+        })
+        try:
+            result = pe.compare_multiple_groups_welch(data, "group", "score")
+        except ImportError:
+            self.skipTest("statsmodels not installed")
+            return
+        self.assertIn("C", result.small_groups_flagged)
+
+    def test_pairwise_p_values_are_between_zero_and_one(self):
+        """Sanity check on the actual psturng lookup, not just the
+        surrounding arithmetic: every p-value should be a valid probability."""
+        rng = np.random.RandomState(3)
+        data = pd.DataFrame({
+            "group": ["A"] * 20 + ["B"] * 20 + ["C"] * 20,
+            "score": list(rng.normal(4, 0.5, 20)) + list(rng.normal(5, 1.5, 20)) + list(rng.normal(4.2, 0.3, 20)),
+        })
+        try:
+            result = pe.compare_multiple_groups_welch(data, "group", "score")
+        except ImportError:
+            self.skipTest("statsmodels not installed")
+            return
+        for p in result.pairwise_comparisons:
+            self.assertGreaterEqual(p.p_value, 0.0)
+            self.assertLessEqual(p.p_value, 1.0)
+
+
 if __name__ == "__main__":
     unittest.main()
