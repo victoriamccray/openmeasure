@@ -99,8 +99,28 @@ uploaded = st.file_uploader(
 # ---------------------------------------------------------------------
 
 if uploaded is None:
-    st.info("Upload a CSV to begin an analysis.")
+    st.info(
+        "Upload a CSV to begin an analysis, or download the sample dataset below."
+    )
 
+    sample_path = (
+        ROOT
+        / "modules"
+        / "program_evaluation"
+        / "sample_data"
+        / "program_eval_example.csv"
+    )
+
+    if sample_path.exists():
+        with sample_path.open("rb") as sample_file:
+            st.download_button(
+                label="Download sample program evaluation data",
+                data=sample_file,
+                file_name="program_eval_example.csv",
+                mime="text/csv",
+            )
+    else:
+        st.warning("Sample dataset could not be found.")
 else:
     try:
         df = pd.read_csv(uploaded)
