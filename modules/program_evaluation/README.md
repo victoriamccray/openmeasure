@@ -64,6 +64,6 @@ modules/
 
 ## References
 
-- McCray, V. P., Dukes, A. J., & Pittman, N. (in press). *Community-driven programming to strengthen scientific conference experiences: A first look at Black In Neuro and Black In Micro event outcomes.* *Oxford Open Neuroscience.*
+- McCray, V. P., Dukes, A. J., & Pittman, N. (in press, 2026). *Community-driven programming to strengthen scientific conference experiences: A first look at Black In Neuro and Black In Micro event outcomes.* *Oxford Open Neuroscience.*
 - Shadish, W. R., Cook, T. D., & Campbell, D. T. (2002). *Experimental and Quasi-Experimental Designs for Generalized Causal Inference.*
 - Cohen, J. (1988). *Statistical Power Analysis for the Behavioral Sciences* (2nd ed.).
