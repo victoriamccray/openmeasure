@@ -92,3 +92,12 @@ Where multiple established methods are reasonable, each module should:
 - State how alternative methodological choices may affect interpretation.
 
 The goal is not to prescribe a single workflow, but to support transparent, reproducible, and well-documented analyses.
+
+Each module should present:
+
+1. Recommended method
+2. Why it was recommended
+3. Assumptions
+4. Tradeoffs
+5. Reasonable alternatives
+6. Limitations of the conclusion
