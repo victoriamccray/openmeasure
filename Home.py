@@ -9,11 +9,11 @@ discovered by Streamlit's sidebar navigation.
 import streamlit as st
 
 st.set_page_config(
-    page_title="OpenMeasure",
+    page_title="OpenMeasure Lab",
     layout="centered",
 )
 
-st.title("OpenMeasure")
+st.title("OpenMeasure Lab")
 st.caption(
     "An open-source validation toolkit for research data, measures, models, and programs."
 )
