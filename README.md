@@ -50,6 +50,7 @@ git clone https://github.com/victoriamccray/openmeasure.git
 cd openmeasure
 pip install -r requirements.txt
 streamlit run Home.py
+```
 
 ## Repository structure
 
@@ -80,23 +81,12 @@ and explicit non-goals before any code is written, and `docs/design-standards.md
 defines the conventions every module follows so the tool feels consistent
 as it grows.
 
-## Current status
-
-**Reliability (v0.1)**: complete. Cronbach's alpha, corrected item-total
-correlations, alpha-if-item-dropped, split-half/Spearman-Brown, missing
-data handling via listwise deletion, and plain-language interpretation.
-24 unit tests passing. See `modules/reliability/README.md`.
-
 **Fairness auditing**: See `modules/fairness/README.md`.
-
-OpenMeasure does not prescribe a single definition of fairness.
-
-Where appropriate, modules will present multiple established evaluation metrics alongside their assumptions, tradeoffs, and ethical considerations. The goal is to support transparent evaluation rather than prescribe a single framework.
 
 ## Current release
 ### Reliability v0.1
 
-The first measurement-validation module includes:
+The first public release includes:
 
 - Cronbach's alpha
 - Corrected item-total correlations
@@ -108,7 +98,7 @@ The first measurement-validation module includes:
 - Assumptions and limitations
 - 24 passing unit tests
 
-See modules/reliability/README.md for methodology and references.
+See `modules/reliability/README.md` for methodology and references.
 
 Future releases will expand OpenMeasure with data validation, model validation, and program evaluation modules.
 
