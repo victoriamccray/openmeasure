@@ -1,4 +1,4 @@
-# Fairness Module (planned)
+# Fairness Module
 
 **Status: not yet built.** This document defines the scope before any code is written.
 
@@ -48,6 +48,17 @@ decision, with plain-language explanation of the tradeoff.
 3. Explicit tradeoff explanation when metrics disagree
 4. A caveat section stating what this audit does NOT establish (causal
    mechanism, legal compliance, ground-truth label quality)
+
+```
+modules/fairness/
+├── README.md              (already exists, cite the framework grounding here)
+├── core/
+│   ├── pre_model_metrics.py     # disparate impact, statistical parity
+│   ├── post_model_metrics.py    # equal opp, avg odds, DI on predictions
+│   └── mitigation.py            # reweighing + before/after comparison
+├── tests/
+└── sample_data/
+```
 
 ## References (for when this is built)
 
