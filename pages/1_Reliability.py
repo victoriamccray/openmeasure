@@ -21,9 +21,9 @@ from modules.reliability.core import reliability as rel
 from modules.reliability.core import interpret as interp
 from shared.report import Band, classify, render_verdict, section_header, flagged_item_note, caveat
 
-st.set_page_config(page_title="OpenMeasure · Reliability", page_icon="📊", layout="centered")
+st.set_page_config(page_title="OpenMeasure · Reliability", page_icon="∑", layout="centered")
 
-st.title("📊 Reliability")
+st.title("Reliability")
 st.caption("Cronbach's alpha and item diagnostics for a scale or survey.")
 
 st.divider()
