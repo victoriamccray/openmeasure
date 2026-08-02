@@ -118,3 +118,7 @@ Please open an issue before submitting a pull request so proposed changes can be
 ## License
 
 See `LICENSE.md`.
+
+# Authorship
+
+OpenMeasure was created and is maintained by **Victoria McCray**. Contributions are welcome (see `CONTRIBUTING.md`). Portions of the codebase were developed with the assistance of generative AI tools for code drafting, debugging, and documentation; all statistical methods were independently verified, and all design and implementation decisions were made by the project author.
