@@ -21,7 +21,7 @@ Evaluates the consistency and quality of research instruments.
 
 Evaluates data quality, completeness, consistency, and integrity before analysis.
 
-*Not yet scoped.*
+*Under development.*
 
 ### Model Validation
 
