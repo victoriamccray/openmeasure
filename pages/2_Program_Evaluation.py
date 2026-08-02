@@ -108,6 +108,7 @@ if design == "Two or more groups":
                 outcome_col=outcome_col,
                 group_col=group_col,
                 is_multiselect_group=is_multiselect,
+                multiselect_delimiter=delimiter,
             )
         except (ValueError, TypeError) as e:
             st.error(str(e))
