@@ -9,14 +9,6 @@ presentation only, built on the shared reporting helpers in shared/.
 import sys
 from pathlib import Path
 from shared.report import Band, classify, render_verdict, section_header, flagged_item_note, caveat, show_case_studies
-# ^ add show_case_studies to this existing import line
-
-# then right after st.title(...) and st.caption(...):
-show_case_studies("measurement_validation")
-# Allow imports from the repo root regardless of where Streamlit is launched from.
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 import pandas as pd
 import streamlit as st
@@ -32,6 +24,12 @@ st.subheader("Measurement Validation")
 st.caption("Cronbach's alpha and item diagnostics for a scale or survey.")
 
 st.divider()
+
+show_case_studies("measurement_validation")
+# Allow imports from the repo root regardless of where Streamlit is launched from.
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 with st.expander("📖 What is Cronbach's alpha?"):
     st.markdown(
