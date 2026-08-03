@@ -35,7 +35,7 @@ OpenMeasure does not prescribe a single definition of fairness. Rather than prod
 
 Supports evaluation of interventions using research designs and statistical methods appropriate to the program, population, and evaluation goals.
 
-**Available:** Program Evaluation v0.1
+**Available:** Impact Evaluation v0.1
 
 ## Design principles
 
