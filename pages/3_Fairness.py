@@ -39,7 +39,7 @@ st.set_page_config(
     layout="centered",
 )
 
-st.title("Fairness")
+st.title("Fairness Auditing")
 st.caption(
     "Evaluate group fairness, understand the assumptions behind common "
     "fairness metrics, and review tradeoffs between competing definitions."
