@@ -26,8 +26,7 @@ OpenMeasure brings together statistical methods, transparent reporting, and
 plain-language interpretation to support validation throughout the research
 process.
 
-Rather than focusing on a single statistical method, OpenMeasure provides
-modular tools for evaluating different parts of a study:
+OpenMeasure provides modular tools for evaluating different parts of a study across the research lifecycle:
 
 - **Measurement validation** evaluates whether instruments consistently measure the intended construct and supports future assessment of additional measurement properties.
 - **Data validation** evaluates the quality, completeness, consistency, and integrity of datasets before analysis.
