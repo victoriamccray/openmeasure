@@ -23,7 +23,8 @@ from shared.report import section_header, caveat, flagged_item_note, show_case_s
 
 st.set_page_config(page_title="OpenMeasure · Program Evaluation", page_icon=":bar_chart:", layout="centered")
 
-st.title("Program Validation: Evaluation")
+st.title("Impact Evaluation")
+st.subtitle("Program Validation")
 st.caption("Compare outcomes across groups, or across time, and see which test fits your data before running it.")
 
 show_case_studies("program_validation")
