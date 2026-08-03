@@ -48,11 +48,11 @@ OpenMeasure
 ├── Measurement Validation
 │   └── Reliability (v0.1)
 ├── Data Validation
-│   └── Data quality and integrity
+│   └── Data quality and integrity (under development)
 ├── Model Validation
-│   └── Performance, subgroup evaluation, and fairness
+│   └── fairness and subgroup evaluation (v0.05)
 └── Program Validation
-    └── Study design and program evaluation
+    └── Study design and impact evaluation (v0.1)
 ```
 """
 )
