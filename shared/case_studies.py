@@ -23,44 +23,48 @@ CASE_STUDIES = {
         principle="Reverse-coded items and method artifacts",
         summary=(
             "The widely used Rosenberg Self-Esteem Scale mixes positively "
-            "and negatively worded items. Factor analyses repeatedly found "
-            "what looked like two separate self-esteem factors, but "
-            "follow-up work showed the split tracked item wording "
-            "direction, not two genuine underlying constructs."
+            "and negatively worded items. Factor analyses have often found "
+            "what appear to be separate positive- and negative-self-esteem "
+            "dimensions. Follow-up work showed that much of this split can "
+            "be explained by item-wording direction and response artifacts "
+            "rather than two distinct underlying constructs."
         ),
         takeaway=(
             "Apparent multidimensionality in a scale can be a wording "
-            "artifact rather than evidence of multiple real constructs. "
-            "Check whether reverse-coded items were correctly recoded "
-            "before concluding a scale measures more than one thing."
+            "artifact rather than evidence of multiple substantive "
+            "constructs. Confirm that reverse-worded items were correctly "
+            "scored, and test for wording-method effects, before concluding "
+            "that a scale measures more than one thing."
         ),
         citation=(
-            "Marsh, H. W. (1996). Positive and negative self-esteem: A "
-            "substantively meaningful distinction or artifactors? Journal "
-            "of Personality and Social Psychology, 70, 810-819."
+            "Marsh, H. W. (1996). Positive and negative global self-esteem: "
+            "A substantively meaningful distinction or artifactors? Journal "
+            "of Personality and Social Psychology, 70(4), 810-819."
         ),
         modules=("measurement_validation",),
     ),
     "head_start_impact_study": CaseStudy(
         title="Head Start Impact Study: rigorous design, and why timing matters",
         category="Study design & causal inference",
-        principle="Strong design (randomization) does not fix the timing question",
+        principle="Strong design does not resolve the timing question",
         summary=(
-            "The national Head Start evaluation randomly assigned nearly "
-            "5,000 children to a Head Start group or a control group, then "
-            "measured outcomes at multiple time points: end of preschool, "
-            "kindergarten, and 1st grade. Positive effects on cognitive "
-            "measures found at the end of preschool had faded by "
-            "kindergarten and were no longer detectable by 1st grade."
+            "The national Head Start Impact Study randomly assigned nearly "
+            "5,000 eligible children either to a group offered access to "
+            "Head Start or to a control group. Outcomes were measured at "
+            "the end of the Head Start year and again after kindergarten "
+            "and first grade. The study found several favorable impacts at "
+            "the end of the program year, but most of the measured impacts "
+            "were no longer statistically detectable by the end of first "
+            "grade."
         ),
         takeaway=(
-            "This is an affirmative example of a well-designed evaluation, "
-            "random assignment rules out the selection-bias problem seen "
-            "in the LaLonde example below. But it also shows a separate "
-            "issue: even a rigorous design only tells you about the time "
-            "point(s) you measured. A short-term pre/post result and a "
-            "longer-term follow-up can genuinely disagree, and both can be "
-            "correct for the window they measured."
+            "This is an affirmative example of a well-designed evaluation: "
+            "random assignment greatly reduces the selection-bias problem "
+            "illustrated by the LaLonde example below. It also demonstrates "
+            "a separate issue. Even a rigorous design identifies effects "
+            "only at the time points that are measured. Short-term and "
+            "longer-term estimates can differ, and each can accurately "
+            "describe its own measurement window."
         ),
         citation=(
             "Puma, M., Bell, S., Cook, R., & Heid, C. (2010). Head Start "
@@ -75,18 +79,21 @@ CASE_STUDIES = {
         category="Study design & causal inference",
         principle="Comparison groups vs. pre/post-only evidence",
         summary=(
-            "Prison-visit programs for at-risk youth were widely adopted "
-            "based on positive anecdotal and pre/post reports. When "
-            "randomized controlled trials with real comparison groups were "
-            "run, a systematic review found the programs increased "
-            "subsequent offending by 1-28% relative to doing nothing at all."
+            "Prison-visit programs intended to deter at-risk youth were "
+            "widely promoted using testimonials, anecdotal evidence, and "
+            "favorable uncontrolled reports. A systematic review of "
+            "randomized and quasi-randomized trials found that the programs "
+            "were not effective and, on average, increased subsequent "
+            "offending relative to no intervention. Effects varied across "
+            "the included studies."
         ),
         takeaway=(
-            "A program that looks effective in a pre/post-only design can "
-            "turn out to be actively harmful once compared against a real "
-            "control group. Pre/post evidence alone cannot rule this out, "
-            "which is why this module flags that limitation on every "
-            "single-group pre/post result."
+            "A program that appears effective in an uncontrolled pre/post "
+            "design can turn out to be harmful when compared with a valid "
+            "control group. Pre/post evidence alone cannot separate the "
+            "program's effect from maturation, regression to the mean, "
+            "outside events, or the outcomes that would have occurred "
+            "without the program."
         ),
         citation=(
             "Petrosino, A., Turpin-Petrosino, C., Hollis-Peel, M. E., & "
@@ -97,200 +104,12 @@ CASE_STUDIES = {
         modules=("program_validation",),
     ),
     "lalonde_1986": CaseStudy(
-        title="Job training programs: experimental vs. non-experimental estimates",
+        title="Job training programs: experimental vs. nonexperimental estimates",
         category="Study design & causal inference",
-        principle="Selection bias in non-randomized comparison groups",
+        principle="Selection bias in nonrandomized comparison groups",
         summary=(
-            "LaLonde compared results from a randomized job-training "
-            "experiment to what standard non-experimental comparison-group "
-            "methods, common in program evaluation at the time, would have "
-            "estimated using the same data. Most non-experimental methods "
-            "failed to replicate the true experimental result, some by a "
-            "wide margin."
-        ),
-        takeaway=(
-            "Comparing a treatment group to a non-randomized comparison "
-            "group can produce a confident-looking, but wrong, estimate of "
-            "a program's effect. When group membership wasn't randomly "
-            "assigned, differences between groups may reflect who selected "
-            "into the program, not the program's effect."
-        ),
-        citation=(
-            "LaLonde, R. J. (1986). Evaluating the econometric evaluations "
-            "of training programs with experimental data. American "
-            "Economic Review, 76(4), 604-620."
-        ),
-        modules=("program_validation",),
-    ),
-    "many_labs_replication": CaseStudy(
-        title="The Many Labs projects",
-        category="Analytic robustness & sensitivity",
-        principle="Confidence comes from replication",
-        summary=(
-            "Large collaborations replicated classic psychology "
-            "experiments across dozens of laboratories, finding that "
-            "some effects were highly reproducible while others were "
-            "much smaller or absent."
-        ),
-        takeaway=(
-            "A single influential study rarely settles a question. "
-            "Consistency across independent studies provides stronger "
-            "evidence than any one result, no matter how compelling that "
-            "single study looked on its own."
-        ),
-        citation=(
-            "Klein, R. A., Ratliff, K. A., Vianello, M., et al. (2014). "
-            "Investigating variation in replicability: A 'Many Labs' "
-            "replication project. Social Psychology, 45(3), 142-152."
-        ),
-        modules=("program_validation", "model_validation"),
-    ),
-    "fairness_impossibility": CaseStudy(
-        title="Why you can't satisfy every fairness metric at once",
-        category="Fairness metric tradeoffs",
-        principle="Mathematical incompatibility between fairness definitions",
-        summary=(
-            "Two independent proofs showed that when the true outcome rate "
-            "genuinely differs between groups, which is the normal case in "
-            "real data, no method can simultaneously satisfy calibration "
-            "(a predicted score means the same thing in every group) and "
-            "equalized odds (equal true positive and false positive rates "
-            "across groups), except in narrow special cases."
-        ),
-        takeaway=(
-            "Choosing a fairness metric is choosing which kind of fairness "
-            "guarantee you are willing to give up, not finding the one "
-            "metric that satisfies everyone. A model that is well "
-            "calibrated can still fail equal opportunity, and a model "
-            "with equal error rates can still be miscalibrated. This "
-            "module reports multiple metrics side by side rather than "
-            "producing a single 'is this model fair' verdict, because no "
-            "single verdict can be mathematically complete."
-        ),
-        citation=(
-            "Kleinberg, J., Mullainathan, S., & Raghavan, M. (2017). "
-            "Inherent trade-offs in the fair determination of risk "
-            "scores. Proceedings of the 8th Innovations in Theoretical "
-            "Computer Science Conference (ITCS). arXiv:1609.05807. "
-            "See also: Chouldechova, A. (2017). Fair prediction with "
-            "disparate impact: A study of bias in recidivism prediction "
-            "instruments. Big Data, 5(2), 153-163."
-        ),
-        modules=("model_validation",),
-    ),
-    "tamiflu_unpublished_data": CaseStudy(
-        title="The Tamiflu Cochrane review",
-        category="Publication bias & evidence completeness",
-        principle="A systematic review is only as good as its access to unpublished data",
-        summary=(
-            "Roche withheld roughly 60% of its Phase 3 oseltamivir "
-            "(Tamiflu) trial data for years. When Cochrane reviewers "
-            "finally obtained the full clinical study reports after a "
-            "public, multi-year campaign, the drug's actual benefit "
-            "looked substantially smaller than the published-literature-"
-            "only picture had suggested."
-        ),
-        takeaway=(
-            "Missing or unpublished data isn't a minor gap, it can "
-            "change a systematic review's conclusion entirely. Checking "
-            "whether an evidence base is complete, not just whether the "
-            "published studies agree with each other, is a distinct "
-            "validation question from any of the statistical metrics "
-            "computed on the data you do have."
-        ),
-        citation=(
-            "Jefferson, T., Jones, M., Doshi, P., Del Mar, C., et al. "
-            "(2014). Oseltamivir for influenza in adults and children: "
-            "systematic review of clinical study reports and summary of "
-            "regulatory comments. BMJ, 348, g2545."
-        ),
-        modules=("data_validation", "program_validation"),
-    ),
-    "confounding_video_games": CaseStudy(
-        title="Spatial cognition and video-game experience",
-        category="Confounding variables",
-        principle="Confounding and alternative explanations",
-        summary=(
-            "Action-video-game training substantially improved spatial "
-            "attention and mental rotation, with women benefiting more than "
-            "men and the initial gender difference being greatly reduced."
-        ),
-        takeaway=(
-            "Observed group differences should not automatically be treated "
-            "as fixed or biological; experience and exposure may explain part "
-            "of the difference."
-        ),
-        citation=(
-            "Feng, J., Spence, I., & Pratt, J. (2007). Playing an action "
-            "video game reduces gender differences in spatial cognition. "
-            "Psychological Science, 18(10), 850-855."
-        ),
-        modules=("model_validation",),
-    ),
-    "dead_salmon": CaseStudy(
-        title="The dead-salmon fMRI demonstration",
-        category="Multiple testing & false positives",
-        principle="Multiple testing and false positives",
-        summary=(
-            "Researchers demonstrated apparently significant fMRI activation "
-            "in a dead salmon when many voxel-wise tests were performed "
-            "without adequate multiple-comparison correction."
-        ),
-        takeaway=(
-            "Large numbers of statistical tests increase false-positive risk. "
-            "Multiplicity must be addressed before interpreting isolated "
-            "significant findings, e.g. this is why pairwise post-hoc group "
-            "comparisons need a correction like Tukey HSD rather than "
-            "running many uncorrected t-tests."
-        ),
-        citation=(
-            "Bennett, C. M., Wolford, G. L., & Miller, M. B. (2009). "
-            "The principled control of false positives in neuroimaging. "
-            "Social Cognitive and Affective Neuroscience, 4(4), 417-422."
-        ),
-        modules=("model_validation", "program_validation"),
-    ),
-    "narps": CaseStudy(
-        title="Many analysts, one neuroimaging dataset",
-        category="Analytic robustness & sensitivity",
-        principle="Analytic variability",
-        summary=(
-            "Seventy independent teams analyzed the same dataset and tested "
-            "the same hypotheses, but chose different workflows and reached "
-            "substantially different conclusions."
-        ),
-        takeaway=(
-            "Reasonable analytical choices can affect results. Sensitivity "
-            "analyses and transparent reporting help show whether conclusions "
-            "are robust to those choices, this is the direct inspiration for "
-            "this module's multi-coding sensitivity analysis feature."
-        ),
-        citation=(
-            "Botvinik-Nezer, R., Holzmeister, F., Camerer, C. F., et al. "
-            "(2020). Variability in the analysis of a single neuroimaging "
-            "dataset by many teams. Nature, 582, 84-88."
-        ),
-        modules=("model_validation", "program_validation"),
-    ),
-}
-
-
-def get_case_studies(module: str) -> list[CaseStudy]:
-    """Return case studies relevant to an OpenMeasure module."""
-    return [
-        case_study
-        for case_study in CASE_STUDIES.values()
-        if module in case_study.modules
-    ]
-
-
-def get_case_studies_grouped(module: str) -> dict[str, list[CaseStudy]]:
-    """
-    Return case studies relevant to a module, grouped by category, in the
-    order categories first appear. Used to render tabs instead of one
-    long flat list once a module accumulates several case studies.
-    """
-    grouped: dict[str, list[CaseStudy]] = {}
-    for case_study in get_case_studies(module):
-        grouped.setdefault(case_study.category, []).append(case_study)
-    return grouped
+            "LaLonde compared the benchmark estimate from a randomized "
+            "job-training experiment with estimates produced by commonly "
+            "used nonexperimental evaluation methods. Most of the "
+            "nonexperimental estimators failed to recover the experimental "
+            "benchmark, sometimes by a wide
