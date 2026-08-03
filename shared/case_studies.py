@@ -122,6 +122,29 @@ CASE_STUDIES = {
         ),
         modules=("program_validation",),
     ),
+    "many_labs_replication": CaseStudy(
+        title="The Many Labs projects",
+        category="Analytic robustness & sensitivity",
+        principle="Confidence comes from replication",
+        summary=(
+            "Large collaborations replicated classic psychology "
+            "experiments across dozens of laboratories, finding that "
+            "some effects were highly reproducible while others were "
+            "much smaller or absent."
+        ),
+        takeaway=(
+            "A single influential study rarely settles a question. "
+            "Consistency across independent studies provides stronger "
+            "evidence than any one result, no matter how compelling that "
+            "single study looked on its own."
+        ),
+        citation=(
+            "Klein, R. A., Ratliff, K. A., Vianello, M., et al. (2014). "
+            "Investigating variation in replicability: A 'Many Labs' "
+            "replication project. Social Psychology, 45(3), 142-152."
+        ),
+        modules=("program_validation", "model_validation"),
+    ),
     "fairness_impossibility": CaseStudy(
         title="Why you can't satisfy every fairness metric at once",
         category="Fairness metric tradeoffs",
@@ -154,6 +177,34 @@ CASE_STUDIES = {
             "instruments. Big Data, 5(2), 153-163."
         ),
         modules=("model_validation",),
+    ),
+    "tamiflu_unpublished_data": CaseStudy(
+        title="The Tamiflu Cochrane review",
+        category="Publication bias & evidence completeness",
+        principle="A systematic review is only as good as its access to unpublished data",
+        summary=(
+            "Roche withheld roughly 60% of its Phase 3 oseltamivir "
+            "(Tamiflu) trial data for years. When Cochrane reviewers "
+            "finally obtained the full clinical study reports after a "
+            "public, multi-year campaign, the drug's actual benefit "
+            "looked substantially smaller than the published-literature-"
+            "only picture had suggested."
+        ),
+        takeaway=(
+            "Missing or unpublished data isn't a minor gap, it can "
+            "change a systematic review's conclusion entirely. Checking "
+            "whether an evidence base is complete, not just whether the "
+            "published studies agree with each other, is a distinct "
+            "validation question from any of the statistical metrics "
+            "computed on the data you do have."
+        ),
+        citation=(
+            "Jefferson, T., Jones, M., Doshi, P., Del Mar, C., et al. "
+            "(2014). Oseltamivir for influenza in adults and children: "
+            "systematic review of clinical study reports and summary of "
+            "regulatory comments. BMJ, 348, g2545."
+        ),
+        modules=("data_validation", "program_validation"),
     ),
     "confounding_video_games": CaseStudy(
         title="Spatial cognition and video-game experience",
