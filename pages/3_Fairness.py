@@ -40,7 +40,7 @@ st.set_page_config(
 )
 
 st.title("Fairness Auditing")
-st.subtitle("Model Validation")
+st.subheader("Model Validation")
 st.caption(
     "Evaluate group fairness, understand the assumptions behind common "
     "fairness metrics, and review tradeoffs between competing definitions."
