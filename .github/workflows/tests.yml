@@ -1,0 +1,41 @@
+name: Tests
+
+# Each module's tests import a top-level package literally named `core`
+# (each module has its own modules/<name>/core/ package). Running a single
+# pytest invocation across more than one module's tests directory causes
+# a collision in Python's sys.modules cache: whichever module's core
+# package is imported first "wins," and the other modules' tests then
+# fail with an ImportError for the wrong core package. This was verified
+# by running pytest directly. Until the modules are packaged so their
+# core directories don't share a name, tests must run as separate
+# invocations, one per module, matching the commands documented in the
+# root README's "Running tests" section.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run reliability tests
+        run: pytest modules/reliability/tests/ -v
+
+      - name: Run program evaluation tests
+        run: pytest modules/program_evaluation/tests/ -v
+
+      - name: Run fairness tests
+        run: pytest modules/fairness/tests/ -v
+
+      - name: Run shared tests
+        run: pytest shared/tests/ -v

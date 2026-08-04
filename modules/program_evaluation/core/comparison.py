@@ -13,12 +13,20 @@ sensitivity-analysis pattern for multi-select categorical predictors.
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass, field
 from itertools import combinations
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from scipy import stats
+
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from shared.validation import validate_is_dataframe
 
 
 MIN_GROUP_SIZE = 5  # below this, warn rather than compute an unstable estimate
@@ -142,8 +150,7 @@ class SensitivityResult:
 # ---------------------------------------------------------------------------
 
 def _validate_two_columns(data: pd.DataFrame, group_col: str, outcome_col: str) -> None:
-    if not isinstance(data, pd.DataFrame):
-        raise TypeError("Data must be provided as a pandas DataFrame.")
+    validate_is_dataframe(data)
     if group_col not in data.columns:
         raise ValueError(f"Group column '{group_col}' not found in data.")
     if outcome_col not in data.columns:

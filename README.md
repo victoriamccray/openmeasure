@@ -66,7 +66,7 @@ openmeasure/
 ├── Home.py
 ├── pages/
 │   ├── 1_Reliability.py
-│   ├── 2_Program_Evaluation.py
+│   ├── 2_Impact_Evaluation.py
 │   └── 3_Fairness.py
 ├── modules/
 │   ├── reliability/
@@ -110,7 +110,7 @@ and presentation consistent across the toolkit.
 
 See `modules/reliability/README.md` for methodology and references.
 
-### Program Evaluation v0.1
+### Program Validation (Impact Evaluation) v0.1
 
 - Welch's t-test for two-group comparisons
 - Welch's one-way ANOVA with Games-Howell post-hoc for three or more groups
@@ -174,4 +174,4 @@ See `LICENSE`.
 
 OpenMeasure was created and is maintained by **Victoria McCray**. Contributions are welcome (see `CONTRIBUTING.md`). Portions of the codebase were developed with the assistance of generative AI tools for code drafting, debugging, and documentation. All statistical methods were independently verified, and all design and implementation decisions were made by the project author.
 
-See `docs/AUTHORSHIP.md` for details.
+See `docs/Authorship.md` for details.

@@ -18,10 +18,18 @@ disparity.
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from shared.validation import validate_is_dataframe
 
 
 MIN_GROUP_SIZE = 5
@@ -68,8 +76,7 @@ class PreModelBiasResult:
 def _validate_dataframe(data: pd.DataFrame) -> None:
     """Validate the input dataset."""
 
-    if not isinstance(data, pd.DataFrame):
-        raise TypeError("Data must be provided as a pandas DataFrame.")
+    validate_is_dataframe(data)
 
     if data.empty:
         raise ValueError("The dataset contains no rows.")

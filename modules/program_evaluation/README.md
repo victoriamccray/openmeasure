@@ -1,6 +1,12 @@
-# Program Validation Module
+# Program Validation - Impact Evaluation Module
 
-**Status**: In Development
+**Category:** Program Validation
+**Workflow:** Impact Evaluation
+**Status:** Available (v0.1)
+
+> This module's folder is named `program_evaluation` for historical reasons.
+> The current user-facing workflow is titled "Impact Evaluation" under the
+> "Program Validation" category.
 
 ## Purpose
 
@@ -46,18 +52,15 @@ A statistically significant result does not necessarily demonstrate that a progr
 
 ```
 modules/
-└── program_validation/
+└── program_evaluation/
     ├── README.md
     ├── core/
     │   ├── __init__.py
-    │   ├── validation.py
     │   ├── comparison.py
-    │   ├── interpret.py
-    │   └── recommend.py      
+    │   └── recommend.py
     ├── tests/
-    │   ├── test_validation.py
+    │   ├── __init__.py
     │   ├── test_comparison.py
-    │   ├── test_interpret.py
     │   └── test_recommend.py
     └── sample_data/
 ```

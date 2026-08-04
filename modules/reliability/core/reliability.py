@@ -8,10 +8,18 @@ dataclasses. There is no I/O, UI logic, or external state.
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from shared.validation import validate_is_dataframe
 
 
 ITEM_TOTAL_FLAG_THRESHOLD = 0.30
@@ -50,8 +58,7 @@ def _validate_dataframe(
     minimum_rows: int = 2,
 ) -> None:
     """Validate the structure and types of an item-level DataFrame."""
-    if not isinstance(data, pd.DataFrame):
-        raise TypeError("Data must be provided as a pandas DataFrame.")
+    validate_is_dataframe(data)
 
     if data.shape[1] < minimum_items:
         raise ValueError(

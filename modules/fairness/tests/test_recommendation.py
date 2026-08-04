@@ -1,5 +1,5 @@
 """
-Unit tests for core/goal_recommend.py
+Unit tests for core/recommend.py
 
 Run with: pytest tests/
 """
@@ -12,7 +12,7 @@ import unittest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from core import goal_recommend as gr  # noqa: E402
+from core import recommend as gr  # noqa: E402
 
 
 class TestFairnessGoals(unittest.TestCase):

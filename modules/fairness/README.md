@@ -2,7 +2,7 @@
 
 Evaluate group fairness and understand the assumptions, tradeoffs, and limitations of common fairness metrics.
 
-**Status:** Active development (v0.1)
+**Status:** Active development (v0.05)
 
 ## Current features
 

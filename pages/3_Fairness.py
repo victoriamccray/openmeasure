@@ -228,33 +228,15 @@ post-model fairness and calibration analyses.
 """
         )
 
-    sample_candidates = [
-        (
-            ROOT
-            / "modules"
-            / "fairness"
-            / "sample_data"
-            / "biomedical_fairness_example.csv"
-        ),
-        (
-            ROOT
-            / "modules"
-            / "fairness"
-            / "sample_data"
-            / "fairness_example.csv"
-        ),
-    ]
-
-    sample_path = next(
-        (
-            path
-            for path in sample_candidates
-            if path.exists()
-        ),
-        None,
+    sample_path = (
+        ROOT
+        / "modules"
+        / "fairness"
+        / "sample_data"
+        / "fairness_example.csv"
     )
 
-    if sample_path is not None:
+    if sample_path.exists():
         with sample_path.open("rb") as sample_file:
             st.download_button(
                 label="Download sample fairness dataset",

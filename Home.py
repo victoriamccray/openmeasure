@@ -52,7 +52,7 @@ OpenMeasure
 ├── Model Validation
 │   └── fairness and subgroup evaluation (v0.05)
 └── Program Validation
-    └── Study design and impact evaluation (v0.1)
+    └── Impact Evaluation (v0.1)
 ```
 """
 )
