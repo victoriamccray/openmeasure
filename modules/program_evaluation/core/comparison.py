@@ -425,7 +425,10 @@ def compare_multiple_groups_welch(
 
         t_stat = mean_diff / se
         q_stat = abs(t_stat) * np.sqrt(2)
-        p_adj = float(psturng(q_stat, k, pair_df))
+        # psturng returns a numpy array rather than a Python scalar, even
+        # for scalar input. float() on a non-0-dimensional array raises
+        # TypeError on numpy >= 2.0, so extract the single value explicitly.
+        p_adj = float(np.asarray(psturng(q_stat, k, pair_df)).item())
 
         pairwise.append(
             PairwiseComparison(
