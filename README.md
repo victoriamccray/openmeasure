@@ -21,7 +21,7 @@ Evaluates the consistency and quality of research instruments.
 
 Evaluates data quality, completeness, consistency, and integrity before analysis.
 
-*Under development.*
+**Available:** Time-Series QA v0.1
 
 ### Model Validation
 
@@ -67,7 +67,8 @@ openmeasure/
 ├── pages/
 │   ├── 1_Reliability.py
 │   ├── 2_Impact_Evaluation.py
-│   └── 3_Fairness.py
+│   ├── 3_Fairness.py
+│   └── 4_Time_Series_QA.py
 ├── modules/
 │   ├── reliability/
 │   │   ├── README.md
@@ -79,13 +80,19 @@ openmeasure/
 │   │   ├── core/
 │   │   ├── tests/
 │   │   └── sample_data/
-│   └── fairness/
+│   ├── fairness/
+│   │   ├── README.md
+│   │   ├── core/
+│   │   ├── tests/
+│   │   └── sample_data/
+│   └── time_series_qa/
 │       ├── README.md
 │       ├── core/
 │       ├── tests/
 │       └── sample_data/
 ├── shared/
 │   ├── report.py
+│   ├── validation.py
 │   └── case_studies.py
 ├── docs/
 │   └── design-standards.md
@@ -129,7 +136,18 @@ See `modules/program_evaluation/README.md` for methodology and references.
 
 See `modules/fairness/README.md` for methodology and references.
 
-Future releases will expand OpenMeasure with a data validation module and continued fairness module development.
+### Data Validation (Time-Series QA) v0.1
+
+- Gap detection against an inferred or supplied sampling frequency, using a calendar-aware expected grid so month lengths, leap years, and daylight saving changes do not create false gaps
+- Duplicate timestamp detection, including whether duplicated rows hold conflicting values
+- Chronological order and interval regularity checks
+- Value completeness and longest unavailable run, counting both observations that never arrived and rows that arrived empty
+- Coverage per period, measured against expected observations rather than rows present, so absent observations cannot hide behind the rows that are there
+- A recommender that states which checks are defensible for the series and why, without deciding whether any finding is an error and without cleaning anything
+
+See `modules/time_series_qa/README.md` for methodology, non-goals, and references.
+
+Future releases will expand the data validation and fairness modules.
 
 ## Screenshots
 
@@ -154,7 +172,14 @@ pip install -r requirements.txt
 pytest modules/reliability/tests/ -v
 pytest modules/program_evaluation/tests/ -v
 pytest modules/fairness/tests/ -v
+pytest modules/time_series_qa/tests/ -v
+pytest shared/tests/ -v
 ```
+
+Each module's tests run as a separate command because every module ships its
+own top-level `core` package. A single invocation across several modules
+collides in Python's import cache. `.github/workflows/tests.yml` runs the same
+commands in the same way.
 
 ## Contributing
 

@@ -48,7 +48,7 @@ OpenMeasure
 ├── Measurement Validation
 │   └── Reliability (v0.1)
 ├── Data Validation
-│   └── Data quality and integrity (under development)
+│   └── Time-Series QA (v0.1)
 ├── Model Validation
 │   └── fairness and subgroup evaluation (v0.05)
 └── Program Validation

@@ -37,5 +37,8 @@ jobs:
       - name: Run fairness tests
         run: pytest modules/fairness/tests/ -v
 
+      - name: Run time-series QA tests
+        run: pytest modules/time_series_qa/tests/ -v
+
       - name: Run shared tests
         run: pytest shared/tests/ -v
