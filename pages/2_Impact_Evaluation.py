@@ -76,7 +76,7 @@ if uploaded is None:
 
 df = pd.read_csv(uploaded)
 st.write(f"Loaded **{df.shape[0]} rows** and **{df.shape[1]} columns**.")
-st.dataframe(df.head(), use_container_width=True)
+st.dataframe(df.head(), width="stretch")
 
 section_header("2. Describe your comparison")
 
@@ -199,7 +199,7 @@ if "pe_recommendation" in st.session_state:
                     "n": [result.group_ns[g] for g in result.group_labels],
                     "Mean": [round(result.group_means[g], 3) for g in result.group_labels],
                 })
-                st.dataframe(means_df, use_container_width=True, hide_index=True)
+                st.dataframe(means_df, width="stretch", hide_index=True)
 
                 m1, m2 = st.columns(2)
                 m1.metric("F-statistic (Welch)", f"{result.f_statistic:.2f}")
@@ -224,7 +224,7 @@ if "pe_recommendation" in st.session_state:
                     }
                     for p in result.pairwise_comparisons
                 ])
-                st.dataframe(pairwise_df, use_container_width=True, hide_index=True)
+                st.dataframe(pairwise_df, width="stretch", hide_index=True)
 
             elif method == "compare_multiple_groups":
                 result = comp.compare_multiple_groups(df, context["group_col"], context["outcome_col"])
@@ -235,7 +235,7 @@ if "pe_recommendation" in st.session_state:
                     "n": [result.group_ns[g] for g in result.group_labels],
                     "Mean": [round(result.group_means[g], 3) for g in result.group_labels],
                 })
-                st.dataframe(means_df, use_container_width=True, hide_index=True)
+                st.dataframe(means_df, width="stretch", hide_index=True)
 
                 m1, m2 = st.columns(2)
                 m1.metric("F-statistic", f"{result.f_statistic:.2f}")
@@ -260,14 +260,14 @@ if "pe_recommendation" in st.session_state:
                     }
                     for p in result.pairwise_comparisons
                 ])
-                st.dataframe(pairwise_df, use_container_width=True, hide_index=True)
+                st.dataframe(pairwise_df, width="stretch", hide_index=True)
 
             elif method == "compare_categorical":
                 result = comp.compare_categorical(df, context["group_col"], context["outcome_col"])
 
                 section_header("Result")
                 st.write("Contingency table (observed counts):")
-                st.dataframe(result.contingency_table, use_container_width=True)
+                st.dataframe(result.contingency_table, width="stretch")
 
                 m1, m2 = st.columns(2)
                 m1.metric("Chi-square", f"{result.chi2_statistic:.2f}")
@@ -309,7 +309,7 @@ if "pe_recommendation" in st.session_state:
                     {"Coding scheme": name, "p-value": round(p, 4)}
                     for name, p in result.p_values_by_coding.items()
                 ])
-                st.dataframe(p_df, use_container_width=True, hide_index=True)
+                st.dataframe(p_df, width="stretch", hide_index=True)
 
                 if result.consistent_conclusion:
                     st.success(

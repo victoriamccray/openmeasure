@@ -124,7 +124,7 @@ if uploaded is None:
 
 df = pd.read_csv(uploaded)
 st.write(f"Loaded **{df.shape[0]} rows** and **{df.shape[1]} columns**.")
-st.dataframe(df.head(), use_container_width=True)
+st.dataframe(df.head(), width="stretch")
 
 section_header("2. Select columns")
 
@@ -242,7 +242,7 @@ if analyze_clicked:
                 "": flag,
             }
         )
-    st.dataframe(pd.DataFrame(diag_rows), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(diag_rows), width="stretch", hide_index=True)
 
     for d in result.item_diagnostics:
         msg = interp.item_warning(d.item_total_corr)

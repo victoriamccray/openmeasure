@@ -619,7 +619,7 @@ if temporal.gaps:
                 for gap in temporal.gaps
             ]
         ),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
 
@@ -637,7 +637,7 @@ if temporal.duplicates:
                 for item in temporal.duplicates
             ]
         ),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
     )
     caveat(
@@ -662,7 +662,7 @@ if completeness.per_period:
             for item in completeness.per_period
         ]
     )
-    st.dataframe(coverage_frame, use_container_width=True, hide_index=True)
+    st.dataframe(coverage_frame, width="stretch", hide_index=True)
 
     st.caption(
         "Coverage is measured against expected observations, not against "

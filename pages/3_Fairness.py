@@ -265,7 +265,7 @@ else:
 
         st.dataframe(
             df.head(),
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
         )
 
@@ -496,7 +496,7 @@ else:
 
                 st.dataframe(
                     rates_df,
-                    use_container_width=True,
+                    width="stretch",
                     hide_index=True,
                 )
 
