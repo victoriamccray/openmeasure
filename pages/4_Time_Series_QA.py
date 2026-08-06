@@ -28,6 +28,15 @@ from modules.time_series_qa.core.completeness import (
     DEFAULT_PERIOD_COVERAGE_THRESHOLD,
 )
 from modules.time_series_qa.core.qa import run_time_series_qa
+from shared.handoff import (
+    KIND_CELLS_EMPTY,
+    KIND_OBSERVATIONS_ABSENT,
+    KIND_ROWS_DROPPED,
+    ExclusionAccount,
+    HandoffStore,
+    RetentionItem,
+    fingerprint_dataframe,
+)
 from shared.report import (
     Band,
     caveat,
@@ -379,6 +388,75 @@ temporal = result.temporal
 completeness = result.completeness
 frequency = result.frequency
 recommendation = result.recommendation
+
+
+def record_time_series(frame, upload, qa_result) -> None:
+    """
+    Record this analysis for the Cross-Analysis Implications page.
+
+    Reports absent observations separately from empty values, because an
+    observation that never arrived and a row that arrived without a value
+    are different problems.
+    """
+    items = [
+        RetentionItem(
+            label="Rows with an unusable timestamp",
+            count=(
+                qa_result.n_null_timestamps
+                + qa_result.n_unparseable_timestamps
+            ),
+            kind=KIND_ROWS_DROPPED,
+            mechanism="timestamp missing or unreadable",
+        ),
+        RetentionItem(
+            label="Empty values",
+            count=qa_result.completeness.n_missing_values,
+            kind=KIND_CELLS_EMPTY,
+            mechanism="row present but no value recorded",
+        ),
+    ]
+
+    if qa_result.temporal.n_missing_observations is not None:
+        items.append(
+            RetentionItem(
+                label="Expected observations absent",
+                count=qa_result.temporal.n_missing_observations,
+                kind=KIND_OBSERVATIONS_ABSENT,
+                mechanism=(
+                    "no row exists for an expected time on the inferred "
+                    "schedule"
+                ),
+            )
+        )
+
+    HandoffStore(st.session_state).record(
+        module="time_series_qa",
+        fingerprint=fingerprint_dataframe(frame, upload.name),
+        exclusion=ExclusionAccount(
+            module="time_series_qa",
+            analysis_label="Time-Series QA",
+            columns_considered=(
+                str(qa_result.timestamp_col),
+                str(qa_result.value_col),
+            ),
+            n_input_rows=qa_result.n_input_rows,
+            n_retained_rows=qa_result.n_rows_used,
+            items=tuple(items),
+        ),
+        primary_statistics={
+            "value_completeness_ratio": float(
+                qa_result.completeness.value_completeness_ratio
+            ),
+        },
+    )
+
+
+record_time_series(frame, uploaded, result)
+
+st.caption(
+    "Recorded for the Cross-Analysis Implications page, which shows how much "
+    "of your data each analysis used."
+)
 
 
 # ---------------------------------------------------------------------

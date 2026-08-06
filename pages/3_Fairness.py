@@ -26,12 +26,54 @@ import streamlit as st
 
 from modules.fairness.core import pre_model_metrics as pm
 from modules.fairness.core.recommend import recommend_fairness_metric
+from shared.handoff import (
+    KIND_ROWS_DROPPED,
+    ExclusionAccount,
+    HandoffStore,
+    RetentionItem,
+    fingerprint_dataframe,
+)
 from shared.report import (
     caveat,
     flagged_item_note,
     section_header,
     show_case_studies,
 )
+
+
+def record_fairness(frame, upload, label_column, group_column, result) -> None:
+    """
+    Record this analysis for the Cross-Analysis Implications page.
+
+    Translates into primitives here rather than storing the result object,
+    because the same dataclass is a different class depending on how it was
+    imported.
+    """
+    HandoffStore(st.session_state).record(
+        module="fairness",
+        fingerprint=fingerprint_dataframe(frame, upload.name),
+        exclusion=ExclusionAccount(
+            module="fairness",
+            analysis_label="Fairness (pre-model)",
+            columns_considered=(str(label_column), str(group_column)),
+            n_input_rows=result.n_input_rows,
+            n_retained_rows=result.n_rows_used,
+            items=(
+                RetentionItem(
+                    label="Rows excluded",
+                    count=result.n_excluded_rows,
+                    kind=KIND_ROWS_DROPPED,
+                    mechanism=result.exclusion_reason,
+                ),
+            ),
+        ),
+        primary_statistics={
+            "disparate_impact": float(result.disparate_impact),
+            "statistical_parity_difference": float(
+                result.statistical_parity_difference
+            ),
+        },
+    )
 
 
 st.set_page_config(
@@ -396,6 +438,12 @@ else:
                 st.error(str(error))
 
             else:
+                record_fairness(df, uploaded, label_col, group_col, bias_result)
+                st.caption(
+                    "Recorded for the Cross-Analysis Implications page, "
+                    "which shows how much of your data each analysis used."
+                )
+
                 section_header("Result")
 
                 metric_1, metric_2 = st.columns(2)

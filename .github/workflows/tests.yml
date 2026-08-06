@@ -40,5 +40,8 @@ jobs:
       - name: Run time-series QA tests
         run: pytest modules/time_series_qa/tests/ -v
 
+      - name: Run validation chain tests
+        run: pytest modules/validation_chain/tests/ -v
+
       - name: Run shared tests
         run: pytest shared/tests/ -v

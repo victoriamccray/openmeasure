@@ -15,7 +15,57 @@ import streamlit as st
 
 from modules.reliability.core import reliability as rel
 from modules.reliability.core import interpret as interp
-from shared.report import Band, classify, render_verdict, section_header, flagged_item_note, caveat
+from shared.handoff import (
+    KIND_CELLS_EMPTY,
+    KIND_ROWS_DROPPED,
+    ExclusionAccount,
+    HandoffStore,
+    RetentionItem,
+    fingerprint_dataframe,
+)
+
+
+def record_reliability(frame, upload, columns, result) -> None:
+    """
+    Record this analysis for the Cross-Analysis Implications page.
+
+    Translates the result into primitives here rather than storing the
+    result object, because the same dataclass is a different class
+    depending on how it was imported.
+    """
+    missing_cells = int(
+        round(result.pct_missing_cells / 100 * result.n_participants * result.n_items)
+    )
+
+    HandoffStore(st.session_state).record(
+        module="reliability",
+        fingerprint=fingerprint_dataframe(frame, upload.name),
+        exclusion=ExclusionAccount(
+            module="reliability",
+            analysis_label="Reliability",
+            columns_considered=tuple(str(column) for column in columns),
+            n_input_rows=result.n_participants,
+            n_retained_rows=result.n_complete_cases,
+            items=(
+                RetentionItem(
+                    label="Participants excluded",
+                    count=result.n_excluded_cases,
+                    kind=KIND_ROWS_DROPPED,
+                    mechanism=(
+                        "listwise deletion: a missing value in any selected "
+                        "item removes the participant"
+                    ),
+                ),
+                RetentionItem(
+                    label="Missing item responses",
+                    count=missing_cells,
+                    kind=KIND_CELLS_EMPTY,
+                    mechanism="blank responses across all selected items",
+                ),
+            ),
+        ),
+        primary_statistics={"cronbach_alpha": float(result.cronbach_alpha)},
+    )
 
 st.set_page_config(page_title="OpenMeasure · ∑ Reliability", page_icon="∑", layout="centered")
 
@@ -248,6 +298,12 @@ if analyze_clicked:
         msg = interp.item_warning(d.item_total_corr)
         if msg:
             flagged_item_note(d.item, msg)
+
+    record_reliability(df, uploaded, item_cols, result)
+    st.caption(
+        "Recorded for the Cross-Analysis Implications page, which shows how "
+        "much of your data each analysis used."
+    )
 
     best_drop = max(result.item_diagnostics, key=lambda d: d.alpha_if_dropped)
     if best_drop.alpha_if_dropped > result.cronbach_alpha:

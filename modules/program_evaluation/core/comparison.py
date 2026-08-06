@@ -31,6 +31,11 @@ from shared.validation import validate_is_dataframe
 
 MIN_GROUP_SIZE = 5  # below this, warn rather than compute an unstable estimate
 
+# Why rows were dropped, recorded on every result per
+# docs/design-standards.md section 2.
+MISSING_GROUP_OR_OUTCOME = "missing group or outcome value"
+INCOMPLETE_PAIR = "incomplete pre/post pair"
+
 
 # ---------------------------------------------------------------------------
 # Result objects
@@ -55,6 +60,14 @@ class TwoGroupResult:
     mean_difference: float
     ci_95_low: float
     ci_95_high: float
+
+    # Exclusion accounting, per docs/design-standards.md section 2. Rows
+    # missing either the group or the outcome cannot be assigned to a group,
+    # so they are dropped before any statistic is computed.
+    n_input_rows: int
+    n_rows_used: int
+    n_excluded_rows: int
+    exclusion_reason: str
 
 
 @dataclass(frozen=True)
@@ -82,6 +95,11 @@ class MultiGroupResult:
     pairwise_comparisons: list[PairwiseComparison]
     small_groups_flagged: list[str]
 
+    n_input_rows: int
+    n_rows_used: int
+    n_excluded_rows: int
+    exclusion_reason: str
+
 
 @dataclass(frozen=True)
 class MultiGroupWelchResult:
@@ -104,6 +122,11 @@ class MultiGroupWelchResult:
     pairwise_comparisons: list[PairwiseComparison]
     small_groups_flagged: list[str]
 
+    n_input_rows: int
+    n_rows_used: int
+    n_excluded_rows: int
+    exclusion_reason: str
+
 
 @dataclass(frozen=True)
 class ChiSquareResult:
@@ -115,6 +138,11 @@ class ChiSquareResult:
     contingency_table: pd.DataFrame
     expected_frequencies: pd.DataFrame
     low_expected_frequency_warning: bool
+
+    n_input_rows: int
+    n_rows_used: int
+    n_excluded_rows: int
+    exclusion_reason: str
 
 
 @dataclass(frozen=True)
@@ -130,6 +158,11 @@ class PairedResult:
     p_value: float
     cohens_d: float
 
+    n_input_rows: int
+    n_rows_used: int
+    n_excluded_rows: int
+    exclusion_reason: str
+
 
 @dataclass(frozen=True)
 class SensitivityResult:
@@ -143,6 +176,19 @@ class SensitivityResult:
     p_values_by_coding: dict[str, float]
     consistent_conclusion: bool
     alpha: float
+
+    # Participants received, before any coding is applied.
+    n_input_rows: int
+
+    # Observations under the expanded coding, which emits one row per
+    # selection. A participant who selected two categories contributes two
+    # observations, so this legitimately exceeds n_input_rows and is not a
+    # count of retained participants. It must be reported as expanded
+    # observations rather than compared against other analyses' retention.
+    n_expanded_rows: int
+
+    # Each coding's own result carries its own row accounting.
+    rows_can_exceed_participants: bool = True
 
 
 # ---------------------------------------------------------------------------
@@ -243,6 +289,10 @@ def compare_two_groups(
         mean_difference=mean_diff,
         ci_95_low=float(ci_low),
         ci_95_high=float(ci_high),
+        n_input_rows=int(len(data)),
+        n_rows_used=int(len(clean)),
+        n_excluded_rows=int(len(data) - len(clean)),
+        exclusion_reason=MISSING_GROUP_OR_OUTCOME,
     )
 
 
@@ -324,6 +374,10 @@ def compare_multiple_groups(
         p_value=float(p_value),
         pairwise_comparisons=pairwise,
         small_groups_flagged=small_groups,
+        n_input_rows=int(len(data)),
+        n_rows_used=int(len(clean)),
+        n_excluded_rows=int(len(data) - len(clean)),
+        exclusion_reason=MISSING_GROUP_OR_OUTCOME,
     )
 
 
@@ -450,6 +504,10 @@ def compare_multiple_groups_welch(
         p_value=p_value,
         pairwise_comparisons=pairwise,
         small_groups_flagged=small_groups,
+        n_input_rows=int(len(data)),
+        n_rows_used=int(len(clean)),
+        n_excluded_rows=int(len(data) - len(clean)),
+        exclusion_reason=MISSING_GROUP_OR_OUTCOME,
     )
 
 
@@ -495,6 +553,10 @@ def compare_categorical(
         contingency_table=contingency,
         expected_frequencies=expected_df,
         low_expected_frequency_warning=low_expected,
+        n_input_rows=int(len(data)),
+        n_rows_used=int(len(clean)),
+        n_excluded_rows=int(len(data) - len(clean)),
+        exclusion_reason=MISSING_GROUP_OR_OUTCOME,
     )
 
 
@@ -539,6 +601,10 @@ def compare_pre_post(pre: pd.Series, post: pd.Series) -> PairedResult:
         degrees_of_freedom=n - 1,
         p_value=float(p_value),
         cohens_d=d,
+        n_input_rows=int(len(pre)),
+        n_rows_used=int(len(combined)),
+        n_excluded_rows=int(len(pre) - len(combined)),
+        exclusion_reason=INCOMPLETE_PAIR,
     )
 
 
@@ -653,4 +719,6 @@ def sensitivity_analysis(
         p_values_by_coding=p_values,
         consistent_conclusion=consistent,
         alpha=alpha,
+        n_input_rows=int(len(data)),
+        n_expanded_rows=int(len(codings["expanded"])),
     )

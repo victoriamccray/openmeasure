@@ -34,6 +34,10 @@ from shared.validation import validate_is_dataframe
 
 MIN_GROUP_SIZE = 5
 
+# Why rows were dropped, recorded on the result per
+# docs/design-standards.md section 2.
+MISSING_LABEL_OR_GROUP = "missing label or group value"
+
 
 @dataclass(frozen=True)
 class GroupRate:
@@ -71,6 +75,16 @@ class PreModelBiasResult:
     unprivileged_rate: float
     disparate_impact: float
     statistical_parity_difference: float
+
+    # Exclusion accounting, per docs/design-standards.md section 2. Rows
+    # missing either the label or the group cannot be placed in a group, so
+    # they are dropped before any rate is computed. Note that the two
+    # per-group counts above cover only the selected pair, while these
+    # describe the whole upload.
+    n_input_rows: int
+    n_rows_used: int
+    n_excluded_rows: int
+    exclusion_reason: str
 
 
 def _validate_dataframe(data: pd.DataFrame) -> None:
@@ -358,6 +372,10 @@ def compute_pre_model_bias(
         statistical_parity_difference=float(
             statistical_parity_difference
         ),
+        n_input_rows=int(len(data)),
+        n_rows_used=int(len(clean)),
+        n_excluded_rows=int(len(data) - len(clean)),
+        exclusion_reason=MISSING_LABEL_OR_GROUP,
     )
 
 

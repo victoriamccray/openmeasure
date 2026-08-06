@@ -53,6 +53,9 @@ OpenMeasure
 │   └── fairness and subgroup evaluation (v0.05)
 └── Program Validation
     └── Impact Evaluation (v0.1)
+
+Cross-cutting
+└── Cross-Analysis Implications (v0.1)
 ```
 """
 )

@@ -199,6 +199,29 @@ class TestSensitivityAnalysis(unittest.TestCase):
         self.assertEqual(len(result.p_values_by_coding), 3)
         self.assertIsInstance(result.consistent_conclusion, bool)
 
+    def test_reports_participants_and_expanded_observations_separately(self):
+        # 48 participants, of whom 3 selected two categories, so the
+        # expanded coding produces 48 + 3 = 51 observations. These are
+        # different quantities and both are reported.
+        rng = np.random.RandomState(4)
+        data = pd.DataFrame({
+            "race": (
+                ["A"] * 15 + ["B"] * 15 + ["C"] * 15
+                + ["A, B"] * 3
+            ),
+            "score": list(rng.normal(4, 0.5, 48)),
+        })
+        try:
+            result = pe.sensitivity_analysis(data, "race", "score")
+        except ImportError:
+            self.skipTest("statsmodels not installed")
+            return
+
+        self.assertEqual(result.n_input_rows, 48)
+        self.assertEqual(result.n_expanded_rows, 51)
+        self.assertGreater(result.n_expanded_rows, result.n_input_rows)
+        self.assertTrue(result.rows_can_exceed_participants)
+
 
 class TestCompareMultipleGroupsWelch(unittest.TestCase):
     def test_f_statistic_and_df_match_manual_welch_formula(self):

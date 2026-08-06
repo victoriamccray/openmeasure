@@ -68,7 +68,8 @@ openmeasure/
 │   ├── 1_Reliability.py
 │   ├── 2_Impact_Evaluation.py
 │   ├── 3_Fairness.py
-│   └── 4_Time_Series_QA.py
+│   ├── 4_Time_Series_QA.py
+│   └── 5_Cross_Analysis_Implications.py
 ├── modules/
 │   ├── reliability/
 │   │   ├── README.md
@@ -85,14 +86,19 @@ openmeasure/
 │   │   ├── core/
 │   │   ├── tests/
 │   │   └── sample_data/
-│   └── time_series_qa/
+│   ├── time_series_qa/
+│   │   ├── README.md
+│   │   ├── core/
+│   │   ├── tests/
+│   │   └── sample_data/
+│   └── validation_chain/
 │       ├── README.md
 │       ├── core/
-│       ├── tests/
-│       └── sample_data/
+│       └── tests/
 ├── shared/
 │   ├── report.py
 │   ├── validation.py
+│   ├── handoff.py
 │   └── case_studies.py
 ├── docs/
 │   └── design-standards.md
@@ -147,7 +153,17 @@ See `modules/fairness/README.md` for methodology and references.
 
 See `modules/time_series_qa/README.md` for methodology, non-goals, and references.
 
-Future releases will expand the data validation and fairness modules.
+### Cross-Analysis Implications v0.1
+
+- Reports how many observations each analysis received, retained, and excluded, and why
+- Groups analyses by dataset, so results from different uploads are labeled rather than compared directly
+- Reports counts only: no overall validation score, no combined retention percentage, and no acceptable-exclusion threshold
+- States plainly that two analyses of the same file usually retain different rows, and that the overlap between those subsets is not reported
+
+See `modules/validation_chain/README.md` for scope and non-goals.
+
+Future releases will expand the data validation and fairness modules, and may
+connect further findings across the research workflow.
 
 ## Screenshots
 
@@ -173,6 +189,7 @@ pytest modules/reliability/tests/ -v
 pytest modules/program_evaluation/tests/ -v
 pytest modules/fairness/tests/ -v
 pytest modules/time_series_qa/tests/ -v
+pytest modules/validation_chain/tests/ -v
 pytest shared/tests/ -v
 ```
 

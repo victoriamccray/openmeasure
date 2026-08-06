@@ -19,7 +19,76 @@ import streamlit as st
 
 from modules.program_evaluation.core import comparison as comp
 from modules.program_evaluation.core import recommend as rec
+from shared.handoff import (
+    KIND_ROWS_DROPPED,
+    ExclusionAccount,
+    HandoffStore,
+    RetentionItem,
+    fingerprint_dataframe,
+)
 from shared.report import section_header, caveat, flagged_item_note, show_case_studies
+
+
+def record_comparison(frame, upload, analysis_context, recommendation, result) -> None:
+    """
+    Record this analysis for the Cross-Analysis Implications page.
+
+    Translates into primitives here rather than storing the result object,
+    because the same dataclass is a different class depending on how it was
+    imported.
+
+    The multi-select sensitivity analysis expands one row per selection, so
+    its retained count is not comparable to other analyses and is flagged
+    rather than counted.
+    """
+    expands_rows = getattr(result, "rows_can_exceed_participants", False)
+
+    columns = tuple(
+        str(value)
+        for key, value in analysis_context.items()
+        if key.endswith("_col") and value
+    )
+
+    if expands_rows:
+        # The expanded coding turns one participant into one observation per
+        # selection, so there is no retained-participant count to report.
+        account = ExclusionAccount(
+            module="program_evaluation",
+            analysis_label=recommendation.display_name,
+            columns_considered=columns,
+            n_input_rows=result.n_input_rows,
+            n_expanded_observations=result.n_expanded_rows,
+            rows_can_exceed_participants=True,
+        )
+    else:
+        account = ExclusionAccount(
+            module="program_evaluation",
+            analysis_label=recommendation.display_name,
+            columns_considered=columns,
+            n_input_rows=result.n_input_rows,
+            n_retained_rows=result.n_rows_used,
+            items=(
+                RetentionItem(
+                    label="Rows excluded",
+                    count=result.n_excluded_rows,
+                    kind=KIND_ROWS_DROPPED,
+                    mechanism=result.exclusion_reason,
+                ),
+            ),
+        )
+
+    statistics = {}
+    for name in ("cohens_d", "p_value"):
+        value = getattr(result, name, None)
+        if isinstance(value, (int, float)):
+            statistics[name] = float(value)
+
+    HandoffStore(st.session_state).record(
+        module="program_evaluation",
+        fingerprint=fingerprint_dataframe(frame, upload.name),
+        exclusion=account,
+        primary_statistics=statistics,
+    )
 
 st.set_page_config(page_title="OpenMeasure · Program Evaluation", page_icon=":bar_chart:", layout="centered")
 
@@ -75,6 +144,15 @@ if uploaded is None:
     st.stop()
 
 df = pd.read_csv(uploaded)
+
+# Discard a recommendation carried over from a different upload. Without
+# this, uploading a second file whose column names happen to match the first
+# would analyze the new data under the previous file's plan, silently.
+if st.session_state.get("pe_uploaded_file_id") != uploaded.file_id:
+    st.session_state["pe_uploaded_file_id"] = uploaded.file_id
+    st.session_state.pop("pe_recommendation", None)
+    st.session_state.pop("pe_context", None)
+
 st.write(f"Loaded **{df.shape[0]} rows** and **{df.shape[1]} columns**.")
 st.dataframe(df.head(), width="stretch")
 
@@ -165,6 +243,7 @@ if "pe_recommendation" in st.session_state:
 
     if run_clicked:
         method = recommendation.method
+        result = None
 
         try:
             if method == "compare_two_groups":
@@ -329,6 +408,13 @@ if "pe_recommendation" in st.session_state:
 
             else:
                 st.error(f"Unknown method '{method}'.")
+
+            if result is not None:
+                record_comparison(df, uploaded, context, recommendation, result)
+                st.caption(
+                    "Recorded for the Cross-Analysis Implications page, which "
+                    "shows how much of your data each analysis used."
+                )
 
         except (ValueError, TypeError) as e:
             st.error(str(e))
