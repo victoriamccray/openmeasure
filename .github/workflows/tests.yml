@@ -14,6 +14,9 @@ name: Tests
 on:
   push:
   pull_request:
+  # Allows running the suite from the Actions tab on any branch, which is
+  # useful when a push did not dispatch a run.
+  workflow_dispatch:
 
 jobs:
   test:
