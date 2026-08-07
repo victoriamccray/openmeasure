@@ -121,10 +121,7 @@ def show_case_studies(module: str) -> None:
     # three of them used to carry a heading at all, so the section was
     # unlabelled on two pages entirely. Owning it here makes the label
     # impossible to omit or to word differently from one page to the next.
-    section_header(
-        CASE_STUDIES_HEADING,
-        "Published cases behind this module's assumptions and limitations",
-    )
+    section_header(CASE_STUDIES_HEADING)
 
     # One bounded panel, so the examples read as a discrete section rather
     # than as loose boxes in the page flow.
