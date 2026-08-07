@@ -63,11 +63,10 @@ st.subheader("Where each module fits")
 
 st.markdown(
     """
-Validation is not one step. The modules below are arranged by the stage of a
-study where the question arises, from framing a question through to
-interpreting a result. Each card also names the kind of validation it
-performs, which is how the modules are grouped in the sidebar and described
-in their own documentation.
+The modules below are arranged by the stage of a study where the question
+arises, from framing a question through to interpreting a result. Each card
+also names the kind of validation it performs, which is how the modules are
+grouped in the sidebar and described in their own documentation.
 """
 )
 
