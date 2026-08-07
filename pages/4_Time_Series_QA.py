@@ -843,9 +843,4 @@ caveat(
 # Research examples
 # ---------------------------------------------------------------------
 
-section_header(
-    "Research examples",
-    "Published examples of data-quality problems that changed conclusions",
-)
-
 show_case_studies("data_validation")

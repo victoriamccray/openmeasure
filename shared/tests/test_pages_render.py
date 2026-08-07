@@ -33,6 +33,8 @@ from pathlib import Path
 import streamlit as st
 from streamlit.testing.v1 import AppTest
 
+from shared.report import CASE_STUDIES_HEADING
+
 ROOT = Path(__file__).resolve().parents[2]
 PAGES = ROOT / "pages"
 ENTRYPOINT = ROOT / "Home.py"
@@ -73,6 +75,33 @@ class TestEveryPageLoads(unittest.TestCase):
             ENTRYPOINT.is_file(),
             "Home.py is the deployed entrypoint and must exist.",
         )
+
+    def test_every_module_page_names_its_examples_section(self):
+        """
+        The examples section must be labelled, not left to be inferred.
+
+        There are nine show_case_studies call sites across the pages,
+        including early-return branches, and the heading used to be applied
+        by each page individually. Only three sites had one, so two pages
+        showed the panel with no heading at all.
+        """
+        for script in sorted(PAGES.glob("*.py")):
+            with self.subTest(page=script.name):
+                app = AppTest.from_file(
+                    str(script), default_timeout=LOAD_TIMEOUT_SECONDS
+                )
+                app.run()
+
+                headings = [
+                    str(item.value) for item in app.subheader
+                ]
+
+                self.assertIn(
+                    CASE_STUDIES_HEADING,
+                    headings,
+                    f"{script.name} renders case studies without naming the "
+                    f"section. Headings found: {headings}",
+                )
 
 
 class TestEnvironmentCanRunTheApp(unittest.TestCase):

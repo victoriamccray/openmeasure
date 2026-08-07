@@ -294,10 +294,4 @@ if st.button("Clear recorded results"):
     st.rerun()
 
 
-section_header(
-    "Research examples",
-    "Published cases where what was measured, or left out, changed the "
-    "conclusion",
-)
-
 show_case_studies("data_validation")

@@ -599,10 +599,4 @@ else:
 # Research examples remain visible without an uploaded dataset
 # ---------------------------------------------------------------------
 
-section_header(
-    "Research examples",
-    "Published examples illustrating why fairness definitions, assumptions, "
-    "and tradeoffs matter",
-)
-
 show_case_studies("model_validation")

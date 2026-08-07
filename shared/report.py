@@ -19,6 +19,10 @@ import streamlit as st
 from shared.case_studies import get_case_studies
 from shared.catalog import LIFECYCLE_STAGES
 
+# One heading for the research examples section, used on every page so the
+# section is always named rather than left for the reader to infer.
+CASE_STUDIES_HEADING = "Research Examples & Case Studies"
+
 
 @dataclass(frozen=True)
 class Band:
@@ -111,6 +115,16 @@ def show_case_studies(module: str) -> None:
 
     if not studies:
         return
+
+    # The heading lives here rather than in each page. There are nine call
+    # sites across five pages, including early-return branches, and only
+    # three of them used to carry a heading at all, so the section was
+    # unlabelled on two pages entirely. Owning it here makes the label
+    # impossible to omit or to word differently from one page to the next.
+    section_header(
+        CASE_STUDIES_HEADING,
+        "Published cases behind this module's assumptions and limitations",
+    )
 
     # One bounded panel, so the examples read as a discrete section rather
     # than as loose boxes in the page flow.
