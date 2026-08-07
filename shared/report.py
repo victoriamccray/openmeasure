@@ -17,6 +17,7 @@ from typing import Sequence
 import streamlit as st
 
 from shared.case_studies import get_case_studies
+from shared.catalog import LIFECYCLE_STAGES
 
 
 @dataclass(frozen=True)
@@ -111,9 +112,35 @@ def show_case_studies(module: str) -> None:
     if not studies:
         return
 
-    for study in studies:
-        with st.expander(f"{study.title} ({study.stage})"):
-            st.caption(study.principle)
-            st.write(study.summary)
-            st.info(study.takeaway)
-            st.caption(study.citation)
+    # One bounded panel, so the examples read as a discrete section rather
+    # than as loose boxes in the page flow.
+    with st.container(border=True):
+        st.caption(_stage_coverage(studies))
+
+        for study in studies:
+            with st.expander(f"{study.title} ({study.stage})"):
+                st.caption(study.principle)
+                st.write(study.summary)
+                st.info(study.takeaway)
+                st.caption(study.citation)
+
+
+def _stage_coverage(studies: Sequence) -> str:
+    """
+    Describe which research stages a set of examples covers.
+
+    Stages are listed in research order rather than in the order the
+    examples happen to appear, because the point of the line is to show
+    where in a study these lessons apply. Reading "Measurement, Analysis,
+    Interpretation" conveys a progression; the display order does not.
+    """
+    present = [
+        stage
+        for stage in LIFECYCLE_STAGES
+        if any(study.stage == stage for study in studies)
+    ]
+
+    if len(present) == 1:
+        return f"All at the {present[0].lower()} stage of a study."
+
+    return "Spanning " + ", ".join(present).lower() + "."
