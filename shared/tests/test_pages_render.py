@@ -29,20 +29,30 @@ import dataclasses
 import inspect
 import re
 import unittest
+from collections import Counter
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 from streamlit.testing.v1 import AppTest
 
-from shared.catalog import MODULE_RELIABILITY, WORKFLOWS
+from shared.catalog import LIFECYCLE_STAGES, MODULE_RELIABILITY, WORKFLOWS
 from shared.handoff import (
     STORE_KEY,
     ExclusionAccount,
     HandoffStore,
     fingerprint_dataframe,
 )
-from shared.progress import STATE_NOT_ASSESSED, STATE_RECORDED
+from shared.progress import (
+    STAGE_NO_MODULE,
+    STAGE_READS_RECORDS,
+    STAGE_RECORDED,
+    STATE_NOT_ASSESSED,
+    STATE_RECORDED,
+    stage_progress,
+    status_caption,
+    workflow_progress,
+)
 from shared.report import CASE_STUDIES_HEADING
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -229,34 +239,96 @@ class TestOverviewProgressStatus(unittest.TestCase):
             self.assertFalse(caption.startswith(STATE_RECORDED))
 
     def test_recording_an_analysis_shows_a_status_on_every_card(self):
+        """
+        The page renders exactly what the data layer reports.
+
+        Asserted against shared/progress.py rather than against hardcoded
+        counts. Both the strip and the cards emit status captions, and some
+        strings are legitimately shared between them, so counting occurrences
+        of "Recorded" by hand goes stale the moment either grows a row.
+        """
+        store = self._recorded_store()
+        entries = HandoffStore(store).entries()
+
+        app = self._run_entrypoint(store)
+
+        captions = Counter(str(item.value) for item in app.caption)
+
+        expected = Counter(
+            [stage.state for stage in stage_progress(entries)]
+            + [status_caption(item) for item in workflow_progress(entries)]
+        )
+
+        for value, count in expected.items():
+            with self.subTest(status=value):
+                self.assertEqual(
+                    captions[value],
+                    count,
+                    f"Expected '{value}' {count} time(s), found "
+                    f"{captions[value]}.",
+                )
+
+    def test_the_recorded_card_names_its_dataset(self):
+        # The card carries the filename; the strip's bare state does not. This
+        # is what distinguishes the two, so it is worth asserting directly.
+        app = self._run_entrypoint(self._recorded_store())
+
+        detailed = [
+            str(item.value)
+            for item in app.caption
+            if str(item.value).startswith(f"{STATE_RECORDED},")
+        ]
+
+        self.assertEqual(len(detailed), 1, f"Found: {detailed}")
+        self.assertIn("survey.csv", detailed[0])
+
+    def test_every_workflow_that_records_nothing_yet_says_so(self):
+        # The whole point of the feature: showing what has not been looked at.
+        app = self._run_entrypoint(self._recorded_store())
+
+        captions = [str(item.value) for item in app.caption]
+        unassessed_cards = [
+            workflow
+            for workflow in WORKFLOWS
+            if workflow.module_key and workflow.module_key != MODULE_RELIABILITY
+        ]
+
+        self.assertTrue(unassessed_cards, "No unassessed workflow to check.")
+        self.assertGreaterEqual(
+            captions.count(STATE_NOT_ASSESSED), len(unassessed_cards)
+        )
+
+    def test_the_stage_strip_names_every_stage_before_anything_is_recorded(self):
+        # The strip is a map of the lifecycle, so it is shown from the start.
+        # Only its state labels wait for a record.
+        app = self._run_entrypoint()
+
+        rendered = " ".join(str(item.value) for item in app.markdown)
+
+        for stage in LIFECYCLE_STAGES:
+            with self.subTest(stage=stage):
+                self.assertIn(stage, rendered)
+
+    def test_the_stage_strip_shows_states_once_something_is_recorded(self):
         app = self._run_entrypoint(self._recorded_store())
 
         captions = [str(item.value) for item in app.caption]
 
-        recorded = [
-            caption for caption in captions if caption.startswith(STATE_RECORDED)
-        ]
+        # Measurement holds only Reliability, which was recorded.
+        self.assertIn(STAGE_RECORDED, captions)
+        # Research Question has no module, and must not read as a failing.
+        self.assertIn(STAGE_NO_MODULE, captions)
+        # Interpretation has a module that reads rather than records.
+        self.assertIn(STAGE_READS_RECORDS, captions)
 
-        self.assertEqual(
-            len(recorded),
-            1,
-            f"Expected exactly one recorded status. Captions: {captions}",
-        )
-        self.assertIn("survey.csv", recorded[0])
+    def test_the_stage_strip_hides_states_before_anything_is_recorded(self):
+        app = self._run_entrypoint()
 
-        # Every other recording workflow reports the unassessed state, which
-        # is the whole point: showing what has not been looked at.
-        expected_unassessed = sum(
-            1
-            for workflow in WORKFLOWS
-            if workflow.module_key and workflow.module_key != MODULE_RELIABILITY
-        )
+        captions = [str(item.value) for item in app.caption]
 
-        self.assertEqual(
-            captions.count(STATE_NOT_ASSESSED),
-            expected_unassessed,
-            f"Captions: {captions}",
-        )
+        for state in (STAGE_RECORDED, STAGE_NO_MODULE, STAGE_READS_RECORDS):
+            with self.subTest(state=state):
+                self.assertNotIn(state, captions)
 
     def test_the_status_never_reports_the_statistic(self):
         # The record holds primary_statistics. A bare number on a card is

@@ -32,6 +32,7 @@ from shared.handoff import HandoffStore
 from shared.progress import (
     SESSION_SCOPE_NOTE,
     has_any_records,
+    stage_progress,
     status_caption,
     workflow_progress,
 )
@@ -76,6 +77,25 @@ status_by_workflow = {
     item.workflow.workflow: status_caption(item)
     for item in workflow_progress(entries)
 }
+
+# The stage strip. Deliberately without connecting arrows: the stages are
+# ordered, but the workflows are not a prerequisite chain, and an arrow would
+# imply Fairness needs Reliability to have run first. It carries no arrows, no
+# tick marks, and no counter, since each of those turns "an analysis was
+# recorded" into "this step is done".
+#
+# The strip itself is always shown, because it is a map of the lifecycle and
+# useful before anything is recorded. Only the state labels are gated, which
+# is the same rule the cards below follow.
+with st.container(border=True):
+    strip = st.columns(len(LIFECYCLE_STAGES))
+
+    for column, stage in zip(strip, stage_progress(entries)):
+        with column:
+            st.markdown(f"**{stage.stage}**")
+
+            if show_status:
+                st.caption(stage.state)
 
 if show_status:
     st.caption(SESSION_SCOPE_NOTE)

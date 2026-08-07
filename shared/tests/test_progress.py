@@ -20,9 +20,12 @@ import unittest
 import pandas as pd
 
 from shared.catalog import (
+    LIFECYCLE_STAGES,
     MODULE_FAIRNESS,
     MODULE_KEYS,
+    MODULE_PROGRAM_EVALUATION,
     MODULE_RELIABILITY,
+    STAGES_WITHOUT_WORKFLOWS,
     WORKFLOWS,
     Workflow,
 )
@@ -34,12 +37,20 @@ from shared.handoff import (
     fingerprint_dataframe,
 )
 from shared.progress import (
+    ALLOWED_STAGE_STATES,
     ALLOWED_STATES,
     READS_OTHER_RECORDS,
+    STAGE_NO_MODULE,
+    STAGE_NOT_ASSESSED,
+    STAGE_PARTLY_RECORDED,
+    STAGE_READS_RECORDS,
+    STAGE_RECORDED,
     STATE_NOT_ASSESSED,
     STATE_RECORDED,
+    StageProgress,
     WorkflowProgress,
     has_any_records,
+    stage_progress,
     status_caption,
     workflow_progress,
 )
@@ -366,6 +377,209 @@ class TestGatingTheDisplay(unittest.TestCase):
         store.clear()
 
         self.assertFalse(has_any_records(store.entries()))
+
+
+def stage_named(name: str, entries) -> StageProgress:
+    """The strip entry for one stage."""
+
+    matches = [item for item in stage_progress(entries) if item.stage == name]
+
+    assert len(matches) == 1, f"Expected one entry for stage {name}."
+
+    return matches[0]
+
+
+class TestTheStageStrip(unittest.TestCase):
+    """
+    The strip aggregates workflow records up to lifecycle stages.
+
+    The risk it carries is different from the cards': one glance summarizes
+    several workflows, so a stage with half its workflows recorded must not
+    read as covered.
+    """
+
+    def test_every_stage_appears_in_order(self):
+        # A stage omitted from the strip would imply it is not part of a
+        # research lifecycle at all.
+        stages = stage_progress(())
+
+        self.assertEqual(
+            tuple(item.stage for item in stages), LIFECYCLE_STAGES
+        )
+
+    def test_a_stage_with_no_workflow_says_so(self):
+        # Research Question has no module. "Not assessed" would blame the user
+        # for something the toolkit does not offer.
+        for stage in STAGES_WITHOUT_WORKFLOWS:
+            with self.subTest(stage=stage):
+                item = stage_named(stage, ())
+
+                self.assertEqual(item.state, STAGE_NO_MODULE)
+                self.assertEqual(item.n_workflows, 0)
+
+    def test_a_stage_with_nothing_recorded_is_not_assessed(self):
+        item = stage_named("Measurement", ())
+
+        self.assertEqual(item.state, STAGE_NOT_ASSESSED)
+        self.assertEqual(item.n_recorded, 0)
+
+    def test_a_fully_recorded_stage_is_recorded(self):
+        store = HandoffStore({})
+        record(store, MODULE_RELIABILITY, "survey.csv")
+
+        item = stage_named("Measurement", store.entries())
+
+        self.assertEqual(item.state, STAGE_RECORDED)
+        self.assertEqual(item.n_recorded, item.n_workflows)
+
+    def test_a_partly_recorded_stage_does_not_read_as_recorded(self):
+        """
+        The assertion this whole class exists for.
+
+        Analysis holds Impact Evaluation and Fairness. Recording one must not
+        report the stage as recorded, or a glance at the strip suggests the
+        stage was covered when half of it was not.
+        """
+        store = HandoffStore({})
+        record(store, MODULE_PROGRAM_EVALUATION, "trial.csv")
+
+        item = stage_named("Analysis", store.entries())
+
+        self.assertEqual(item.state, STAGE_PARTLY_RECORDED)
+        self.assertNotEqual(item.state, STAGE_RECORDED)
+        self.assertEqual(item.n_recorded, 1)
+        self.assertEqual(item.n_workflows, 2)
+
+    def test_recording_every_workflow_in_a_stage_promotes_it(self):
+        store = HandoffStore({})
+        record(store, MODULE_PROGRAM_EVALUATION, "trial.csv")
+        record(store, MODULE_FAIRNESS, "trial.csv")
+
+        item = stage_named("Analysis", store.entries())
+
+        self.assertEqual(item.state, STAGE_RECORDED)
+
+    def test_a_stage_holding_only_a_reader_says_it_reads(self):
+        """
+        Interpretation has a module, and it is not assessable.
+
+        Two wrong answers this rules out. Counting Cross-Analysis Implications
+        as an unrecorded workflow would leave the stage permanently
+        unassessed. Dropping it would report "No module yet" for a stage that
+        has a module the user can open from the cards below.
+        """
+        item = stage_named("Interpretation", ())
+
+        self.assertEqual(item.state, STAGE_READS_RECORDS)
+        self.assertEqual(item.n_workflows, 1)
+        self.assertEqual(item.n_recording, 0)
+
+    def test_a_reader_stage_never_becomes_assessable(self):
+        # Recording every workflow that can record must not change it, since
+        # the stage has nothing of its own to record.
+        store = HandoffStore({})
+        for key in MODULE_KEYS:
+            record(store, key, f"{key}.csv")
+
+        item = stage_named("Interpretation", store.entries())
+
+        self.assertEqual(item.state, STAGE_READS_RECORDS)
+
+    def test_no_module_and_reads_records_are_distinguished(self):
+        # These look alike on the strip but are different facts: one stage has
+        # nothing, the other has something that does not record.
+        empty = stage_named("Research Question", ())
+        reader = stage_named("Interpretation", ())
+
+        self.assertEqual(empty.state, STAGE_NO_MODULE)
+        self.assertEqual(reader.state, STAGE_READS_RECORDS)
+        self.assertNotEqual(empty.state, reader.state)
+
+    def test_recorded_never_exceeds_the_workflow_count(self):
+        store = HandoffStore({})
+        for key in MODULE_KEYS:
+            record(store, key, f"{key}.csv")
+
+        for item in stage_progress(store.entries()):
+            with self.subTest(stage=item.stage):
+                self.assertLessEqual(item.n_recorded, item.n_recording)
+                self.assertLessEqual(item.n_recording, item.n_workflows)
+
+    def test_an_impossible_count_is_rejected_at_construction(self):
+        with self.assertRaises(ValueError) as context:
+            StageProgress(
+                stage="Analysis",
+                state=STAGE_RECORDED,
+                n_workflows=1,
+                n_recording=1,
+                n_recorded=2,
+            )
+
+        self.assertIn("more than it has", str(context.exception))
+
+    def test_an_unknown_stage_is_rejected_at_construction(self):
+        with self.assertRaises(ValueError):
+            StageProgress(
+                stage="Not A Stage",
+                state=STAGE_RECORDED,
+                n_workflows=1,
+                n_recording=1,
+                n_recorded=1,
+            )
+
+
+class TestStageStatesAreAClosedSet(unittest.TestCase):
+    """
+    The same closed-set rule as the workflow states, one level up.
+
+    A separate set because a stage has cases a single workflow does not, but
+    the constraint is identical: nothing may imply the stage is finished.
+    """
+
+    def test_only_five_stage_states_exist(self):
+        self.assertEqual(
+            ALLOWED_STAGE_STATES,
+            frozenset(
+                {
+                    "Recorded",
+                    "Partly recorded",
+                    "Not assessed",
+                    "Reads records",
+                    "No module yet",
+                }
+            ),
+        )
+
+    def test_every_produced_stage_state_is_allowed(self):
+        store = HandoffStore({})
+        record(store, MODULE_PROGRAM_EVALUATION, "trial.csv")
+
+        for item in stage_progress(store.entries()):
+            with self.subTest(stage=item.stage):
+                self.assertIn(item.state, ALLOWED_STAGE_STATES)
+
+    def test_any_other_stage_state_is_rejected_at_construction(self):
+        for state in ("Complete", "Validated", "Passed", "50%", "1 of 2"):
+            with self.subTest(state=state):
+                with self.assertRaises(ValueError):
+                    StageProgress(
+                        stage="Analysis",
+                        state=state,
+                        n_workflows=2,
+                        n_recording=2,
+                        n_recorded=1,
+                    )
+
+    def test_no_stage_state_is_a_counter(self):
+        # A "1 of 2" reading would imply 2 of 2 is the goal, which is the
+        # completeness claim the wording exists to avoid.
+        for state in ALLOWED_STAGE_STATES:
+            with self.subTest(state=state):
+                self.assertFalse(any(char.isdigit() for char in state))
+                self.assertNotIn("%", state)
+
+    def test_entries_are_frozen(self):
+        self.assertTrue(StageProgress.__dataclass_params__.frozen)
 
 
 class TestProgressEntries(unittest.TestCase):
