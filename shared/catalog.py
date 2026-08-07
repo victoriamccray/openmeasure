@@ -71,6 +71,24 @@ CATEGORY_ORDER: tuple[str, ...] = (
     "Cross-cutting validation",
 )
 
+# The keys workflow pages record their results under, via shared/handoff.py.
+#
+# These live here rather than in each page because two separate readers join
+# on them: the Cross-Analysis Implications page and the progress status on the
+# overview cards. When each page held its own string literal, renaming one
+# would have made the status read "Not assessed" forever with nothing failing.
+MODULE_RELIABILITY = "reliability"
+MODULE_PROGRAM_EVALUATION = "program_evaluation"
+MODULE_FAIRNESS = "fairness"
+MODULE_TIME_SERIES_QA = "time_series_qa"
+
+MODULE_KEYS: tuple[str, ...] = (
+    MODULE_RELIABILITY,
+    MODULE_PROGRAM_EVALUATION,
+    MODULE_FAIRNESS,
+    MODULE_TIME_SERIES_QA,
+)
+
 
 @dataclass(frozen=True)
 class Workflow:
@@ -81,6 +99,11 @@ class Workflow:
     research examples by validation category rather than by workflow. It is
     deliberately separate from category, whose wording is chosen to describe
     the workflow accurately on the landing page.
+
+    module_key is the key this workflow records results under. None means the
+    workflow records nothing, which is true of Cross-Analysis Implications:
+    it reads what the others recorded, so it can never carry a status of its
+    own.
     """
 
     workflow: str
@@ -90,6 +113,7 @@ class Workflow:
     summary: str
     page: str
     taxonomy_key: str | None = None
+    module_key: str | None = None
 
     def __post_init__(self) -> None:
         if self.stage not in LIFECYCLE_STAGES:
@@ -117,6 +141,13 @@ class Workflow:
                 f"{self.workflow} has category '{self.category}', which is "
                 f"not in CATEGORY_ORDER, so it would render in no sidebar "
                 f"section. Known categories: {', '.join(CATEGORY_ORDER)}."
+            )
+
+        if self.module_key is not None and self.module_key not in MODULE_KEYS:
+            raise ValueError(
+                f"{self.workflow} has module_key '{self.module_key}', which "
+                f"is not a declared key, so nothing it records would ever be "
+                f"found. Known keys: {', '.join(MODULE_KEYS)}."
             )
 
     @property
@@ -148,6 +179,7 @@ WORKFLOWS: tuple[Workflow, ...] = (
         ),
         page="pages/4_Time_Series_QA.py",
         taxonomy_key="data_validation",
+        module_key=MODULE_TIME_SERIES_QA,
     ),
     Workflow(
         workflow="Reliability",
@@ -160,6 +192,7 @@ WORKFLOWS: tuple[Workflow, ...] = (
         ),
         page="pages/1_Reliability.py",
         taxonomy_key="measurement_validation",
+        module_key=MODULE_RELIABILITY,
     ),
     Workflow(
         workflow="Impact Evaluation",
@@ -172,6 +205,7 @@ WORKFLOWS: tuple[Workflow, ...] = (
         ),
         page="pages/2_Impact_Evaluation.py",
         taxonomy_key="program_validation",
+        module_key=MODULE_PROGRAM_EVALUATION,
     ),
     Workflow(
         workflow="Fairness",
@@ -184,6 +218,7 @@ WORKFLOWS: tuple[Workflow, ...] = (
         ),
         page="pages/3_Fairness.py",
         taxonomy_key="model_validation",
+        module_key=MODULE_FAIRNESS,
     ),
     Workflow(
         workflow="Cross-Analysis Implications",
@@ -196,6 +231,8 @@ WORKFLOWS: tuple[Workflow, ...] = (
         ),
         page="pages/5_Cross_Analysis_Implications.py",
         taxonomy_key="data_validation",
+        # No module_key: this page reads the other workflows' records rather
+        # than producing one of its own.
     ),
 )
 

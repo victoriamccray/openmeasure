@@ -19,6 +19,7 @@ import streamlit as st
 
 from modules.program_evaluation.core import comparison as comp
 from modules.program_evaluation.core import recommend as rec
+from shared.catalog import MODULE_PROGRAM_EVALUATION
 from shared.handoff import (
     KIND_ROWS_DROPPED,
     ExclusionAccount,
@@ -53,7 +54,7 @@ def record_comparison(frame, upload, analysis_context, recommendation, result) -
         # The expanded coding turns one participant into one observation per
         # selection, so there is no retained-participant count to report.
         account = ExclusionAccount(
-            module="program_evaluation",
+            module=MODULE_PROGRAM_EVALUATION,
             analysis_label=recommendation.display_name,
             columns_considered=columns,
             n_input_rows=result.n_input_rows,
@@ -62,7 +63,7 @@ def record_comparison(frame, upload, analysis_context, recommendation, result) -
         )
     else:
         account = ExclusionAccount(
-            module="program_evaluation",
+            module=MODULE_PROGRAM_EVALUATION,
             analysis_label=recommendation.display_name,
             columns_considered=columns,
             n_input_rows=result.n_input_rows,
@@ -84,7 +85,7 @@ def record_comparison(frame, upload, analysis_context, recommendation, result) -
             statistics[name] = float(value)
 
     HandoffStore(st.session_state).record(
-        module="program_evaluation",
+        module=MODULE_PROGRAM_EVALUATION,
         fingerprint=fingerprint_dataframe(frame, upload.name),
         exclusion=account,
         primary_statistics=statistics,

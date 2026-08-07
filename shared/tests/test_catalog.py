@@ -15,10 +15,12 @@ import re
 import unittest
 from pathlib import Path
 
+from shared import catalog
 from shared.case_studies import CASE_STUDIES
 from shared.catalog import (
     CATEGORY_ORDER,
     LIFECYCLE_STAGES,
+    MODULE_KEYS,
     STAGE_QUESTIONS,
     STAGES_WITHOUT_WORKFLOWS,
     WORKFLOWS,
@@ -226,6 +228,124 @@ class TestTaxonomyKeys(unittest.TestCase):
                 self.assertIn(item.taxonomy_key, tagged)
 
 
+class TestModuleKeys(unittest.TestCase):
+    """
+    Module keys join recorded analyses to the workflow that produced them.
+
+    A wrong key is invisible: the reading pages simply find nothing and report
+    "Not assessed" forever, with no error anywhere. These assertions exist
+    because that failure cannot be noticed by using the app.
+    """
+
+    def test_declared_keys_are_unique(self):
+        self.assertEqual(len(MODULE_KEYS), len(set(MODULE_KEYS)))
+
+    def test_workflow_keys_are_unique(self):
+        # Two workflows sharing a key would light up the wrong card.
+        keys = [
+            workflow.module_key
+            for workflow in WORKFLOWS
+            if workflow.module_key is not None
+        ]
+
+        self.assertEqual(len(keys), len(set(keys)))
+
+    def test_every_workflow_key_is_declared(self):
+        for workflow in WORKFLOWS:
+            if workflow.module_key is None:
+                continue
+            with self.subTest(workflow=workflow.workflow):
+                self.assertIn(workflow.module_key, MODULE_KEYS)
+
+    def test_every_declared_key_is_used_by_a_workflow(self):
+        # An orphaned constant means a page recording under a key that no
+        # card displays.
+        used = {
+            workflow.module_key
+            for workflow in WORKFLOWS
+            if workflow.module_key is not None
+        }
+
+        self.assertEqual(set(MODULE_KEYS), used)
+
+    def test_unknown_key_is_rejected_at_construction(self):
+        with self.assertRaises(ValueError) as context:
+            Workflow(
+                workflow="Misfiled",
+                category="Data Validation",
+                stage="Data",
+                version="0.1",
+                summary="A summary.",
+                page="pages/9_Misfiled.py",
+                module_key="not_a_declared_key",
+            )
+
+        self.assertIn("not a declared key", str(context.exception))
+
+    def test_each_page_records_under_its_own_key(self):
+        """
+        A page must reference its own module constant and no other.
+
+        This is the copy-paste case: a new page cloned from an existing one
+        keeps the constant it was copied from, and the wrong card then reports
+        the analysis. Source is scanned rather than the app driven, because
+        reaching a record call needs a file upload.
+        """
+        constants = {
+            name: getattr(catalog, name)
+            for name in dir(catalog)
+            if name.startswith("MODULE_") and name != "MODULE_KEYS"
+        }
+
+        self.assertTrue(constants, "No module constants found to scan for.")
+
+        for workflow in WORKFLOWS:
+            if workflow.module_key is None:
+                continue
+
+            with self.subTest(workflow=workflow.workflow):
+                source = (ROOT / workflow.page).read_text(encoding="utf-8")
+                referenced = {
+                    value
+                    for name, value in constants.items()
+                    if re.search(rf"\b{name}\b", source)
+                }
+
+                self.assertEqual(
+                    referenced,
+                    {workflow.module_key},
+                    f"{workflow.page} should reference only the constant for "
+                    f"'{workflow.module_key}'. Referenced keys: "
+                    f"{sorted(referenced)}.",
+                )
+
+    def test_no_page_passes_a_literal_module_argument(self):
+        """
+        Every module= argument must be a constant, never a string literal.
+
+        The constants exist so there is one definition per key. A literal
+        alongside them reintroduces exactly the drift they remove.
+
+        Matched on the argument rather than on the key text, because the keys
+        are ordinary words that legitimately appear elsewhere: 1_Reliability.py
+        builds a path from "modules" / "reliability" / "sample_data", which is
+        a directory name and not a record key.
+        """
+        literal_module_argument = re.compile(r"\bmodule\s*=\s*[\"']")
+
+        for path in sorted(PAGES.glob("*.py")):
+            with self.subTest(page=path.name):
+                source = path.read_text(encoding="utf-8")
+                found = literal_module_argument.findall(source)
+
+                self.assertEqual(
+                    found,
+                    [],
+                    f"{path.name} passes a literal module= argument. Import "
+                    f"the constant from shared.catalog instead.",
+                )
+
+
 class TestWorkflowFields(unittest.TestCase):
     def test_required_fields_are_populated(self):
         for item in WORKFLOWS:
@@ -273,9 +393,11 @@ class TestWorkflowFields(unittest.TestCase):
     def test_entries_are_frozen(self):
         self.assertTrue(Workflow.__dataclass_params__.frozen)
 
-    def test_no_field_implies_a_score_or_status(self):
-        # Status indicators are out of scope for this version, and any added
-        # later must ship as icon plus text rather than color alone.
+    def test_no_field_implies_a_score_or_grade(self):
+        # A workflow's recording status is computed in shared/progress.py from
+        # what was recorded, and is never a stored property of the workflow
+        # itself. A score or grade field is still refused outright: OpenMeasure
+        # reports what an analysis found, not a mark out of ten.
         forbidden = ("score", "grade", "rating", "colour", "color")
         names = {field.name for field in dataclasses.fields(Workflow)}
 

@@ -28,6 +28,7 @@ from modules.time_series_qa.core.completeness import (
     DEFAULT_PERIOD_COVERAGE_THRESHOLD,
 )
 from modules.time_series_qa.core.qa import run_time_series_qa
+from shared.catalog import MODULE_TIME_SERIES_QA
 from shared.handoff import (
     KIND_CELLS_EMPTY,
     KIND_OBSERVATIONS_ABSENT,
@@ -430,10 +431,10 @@ def record_time_series(frame, upload, qa_result) -> None:
         )
 
     HandoffStore(st.session_state).record(
-        module="time_series_qa",
+        module=MODULE_TIME_SERIES_QA,
         fingerprint=fingerprint_dataframe(frame, upload.name),
         exclusion=ExclusionAccount(
-            module="time_series_qa",
+            module=MODULE_TIME_SERIES_QA,
             analysis_label="Time-Series QA",
             columns_considered=(
                 str(qa_result.timestamp_col),

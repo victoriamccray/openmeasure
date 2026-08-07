@@ -14,6 +14,11 @@ fall out of date the way the hand-written list it replaced did.
 The sidebar groups workflows by validation category. This page arranges them
 by research stage. That is deliberate: the sidebar answers "where do I go",
 and this page answers "when in a study would I need this".
+
+Cards also carry a recording status once anything has been recorded, so the
+page answers what has not been looked at rather than only what exists. The
+status is absent on a first visit: a wall of "Not assessed" before a user has
+had the chance to do anything reads as a scolding rather than as guidance.
 """
 
 import streamlit as st
@@ -22,6 +27,13 @@ from shared.catalog import (
     LIFECYCLE_STAGES,
     STAGE_QUESTIONS,
     workflows_by_stage,
+)
+from shared.handoff import HandoffStore
+from shared.progress import (
+    SESSION_SCOPE_NOTE,
+    has_any_records,
+    status_caption,
+    workflow_progress,
 )
 
 st.title("OpenMeasure Lab")
@@ -58,6 +70,16 @@ in their own documentation.
 """
 )
 
+entries = HandoffStore(st.session_state).entries()
+show_status = has_any_records(entries)
+status_by_workflow = {
+    item.workflow.workflow: status_caption(item)
+    for item in workflow_progress(entries)
+}
+
+if show_status:
+    st.caption(SESSION_SCOPE_NOTE)
+
 grouped = workflows_by_stage()
 
 for stage in LIFECYCLE_STAGES:
@@ -86,6 +108,13 @@ for stage in LIFECYCLE_STAGES:
                 st.badge(workflow.category)
                 st.caption(f"Version {workflow.version}")
                 st.write(workflow.summary)
+
+                if show_status:
+                    # Plain muted text, with no color coding. A green tick
+                    # would read as "passed", and a recorded analysis is not
+                    # a passing verdict on the validation stage.
+                    st.caption(status_by_workflow[workflow.workflow])
+
                 st.page_link(
                     workflow.page,
                     label=f"Open {workflow.workflow}",

@@ -25,15 +25,24 @@ Run with: pytest shared/tests/ -v
 
 from __future__ import annotations
 
+import dataclasses
 import inspect
 import re
 import unittest
 from pathlib import Path
 
+import pandas as pd
 import streamlit as st
 from streamlit.testing.v1 import AppTest
 
-from shared.catalog import WORKFLOWS
+from shared.catalog import MODULE_RELIABILITY, WORKFLOWS
+from shared.handoff import (
+    STORE_KEY,
+    ExclusionAccount,
+    HandoffStore,
+    fingerprint_dataframe,
+)
+from shared.progress import STATE_NOT_ASSESSED, STATE_RECORDED
 from shared.report import CASE_STUDIES_HEADING
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -160,6 +169,112 @@ class TestEveryPageLoads(unittest.TestCase):
                 )
 
 
+class TestOverviewProgressStatus(unittest.TestCase):
+    """
+    The status line on the overview cards.
+
+    shared/tests/test_progress.py covers the join. This covers the part that
+    only exists once rendered: that the status appears on the page at all, and
+    that a first visit is unchanged by the feature.
+    """
+
+    @staticmethod
+    def _recorded_store() -> dict:
+        """A session store holding one recorded reliability analysis."""
+
+        data = pd.DataFrame({"q1": [1, 2, 3], "q2": [2, 3, 4]})
+        mapping: dict = {}
+
+        HandoffStore(mapping).record(
+            module=MODULE_RELIABILITY,
+            fingerprint=fingerprint_dataframe(data, "survey.csv"),
+            exclusion=ExclusionAccount(
+                module=MODULE_RELIABILITY,
+                analysis_label="Reliability",
+                columns_considered=("q1", "q2"),
+                n_input_rows=3,
+                n_retained_rows=3,
+            ),
+        )
+
+        return mapping
+
+    def _run_entrypoint(self, session: dict | None = None) -> AppTest:
+        app = AppTest.from_file(
+            str(ENTRYPOINT), default_timeout=LOAD_TIMEOUT_SECONDS
+        )
+
+        if session:
+            app.session_state[STORE_KEY] = session[STORE_KEY]
+
+        app.run()
+
+        self.assertFalse(
+            app.exception,
+            "The entrypoint raised while rendering the overview.",
+        )
+
+        return app
+
+    def test_no_status_appears_before_anything_is_recorded(self):
+        # The status is deliberately absent on a first visit. A wall of "Not
+        # assessed" before a user has had the chance to do anything reads as a
+        # scolding rather than as guidance.
+        app = self._run_entrypoint()
+
+        captions = [str(item.value) for item in app.caption]
+
+        self.assertNotIn(STATE_NOT_ASSESSED, captions)
+        for caption in captions:
+            self.assertFalse(caption.startswith(STATE_RECORDED))
+
+    def test_recording_an_analysis_shows_a_status_on_every_card(self):
+        app = self._run_entrypoint(self._recorded_store())
+
+        captions = [str(item.value) for item in app.caption]
+
+        recorded = [
+            caption for caption in captions if caption.startswith(STATE_RECORDED)
+        ]
+
+        self.assertEqual(
+            len(recorded),
+            1,
+            f"Expected exactly one recorded status. Captions: {captions}",
+        )
+        self.assertIn("survey.csv", recorded[0])
+
+        # Every other recording workflow reports the unassessed state, which
+        # is the whole point: showing what has not been looked at.
+        expected_unassessed = sum(
+            1
+            for workflow in WORKFLOWS
+            if workflow.module_key and workflow.module_key != MODULE_RELIABILITY
+        )
+
+        self.assertEqual(
+            captions.count(STATE_NOT_ASSESSED),
+            expected_unassessed,
+            f"Captions: {captions}",
+        )
+
+    def test_the_status_never_reports_the_statistic(self):
+        # The record holds primary_statistics. A bare number on a card is
+        # severed from the interpretation band that makes it mean anything.
+        store = self._recorded_store()
+        entry = store[STORE_KEY][MODULE_RELIABILITY]
+        store[STORE_KEY][MODULE_RELIABILITY] = dataclasses.replace(
+            entry, primary_statistics={"cronbach_alpha": 0.8231}
+        )
+
+        app = self._run_entrypoint(store)
+
+        captions = " ".join(str(item.value) for item in app.caption)
+
+        self.assertNotIn("0.8231", captions)
+        self.assertNotIn("cronbach_alpha", captions)
+
+
 class TestEnvironmentCanRunTheApp(unittest.TestCase):
     """
     The app calls APIs that older Streamlit releases do not have. A host
@@ -205,8 +320,6 @@ class TestEnvironmentCanRunTheApp(unittest.TestCase):
         self.assertTrue(hasattr(st, "page_link"))
 
     def test_pandas_meets_the_declared_minimum(self):
-        import pandas as pd
-
         requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8")
         match = re.search(r"^pandas>=([\d.]+)", requirements, re.MULTILINE)
 
@@ -230,8 +343,6 @@ class TestEnvironmentCanRunTheApp(unittest.TestCase):
     def test_frequency_aliases_the_module_relies_on_are_valid(self):
         # Time-Series QA rounds intervals using these aliases. The lowercase
         # forms were renamed in pandas 2.2, so an older pandas rejects them.
-        import pandas as pd
-
         series = pd.Series([pd.Timedelta("1D") + pd.Timedelta("3s")])
 
         for alias in ("D", "h", "min", "s", "ms", "us"):

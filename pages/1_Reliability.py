@@ -15,6 +15,7 @@ import streamlit as st
 
 from modules.reliability.core import reliability as rel
 from modules.reliability.core import interpret as interp
+from shared.catalog import MODULE_RELIABILITY
 from shared.handoff import (
     KIND_CELLS_EMPTY,
     KIND_ROWS_DROPPED,
@@ -38,10 +39,10 @@ def record_reliability(frame, upload, columns, result) -> None:
     )
 
     HandoffStore(st.session_state).record(
-        module="reliability",
+        module=MODULE_RELIABILITY,
         fingerprint=fingerprint_dataframe(frame, upload.name),
         exclusion=ExclusionAccount(
-            module="reliability",
+            module=MODULE_RELIABILITY,
             analysis_label="Reliability",
             columns_considered=tuple(str(column) for column in columns),
             n_input_rows=result.n_participants,

@@ -26,6 +26,7 @@ import streamlit as st
 
 from modules.fairness.core import pre_model_metrics as pm
 from modules.fairness.core.recommend import recommend_fairness_metric
+from shared.catalog import MODULE_FAIRNESS
 from shared.handoff import (
     KIND_ROWS_DROPPED,
     ExclusionAccount,
@@ -50,10 +51,10 @@ def record_fairness(frame, upload, label_column, group_column, result) -> None:
     imported.
     """
     HandoffStore(st.session_state).record(
-        module="fairness",
+        module=MODULE_FAIRNESS,
         fingerprint=fingerprint_dataframe(frame, upload.name),
         exclusion=ExclusionAccount(
-            module="fairness",
+            module=MODULE_FAIRNESS,
             analysis_label="Fairness (pre-model)",
             columns_considered=(str(label_column), str(group_column)),
             n_input_rows=result.n_input_rows,
