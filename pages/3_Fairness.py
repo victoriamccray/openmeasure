@@ -156,8 +156,8 @@ Observed disparities may reflect:
 - data-quality problems.
 
 Equal opportunity, predictive equality, equalized odds, and calibration
-require model predictions—and, for most metrics, observed ground-truth
-outcomes. Those analyses belong to a later post-model stage.
+require model predictions, and for most metrics they also require observed
+ground-truth outcomes. Those analyses belong to a later post-model stage.
 """
     )
 

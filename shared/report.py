@@ -16,7 +16,7 @@ from typing import Sequence
 
 import streamlit as st
 
-from shared.case_studies import get_case_studies_grouped
+from shared.case_studies import get_case_studies
 
 
 @dataclass(frozen=True)
@@ -89,8 +89,7 @@ def caveat(text: str) -> None:
 
 def show_case_studies(module: str) -> None:
     """
-    Display research case studies relevant to a module, grouped by the
-    research stage each one speaks to.
+    Display research case studies relevant to a module, most relevant first.
 
     module should match one of the taxonomy keys used in
     shared/case_studies.py (e.g. "measurement_validation",
@@ -98,25 +97,23 @@ def show_case_studies(module: str) -> None:
     necessarily the folder name of the calling module.
 
     Each study is collapsed behind its own title, so the reader scans a
-    short list and opens what is relevant instead of reading several
-    hundred words of prose laid out in full. Stages arrive already ordered
-    by the research process, and stages with nothing for this module are
-    omitted.
+    short list and opens what is relevant instead of reading several hundred
+    words laid out in full. The research stage is shown alongside each title
+    rather than used as a grouping heading, so a page can lead with its most
+    relevant example while still telling the reader where in a study that
+    lesson applies.
 
-    Renders nothing when no case studies are tagged for the module, so it
-    is safe to call from every page.
+    Renders nothing when no case studies are tagged for the module, so it is
+    safe to call from every page.
     """
-    grouped = get_case_studies_grouped(module)
+    studies = get_case_studies(module)
 
-    if not grouped:
+    if not studies:
         return
 
-    for stage, studies in grouped.items():
-        st.caption(stage)
-
-        for study in studies:
-            with st.expander(study.title):
-                st.caption(study.principle)
-                st.write(study.summary)
-                st.info(study.takeaway)
-                st.caption(study.citation)
+    for study in studies:
+        with st.expander(f"{study.title} ({study.stage})"):
+            st.caption(study.principle)
+            st.write(study.summary)
+            st.info(study.takeaway)
+            st.caption(study.citation)

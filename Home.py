@@ -1,5 +1,5 @@
 """
-OpenMeasure — landing page.
+OpenMeasure landing page.
 
 Entry point for the Streamlit multipage application.
 Individual modules live in pages/ and are automatically

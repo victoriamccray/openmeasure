@@ -466,30 +466,60 @@ CASE_STUDIES = {
 }
 
 
+# The order studies appear on each page, most relevant first.
+#
+# Ordering is explicit rather than derived from stage, because the two are
+# different questions. Stage says where in a research workflow a lesson
+# applies; this says which lesson a reader of that page should meet first.
+# Deriving order from stage would put a measurement example ahead of a
+# fairness example on the fairness page purely because measurement precedes
+# analysis in a research workflow, which is not the right priority for
+# someone reading about fairness.
+#
+# Membership is still owned by each study's `modules` field. A test asserts
+# the two agree exactly, so a study cannot be tagged for a page and left out
+# of its order, or vice versa.
+PAGE_ORDER: dict[str, tuple[str, ...]] = {
+    "measurement_validation": (
+        "reverse_coding_artifact",
+        "pulse_oximeter_bias",
+        "wearable_heart_rate_accuracy",
+    ),
+    "data_validation": (
+        "flint_water_sampling_bias",
+        "reinhart_rogoff",
+        "tamiflu_unpublished_data",
+    ),
+    "model_validation": (
+        "fairness_impossibility",
+        "confounding_video_games",
+        "pulse_oximeter_bias",
+        "dead_salmon",
+    ),
+    "program_validation": (
+        "head_start_impact_study",
+        "scared_straight",
+        "lalonde_1986",
+        "dead_salmon",
+        "narps",
+    ),
+}
+
+
 def get_case_studies(module: str) -> list[CaseStudy]:
-    """Return case studies relevant to an OpenMeasure module."""
-    return [
-        case_study
-        for case_study in CASE_STUDIES.values()
-        if module in case_study.modules
-    ]
-
-
-def get_case_studies_grouped(module: str) -> dict[str, list[CaseStudy]]:
     """
-    Return case studies for a module, grouped by research stage.
+    Return case studies for a module, most relevant first.
 
-    Stages appear in the order given by LIFECYCLE_STAGES rather than the
-    order studies happen to be defined in, so a reader moves through the
-    research process rather than through an arbitrary sequence. Stages with
-    no study for this module are omitted.
+    Falls back to definition order for a module with no declared order, so
+    an untuned page still renders rather than silently showing nothing.
     """
-    relevant = get_case_studies(module)
+    order = PAGE_ORDER.get(module)
 
-    grouped: dict[str, list[CaseStudy]] = {}
-    for stage in LIFECYCLE_STAGES:
-        matching = [study for study in relevant if study.stage == stage]
-        if matching:
-            grouped[stage] = matching
+    if order is None:
+        return [
+            case_study
+            for case_study in CASE_STUDIES.values()
+            if module in case_study.modules
+        ]
 
-    return grouped
+    return [CASE_STUDIES[key] for key in order]

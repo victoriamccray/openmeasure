@@ -16,9 +16,9 @@ import unittest
 
 from shared.case_studies import (
     CASE_STUDIES,
+    PAGE_ORDER,
     CaseStudy,
     get_case_studies,
-    get_case_studies_grouped,
 )
 from shared.catalog import LIFECYCLE_STAGES, WORKFLOWS
 
@@ -77,22 +77,67 @@ class TestStages(unittest.TestCase):
 
         self.assertIn("not a known research stage", str(context.exception))
 
-    def test_grouping_returns_stages_in_research_order(self):
-        for key in taxonomy_keys():
-            with self.subTest(page=key):
-                stages = list(get_case_studies_grouped(key).keys())
-                expected_order = [
-                    stage for stage in LIFECYCLE_STAGES if stage in stages
-                ]
-                self.assertEqual(stages, expected_order)
 
-    def test_grouping_omits_stages_with_nothing_to_show(self):
-        for key in taxonomy_keys():
+class TestPageOrder(unittest.TestCase):
+    """
+    Order and membership are declared in two places, so they must agree.
+
+    A study tagged for a page but missing from that page's order would
+    silently disappear from the page. One listed in the order but not tagged
+    would appear on a page it was never meant for.
+    """
+
+    def test_order_and_tagging_agree_exactly(self):
+        for key, order in PAGE_ORDER.items():
+            tagged = {
+                study_key
+                for study_key, study in CASE_STUDIES.items()
+                if key in study.modules
+            }
             with self.subTest(page=key):
-                for stage, studies in get_case_studies_grouped(key).items():
-                    self.assertTrue(
-                        studies, f"{key} has an empty group for {stage}"
-                    )
+                self.assertEqual(
+                    set(order),
+                    tagged,
+                    f"'{key}' order and module tagging disagree. Only in "
+                    f"order: {sorted(set(order) - tagged)}. Only tagged: "
+                    f"{sorted(tagged - set(order))}.",
+                )
+
+    def test_every_page_declares_an_order(self):
+        for key in sorted(taxonomy_keys()):
+            with self.subTest(page=key):
+                self.assertIn(key, PAGE_ORDER)
+
+    def test_no_page_lists_a_study_twice(self):
+        for key, order in PAGE_ORDER.items():
+            with self.subTest(page=key):
+                self.assertEqual(len(order), len(set(order)))
+
+    def test_every_ordered_key_exists(self):
+        for key, order in PAGE_ORDER.items():
+            for study_key in order:
+                with self.subTest(page=key, study=study_key):
+                    self.assertIn(study_key, CASE_STUDIES)
+
+    def test_studies_are_returned_in_declared_order(self):
+        for key, order in PAGE_ORDER.items():
+            with self.subTest(page=key):
+                titles = [study.title for study in get_case_studies(key)]
+                expected = [CASE_STUDIES[k].title for k in order]
+                self.assertEqual(titles, expected)
+
+    def test_fairness_leads_with_its_two_most_relevant_examples(self):
+        # Requested explicitly: the fairness tradeoff result and the video
+        # game training study should be the first two a reader meets.
+        leading = [study.title for study in get_case_studies("model_validation")][:2]
+
+        self.assertEqual(
+            leading,
+            [
+                CASE_STUDIES["fairness_impossibility"].title,
+                CASE_STUDIES["confounding_video_games"].title,
+            ],
+        )
 
 
 class TestTaxonomyKeys(unittest.TestCase):
