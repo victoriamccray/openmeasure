@@ -89,39 +89,34 @@ def caveat(text: str) -> None:
 
 def show_case_studies(module: str) -> None:
     """
-    Display research case studies relevant to a module, if any exist,
-    grouped into tabs by category when a module has more than one.
+    Display research case studies relevant to a module, grouped by the
+    research stage each one speaks to.
 
     module should match one of the taxonomy keys used in
     shared/case_studies.py (e.g. "measurement_validation",
     "program_validation", "model_validation", "data_validation"), not
     necessarily the folder name of the calling module.
 
-    Renders nothing if no case studies are tagged for the given module,
-    so it's safe to call from every page without an empty expander
-    showing up before content exists for that module.
+    Each study is collapsed behind its own title, so the reader scans a
+    short list and opens what is relevant instead of reading several
+    hundred words of prose laid out in full. Stages arrive already ordered
+    by the research process, and stages with nothing for this module are
+    omitted.
+
+    Renders nothing when no case studies are tagged for the module, so it
+    is safe to call from every page.
     """
     grouped = get_case_studies_grouped(module)
 
     if not grouped:
         return
 
-    def _render_study(study) -> None:
-        st.markdown(f"#### {study.title}")
-        st.caption(f"Principle: {study.principle}")
-        st.write(study.summary)
-        st.info(study.takeaway)
-        st.caption(study.citation)
+    for stage, studies in grouped.items():
+        st.caption(stage)
 
-    with st.expander("Research Examples and Case Studies"):
-        categories = list(grouped.keys())
-
-        if len(categories) == 1:
-            for study in grouped[categories[0]]:
-                _render_study(study)
-        else:
-            tabs = st.tabs(categories)
-            for tab, category in zip(tabs, categories):
-                with tab:
-                    for study in grouped[category]:
-                        _render_study(study)
+        for study in studies:
+            with st.expander(study.title):
+                st.caption(study.principle)
+                st.write(study.summary)
+                st.info(study.takeaway)
+                st.caption(study.citation)
