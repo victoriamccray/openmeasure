@@ -1,117 +1,59 @@
 """
-OpenMeasure landing page.
+OpenMeasure entrypoint and navigation.
 
-Entry point for the Streamlit multipage application.
-Individual modules live in pages/ and are automatically
-discovered by Streamlit's sidebar navigation.
+This file declares the navigation and nothing else. It renders no content,
+because anything drawn before nav.run() would appear on top of every page.
+The landing page itself is pages/Overview.py.
 
-The module map below is rendered from shared/catalog.py, which is the single
-place workflow names, versions, and descriptions are recorded. A test in
-shared/tests/test_catalog.py fails if that catalog and the pages/ directory
-disagree, so this page cannot silently fall out of date the way the
-hand-written list it replaced did.
+The sidebar is built from shared/catalog.py, grouped by validation category.
+That makes the catalog the single source for the sidebar, the overview
+cards, and the drift test in shared/tests/test_catalog.py, so a workflow
+cannot exist in one and be missing from another.
+
+Two consequences of declaring navigation explicitly, both intended:
+
+- Streamlit stops auto-discovering pages/. Its own documentation is blunt
+  about this: once any session executes st.navigation, the app ignores the
+  pages/ directory. Files stay where they are and are declared here instead.
+- The numeric filename prefixes no longer control anything. They are left in
+  place because renaming would touch the catalog, the drift test, and every
+  page link for no user-visible gain. url_path strips them, so existing
+  links such as /Reliability and /Fairness keep working.
 """
 
 import streamlit as st
 
-from shared.catalog import (
-    LIFECYCLE_STAGES,
-    STAGE_QUESTIONS,
-    workflows_by_stage,
-)
+from shared.catalog import workflows_by_category
 
 st.set_page_config(
     page_title="OpenMeasure Lab",
     layout="centered",
 )
 
-st.title("OpenMeasure Lab")
-st.caption(
-    "An open-source validation toolkit for research data, measures, models, and programs."
-)
-
-st.divider()
-
-st.markdown(
-    """
-OpenMeasure brings together statistical methods, transparent reporting, and
-plain-language interpretation to support validation throughout the research
-process.
-"""
-)
-
-st.divider()
-
-
-# ---------------------------------------------------------------------
-# Module map, by research lifecycle stage
-# ---------------------------------------------------------------------
-
-st.subheader("Where each module fits")
-
-st.markdown(
-    """
-Validation is not one step. The modules below are arranged by the stage of a
-study where the question arises, from framing a question through to
-interpreting a result. Each card also names the kind of validation it
-performs, which is how the modules are described in their own documentation.
-"""
-)
-
-grouped = workflows_by_stage()
-
-for stage in LIFECYCLE_STAGES:
-    workflows = grouped[stage]
-
-    st.markdown(f"#### {stage}")
-    st.caption(STAGE_QUESTIONS[stage])
-
-    if not workflows:
-        # Stated rather than hidden. Omitting the stage would imply the
-        # lifecycle begins later than it does.
-        st.info(
-            "Not yet covered. No OpenMeasure module currently supports this "
-            "stage."
+# The overview sits above the sections rather than inside one. An
+# empty-string section header is how Streamlit renders an ungrouped entry.
+sections: dict[str, list[st.Page]] = {
+    "": [
+        st.Page(
+            "pages/Overview.py",
+            title="Home",
+            url_path="Overview",
+            default=True,
         )
-        continue
+    ]
+}
 
-    # Two across only when there are two, since the centered layout is
-    # narrow and a lone half-width card reads as a mistake.
-    columns = st.columns(2) if len(workflows) == 2 else [st.container()]
+# Category headings come from the catalog verbatim. Inventing a shorter
+# sidebar-only label per category would mean a second name for the same
+# thing, which is what drifts.
+for category, workflows in workflows_by_category().items():
+    sections[category] = [
+        st.Page(
+            workflow.page,
+            title=workflow.workflow,
+            url_path=workflow.url_path,
+        )
+        for workflow in workflows
+    ]
 
-    for column, workflow in zip(columns, workflows):
-        with column:
-            with st.container(border=True):
-                st.markdown(f"**{workflow.workflow}**")
-                st.badge(workflow.category)
-                st.caption(f"Version {workflow.version}")
-                st.write(workflow.summary)
-                st.page_link(
-                    workflow.page,
-                    label=f"Open {workflow.workflow}",
-                    icon=":material/arrow_forward:",
-                )
-
-st.divider()
-
-st.subheader("Design principles")
-
-st.markdown(
-    """
-Every module follows the same principles:
-
-- Transparent statistical methods
-- Reproducible analyses
-- Plain-language interpretation
-- Explicit assumptions and limitations
-- Documented references
-- Responsible use grounded in established research and professional ethics
-"""
-)
-
-st.caption(
-    "OpenMeasure is designed for researchers and practitioners working in "
-    "community health, social services, education, public policy, and applied "
-    "research. The toolkit emphasizes transparent validation methods that are "
-    "accessible, reproducible, and adaptable across disciplines."
-)
+st.navigation(sections).run()

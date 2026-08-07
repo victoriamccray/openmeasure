@@ -24,7 +24,9 @@ No streamlit import: this is data, so it can be tested directly.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
+from pathlib import Path
 
 
 # Stages of a research workflow, in the order a study moves through them.
@@ -51,6 +53,23 @@ STAGE_QUESTIONS: dict[str, str] = {
 # rather than something a reader has to notice, and so the test fails if a
 # stage empties out unintentionally.
 STAGES_WITHOUT_WORKFLOWS: tuple[str, ...] = ("Research Question",)
+
+# Validation categories, in the order the sidebar groups them.
+#
+# Declared explicitly because the sidebar needs an order and there is no
+# honest way to derive one. Alphabetical would be arbitrary, and taking it
+# from stage order would break the moment a category held workflows at two
+# different stages.
+#
+# Each category is a named slot in the navigation even when it holds a
+# single workflow, so a second workflow has an obvious home.
+CATEGORY_ORDER: tuple[str, ...] = (
+    "Measurement Validation",
+    "Data Validation",
+    "Fairness & Model Validation",
+    "Program Validation",
+    "Cross-cutting validation",
+)
 
 
 @dataclass(frozen=True)
@@ -92,6 +111,28 @@ class Workflow:
                 f"{self.workflow}'s summary must be a single line, so it fits "
                 "on a card."
             )
+
+        if self.category not in CATEGORY_ORDER:
+            raise ValueError(
+                f"{self.workflow} has category '{self.category}', which is "
+                f"not in CATEGORY_ORDER, so it would render in no sidebar "
+                f"section. Known categories: {', '.join(CATEGORY_ORDER)}."
+            )
+
+    @property
+    def url_path(self) -> str:
+        """
+        The URL segment for this workflow.
+
+        Derived by stripping the numeric filename prefix, which is exactly
+        what Streamlit's own file-based routing did before navigation became
+        explicit. Deriving it rather than storing it keeps today's links
+        working without a second field to keep in sync.
+        """
+
+        stem = Path(self.page).stem
+
+        return re.sub(r"^\d+_", "", stem)
 
 
 WORKFLOWS: tuple[Workflow, ...] = (
@@ -177,3 +218,29 @@ def workflows_by_stage() -> dict[str, tuple[Workflow, ...]]:
         grouped[item.stage].append(item)
 
     return {stage: tuple(items) for stage, items in grouped.items()}
+
+
+def workflows_by_category() -> dict[str, tuple[Workflow, ...]]:
+    """
+    Group the workflows by validation category, in CATEGORY_ORDER.
+
+    This is what the sidebar is built from. Unlike workflows_by_stage, a
+    category with no workflow is omitted rather than shown, because an empty
+    navigation section is a dead heading rather than a stated gap. Every
+    category currently holds one, and __post_init__ rejects a workflow whose
+    category is unknown, so a workflow cannot silently vanish from the
+    sidebar.
+    """
+
+    grouped: dict[str, list[Workflow]] = {
+        category: [] for category in CATEGORY_ORDER
+    }
+
+    for item in WORKFLOWS:
+        grouped[item.category].append(item)
+
+    return {
+        category: tuple(items)
+        for category, items in grouped.items()
+        if items
+    }

@@ -17,11 +17,13 @@ from pathlib import Path
 
 from shared.case_studies import CASE_STUDIES
 from shared.catalog import (
+    CATEGORY_ORDER,
     LIFECYCLE_STAGES,
     STAGE_QUESTIONS,
     STAGES_WITHOUT_WORKFLOWS,
     WORKFLOWS,
     Workflow,
+    workflows_by_category,
     workflows_by_stage,
 )
 
@@ -139,6 +141,72 @@ class TestStages(unittest.TestCase):
         for stage in LIFECYCLE_STAGES:
             with self.subTest(stage=stage):
                 self.assertTrue(STAGE_QUESTIONS.get(stage))
+
+
+class TestNavigation(unittest.TestCase):
+    """
+    The sidebar is built from the catalog, so a workflow missing from the
+    grouping is a workflow the user cannot reach.
+    """
+
+    def test_every_workflow_has_a_known_category(self):
+        for workflow in WORKFLOWS:
+            with self.subTest(workflow=workflow.workflow):
+                self.assertIn(workflow.category, CATEGORY_ORDER)
+
+    def test_unknown_category_is_rejected_at_construction(self):
+        with self.assertRaises(ValueError) as context:
+            Workflow(
+                workflow="Orphan",
+                category="Not A Category",
+                stage="Data",
+                version="0.1",
+                summary="A summary.",
+                page="pages/9_Orphan.py",
+            )
+
+        self.assertIn("not in CATEGORY_ORDER", str(context.exception))
+
+    def test_grouping_covers_every_workflow_exactly_once(self):
+        grouped = workflows_by_category()
+        seen = [
+            workflow.workflow
+            for workflows in grouped.values()
+            for workflow in workflows
+        ]
+
+        self.assertEqual(sorted(seen), sorted(w.workflow for w in WORKFLOWS))
+        self.assertEqual(len(seen), len(set(seen)))
+
+    def test_categories_appear_in_declared_order(self):
+        grouped = workflows_by_category()
+        expected = [
+            category for category in CATEGORY_ORDER if category in grouped
+        ]
+
+        self.assertEqual(list(grouped.keys()), expected)
+
+    def test_no_category_group_is_empty(self):
+        # An empty navigation section is a dead heading, unlike an empty
+        # lifecycle stage which the overview states as a gap on purpose.
+        for category, workflows in workflows_by_category().items():
+            with self.subTest(category=category):
+                self.assertTrue(workflows)
+
+    def test_url_paths_are_unique(self):
+        # A collision would make two sidebar entries resolve to one page.
+        paths = [workflow.url_path for workflow in WORKFLOWS]
+
+        self.assertEqual(len(paths), len(set(paths)))
+
+    def test_url_paths_strip_the_numeric_prefix(self):
+        # This is what preserves links such as /Reliability that Streamlit's
+        # file-based routing produced before navigation became explicit.
+        for workflow in WORKFLOWS:
+            with self.subTest(workflow=workflow.workflow):
+                self.assertFalse(re.match(r"^\d+_", workflow.url_path))
+                self.assertNotIn("/", workflow.url_path)
+                self.assertTrue(workflow.url_path)
 
 
 class TestTaxonomyKeys(unittest.TestCase):

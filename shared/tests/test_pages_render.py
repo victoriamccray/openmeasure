@@ -33,6 +33,7 @@ from pathlib import Path
 import streamlit as st
 from streamlit.testing.v1 import AppTest
 
+from shared.catalog import WORKFLOWS
 from shared.report import CASE_STUDIES_HEADING
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -42,16 +43,43 @@ ENTRYPOINT = ROOT / "Home.py"
 # Generous, because a cold AppTest start is slow and CI runners vary.
 LOAD_TIMEOUT_SECONDS = 180
 
+# Pages that cannot be executed on their own because they depend on the
+# app's navigation existing.
+#
+# Overview.py calls st.page_link, which resolves its target against the
+# navigation declared in the entrypoint. Run in isolation there is no
+# navigation, so Streamlit raises KeyError: 'url_pathname'. This is a real
+# property of the page rather than a test inconvenience, and the page is
+# still covered: the entrypoint test below runs Home.py, which renders
+# Overview as the default page, exactly as it runs in production.
+REQUIRES_NAVIGATION_CONTEXT: frozenset[str] = frozenset({"Overview.py"})
 
-def app_scripts() -> list[Path]:
-    """The entrypoint plus every page, discovered rather than listed."""
 
-    return [ENTRYPOINT] + sorted(PAGES.glob("*.py"))
+def workflow_page_names() -> set[str]:
+    """Filenames of the pages the catalog treats as workflows."""
+
+    return {Path(workflow.page).name for workflow in WORKFLOWS}
+
+
+def standalone_scripts() -> list[Path]:
+    """
+    Scripts that can be executed directly.
+
+    The entrypoint plus every page except those needing navigation context.
+    Discovered rather than listed, so a new page is covered as soon as it
+    exists.
+    """
+
+    return [ENTRYPOINT] + sorted(
+        path
+        for path in PAGES.glob("*.py")
+        if path.name not in REQUIRES_NAVIGATION_CONTEXT
+    )
 
 
 class TestEveryPageLoads(unittest.TestCase):
     def test_no_page_raises_on_load(self):
-        scripts = app_scripts()
+        scripts = standalone_scripts()
 
         # Guard the guard: if discovery silently returned nothing, the test
         # below would pass while checking nothing at all.
@@ -76,16 +104,44 @@ class TestEveryPageLoads(unittest.TestCase):
             "Home.py is the deployed entrypoint and must exist.",
         )
 
-    def test_every_module_page_names_its_examples_section(self):
+    def test_the_entrypoint_renders_the_default_page(self):
+        # Overview cannot be executed standalone, so this is what covers it.
+        app = AppTest.from_file(
+            str(ENTRYPOINT), default_timeout=LOAD_TIMEOUT_SECONDS
+        )
+        app.run()
+
+        self.assertFalse(
+            app.exception,
+            "The entrypoint failed to render its default page.",
+        )
+        self.assertIn(
+            "Where each module fits",
+            [str(item.value) for item in app.subheader],
+            "The entrypoint ran but did not render the overview content.",
+        )
+
+    def test_every_workflow_page_names_its_examples_section(self):
         """
         The examples section must be labelled, not left to be inferred.
 
-        There are nine show_case_studies call sites across the pages,
-        including early-return branches, and the heading used to be applied
-        by each page individually. Only three sites had one, so two pages
-        showed the panel with no heading at all.
+        Scoped to the pages the catalog calls workflows, not to every file
+        in the directory. The property is that a page showing case studies
+        names the section, and the overview shows none.
+
+        There are nine show_case_studies call sites across the workflow
+        pages, including early-return branches, and the heading used to be
+        applied by each page individually. Only three sites had one, so two
+        pages showed the panel with no heading at all.
         """
+        names = workflow_page_names()
+
+        self.assertTrue(names, "The catalog lists no workflow pages.")
+
         for script in sorted(PAGES.glob("*.py")):
+            if script.name not in names:
+                continue
+
             with self.subTest(page=script.name):
                 app = AppTest.from_file(
                     str(script), default_timeout=LOAD_TIMEOUT_SECONDS
