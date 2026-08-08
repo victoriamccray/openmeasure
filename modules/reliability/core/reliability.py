@@ -48,6 +48,7 @@ class ReliabilityResult:
     cronbach_alpha: float
     split_half_correlation: float | None
     spearman_brown: float | None
+    split_half_unavailable_reason: str | None
     item_diagnostics: list[ItemDiagnostic] = field(default_factory=list)
 
 
@@ -258,7 +259,9 @@ def split_half_reliability(
         or even_variance == 0
     ):
         raise ValueError(
-            "One or both split-half scores have zero or undefined variance."
+            "One or both split-half scores have zero or undefined variance "
+            "(for example, every participant scored identically on the "
+            "items in that half)."
         )
 
     correlation = float(odd_scores.corr(even_scores))
@@ -341,9 +344,22 @@ def analyze(
             complete,
             require_equal_halves=require_equal_halves,
         )
-    except ValueError:
+        split_half_reason = None
+    except ValueError as exc:
         split_correlation = None
         spearman_brown = None
+        # The item-count case is given its own wording, naming the actual
+        # selection, rather than relaying split_half_reliability's generic
+        # "at least 4 item columns are required" message. Every other case
+        # (unequal halves required, zero-variance half, undefined
+        # correlation) already states its specific cause clearly enough to
+        # show as-is.
+        split_half_reason = (
+            f"Split-half reliability requires at least 4 items - "
+            f"{number_of_items} selected."
+            if number_of_items < 4
+            else str(exc)
+        )
 
     item_correlations = item_total_correlations(complete)
     dropped_alphas = alpha_if_item_dropped(complete)
@@ -379,5 +395,6 @@ def analyze(
         cronbach_alpha=alpha,
         split_half_correlation=split_correlation,
         spearman_brown=spearman_brown,
+        split_half_unavailable_reason=split_half_reason,
         item_diagnostics=diagnostics,
     )

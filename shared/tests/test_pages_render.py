@@ -350,6 +350,67 @@ class TestOverviewProgressStatus(unittest.TestCase):
         self.assertNotIn("cronbach_alpha", captions)
 
 
+class TestCrossAnalysisWhatThisMeans(unittest.TestCase):
+    """
+    The "What this means" section was restructured into Observation -> Why
+    it matters -> Real-world takeaway. This covers that the three labels and
+    the underlying content actually render, since shared/tests/
+    test_retention.py only covers that the core summary carries the text.
+    """
+
+    @staticmethod
+    def _recorded_store() -> dict:
+        data = pd.DataFrame({"q1": [1, 2, 3], "q2": [2, 3, 4]})
+        mapping: dict = {}
+
+        HandoffStore(mapping).record(
+            module=MODULE_RELIABILITY,
+            fingerprint=fingerprint_dataframe(data, "survey.csv"),
+            exclusion=ExclusionAccount(
+                module=MODULE_RELIABILITY,
+                analysis_label="Reliability",
+                columns_considered=("q1", "q2"),
+                n_input_rows=3,
+                n_retained_rows=3,
+            ),
+        )
+
+        return mapping
+
+    def test_the_three_labels_and_the_takeaway_render(self):
+        store = self._recorded_store()
+
+        app = AppTest.from_file(
+            "pages/5_Cross_Analysis_Implications.py",
+            default_timeout=LOAD_TIMEOUT_SECONDS,
+        )
+        app.session_state[STORE_KEY] = store[STORE_KEY]
+        app.run()
+
+        self.assertFalse(app.exception)
+
+        rendered = " ".join(str(item.value) for item in app.markdown)
+        self.assertIn("Observation", rendered)
+        self.assertIn("Why it matters", rendered)
+        self.assertIn("Real-world takeaway", rendered)
+
+        infos = " ".join(str(item.value) for item in app.info)
+        self.assertIn("165", infos)  # from REAL_WORLD_TAKEAWAY
+
+    def test_technical_caveats_are_preserved(self):
+        store = self._recorded_store()
+
+        app = AppTest.from_file(
+            "pages/5_Cross_Analysis_Implications.py",
+            default_timeout=LOAD_TIMEOUT_SECONDS,
+        )
+        app.session_state[STORE_KEY] = store[STORE_KEY]
+        app.run()
+
+        captions = " ".join(str(item.value) for item in app.caption)
+        self.assertIn("usually matters more than the rate", captions)
+
+
 class TestExploreRealDataPage(unittest.TestCase):
     """
     Explore Real Data needs navigation context (see REQUIRES_NAVIGATION_

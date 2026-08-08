@@ -8,7 +8,7 @@ presentation only, built on the shared reporting helpers in shared/.
 
 import sys
 from pathlib import Path
-from shared.report import Band, classify, render_verdict, section_header, flagged_item_note, caveat, show_case_studies
+from shared.report import section_header, flagged_item_note, caveat, show_case_studies
 
 import pandas as pd
 import streamlit as st
@@ -68,7 +68,7 @@ def record_reliability(frame, upload, columns, result) -> None:
         primary_statistics={"cronbach_alpha": float(result.cronbach_alpha)},
     )
 
-st.set_page_config(page_title="OpenMeasure · ∑ Reliability", page_icon="∑", layout="centered")
+st.set_page_config(page_title="OpenMeasure · Reliability", page_icon=":material/verified:", layout="centered")
 
 st.title("Reliability")
 st.subheader("Measurement Validation")
@@ -82,7 +82,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-with st.expander("📖 What is Cronbach's alpha?"):
+with st.expander("What is Cronbach's alpha?", icon=":material/menu_book:"):
     st.markdown(
         """
 ### What does reliability mean?
@@ -124,7 +124,7 @@ These labels are commonly used guidelines rather than strict statistical standar
 """
     )
 
-with st.expander("⚖️ Assumptions & limitations"):
+with st.expander("Assumptions & limitations", icon=":material/balance:"):
     st.markdown(
         """
 ### Assumptions
@@ -234,6 +234,8 @@ if analyze_clicked:
            "reliability calculations using listwise deletion.")
 
     section_header("Reliability")
+
+    # Result
     m1, m2, m3 = st.columns(3)
     m1.metric("Cronbach's α", f"{result.cronbach_alpha:.2f}")
 
@@ -245,6 +247,26 @@ if analyze_clicked:
     if result.split_half_correlation is not None:
         m2.metric("Split-half r", f"{result.split_half_correlation:.2f}")
         m3.metric("Spearman-Brown", f"{result.spearman_brown:.2f}")
+    else:
+        m2.metric("Split-half r", "Not available")
+        m3.metric("Spearman-Brown", "Not available")
+
+    # Takeaway
+    st.write(
+        f"**Takeaway:** These {n_items} items produced Cronbach's α = "
+        f"{result.cronbach_alpha:.2f} in this sample, a measure of how "
+        "consistently they moved together, not of whether they measure one "
+        "meaningful construct. Alpha can be pushed high by items that "
+        "simply restate each other, and can be low for a short or "
+        "deliberately broad scale even when every item is conceptually "
+        "sound."
+    )
+
+    for w in interp.alpha_warnings(result.cronbach_alpha):
+        st.warning(w)
+
+    # Details / assumptions
+    if result.split_half_correlation is not None:
         if unequal_halves:
             caveat(
                 f"Halves are unequal length ({odd_n} vs {even_n} items). "
@@ -252,45 +274,25 @@ if analyze_clicked:
                 "an approximation, not a textbook-exact estimate."
             )
     else:
-        m2.metric("Split-half r", "Not available")
-        m3.metric("Spearman-Brown", "Not available")
-        if require_equal_halves and n_items % 2 != 0:
-            st.warning(
-                f"Equal-sized halves requires an even number of items. "
-                f"You selected {n_items}. Deselect one item, or switch to "
-                "\"Use all items\" above."
-            )
-        else:
-            caveat("Split-half reliability requires at least four items and "
-                   "nonzero variance in both halves.")
+        caveat(result.split_half_unavailable_reason)
 
-    bands = [
-        Band(0.00, "Unacceptable internal consistency", "error"),
-        Band(0.50, "Poor internal consistency", "error"),
-        Band(0.60, "Questionable internal consistency", "warning"),
-        Band(0.70, "Acceptable internal consistency", "info"),
-        Band(0.80, "Good internal consistency", "success"),
-        Band(0.90, "Excellent internal consistency", "success"),
-    ]
-    verdict = classify(result.cronbach_alpha, bands)
-    render_verdict(verdict)
-    caveat("Interpretive labels are conventional guidelines. Interpretation should also "
-           "consider scale length, purpose, population, and the consequences of measurement error.")
-
-    for w in interp.alpha_warnings(result.cronbach_alpha):
-        st.warning(w)
+    caveat(
+        "The conventional Excellent/Good/Acceptable/etc. labels for this "
+        "range are shown for reference in \"What is Cronbach's alpha?\" "
+        "above. Treat them as commonly cited guidelines, not a verdict on "
+        "this scale."
+    )
 
     section_header("Item diagnostics")
 
     diag_rows = []
     for d in result.item_diagnostics:
-        flag = "⚠️" if d.flagged else "✅"
         diag_rows.append(
             {
                 "Item": d.item,
                 "Item-total corr.": round(d.item_total_corr, 3),
                 "α if dropped": round(d.alpha_if_dropped, 3),
-                "": flag,
+                "Flag": "Review" if d.flagged else "",
             }
         )
     st.dataframe(pd.DataFrame(diag_rows), width="stretch", hide_index=True)

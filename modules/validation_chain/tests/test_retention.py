@@ -269,6 +269,13 @@ class TestNarrative(unittest.TestCase):
 
         self.assertTrue(summary.shared_implication)
 
+    def test_real_world_takeaway_is_present(self):
+        summary = summarize_retention(
+            {fingerprint(): (account("Reliability", used=90),)}
+        )
+
+        self.assertTrue(summary.real_world_takeaway)
+
     def test_limitations_name_the_mechanism_and_the_overlap_gap(self):
         summary = summarize_retention(
             {fingerprint(): (account("Reliability", used=90),)}

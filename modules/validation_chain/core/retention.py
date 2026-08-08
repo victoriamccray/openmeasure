@@ -60,6 +60,7 @@ class RetentionSummary:
     n_analyses: int
     n_datasets: int
     shared_implication: str
+    real_world_takeaway: str
     limitations: tuple[str, ...]
 
 
@@ -67,6 +68,14 @@ SHARED_IMPLICATION = (
     "Each result above describes only the observations that analysis "
     "retained, not everything that was uploaded. Where analyses kept "
     "different amounts, they are describing different subsets of the data."
+)
+
+REAL_WORLD_TAKEAWAY = (
+    "In practice: if a Reliability analysis kept 165 of 200 respondents and "
+    "a Fairness analysis on the same file kept 180, don't treat those as two "
+    "views of the same 165-180 people. Report each result alongside the "
+    "sample it actually used, and say so explicitly before comparing or "
+    "combining them."
 )
 
 LIMITATIONS = (
@@ -164,5 +173,6 @@ def summarize_retention(
         n_analyses=n_analyses,
         n_datasets=len(datasets),
         shared_implication=SHARED_IMPLICATION,
+        real_world_takeaway=REAL_WORLD_TAKEAWAY,
         limitations=LIMITATIONS,
     )

@@ -491,6 +491,72 @@ class TestAnalyzePipeline(unittest.TestCase):
 
         self.assertTrue(diagnostic_by_item["q3"].flagged)
 
+    def test_split_half_reason_is_none_when_available(self) -> None:
+        rng = np.random.RandomState(2)
+
+        data = pd.DataFrame(
+            rng.randint(1, 6, size=(30, 6)),
+            columns=[f"q{index}" for index in range(6)],
+        )
+
+        result = rel.analyze(data)
+
+        self.assertIsNotNone(result.split_half_correlation)
+        self.assertIsNone(result.split_half_unavailable_reason)
+
+    def test_split_half_reason_names_the_selected_item_count(self) -> None:
+        data = pd.DataFrame(
+            {
+                "q1": [1, 2, 3, 4, 5],
+                "q2": [2, 3, 4, 5, 6],
+            }
+        )
+
+        result = rel.analyze(data)
+
+        self.assertIsNone(result.split_half_correlation)
+        self.assertEqual(
+            result.split_half_unavailable_reason,
+            "Split-half reliability requires at least 4 items - 2 selected.",
+        )
+
+    def test_split_half_reason_names_the_zero_variance_half(self) -> None:
+        # q1 + q3 (the odd half) is constant across rows, so that half has
+        # zero variance, while the total across all four items still varies
+        # so that cronbach_alpha itself succeeds and the pipeline reaches
+        # the split-half step.
+        data = pd.DataFrame(
+            {
+                "q1": [1, 2, 3, 4],
+                "q2": [1, 2, 1, 2],
+                "q3": [4, 3, 2, 1],
+                "q4": [1, 2, 3, 1],
+            }
+        )
+
+        result = rel.analyze(data)
+
+        self.assertIsNone(result.split_half_correlation)
+        self.assertIsNotNone(result.split_half_unavailable_reason)
+        self.assertIn("variance", result.split_half_unavailable_reason)
+
+    def test_split_half_reason_names_the_equal_halves_requirement(self) -> None:
+        data = pd.DataFrame(
+            {
+                "q1": [1, 2, 3, 4, 5],
+                "q2": [2, 3, 4, 5, 6],
+                "q3": [1, 3, 2, 4, 5],
+                "q4": [2, 4, 3, 5, 6],
+                "q5": [3, 5, 4, 6, 7],
+            }
+        )
+
+        result = rel.analyze(data, require_equal_halves=True)
+
+        self.assertIsNone(result.split_half_correlation)
+        self.assertIsNotNone(result.split_half_unavailable_reason)
+        self.assertIn("even number of items", result.split_half_unavailable_reason)
+
     def test_result_uses_original_participant_count(self) -> None:
         data = pd.DataFrame(
             {

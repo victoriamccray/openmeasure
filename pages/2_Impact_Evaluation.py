@@ -91,7 +91,7 @@ def record_comparison(frame, upload, analysis_context, recommendation, result) -
         primary_statistics=statistics,
     )
 
-st.set_page_config(page_title="OpenMeasure · Program Evaluation", page_icon=":bar_chart:", layout="centered")
+st.set_page_config(page_title="OpenMeasure · Program Evaluation", page_icon=":material/monitoring:", layout="centered")
 
 st.title("Impact Evaluation")
 st.subheader("Program Validation")

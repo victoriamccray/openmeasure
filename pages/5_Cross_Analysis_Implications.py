@@ -272,7 +272,17 @@ for dataset in summary.datasets:
 
 section_header("What this means")
 
-st.info(summary.shared_implication)
+st.markdown("**Observation**")
+st.write(
+    "The retention table(s) above show that analyses of the same file did "
+    "not necessarily keep the same rows, or the same number of them."
+)
+
+st.markdown("**Why it matters**")
+st.write(summary.shared_implication)
+
+st.markdown("**Real-world takeaway**")
+st.info(summary.real_world_takeaway)
 
 for limitation in summary.limitations:
     caveat(limitation)
