@@ -10,11 +10,11 @@ That makes the catalog the single source for the sidebar, the overview
 cards, and the drift test in shared/tests/test_catalog.py, so a workflow
 cannot exist in one and be missing from another.
 
-Explore Real Data is declared separately, below, rather than through the
-catalog. It is a pointer to datasets, not a validation workflow: it has no
-lifecycle stage, no validation category, and records nothing to
-shared/handoff.py, so folding it into workflows_by_category() would imply
-a status it can never have.
+Explore Real Data and Method Selection are declared separately, below,
+rather than through the catalog. Neither is a validation workflow: they
+have no lifecycle stage, no validation category, and record nothing to
+shared/handoff.py, so folding either into workflows_by_category() would
+imply a status it can never have.
 
 Two consequences of declaring navigation explicitly, both intended:
 
@@ -50,6 +50,11 @@ sections: dict[str, list[st.Page]] = {
             "pages/Explore_Real_Data.py",
             title="Explore Real Data",
             url_path="Explore_Real_Data",
+        ),
+        st.Page(
+            "pages/Method_Selection.py",
+            title="Method Selection",
+            url_path="Method_Selection",
         ),
     ]
 }

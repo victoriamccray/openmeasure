@@ -471,9 +471,9 @@ class TestCrossAnalysisWhatThisMeans(unittest.TestCase):
 
 class TestExploreRealDataPage(unittest.TestCase):
     """
-    Explore Real Data needs navigation context (see REQUIRES_NAVIGATION_
-    CONTEXT above), so it is reached the same way Overview is: through the
-    entrypoint, not as a standalone script.
+    Explore Real Data calls st.page_link and so needs navigation context,
+    the same reason every page is now driven through the entrypoint above
+    rather than run as a standalone script.
     """
 
     def _run_explore_page(self) -> AppTest:
@@ -512,6 +512,77 @@ class TestExploreRealDataPage(unittest.TestCase):
         # The whole point of keeping this page outside the catalog: reading
         # about a dataset must never look like an analysis was run.
         app = self._run_explore_page()
+
+        self.assertNotIn(STORE_KEY, app.session_state)
+
+
+class TestMethodSelectionPage(unittest.TestCase):
+    """
+    The Method Selection Decision Tree: one guided question, five branches,
+    each with its own Try/Why/You'll learn/Limitations content.
+    """
+
+    def _run_method_selection_page(self) -> AppTest:
+        app = AppTest.from_file(
+            str(ENTRYPOINT), default_timeout=LOAD_TIMEOUT_SECONDS
+        )
+        app.run()
+        app.switch_page("pages/Method_Selection.py")
+        app.run()
+
+        self.assertFalse(
+            app.exception,
+            "Method Selection raised on load.",
+        )
+
+        return app
+
+    def test_the_page_is_reachable_from_the_entrypoint(self):
+        app = self._run_method_selection_page()
+
+        self.assertIn(
+            "Method Selection",
+            [str(item.value) for item in app.title],
+        )
+
+    def test_every_situation_is_offered(self):
+        from shared.method_guide import BRANCHES
+
+        app = self._run_method_selection_page()
+
+        self.assertEqual(len(app.radio), 1)
+        # .options reflects the formatted display label (format_func), the
+        # plain-language situation text, not the underlying branch id.
+        self.assertEqual(
+            set(app.radio[0].options), {b.situation for b in BRANCHES}
+        )
+
+    def test_each_branch_renders_its_own_try_why_and_learn(self):
+        from shared.method_guide import BRANCHES
+
+        app = self._run_method_selection_page()
+
+        for branch in BRANCHES:
+            with self.subTest(branch=branch.id):
+                app.radio[0].set_value(branch.id)
+                app.run()
+
+                self.assertFalse(app.exception)
+
+                rendered = " ".join(str(item.value) for item in app.markdown)
+                self.assertIn(f"Try: {branch.workflow}", rendered)
+
+                # branch.why is rendered via st.write, which emits Markdown
+                # for a plain string.
+                self.assertIn(branch.why, rendered)
+
+                for limitation in branch.limitations:
+                    self.assertIn(limitation, rendered)
+
+    def test_the_page_records_nothing_to_the_handoff_store(self):
+        # A guidance page that routes to a workflow must never look like
+        # that workflow's analysis was already run.
+        app = self._run_method_selection_page()
 
         self.assertNotIn(STORE_KEY, app.session_state)
 
