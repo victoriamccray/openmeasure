@@ -142,6 +142,27 @@ class TestSources(unittest.TestCase):
         self.assertIn("lists no sources", str(context.exception))
 
 
+class TestWastewaterSourceIsTheActualNetwork(unittest.TestCase):
+    """
+    v0.2C audit fix: the wastewater entry originally pointed only at CDC's
+    national NWSS dashboard, but the equity study it's paired with analyzed
+    New York State's own statewide network. Pins the correction: the more
+    specific NY source must stay listed, so a future edit can't quietly
+    drop back to citing only the generic national aggregator.
+    """
+
+    def test_wastewater_entry_lists_the_ny_state_source(self):
+        dataset = next(
+            d for d in DATASETS if d.id == "wastewater_surveillance_equity"
+        )
+        source_urls = [source.url for source in dataset.sources]
+
+        self.assertTrue(
+            any("health.data.ny.gov" in url for url in source_urls),
+            f"Expected a health.data.ny.gov source; got: {source_urls}",
+        )
+
+
 class TestDoesNotLeakIntoValidationLifecycle(unittest.TestCase):
     """
     Explore Real Data must never look like a validation workflow.

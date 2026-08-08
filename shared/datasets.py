@@ -168,15 +168,18 @@ DATASETS: tuple[RealDataset, ...] = (
     ),
     RealDataset(
         id="wastewater_surveillance_equity",
-        name="CDC wastewater surveillance, linked to social vulnerability",
+        name="NY State wastewater surveillance, linked to social vulnerability",
         domain="Public health surveillance / environmental equity",
         description=(
-            "Site-level SARS-CoV-2 wastewater viral-activity metrics from "
-            "CDC's National Wastewater Surveillance System, pairable at the "
-            "census-tract level with the CDC/ATSDR Social Vulnerability "
-            "Index and Environmental Justice Index, the same linkage used "
-            "to study equity in surveillance coverage and outbreak "
-            "detection."
+            "Site-level SARS-CoV-2 wastewater surveillance data from New "
+            "York State's statewide network, published at the sewershed "
+            "and county level, pairable at the census-tract level with the "
+            "CDC/ATSDR Social Vulnerability Index and Environmental "
+            "Justice Index. The same kind of linkage was used to study "
+            "equity in surveillance coverage and outbreak detection in "
+            "New York, though that study also drew on the network's own "
+            "internal sewered/unsewered coverage records, which are not "
+            "part of this public feed."
         ),
         try_with=("Fairness", "Cross-Analysis Implications"),
         explore_question=(
@@ -188,7 +191,11 @@ DATASETS: tuple[RealDataset, ...] = (
         access=ACCESS_OPEN,
         sources=(
             DataSource(
-                label="CDC NWSS public wastewater metric data",
+                label="NY State statewide wastewater surveillance data (Health Data NY)",
+                url="https://health.data.ny.gov/Health/New-York-State-Statewide-COVID-19-Wastewater-Surve/hdxs-icuh",
+            ),
+            DataSource(
+                label="CDC NWSS public wastewater metric data (national context)",
                 url="https://data.cdc.gov/Public-Health-Surveillance/NWSS-Public-SARS-CoV-2-Wastewater-Metric-Data/2ew6-ywp6",
             ),
             DataSource(

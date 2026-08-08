@@ -402,9 +402,9 @@ CASE_STUDIES = {
             "Cognitive and Affective Neuroscience, 4(4), 417-422, which "
             "describes the demonstration. Originally presented as Bennett, "
             "C. M., Baird, A. A., Miller, M. B., & Wolford, G. L., 15th "
-            "Annual Meeting of the Organization for Human Brain Mapping, "
-            "and published in the Journal of Serendipitous and Unexpected "
-            "Results, 1(1), 1-5."
+            "Annual Meeting of the Organization for Human Brain Mapping "
+            "(2009), and published in the Journal of Serendipitous and "
+            "Unexpected Results, 1(1), 1-5 (2010)."
         ),
         modules=("model_validation", "program_validation"),
     ),

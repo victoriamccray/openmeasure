@@ -232,6 +232,42 @@ class TestPageVolume(unittest.TestCase):
                 )
 
 
+class TestKeyFiguresAreStable(unittest.TestCase):
+    """
+    Pins a handful of specific figures that the v0.2C citation audit
+    independently confirmed against the primary sources, so a later
+    copy edit that quietly drifts a number away from what was verified
+    fails a test instead of just looking plausible.
+
+    Not exhaustive: only the sharpest, most check-worthy numeric claims,
+    matching the existing test_calibration_tradeoff_mentions_base_rate_
+    conflict precedent in modules/fairness/tests/test_recommendation.py.
+    """
+
+    def test_reinhart_rogoff_states_the_corrected_growth_figures(self):
+        # Confirmed against the replication literature: average growth in
+        # the >90%-debt group was originally reported as -0.1%, corrected
+        # to 2.2%, once the spreadsheet and exclusion errors were fixed.
+        summary = CASE_STUDIES["reinhart_rogoff"].summary
+
+        self.assertIn("-0.1%", summary)
+        self.assertIn("2.2%", summary)
+
+    def test_narps_states_the_team_and_hypothesis_counts(self):
+        # Confirmed via the published paper: 70 teams, 9 hypotheses.
+        summary = CASE_STUDIES["narps"].summary
+
+        self.assertIn("Seventy", summary)
+        self.assertIn("nine hypotheses", summary)
+
+    def test_wearable_accuracy_states_the_activity_error_figure(self):
+        # Confirmed as an exact quote from the paper: "absolute error
+        # during activity was, on average, 30% higher than during rest."
+        summary = CASE_STUDIES["wearable_heart_rate_accuracy"].summary
+
+        self.assertIn("30%", summary)
+
+
 class TestRequiredContent(unittest.TestCase):
     def test_every_field_is_populated(self):
         for key, study in CASE_STUDIES.items():
