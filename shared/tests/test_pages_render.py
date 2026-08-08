@@ -65,13 +65,16 @@ LOAD_TIMEOUT_SECONDS = 180
 # Pages that cannot be executed on their own because they depend on the
 # app's navigation existing.
 #
-# Overview.py calls st.page_link, which resolves its target against the
-# navigation declared in the entrypoint. Run in isolation there is no
-# navigation, so Streamlit raises KeyError: 'url_pathname'. This is a real
-# property of the page rather than a test inconvenience, and the page is
-# still covered: the entrypoint test below runs Home.py, which renders
-# Overview as the default page, exactly as it runs in production.
-REQUIRES_NAVIGATION_CONTEXT: frozenset[str] = frozenset({"Overview.py"})
+# Overview.py and Explore_Real_Data.py both call st.page_link, which
+# resolves its target against the navigation declared in the entrypoint.
+# Run in isolation there is no navigation, so Streamlit raises
+# KeyError: 'url_pathname'. This is a real property of these pages rather
+# than a test inconvenience: Overview is still covered by the entrypoint
+# test below, which renders it as the default page, and Explore Real Data
+# is covered by TestExploreRealDataPage, which switches to it from Home.py.
+REQUIRES_NAVIGATION_CONTEXT: frozenset[str] = frozenset(
+    {"Overview.py", "Explore_Real_Data.py"}
+)
 
 
 def workflow_page_names() -> set[str]:
@@ -345,6 +348,53 @@ class TestOverviewProgressStatus(unittest.TestCase):
 
         self.assertNotIn("0.8231", captions)
         self.assertNotIn("cronbach_alpha", captions)
+
+
+class TestExploreRealDataPage(unittest.TestCase):
+    """
+    Explore Real Data needs navigation context (see REQUIRES_NAVIGATION_
+    CONTEXT above), so it is reached the same way Overview is: through the
+    entrypoint, not as a standalone script.
+    """
+
+    def _run_explore_page(self) -> AppTest:
+        app = AppTest.from_file(str(ENTRYPOINT), default_timeout=LOAD_TIMEOUT_SECONDS)
+        app.run()
+        app.switch_page("pages/Explore_Real_Data.py")
+        app.run()
+
+        self.assertFalse(
+            app.exception,
+            "Explore Real Data raised on load.",
+        )
+
+        return app
+
+    def test_the_page_is_reachable_from_the_entrypoint(self):
+        app = self._run_explore_page()
+
+        self.assertIn(
+            "Explore Real Data",
+            [str(item.value) for item in app.title],
+        )
+
+    def test_every_dataset_name_is_rendered(self):
+        from shared.datasets import DATASETS
+
+        app = self._run_explore_page()
+
+        rendered = " ".join(str(item.value) for item in app.markdown)
+
+        for dataset in DATASETS:
+            with self.subTest(dataset=dataset.id):
+                self.assertIn(dataset.name, rendered)
+
+    def test_the_page_records_nothing_to_the_handoff_store(self):
+        # The whole point of keeping this page outside the catalog: reading
+        # about a dataset must never look like an analysis was run.
+        app = self._run_explore_page()
+
+        self.assertNotIn(STORE_KEY, app.session_state)
 
 
 class TestEnvironmentCanRunTheApp(unittest.TestCase):

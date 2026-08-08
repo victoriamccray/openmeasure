@@ -10,6 +10,12 @@ That makes the catalog the single source for the sidebar, the overview
 cards, and the drift test in shared/tests/test_catalog.py, so a workflow
 cannot exist in one and be missing from another.
 
+Explore Real Data is declared separately, below, rather than through the
+catalog. It is a pointer to datasets, not a validation workflow: it has no
+lifecycle stage, no validation category, and records nothing to
+shared/handoff.py, so folding it into workflows_by_category() would imply
+a status it can never have.
+
 Two consequences of declaring navigation explicitly, both intended:
 
 - Streamlit stops auto-discovering pages/. Its own documentation is blunt
@@ -39,7 +45,12 @@ sections: dict[str, list[st.Page]] = {
             title="Home",
             url_path="Overview",
             default=True,
-        )
+        ),
+        st.Page(
+            "pages/Explore_Real_Data.py",
+            title="Explore Real Data",
+            url_path="Explore_Real_Data",
+        ),
     ]
 }
 

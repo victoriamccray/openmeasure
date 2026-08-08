@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Private research references (papers used for context only, never redistributed)
+private_references/
