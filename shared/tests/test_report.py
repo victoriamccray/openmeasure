@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import unittest
 
-from shared.report import Band, classify
+from shared.report import Band, classify, render_lifecycle_tracker
 
 
 BANDS = [
@@ -50,6 +50,20 @@ class TestClassify(unittest.TestCase):
         so the behavior is documented and cannot change unnoticed.
         """
         self.assertEqual(classify(float("nan"), BANDS).label, "Unacceptable")
+
+
+class TestLifecycleTrackerValidation(unittest.TestCase):
+    """
+    The current_workflow lookup happens before any Streamlit call, so its
+    failure path is testable without a running app: an unknown name must
+    fail loudly rather than silently mark no stage as current.
+    """
+
+    def test_unknown_current_workflow_raises(self):
+        with self.assertRaises(ValueError) as context:
+            render_lifecycle_tracker(current_workflow="Not A Real Workflow")
+
+        self.assertIn("does not match any workflow", str(context.exception))
 
 
 if __name__ == "__main__":

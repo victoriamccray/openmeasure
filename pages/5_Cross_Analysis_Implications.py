@@ -33,7 +33,7 @@ from shared.handoff import (
     HandoffStore,
     group_by_dataset,
 )
-from shared.report import caveat, section_header, show_case_studies
+from shared.report import caveat, render_lifecycle_tracker, section_header, show_case_studies
 
 
 st.set_page_config(
@@ -49,6 +49,8 @@ st.caption(
 )
 
 st.divider()
+
+render_lifecycle_tracker(current_workflow="Cross-Analysis Implications")
 
 
 KIND_LABELS = {

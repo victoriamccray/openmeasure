@@ -8,7 +8,7 @@ presentation only, built on the shared reporting helpers in shared/.
 
 import sys
 from pathlib import Path
-from shared.report import section_header, flagged_item_note, caveat, show_case_studies
+from shared.report import section_header, flagged_item_note, caveat, show_case_studies, render_lifecycle_tracker
 
 import pandas as pd
 import streamlit as st
@@ -75,6 +75,8 @@ st.subheader("Measurement Validation")
 st.caption("Cronbach's alpha and item diagnostics for a scale or survey.")
 
 st.divider()
+
+render_lifecycle_tracker(current_workflow="Reliability")
 
 show_case_studies("measurement_validation")
 # Allow imports from the repo root regardless of where Streamlit is launched from.

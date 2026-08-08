@@ -76,6 +76,37 @@ class TestRecommendFairnessMetric(unittest.TestCase):
             for goal in gr.FAIRNESS_GOALS:
                 self.assertIn(goal, str(e))
 
+    def test_every_recommendation_has_applicable_domains(self):
+        for goal, rec in gr.FAIRNESS_GOALS.items():
+            self.assertGreater(
+                len(rec.applicable_domains), 0, f"{goal} has no applicable_domains"
+            )
+
+    def test_every_domain_context_has_a_domain_and_relevance(self):
+        for goal, rec in gr.FAIRNESS_GOALS.items():
+            for context in rec.applicable_domains:
+                with self.subTest(goal=goal, domain=context.domain):
+                    self.assertTrue(context.domain)
+                    self.assertTrue(context.relevance)
+
+    def test_domain_context_is_frozen(self):
+        self.assertTrue(gr.DomainContext.__dataclass_params__.frozen)
+
+    def test_no_domain_example_reads_as_a_universal_prescription(self):
+        """
+        A domain example should show where a goal can matter, not claim the
+        domain always requires this goal's metric. Mirrors the phrasing
+        guard in shared/case_studies.py's TestNoPositionalReferences.
+        """
+        forbidden = ("always use", "must use", "the only", "requires this metric")
+
+        for goal, rec in gr.FAIRNESS_GOALS.items():
+            for context in rec.applicable_domains:
+                combined = context.relevance.lower()
+                for phrase in forbidden:
+                    with self.subTest(goal=goal, domain=context.domain, phrase=phrase):
+                        self.assertNotIn(phrase, combined)
+
     def test_calibration_tradeoff_mentions_base_rate_conflict(self):
         """This is the specific incompatibility proven by Kleinberg,
         Mullainathan, & Raghavan (2017) and Chouldechova (2017); confirm

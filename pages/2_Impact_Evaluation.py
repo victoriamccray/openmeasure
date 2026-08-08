@@ -27,7 +27,7 @@ from shared.handoff import (
     RetentionItem,
     fingerprint_dataframe,
 )
-from shared.report import section_header, caveat, flagged_item_note, show_case_studies
+from shared.report import section_header, caveat, flagged_item_note, show_case_studies, render_lifecycle_tracker
 
 
 def record_comparison(frame, upload, analysis_context, recommendation, result) -> None:
@@ -96,6 +96,10 @@ st.set_page_config(page_title="OpenMeasure · Program Evaluation", page_icon=":m
 st.title("Impact Evaluation")
 st.subheader("Program Validation")
 st.caption("Compare outcomes across groups, or across time, and see which test fits your data before running it.")
+
+st.divider()
+
+render_lifecycle_tracker(current_workflow="Impact Evaluation")
 
 show_case_studies("program_validation")
 

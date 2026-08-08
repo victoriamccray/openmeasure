@@ -32,10 +32,10 @@ from shared.handoff import HandoffStore
 from shared.progress import (
     SESSION_SCOPE_NOTE,
     has_any_records,
-    stage_progress,
     status_caption,
     workflow_progress,
 )
+from shared.report import render_lifecycle_tracker
 
 st.title("OpenMeasure Lab")
 st.caption(
@@ -77,24 +77,12 @@ status_by_workflow = {
     for item in workflow_progress(entries)
 }
 
-# The stage strip. Deliberately without connecting arrows: the stages are
-# ordered, but the workflows are not a prerequisite chain, and an arrow would
-# imply Fairness needs Reliability to have run first. It carries no arrows, no
-# tick marks, and no counter, since each of those turns "an analysis was
-# recorded" into "this step is done".
-#
-# The strip itself is always shown, because it is a map of the lifecycle and
-# useful before anything is recorded. Only the state labels are gated, which
-# is the same rule the cards below follow.
-with st.container(border=True):
-    strip = st.columns(len(LIFECYCLE_STAGES))
-
-    for column, stage in zip(strip, stage_progress(entries)):
-        with column:
-            st.markdown(f"**{stage.stage}**")
-
-            if show_status:
-                st.caption(stage.state)
+# The richer, status-aware variant of shared/report.py's tracker: every
+# stage's Recorded / Not assessed / etc. state is shown once anything has
+# been recorded, same as before this moved into a shared component. The
+# tracker itself is always shown, because it is a map of the lifecycle and
+# useful before anything is recorded; only the state labels are gated.
+render_lifecycle_tracker(entries, show_status=show_status)
 
 if show_status:
     st.caption(SESSION_SCOPE_NOTE)

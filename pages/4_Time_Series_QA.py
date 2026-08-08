@@ -43,6 +43,7 @@ from shared.report import (
     caveat,
     classify,
     flagged_item_note,
+    render_lifecycle_tracker,
     render_verdict,
     section_header,
     show_case_studies,
@@ -62,6 +63,8 @@ st.caption(
 )
 
 st.divider()
+
+render_lifecycle_tracker(current_workflow="Time-Series QA")
 
 
 # ---------------------------------------------------------------------

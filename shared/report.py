@@ -17,7 +17,9 @@ from typing import Sequence
 import streamlit as st
 
 from shared.case_studies import get_case_studies
-from shared.catalog import LIFECYCLE_STAGES
+from shared.catalog import LIFECYCLE_STAGES, STAGE_QUESTIONS, WORKFLOWS, workflows_by_stage
+from shared.handoff import HandoffEntry
+from shared.progress import stage_progress
 
 # One heading for the research examples section, used on every page so the
 # section is always named rather than left for the reader to infer.
@@ -155,3 +157,115 @@ def _stage_coverage(studies: Sequence) -> str:
         return f"All at the {present[0].lower()} stage of a study."
 
     return "Spanning " + ", ".join(present).lower() + "."
+
+
+# Shown under the current stage's column only, on a validation page. A
+# location marker, not a status: it uses a fixed, neutral color (blue, the
+# same convention a map uses for "you are here") rather than the
+# green/red vocabulary that would make it read as pass or fail.
+CURRENT_STAGE_MARKER = "You are here"
+CURRENT_STAGE_MARKER_ICON = ":material/near_me:"
+CURRENT_STAGE_MARKER_COLOR = "blue"
+
+# Shown inside a stage's popover when no workflow exists for it yet.
+NO_WORKFLOW_FOR_STAGE = "Not yet covered by a module."
+
+# One icon per stage, purely for visual identity. Muted Material Symbols,
+# matching the icon treatment already used for page and expander icons
+# elsewhere, not colored or judgmental: a stage's icon does not change
+# based on whether anything has been recorded for it.
+_STAGE_ICONS: dict[str, str] = {
+    "Research Question": ":material/help:",
+    "Data": ":material/database:",
+    "Measurement": ":material/straighten:",
+    "Analysis": ":material/query_stats:",
+    "Interpretation": ":material/lightbulb:",
+}
+
+
+def render_lifecycle_tracker(
+    entries: tuple[HandoffEntry, ...] = (),
+    *,
+    current_workflow: str | None = None,
+    show_status: bool = False,
+) -> None:
+    """
+    One column per lifecycle stage, reused on Home and on every validation
+    page so there is exactly one implementation of the tracker rather than
+    a slightly different copy per page.
+
+    Clicking a stage never navigates by itself. Each stage is a popover
+    naming its workflow(s), via a page_link inside the popover, so picking
+    where to go stays a deliberate second step rather than an immediate
+    jump. It carries no arrows, tick marks, or counter: the stages are
+    ordered, but the workflows are not a prerequisite chain, and any of
+    those would turn "an analysis was recorded" into "this step is done".
+
+    current_workflow marks "you are here" by matching a Workflow.workflow
+    name from shared/catalog.py, so a rename there fails loudly instead of
+    silently leaving the marker on the wrong stage. None on Home, where no
+    single stage applies.
+
+    show_status additionally shows each stage's existing Recorded / Not
+    assessed / Partly recorded / Reads records / No module yet caption
+    from shared/progress.py, gated exactly as on Home today (hidden until
+    something has been recorded). False on every validation page, which is
+    what keeps the tracker there lightweight: entries defaults to an empty
+    tuple, since a page that never asks for status never needs to fetch
+    the handoff store just to draw its tracker.
+    """
+    highlighted_stage = None
+
+    if current_workflow is not None:
+        match = next(
+            (item for item in WORKFLOWS if item.workflow == current_workflow),
+            None,
+        )
+        if match is None:
+            raise ValueError(
+                f"'{current_workflow}' does not match any workflow in "
+                "shared/catalog.py."
+            )
+        highlighted_stage = match.stage
+
+    grouped = workflows_by_stage()
+    stage_state_by_name = (
+        {item.stage: item.state for item in stage_progress(entries)}
+        if show_status
+        else {}
+    )
+
+    with st.container(border=True):
+        columns = st.columns(len(LIFECYCLE_STAGES))
+
+        for column, stage in zip(columns, LIFECYCLE_STAGES):
+            with column:
+                with st.popover(
+                    stage,
+                    icon=_STAGE_ICONS.get(stage),
+                    type="tertiary",
+                    width="stretch",
+                ):
+                    st.caption(STAGE_QUESTIONS[stage])
+
+                    workflows = grouped[stage]
+
+                    if not workflows:
+                        st.caption(NO_WORKFLOW_FOR_STAGE)
+
+                    for workflow in workflows:
+                        st.page_link(
+                            workflow.page,
+                            label=f"Open {workflow.workflow}",
+                            icon=":material/arrow_forward:",
+                        )
+
+                if stage == highlighted_stage:
+                    st.badge(
+                        CURRENT_STAGE_MARKER,
+                        icon=CURRENT_STAGE_MARKER_ICON,
+                        color=CURRENT_STAGE_MARKER_COLOR,
+                    )
+
+                if show_status:
+                    st.caption(stage_state_by_name[stage])

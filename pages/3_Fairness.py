@@ -37,6 +37,7 @@ from shared.handoff import (
 from shared.report import (
     caveat,
     flagged_item_note,
+    render_lifecycle_tracker,
     section_header,
     show_case_studies,
 )
@@ -90,6 +91,8 @@ st.caption(
 )
 
 st.divider()
+
+render_lifecycle_tracker(current_workflow="Fairness")
 
 
 # ---------------------------------------------------------------------
@@ -212,6 +215,16 @@ with st.expander("Tradeoffs"):
 with st.expander("Alternative metrics"):
     for item in recommendation.alternatives:
         st.markdown(f"- {item}")
+
+with st.expander("Applicable domains or contexts", icon=":material/category:"):
+    st.caption(
+        "Illustrative and non-exhaustive. A domain appearing here shows "
+        "where this goal can come up, not that the domain automatically "
+        "requires this specific fairness metric - the right choice still "
+        "depends on the decision being evaluated."
+    )
+    for context in recommendation.applicable_domains:
+        st.markdown(f"**{context.domain}**: {context.relevance}")
 
 if recommendation.metric != "demographic_parity":
     st.info(

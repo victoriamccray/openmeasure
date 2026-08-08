@@ -20,6 +20,15 @@ Two distinct failure modes are covered.
    AttributeError on st.badge. Asserting the capabilities directly is
    faster and clearer than driving the UI far enough to trip over them.
 
+Every page is driven through the entrypoint (Home.py) via switch_page,
+rather than executed as a standalone script. Once shared/report.py's
+lifecycle tracker started calling st.page_link on every validation page,
+every page needed the navigation Home.py declares: st.page_link resolves
+its target against that navigation and raises KeyError: 'url_pathname'
+without it. Overview.py already needed this treatment for the same
+reason; now the rest of the pages do too, so one mechanism covers all of
+them instead of a standalone/navigation-context split.
+
 Run with: pytest shared/tests/ -v
 """
 
@@ -44,6 +53,7 @@ from shared.handoff import (
     fingerprint_dataframe,
 )
 from shared.progress import (
+    ALLOWED_STAGE_STATES,
     STAGE_NO_MODULE,
     STAGE_READS_RECORDS,
     STAGE_RECORDED,
@@ -53,7 +63,7 @@ from shared.progress import (
     status_caption,
     workflow_progress,
 )
-from shared.report import CASE_STUDIES_HEADING
+from shared.report import CASE_STUDIES_HEADING, CURRENT_STAGE_MARKER
 
 ROOT = Path(__file__).resolve().parents[2]
 PAGES = ROOT / "pages"
@@ -62,63 +72,47 @@ ENTRYPOINT = ROOT / "Home.py"
 # Generous, because a cold AppTest start is slow and CI runners vary.
 LOAD_TIMEOUT_SECONDS = 180
 
-# Pages that cannot be executed on their own because they depend on the
-# app's navigation existing.
-#
-# Overview.py and Explore_Real_Data.py both call st.page_link, which
-# resolves its target against the navigation declared in the entrypoint.
-# Run in isolation there is no navigation, so Streamlit raises
-# KeyError: 'url_pathname'. This is a real property of these pages rather
-# than a test inconvenience: Overview is still covered by the entrypoint
-# test below, which renders it as the default page, and Explore Real Data
-# is covered by TestExploreRealDataPage, which switches to it from Home.py.
-REQUIRES_NAVIGATION_CONTEXT: frozenset[str] = frozenset(
-    {"Overview.py", "Explore_Real_Data.py"}
-)
-
-
 def workflow_page_names() -> set[str]:
     """Filenames of the pages the catalog treats as workflows."""
 
     return {Path(workflow.page).name for workflow in WORKFLOWS}
 
 
-def standalone_scripts() -> list[Path]:
-    """
-    Scripts that can be executed directly.
+def all_page_names() -> list[str]:
+    """Every page file, discovered from the directory rather than listed."""
 
-    The entrypoint plus every page except those needing navigation context.
-    Discovered rather than listed, so a new page is covered as soon as it
-    exists.
-    """
-
-    return [ENTRYPOINT] + sorted(
-        path
-        for path in PAGES.glob("*.py")
-        if path.name not in REQUIRES_NAVIGATION_CONTEXT
-    )
+    return sorted(path.name for path in PAGES.glob("*.py"))
 
 
 class TestEveryPageLoads(unittest.TestCase):
     def test_no_page_raises_on_load(self):
-        scripts = standalone_scripts()
+        names = all_page_names()
 
         # Guard the guard: if discovery silently returned nothing, the test
         # below would pass while checking nothing at all.
-        self.assertGreater(len(scripts), 1, "No page scripts were discovered.")
+        self.assertGreater(len(names), 1, "No page scripts were discovered.")
 
-        for script in scripts:
-            with self.subTest(page=script.name):
-                app = AppTest.from_file(
-                    str(script), default_timeout=LOAD_TIMEOUT_SECONDS
-                )
+        app = AppTest.from_file(
+            str(ENTRYPOINT), default_timeout=LOAD_TIMEOUT_SECONDS
+        )
+        app.run()
+
+        if app.exception:
+            self.fail(f"The entrypoint raised on load: {app.exception}")
+
+        for name in names:
+            if name == "Overview.py":
+                continue  # already loaded above, as the default page
+
+            with self.subTest(page=name):
+                app.switch_page(f"pages/{name}")
                 app.run()
 
                 if app.exception:
                     messages = "; ".join(
                         str(item.value)[:400] for item in app.exception
                     )
-                    self.fail(f"{script.name} raised on load: {messages}")
+                    self.fail(f"{name} raised on load: {messages}")
 
     def test_the_entrypoint_exists(self):
         self.assertTrue(
@@ -160,14 +154,14 @@ class TestEveryPageLoads(unittest.TestCase):
 
         self.assertTrue(names, "The catalog lists no workflow pages.")
 
-        for script in sorted(PAGES.glob("*.py")):
-            if script.name not in names:
-                continue
+        app = AppTest.from_file(
+            str(ENTRYPOINT), default_timeout=LOAD_TIMEOUT_SECONDS
+        )
+        app.run()
 
-            with self.subTest(page=script.name):
-                app = AppTest.from_file(
-                    str(script), default_timeout=LOAD_TIMEOUT_SECONDS
-                )
+        for name in sorted(names):
+            with self.subTest(page=name):
+                app.switch_page(f"pages/{name}")
                 app.run()
 
                 headings = [
@@ -177,7 +171,7 @@ class TestEveryPageLoads(unittest.TestCase):
                 self.assertIn(
                     CASE_STUDIES_HEADING,
                     headings,
-                    f"{script.name} renders case studies without naming the "
+                    f"{name} renders case studies without naming the "
                     f"section. Headings found: {headings}",
                 )
 
@@ -350,6 +344,70 @@ class TestOverviewProgressStatus(unittest.TestCase):
         self.assertNotIn("cronbach_alpha", captions)
 
 
+def _popover_labels(node) -> list[str]:
+    """
+    Every st.popover trigger label under an element-tree node.
+
+    AppTest has no dedicated collection for popovers the way it does for
+    app.button or app.caption, so this walks the tree directly. A stage's
+    name lives here, as the label of the popover that reveals its
+    workflow(s), rather than as a markdown heading.
+    """
+    labels: list[str] = []
+    proto = getattr(node, "proto", None)
+
+    if proto is not None:
+        try:
+            has_popover = proto.HasField("popover")
+        except ValueError:
+            # Leaf element protos (Title, Markdown, ...) do not declare a
+            # "popover" field at all, and HasField raises rather than
+            # returning False for a field the message type does not have.
+            has_popover = False
+
+        if has_popover:
+            labels.append(proto.popover.label)
+
+    for child in getattr(node, "children", {}).values():
+        labels.extend(_popover_labels(child))
+
+    return labels
+
+
+class TestValidationPageLifecycleTracker(unittest.TestCase):
+    """
+    The compact tracker shown on every validation page: every stage is
+    reachable, the page's own stage is marked, and none of the Recorded /
+    Not assessed vocabulary leaks in, since that is reserved for the
+    richer, status-aware tracker on Home.
+    """
+
+    def test_reliability_marks_its_own_stage_with_no_status_words(self):
+        app = AppTest.from_file(
+            str(ENTRYPOINT), default_timeout=LOAD_TIMEOUT_SECONDS
+        )
+        app.run()
+        app.switch_page("pages/1_Reliability.py")
+        app.run()
+
+        self.assertFalse(app.exception)
+
+        labels = _popover_labels(app.main)
+        for stage in LIFECYCLE_STAGES:
+            with self.subTest(stage=stage):
+                self.assertIn(stage, labels)
+
+        # st.badge renders as markdown using :color-badge[...] syntax
+        # rather than its own element collection.
+        markdown = " ".join(str(item.value) for item in app.markdown)
+        self.assertIn(CURRENT_STAGE_MARKER, markdown)
+
+        captions = [str(item.value) for item in app.caption]
+        for state in ALLOWED_STAGE_STATES:
+            with self.subTest(state=state):
+                self.assertNotIn(state, captions)
+
+
 class TestCrossAnalysisWhatThisMeans(unittest.TestCase):
     """
     The "What this means" section was restructured into Observation -> Why
@@ -377,15 +435,22 @@ class TestCrossAnalysisWhatThisMeans(unittest.TestCase):
 
         return mapping
 
-    def test_the_three_labels_and_the_takeaway_render(self):
-        store = self._recorded_store()
-
+    def _run_cross_analysis_page(self, store: dict) -> AppTest:
+        # Cross-Analysis Implications now calls st.page_link via the
+        # lifecycle tracker, so it needs the navigation Home.py declares,
+        # the same reason Overview and Explore Real Data already do.
         app = AppTest.from_file(
-            "pages/5_Cross_Analysis_Implications.py",
-            default_timeout=LOAD_TIMEOUT_SECONDS,
+            str(ENTRYPOINT), default_timeout=LOAD_TIMEOUT_SECONDS
         )
         app.session_state[STORE_KEY] = store[STORE_KEY]
         app.run()
+        app.switch_page("pages/5_Cross_Analysis_Implications.py")
+        app.run()
+
+        return app
+
+    def test_the_three_labels_and_the_takeaway_render(self):
+        app = self._run_cross_analysis_page(self._recorded_store())
 
         self.assertFalse(app.exception)
 
@@ -398,14 +463,7 @@ class TestCrossAnalysisWhatThisMeans(unittest.TestCase):
         self.assertIn("165", infos)  # from REAL_WORLD_TAKEAWAY
 
     def test_technical_caveats_are_preserved(self):
-        store = self._recorded_store()
-
-        app = AppTest.from_file(
-            "pages/5_Cross_Analysis_Implications.py",
-            default_timeout=LOAD_TIMEOUT_SECONDS,
-        )
-        app.session_state[STORE_KEY] = store[STORE_KEY]
-        app.run()
+        app = self._run_cross_analysis_page(self._recorded_store())
 
         captions = " ".join(str(item.value) for item in app.caption)
         self.assertIn("usually matters more than the rate", captions)
