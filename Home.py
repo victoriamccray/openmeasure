@@ -10,8 +10,9 @@ That makes the catalog the single source for the sidebar, the overview
 cards, and the drift test in shared/tests/test_catalog.py, so a workflow
 cannot exist in one and be missing from another.
 
-Explore Real Data, Method Selection, and the HealthRing Worked Example are
-declared separately, below, rather than through the catalog. None of them
+Explore Real Data, Method Selection, and the Wearables Research Journey
+(pages/HealthRing_Worked_Example.py) are declared separately, below,
+rather than through the catalog. None of them
 is a validation workflow: they have no lifecycle stage, no validation
 category, and record nothing to shared/handoff.py, so folding any of them
 into workflows_by_category() would imply a status it can never have.
@@ -58,7 +59,7 @@ sections: dict[str, list[st.Page]] = {
         ),
         st.Page(
             "pages/HealthRing_Worked_Example.py",
-            title="HealthRing Worked Example",
+            title="Wearables Research Journey",
             url_path="HealthRing_Worked_Example",
         ),
     ]

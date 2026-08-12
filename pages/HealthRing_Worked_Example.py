@@ -435,11 +435,15 @@ def _loa_sentence(lower: float, upper: float) -> str:
 # ---------------------------------------------------------------------
 
 st.set_page_config(
-    page_title="OpenMeasure - HealthRing Worked Example",
+    page_title="OpenMeasure - Wearables Research Journey",
     layout="centered",
 )
 
-st.title("HealthRing Worked Example")
+st.title("Wearables Research Journey")
+st.caption(
+    "This prototype uses the HealthRing dataset specifically; it is not "
+    "a general Wearables module."
+)
 st.caption(
     "A guided research simulation, not a report to scroll: each stage "
     "unlocks after you make a decision or inspect its consequence."
