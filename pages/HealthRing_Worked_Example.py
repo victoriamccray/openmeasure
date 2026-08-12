@@ -1,0 +1,1491 @@
+"""
+HealthRing Worked Example - a guided validation journey, not a workflow.
+
+This page is a prototype of OpenMeasure's immersive worked-example
+architecture, not a production Wearables module: it records nothing to
+shared/handoff.py, carries no module_key, and is deliberately not a
+numbered page, so it needs no entry in shared/catalog.py (see
+shared/tests/test_catalog.py, which only requires a catalog entry for
+numbered pages) and cannot appear on the overview's progress cards or
+stage strip. Explore Real Data and Method Selection are the existing
+pages that already establish this "not a workflow" pattern.
+
+Archive I/O lives here, not in modules/healthring/core/, because core is
+pure statistics on an already-loaded DataFrame with no I/O of its own
+(see docs/design-standards.md section 1). The HealthRing archive
+(RingDatasetV2.1_submission.zip, Zenodo record 18426864) is never
+bundled or redistributed by this repository; it is read by local path,
+and only from here.
+
+Known upstream issue, carried over from scripts/healthring_prototype.py:
+the published archive is missing its central directory and its final
+entry is truncated (verified by MD5 match against Zenodo's published
+checksum -- this is not a bad download). Standard zipfile.ZipFile cannot
+open it, so entries are located by walking local file headers directly.
+
+Security note: this page unpickles data with the standard `pickle`
+module, which can execute arbitrary code for a malicious file. Only
+point it at a HealthRing archive whose checksum you have verified.
+
+This page does not load or display raw PPG/accelerometer waveforms.
+Only per-window summary columns (hr, bvp_hr, quality, Label) are read;
+the raw signal is described in prose in the "Understand measurement"
+stage, not visualized, because visualizing it would mean loading a much
+larger, currently-unused part of each subject's file -- new scope worth
+proposing separately rather than adding quietly here.
+"""
+
+from __future__ import annotations
+
+import pickle
+import struct
+import sys
+import zlib
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+import numpy as np
+import pandas as pd
+import streamlit as st
+
+from modules.healthring.core import acquisition_robustness as ar
+from shared.datasets import DATASETS
+from shared.report import caveat, flagged_item_note, section_header
+
+# ---------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------
+
+HEALTHRING_DATASET = next(item for item in DATASETS if item.id == "healthring")
+
+# Each stage unlocks after the reader makes a research decision or
+# inspection in the stage before it, rather than all nine-turned-ten
+# sections simply being available on scroll. STAGE_KEY holds the highest
+# unlocked index; a stage's own content is rendered once
+# STAGE_KEY >= its index, and stays visible (and its widgets stay live)
+# after later stages unlock too.
+STAGE_KEY = "hr_stage"
+
+STAGE_RESEARCH_QUESTION = 0
+STAGE_UNDERSTAND_MEASUREMENT = 1
+STAGE_DESIGN_EVALUATION = 2
+STAGE_BASELINE = 3
+STAGE_MODEL = 4
+STAGE_EVALUATE = 5
+STAGE_RETENTION = 6
+STAGE_CONDITIONS_CHECK = 7
+STAGE_CONCLUSION = 8
+STAGE_FINISH = 9
+
+JOURNEY_STAGES = (
+    "Research question",
+    "Understand measurement",
+    "Design evaluation",
+    "Establish baseline",
+    "Build model",
+    "Evaluate",
+    "Research decision",
+    "Across conditions?",
+    "Defend conclusion",
+    "Finish study",
+)
+
+SPLIT_PARTICIPANT = "participant"
+SPLIT_WINDOW = "window"
+
+SPLIT_CHOICE_LABELS = {
+    SPLIT_PARTICIPANT: "Participant-level (holds out whole participants)",
+    SPLIT_WINDOW: "Window-level (splits by measurement window, ignoring participant)",
+}
+
+CONCLUSION_OPTIONS = (
+    "The model is ready to use as-is, across conditions",
+    (
+        "The model works better in some conditions than others, and would "
+        "need condition-specific checking before wider use"
+    ),
+    "The model doesn't clearly beat the raw baseline given this data",
+    "Not enough evidence either way from this sample",
+)
+
+# v0.1 scope: one ring hardware design only. The archive also contains a
+# second ring design (ring2); mixing both into one model would confound
+# "does the model generalize" with "do the two rings even measure the
+# same thing," so ring2 stays a stated next check instead.
+RING_ENTRY = "ring1"
+
+RAW_COLUMNS: tuple[str, ...] = ("Label", "hr", "bvp_hr", "ir-quality", "red-quality")
+
+DEFAULT_ZIP_PATH = ROOT / "RingDatasetV2.1_submission.zip"
+
+# Palette matching shared/report.py-adjacent OpenMeasure chart conventions
+# and scripts/healthring_prototype.py's existing choices, validated for
+# categorical/sequential use (see the dataviz skill's reference palette).
+INK_PRIMARY = "#0b0b0b"
+INK_SECONDARY = "#52514e"
+INK_MUTED = "#898781"
+GRIDLINE = "#e1e0d9"
+SURFACE = "#fcfcfb"
+ACCENT = "#2a78d6"
+
+_VEGA_CHART_CONFIG = {
+    "background": SURFACE,
+    "axis": {
+        "gridColor": GRIDLINE,
+        "domainColor": "#c3c2b7",
+        "tickColor": "#c3c2b7",
+        "labelColor": INK_MUTED,
+        "titleColor": INK_SECONDARY,
+    },
+    "view": {"stroke": "transparent"},
+}
+
+
+# ---------------------------------------------------------------------
+# Archive I/O (page-level; core/ never touches a file)
+# ---------------------------------------------------------------------
+
+
+def _index_zip_entries(zip_path: Path) -> dict[str, tuple[int, int, int]]:
+    """
+    Map entry name -> (data offset, compressed size, compression method).
+
+    Walks local file headers sequentially rather than using zipfile.ZipFile,
+    because the published archive's central directory is missing. General-
+    purpose flag bit 3 is unset for every intact entry, so local headers
+    carry real compressed/uncompressed sizes and entries can be located
+    without it. Stops at the first entry with no recoverable size, which is
+    the one entry (00029_ring2) known to be genuinely truncated upstream.
+    """
+
+    index: dict[str, tuple[int, int, int]] = {}
+
+    with zip_path.open("rb") as handle:
+        handle.seek(0, 2)
+        filesize = handle.tell()
+        pos = 0
+
+        while pos < filesize - 4:
+            handle.seek(pos)
+
+            if handle.read(4) != b"PK\x03\x04":
+                break
+
+            (_ver, flags, method, _mtime, _mdate, _crc32, csize, _usize, nlen, elen) = (
+                struct.unpack("<HHHHHIIIHH", handle.read(26))
+            )
+            name = handle.read(nlen).decode("utf-8", errors="replace")
+            handle.seek(elen, 1)
+            data_offset = handle.tell()
+
+            if flags & 0x8 or csize == 0:
+                break
+
+            index[name] = (data_offset, csize, method)
+            pos = data_offset + csize
+
+    return index
+
+
+def _read_entry(zip_path: Path, offset: int, csize: int, method: int) -> bytes:
+    """Read and decompress one entry, given its indexed location."""
+
+    with zip_path.open("rb") as handle:
+        handle.seek(offset)
+        raw = handle.read(csize)
+
+    if method == 0:
+        return raw
+
+    if method == 8:
+        return zlib.decompress(raw, -15)
+
+    raise ValueError(f"Unsupported ZIP compression method {method}.")
+
+
+@st.cache_data(show_spinner=False)
+def _available_subject_ids(zip_path_str: str) -> tuple[int, ...]:
+    """Participant IDs with an intact ring1 entry in the archive."""
+
+    index = _index_zip_entries(Path(zip_path_str))
+    suffix = f"_{RING_ENTRY}_processed.pkl"
+
+    return tuple(
+        sorted(int(name[: -len(suffix)]) for name in index if name.endswith(suffix))
+    )
+
+
+@st.cache_data(show_spinner="Reading participant files from the local archive...")
+def _load_subjects(zip_path_str: str, subject_ids: tuple[int, ...]) -> pd.DataFrame:
+    """Load and concatenate ring1 windows for the requested participants."""
+
+    zip_path = Path(zip_path_str)
+    index = _index_zip_entries(zip_path)
+
+    frames: list[pd.DataFrame] = []
+
+    for subject_id in subject_ids:
+        entry_name = f"{subject_id:05d}_{RING_ENTRY}_processed.pkl"
+
+        if entry_name not in index:
+            continue
+
+        offset, csize, method = index[entry_name]
+        raw = pickle.loads(_read_entry(zip_path, offset, csize, method))
+
+        missing = [column for column in RAW_COLUMNS if column not in raw.columns]
+
+        if missing:
+            raise KeyError(f"{entry_name} is missing expected columns: {missing}.")
+
+        subject_frame = raw[list(RAW_COLUMNS)].copy()
+        subject_frame["subject_id"] = subject_id
+        frames.append(subject_frame)
+
+    if not frames:
+        raise ValueError("None of the requested participants were found in the archive.")
+
+    return pd.concat(frames, ignore_index=True)
+
+
+# ---------------------------------------------------------------------
+# Chart builders (Vega-Lite specs; no matplotlib/plotly)
+# ---------------------------------------------------------------------
+
+
+def _bland_altman_chart(
+    mean_values: pd.Series,
+    diff_values: pd.Series,
+    bias: float,
+    lower_loa: float,
+    upper_loa: float,
+) -> dict:
+    points = pd.DataFrame({"mean_hr": mean_values, "diff": diff_values}).to_dict("records")
+
+    return {
+        "layer": [
+            {
+                "data": {"values": points},
+                "mark": {"type": "point", "filled": True, "size": 45, "opacity": 0.6},
+                "encoding": {
+                    "x": {
+                        "field": "mean_hr",
+                        "type": "quantitative",
+                        "title": "Mean of predicted and reference HR (bpm)",
+                    },
+                    "y": {
+                        "field": "diff",
+                        "type": "quantitative",
+                        "title": "Predicted - reference HR (bpm)",
+                    },
+                    "color": {"value": ACCENT},
+                },
+            },
+            {
+                "data": {"values": [{"y": bias}]},
+                "mark": {"type": "rule", "color": INK_PRIMARY, "strokeWidth": 2},
+                "encoding": {"y": {"field": "y", "type": "quantitative"}},
+            },
+            {
+                "data": {"values": [{"y": upper_loa}, {"y": lower_loa}]},
+                "mark": {"type": "rule", "color": INK_SECONDARY, "strokeDash": [4, 4]},
+                "encoding": {"y": {"field": "y", "type": "quantitative"}},
+            },
+        ],
+        "width": "container",
+        "height": 320,
+        "config": _VEGA_CHART_CONFIG,
+    }
+
+
+def _condition_mae_chart(
+    breakdown: tuple[ar.ConditionBreakdown, ...],
+    aggregate_mae: float,
+    group_title: str,
+) -> dict:
+    rows = [{"group": item.group, "mae": item.mae} for item in breakdown]
+    order = [item.group for item in breakdown]
+
+    return {
+        "layer": [
+            {
+                "data": {"values": rows},
+                "mark": {"type": "bar", "size": 22, "color": ACCENT},
+                "encoding": {
+                    "x": {
+                        "field": "group",
+                        "type": "nominal",
+                        "sort": order,
+                        "title": group_title,
+                    },
+                    "y": {"field": "mae", "type": "quantitative", "title": "MAE (bpm)"},
+                },
+            },
+            {
+                "data": {"values": [{"y": aggregate_mae}]},
+                "mark": {"type": "rule", "color": INK_PRIMARY, "strokeWidth": 2, "strokeDash": [4, 4]},
+                "encoding": {"y": {"field": "y", "type": "quantitative"}},
+            },
+        ],
+        "width": "container",
+        "height": 280,
+        "config": _VEGA_CHART_CONFIG,
+    }
+
+
+def _error_distribution_chart(data: pd.DataFrame, error_col: str, group_col: str) -> dict:
+    rows = data[[group_col, error_col]].rename(
+        columns={group_col: "group", error_col: "abs_error"}
+    ).to_dict("records")
+
+    return {
+        "data": {"values": rows},
+        "mark": {"type": "boxplot", "extent": "min-max", "color": ACCENT},
+        "encoding": {
+            "x": {"field": "group", "type": "nominal", "title": group_col},
+            "y": {"field": "abs_error", "type": "quantitative", "title": "Absolute error (bpm)"},
+        },
+        "width": "container",
+        "height": 280,
+        "config": _VEGA_CHART_CONFIG,
+    }
+
+
+# ---------------------------------------------------------------------
+# Stage-gating, pipeline, and plain-language interpretation helpers
+# ---------------------------------------------------------------------
+
+
+def _current_stage() -> int:
+    return st.session_state.get(STAGE_KEY, STAGE_RESEARCH_QUESTION)
+
+
+def _advance_to(stage: int) -> None:
+    """Unlock through `stage` and force an immediate rerun.
+
+    A rerun is needed, not just the session_state write, because the
+    button click that calls this is already mid-script: without
+    rerunning, the rest of this same pass would still read the stale
+    frontier and the newly unlocked section would not appear until some
+    later, unrelated interaction triggered a rerun on its own.
+    """
+
+    st.session_state[STAGE_KEY] = max(_current_stage(), stage)
+    st.rerun()
+
+
+def _fit_and_evaluate(
+    split: ar.SplitResult,
+) -> tuple[ar.RecalibrationModel, ar.AgreementResult, pd.DataFrame]:
+    """
+    Fit on split.train_data, predict on split.test_data, and summarize
+    agreement -- the same three core calls, reused for the chosen split,
+    the "what if" comparison split, and (with a different split) nowhere
+    else, so this exists once rather than being copied three times.
+    """
+
+    model = ar.fit_recalibration(split.train_data)
+
+    test_data = split.test_data.copy()
+    test_data["predicted_hr"] = ar.apply_recalibration(model, test_data["bvp_hr"])
+    test_data["pred_abs_error"] = (test_data["predicted_hr"] - test_data["hr"]).abs()
+    test_data["pred_diff"] = test_data["predicted_hr"] - test_data["hr"]
+    test_data["pred_mean_hr"] = (test_data["predicted_hr"] + test_data["hr"]) / 2
+
+    evaluation = ar.agreement_summary(test_data["predicted_hr"], test_data["hr"])
+
+    return model, evaluation, test_data
+
+
+# Every MAE, bias, and limits-of-agreement metric on this page is followed
+# by one of these sentences, so a number never appears without a plain-
+# language reading. Written once here rather than at each of the three
+# call sites (baseline, evaluate, retention) that need the same reading.
+
+
+def _mae_sentence(value: float) -> str:
+    return f"Predictions differed from the reference by about {value:.1f} bpm on average."
+
+
+def _bias_sentence(value: float) -> str:
+    if abs(value) < 0.05:
+        return (
+            "Predictions were about equal to the reference on average, "
+            "with no consistent over- or under-estimate."
+        )
+
+    direction = "higher" if value > 0 else "lower"
+    return f"Predictions were about {abs(value):.1f} bpm {direction} than the reference on average."
+
+
+def _loa_sentence(lower: float, upper: float) -> str:
+    return (
+        f"For about 95% of windows, the error is expected to fall between "
+        f"{lower:+.1f} and {upper:+.1f} bpm, following the Bland-Altman "
+        "convention (bias plus or minus 1.96 standard deviations)."
+    )
+
+
+# ---------------------------------------------------------------------
+# Page
+# ---------------------------------------------------------------------
+
+st.set_page_config(
+    page_title="OpenMeasure - HealthRing Worked Example",
+    layout="centered",
+)
+
+st.title("HealthRing Worked Example")
+st.caption(
+    "A guided research simulation, not a report to scroll: each stage "
+    "unlocks after you make a decision or inspect its consequence."
+)
+
+stage = _current_stage()
+
+# A single wrapped line, not a fixed grid of narrow columns: ten short
+# labels do not all fit side by side at "centered" page width, and a
+# rigid st.columns() split forced text to overflow its column instead of
+# wrapping. Plain text wraps naturally at any width.
+_stage_parts = [
+    f"**{label}**" if index == stage else label
+    for index, label in enumerate(JOURNEY_STAGES)
+]
+
+with st.container(border=True):
+    st.markdown(" → ".join(_stage_parts))
+
+if stage > STAGE_RESEARCH_QUESTION:
+    if st.button("Restart study", icon=":material/restart_alt:"):
+        for key in (STAGE_KEY, "healthring_windows", "healthring_n_subjects", "hr_reveal_breakdown"):
+            st.session_state.pop(key, None)
+        st.rerun()
+
+st.divider()
+
+# -----------------------------------------------------------------
+# 0. Research question
+# -----------------------------------------------------------------
+
+section_header("Research question")
+
+st.markdown(
+    "### Can we trust ring-derived heart rate across real-world conditions?"
+)
+
+st.write(
+    "A wearable ring reports a heart-rate number with no error bars "
+    "attached. This page runs a real validation of one ring's heart-rate "
+    "estimate against a reference device, across real activity "
+    "conditions. It uses real data, not a demonstration built to make a "
+    "model look good, and it explains each term as it comes up."
+)
+
+with st.expander("Dataset access and citation"):
+    st.write(
+        f"**{HEALTHRING_DATASET.name}** ({HEALTHRING_DATASET.domain}). "
+        f"{HEALTHRING_DATASET.description}"
+    )
+    for source in HEALTHRING_DATASET.sources:
+        st.markdown(f"[{source.label}]({source.url})")
+    st.caption(f"Access: {HEALTHRING_DATASET.access}")
+    st.caption(HEALTHRING_DATASET.citation)
+    st.caption(
+        "This page never bundles HealthRing data. It reads your own local "
+        "copy of the archive by path, and does not modify or redistribute it."
+    )
+
+if stage < STAGE_UNDERSTAND_MEASUREMENT:
+    if st.button("Begin study", type="primary"):
+        _advance_to(STAGE_UNDERSTAND_MEASUREMENT)
+
+# -----------------------------------------------------------------
+# 1. Understand measurement
+# -----------------------------------------------------------------
+
+windows = None
+predicted_problems: list[str] = []
+
+if stage >= STAGE_UNDERSTAND_MEASUREMENT:
+    section_header(
+        "Understand measurement",
+        "What is actually being compared, before any analysis runs",
+    )
+
+    st.markdown(
+        """
+A wearable ring estimates heart rate using **PPG (photoplethysmography)**:
+an LED shines light into the skin, and a sensor measures how much light
+comes back. Blood volume near the skin rises and falls with each
+cardiac cycle, so the returned light varies in step with it, producing
+a repeating waveform that can be used to estimate HR.
+
+Many rings also carry an **ACC (accelerometer)**, which measures physical
+motion. During activity, its readings become larger and more erratic.
+That matters here because motion can shake the sensor against the skin
+and distort the PPG waveform it is trying to read.
+
+From that waveform, a ring computes, for each **window** (a short,
+fixed-length segment of time; one row in this dataset is one window):
+
+- **HR (heart rate)**, in beats per minute, from how often the waveform
+  repeats.
+- A **signal quality** score. This reflects how usable the ring judged
+  that window's reading to be. A low score does not, by itself, say
+  what made the window less usable; this page does not assume a cause
+  such as motion or poor contact unless the data shows it.
+
+A related measure, **HRV (heart rate variability)**, describes the
+beat-to-beat timing pattern rather than the rate itself. This dataset
+does not include HRV, so it is not analyzed on this page.
+"""
+    )
+
+    with st.expander("How a raw signal becomes one number per window"):
+        st.markdown(
+            """
+The pipeline behind `hr` and the quality score generally looks like:
+
+**raw PPG signal -> filtering -> windows -> derived measurement**
+
+Filtering here means reducing unwanted parts of the signal, such as slow
+drift or high-frequency noise. Filtering does not delete observations;
+it reshapes the signal that is still there. It is not free of tradeoffs
+either: a filter tuned to remove noise can also remove real, useful
+signal if it is too aggressive.
+
+That is a different operation from a decision later on this page:
+choosing a minimum signal-quality threshold to decide which whole
+windows to keep or exclude from analysis. That step does drop
+observations. Signal filtering and excluding a window are two different
+things, and this page keeps them separate.
+
+This page does not load or display the raw PPG/accelerometer waveform
+itself, only the per-window summary values described below.
+"""
+        )
+
+    st.markdown(
+        """
+Each measurement window in this dataset carries:
+
+- **`hr`**: the reference heart rate. "Reference" (sometimes called
+  "ground truth") means the value treated as correct for comparison,
+  taken from the study's own separate measurement device, not the ring.
+- **`bvp_hr`**: the ring's own heart-rate estimate. This is what a
+  deployed ring would actually report.
+- **`Label`**: the recorded activity/acquisition condition (for
+  example, resting, walking, or treadmill exercise).
+- **`ir-quality` / `red-quality`**: the ring's own per-channel signal-
+  quality estimate for the window, averaged below into one `quality`
+  value.
+"""
+    )
+
+    st.caption(
+        "The options below are hypotheses drawn from the wider PPG "
+        "measurement literature, not established facts about this "
+        "specific dataset. Skin tone and perfusion in particular are a "
+        "debated, actively studied topic in pulse-oximetry research, "
+        "and this dataset does not record skin tone, so nothing on this "
+        "page can settle that question either way; treat it as an open "
+        "validation question, not a known bias."
+    )
+
+    predicted_problems = st.multiselect(
+        "Before loading any data: which of these do you expect could hurt "
+        "ring accuracy?",
+        options=[
+            "Motion during activity",
+            "Poor skin contact or fit",
+            "Skin tone or perfusion differences (open question, see note above)",
+            "Low ambient light",
+            "Session order or fatigue effects",
+        ],
+        help="Not graded. The 'Does it hold across conditions?' stage comes back to this.",
+    )
+
+    zip_path_input = st.text_input(
+        "Local path to RingDatasetV2.1_submission.zip",
+        value=str(DEFAULT_ZIP_PATH) if DEFAULT_ZIP_PATH.exists() else "",
+    )
+
+    zip_path = Path(zip_path_input) if zip_path_input else None
+
+    if zip_path is None or not zip_path.is_file():
+        st.info(
+            "Provide a local path to the archive to continue. See "
+            "'Dataset access and citation' above for where to obtain it."
+        )
+    else:
+        try:
+            available_subjects = _available_subject_ids(str(zip_path))
+        except OSError as error:
+            st.error(f"Could not read the archive: {error}")
+            available_subjects = ()
+
+        if not available_subjects:
+            st.warning("No usable ring1 entries were found in this archive.")
+        else:
+            max_subjects = min(20, len(available_subjects))
+            default_subjects = min(8, max_subjects)
+
+            st.caption(
+                f"{len(available_subjects)} participants have an intact "
+                "ring1 entry in this archive. Each participant's file is "
+                "30-160 MB uncompressed, so this loads a bounded, "
+                "adjustable subset rather than all of them every run."
+            )
+
+            n_subjects = st.slider(
+                "How many participants to load",
+                min_value=4,
+                max_value=max_subjects,
+                value=default_subjects,
+                help=(
+                    "A small, non-random subset for responsiveness. This is "
+                    "a stated limitation, not a representative sample."
+                ),
+            )
+
+            if st.button("Load participants", type="primary"):
+                subject_ids = available_subjects[:n_subjects]
+                try:
+                    raw = _load_subjects(str(zip_path), subject_ids)
+                    st.session_state["healthring_windows"] = ar.prepare_windows(raw)
+                    st.session_state["healthring_n_subjects"] = n_subjects
+                except (OSError, KeyError, ValueError) as error:
+                    st.error(f"Could not load the requested participants: {error}")
+                    st.session_state["healthring_windows"] = None
+
+            windows = st.session_state.get("healthring_windows")
+
+            if windows is not None:
+                st.success(
+                    f"We found {windows.n_input_windows} measurement "
+                    f"windows from "
+                    f"{st.session_state.get('healthring_n_subjects')} "
+                    f"participants. {windows.n_excluded_windows} were "
+                    "missing information needed for this analysis, "
+                    f"leaving {windows.n_usable_windows} usable windows."
+                )
+
+    if windows is not None and stage < STAGE_DESIGN_EVALUATION:
+        if st.button("Continue to evaluation design", type="primary"):
+            _advance_to(STAGE_DESIGN_EVALUATION)
+
+# -----------------------------------------------------------------
+# 2. Design the evaluation
+# -----------------------------------------------------------------
+
+chosen_split: ar.SplitResult | None = None
+split_choice = SPLIT_PARTICIPANT
+split_seed = 0
+fitted: dict[str, tuple[ar.RecalibrationModel, ar.AgreementResult, pd.DataFrame]] = {}
+
+if stage >= STAGE_DESIGN_EVALUATION and windows is not None:
+    section_header(
+        "Design the evaluation",
+        "How you split training and test data decides what the test result can claim",
+    )
+
+    st.markdown(
+        """
+To check whether a model works on someone new, some data has to be set
+aside and never used while fitting the model. That set-aside portion is
+called **held-out data** (also "test data"): the model never sees it
+during training, so it is a fair check of whether the model
+generalizes, rather than only fitting patterns specific to the
+training data.
+
+There are two common ways to choose what to hold out here:
+
+- **Participant-level**: hold out whole participants. Every window from
+  a held-out participant goes to the test set; none of their windows
+  are used for training.
+- **Window-level**: hold out individual windows at random, regardless
+  of which participant they came from. A participant can have some
+  windows in training and other windows in test at the same time.
+
+Windows from the same participant are correlated: they share that
+person's typical heart rate, skin, and how their ring happened to sit.
+If a participant's windows appear on both sides, the training and test
+windows are not independent of each other, so a window-level split does
+not test performance on a genuinely new participant the way a
+participant-level split does. This is called **leakage**.
+"""
+    )
+
+    split_choice = st.radio(
+        "How should training and test data be split?",
+        options=[SPLIT_PARTICIPANT, SPLIT_WINDOW],
+        format_func=lambda key: SPLIT_CHOICE_LABELS[key],
+    )
+
+    split_seed = st.number_input(
+        "Split seed",
+        min_value=0,
+        value=0,
+        step=1,
+        help=(
+            "The seed controls which participants or windows happen to "
+            "land in the test set. Changing it re-runs the same split "
+            "logic with a different random draw. If the result changes a "
+            "lot between seeds, that is a sign this test set is small "
+            "enough that chance is doing some of the work."
+        ),
+    )
+
+    splits: dict[str, ar.SplitResult | None] = {}
+    split_errors: dict[str, str] = {}
+
+    try:
+        splits[SPLIT_PARTICIPANT] = ar.split_by_subject(
+            windows, test_fraction=0.3, seed=int(split_seed)
+        )
+    except ValueError as error:
+        splits[SPLIT_PARTICIPANT] = None
+        split_errors[SPLIT_PARTICIPANT] = str(error)
+
+    try:
+        splits[SPLIT_WINDOW] = ar.split_by_window(
+            windows, test_fraction=0.3, seed=int(split_seed)
+        )
+    except ValueError as error:
+        splits[SPLIT_WINDOW] = None
+        split_errors[SPLIT_WINDOW] = str(error)
+
+    for key, result in splits.items():
+        if result is not None:
+            try:
+                fitted[key] = _fit_and_evaluate(result)
+            except ValueError as error:
+                split_errors[key] = str(error)
+
+    chosen_split = splits.get(split_choice)
+
+    if chosen_split is None:
+        st.error(split_errors.get(split_choice, "This split could not be computed."))
+    else:
+        overlap = set(chosen_split.train_subjects) & set(chosen_split.test_subjects)
+
+        st.caption(
+            f"Train: {len(chosen_split.train_subjects)} participants, "
+            f"{chosen_split.n_train_windows} windows. "
+            f"Test: {len(chosen_split.test_subjects)} participants, "
+            f"{chosen_split.n_test_windows} windows. "
+            + (
+                f"{len(overlap)} participant(s) appear on both sides."
+                if overlap
+                else "No participant appears on both sides."
+            )
+        )
+
+        other_key = SPLIT_WINDOW if split_choice == SPLIT_PARTICIPANT else SPLIT_PARTICIPANT
+
+        if split_choice in fitted and other_key in fitted:
+            _, chosen_eval, _ = fitted[split_choice]
+            _, other_eval, _ = fitted[other_key]
+
+            chosen_name = SPLIT_CHOICE_LABELS[split_choice].split(" (")[0]
+            other_name = SPLIT_CHOICE_LABELS[other_key].split(" (")[0]
+
+            st.markdown(
+                f"**{chosen_name} split (what you chose):** test MAE = "
+                f"{chosen_eval.mae:.2f} bpm."
+            )
+            st.markdown(
+                f"**{other_name} split (the alternative):** test MAE = "
+                f"{other_eval.mae:.2f} bpm."
+            )
+
+            st.write(
+                "Neither number is automatically the 'right' one. The "
+                "takeaway is that the split you choose determines what "
+                "the test result can legitimately claim. A "
+                "participant-level test score describes performance on "
+                "people the model has not seen. A window-level test score "
+                "can be inflated by leakage when the same participants "
+                "appear on both sides, and the gap between the two "
+                "numbers above is one way to see how much that matters "
+                "for this data."
+            )
+
+        caveat(
+            "A window-level split lets the same participant's windows "
+            "land on both sides, which is leakage (see above). That does "
+            "not make its number meaningless to look at; comparing it "
+            "against the participant-level number is exactly how the "
+            "leakage effect becomes visible. But only the "
+            "participant-level split's test score describes performance "
+            "on someone new."
+        )
+
+    if stage < STAGE_BASELINE:
+        if st.button(
+            "Continue with this split", type="primary", disabled=chosen_split is None
+        ):
+            _advance_to(STAGE_BASELINE)
+
+# -----------------------------------------------------------------
+# 3. Establish baseline
+# -----------------------------------------------------------------
+
+baseline: ar.AgreementResult | None = None
+model_prediction = "Not sure"
+
+if stage >= STAGE_BASELINE and chosen_split is not None:
+    section_header(
+        "Establish baseline",
+        "What agreement looks like on the test set, before introducing any model",
+    )
+
+    baseline = ar.agreement_summary(
+        chosen_split.test_data["bvp_hr"], chosen_split.test_data["hr"]
+    )
+
+    b1, b2, b3 = st.columns(3)
+    b1.metric("Baseline MAE", f"{baseline.mae:.2f} bpm")
+    b2.metric("Baseline bias", f"{baseline.bias:+.2f} bpm")
+    b3.metric("Limits of agreement", f"±{1.96 * baseline.sd:.2f} bpm")
+
+    st.caption(f"**MAE {baseline.mae:.2f} bpm:** {_mae_sentence(baseline.mae)}")
+    st.caption(f"**Bias {baseline.bias:+.2f} bpm:** {_bias_sentence(baseline.bias)}")
+    st.caption(
+        f"**Limits of agreement ±{1.96 * baseline.sd:.2f} bpm:** "
+        f"{_loa_sentence(baseline.lower_loa, baseline.upper_loa)}"
+    )
+
+    st.write(
+        "This treats the ring's own `bvp_hr` estimate as the prediction, "
+        "with no fitting at all, measured on the same held-out test data "
+        "the model will be evaluated on next. It is the number a model "
+        "has to beat, not a null result to dismiss."
+    )
+
+    model_prediction = st.radio(
+        "Would you model this, or is the baseline already good enough? "
+        "Do you expect a simple linear recalibration to meaningfully beat "
+        "it?",
+        options=["Yes, meaningfully better", "No, about the same or worse", "Not sure"],
+        index=2,
+    )
+
+    if stage < STAGE_MODEL:
+        if st.button("Continue to model", type="primary"):
+            _advance_to(STAGE_MODEL)
+
+# -----------------------------------------------------------------
+# 4. Build model
+# -----------------------------------------------------------------
+
+model: ar.RecalibrationModel | None = None
+evaluation: ar.AgreementResult | None = None
+test_data: pd.DataFrame | None = None
+
+if stage >= STAGE_MODEL and chosen_split is not None and split_choice in fitted:
+    section_header(
+        "Build model",
+        "One simple, interpretable model, fit on training data only",
+    )
+
+    model, evaluation, test_data = fitted[split_choice]
+
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Intercept", f"{model.intercept:+.2f}")
+    m2.metric("Slope", f"{model.slope:.3f}")
+    m3.metric("R² (train)", f"{model.r_squared:.3f}")
+
+    st.markdown(
+        f"**In plain language:** take the ring's own estimate (`bvp_hr`), "
+        f"multiply it by {model.slope:.2f}, then add {model.intercept:+.2f}. "
+        "A slope near 1 and an intercept near 0 would mean the ring's raw "
+        "estimate was already well-calibrated; this fit adjusts for "
+        "whatever gap was found in the training data."
+    )
+
+    st.caption(
+        f"**R² (coefficient of determination) {model.r_squared:.3f}:** on "
+        "training data, this fraction of the variation in reference heart "
+        "rate lines up with variation in the ring's estimate. It "
+        "describes fit on training data only, not how well the model "
+        "will do on new participants -- that is what the evaluate stage "
+        "checks next."
+    )
+
+    st.caption(
+        "This is a single linear bias correction, fit by ordinary least "
+        f"squares (OLS) on {model.n_train} training windows: deliberately "
+        "the simplest model that could work, a teaching model rather than "
+        "the best possible one. It cannot correct condition-specific or "
+        "nonlinear error, which the 'Does it hold across conditions?' "
+        "stage checks separately."
+    )
+
+    with st.expander("What mistakes matter? Why we evaluate with MAE"):
+        st.markdown(
+            """
+**A subtlety worth naming:** this model is trained by ordinary least
+squares (OLS), which minimizes squared error during fitting. This page
+then evaluates it using MAE instead. The fitting objective and the
+evaluation metric are different on purpose here, and they don't have to
+match: a model can be fit one way and judged another, and it is worth
+knowing which is which for any model, including this one.
+
+Model choices encode which mistakes we consider costly.
+
+- **MAE (mean absolute error)**, used to evaluate the model throughout
+  this page, treats each extra bpm of error as roughly equally bad,
+  whether the total error is 1 bpm or 10 bpm.
+- **MSE (mean squared error)**, closer to what OLS actually minimizes
+  during fitting, squares each error before averaging, so large errors
+  count disproportionately more than small ones.
+- **L1** and **L2** are not error metrics; they are **regularization**,
+  a penalty applied to properties of the model itself, not to
+  prediction errors. L1 penalizes the magnitude of coefficients, which
+  can drive some coefficients to exactly zero and produce a sparser
+  model. L2 penalizes large coefficients without forcing them to zero,
+  encouraging smaller, more stable ones.
+
+None of that regularization is used here: this model has one predictor
+and no penalty term, on purpose. The question worth asking of any
+model, including this one, is: **which mistakes matter in this
+application, and does the modeling choice reflect that?**
+"""
+        )
+
+    if model_prediction == "Yes, meaningfully better":
+        prediction_note = "You predicted a meaningful improvement."
+    elif model_prediction == "No, about the same or worse":
+        prediction_note = "You predicted little or no improvement."
+    else:
+        prediction_note = "You weren't sure."
+
+    st.write(
+        f"{prediction_note} The evaluate stage next shows what actually "
+        "happened on held-out data."
+    )
+
+    if stage < STAGE_EVALUATE:
+        if st.button("Continue to evaluation", type="primary"):
+            _advance_to(STAGE_EVALUATE)
+
+# -----------------------------------------------------------------
+# 5. Evaluate
+# -----------------------------------------------------------------
+
+if stage >= STAGE_EVALUATE and evaluation is not None and baseline is not None:
+    section_header(
+        "Evaluate",
+        "Agreement on the held-out test set, revealed one layer at a time",
+    )
+
+    e1, e2, e3 = st.columns(3)
+    e1.metric(
+        "Test MAE", f"{evaluation.mae:.2f} bpm",
+        delta=f"{evaluation.mae - baseline.mae:+.2f} vs. baseline",
+        delta_color="inverse",
+    )
+    e2.metric("Test bias", f"{evaluation.bias:+.2f} bpm")
+    e3.metric("Limits of agreement", f"±{1.96 * evaluation.sd:.2f} bpm")
+
+    st.caption(f"**MAE {evaluation.mae:.2f} bpm:** {_mae_sentence(evaluation.mae)}")
+    st.caption(f"**Bias {evaluation.bias:+.2f} bpm:** {_bias_sentence(evaluation.bias)}")
+    st.caption(
+        f"**Limits of agreement ±{1.96 * evaluation.sd:.2f} bpm:** "
+        f"{_loa_sentence(evaluation.lower_loa, evaluation.upper_loa)}"
+    )
+
+    if evaluation.mae >= baseline.mae:
+        st.info(
+            "**Adding the model did not improve performance on new "
+            f"participants.** Test MAE ({evaluation.mae:.2f} bpm) was not "
+            f"lower than the raw baseline ({baseline.mae:.2f} bpm) on this "
+            "held-out test set."
+        )
+    else:
+        st.write(
+            f"Test MAE ({evaluation.mae:.2f} bpm) was lower than the raw "
+            f"baseline ({baseline.mae:.2f} bpm) on held-out participants."
+        )
+
+    st.write(
+        "That single MAE number is the one you'll carry forward. Before "
+        "trusting it, look at whether it comes from a well-behaved error "
+        "distribution or a skewed one:"
+    )
+    st.vega_lite_chart(
+        _error_distribution_chart(test_data, "pred_abs_error", "Label"),
+        theme=None,
+        use_container_width=True,
+    )
+
+    st.write(
+        "And whether the ring and reference systematically disagree, or "
+        "just disagree noisily. This is a Bland-Altman plot, a standard "
+        "way to compare two measurement methods: each point is one "
+        "window, plotted by its average of the two readings against "
+        "their difference."
+    )
+    st.vega_lite_chart(
+        _bland_altman_chart(
+            test_data["pred_mean_hr"],
+            test_data["pred_diff"],
+            evaluation.bias,
+            evaluation.lower_loa,
+            evaluation.upper_loa,
+        ),
+        theme=None,
+        use_container_width=True,
+    )
+    st.caption(
+        "Solid line = bias (the average difference). Dashed lines = "
+        "limits of agreement (bias plus or minus 1.96 standard "
+        "deviations), following Bland & Altman (1986). This is pooled "
+        "across every condition, so it describes average agreement; pair "
+        "it with the 'Does it hold across conditions?' stage rather than "
+        "reading it alone."
+    )
+    st.caption(
+        "Bland-Altman's limits of agreement are typically derived "
+        "assuming independent measurement pairs. Here, multiple windows "
+        "come from the same participant and are not independent of each "
+        "other, so treat these limits as approximate rather than exact."
+    )
+
+    if stage < STAGE_RETENTION:
+        if st.button("Continue to the research decision", type="primary"):
+            _advance_to(STAGE_RETENTION)
+
+# -----------------------------------------------------------------
+# 6. Make a research decision (retention)
+# -----------------------------------------------------------------
+
+retention: ar.RetentionResult | None = None
+quality_threshold = 0.5
+
+if stage >= STAGE_RETENTION and evaluation is not None and test_data is not None:
+    section_header(
+        "Make a research decision",
+        "Cleaner signal keeps less data: watch retention and error move together",
+    )
+
+    st.write(
+        "Every window has a quality score from the ring itself, "
+        "described in the 'Understand measurement' stage. Raising the "
+        "minimum quality you'll accept excludes lower-quality windows "
+        "entirely. This is different from the signal filtering described "
+        "earlier, which reshapes a signal without deleting observations: "
+        "here, an excluded window is gone from the analysis."
+    )
+
+    left, mid, right = st.columns([1, 3, 1])
+    with left:
+        st.caption("More data")
+    with right:
+        st.caption("Cleaner signal")
+    with mid:
+        quality_threshold = st.slider(
+            "Minimum signal quality to keep a window",
+            min_value=0.0,
+            max_value=1.0,
+            value=0.5,
+            step=0.05,
+            label_visibility="collapsed",
+        )
+
+    st.caption(f"At a minimum quality of {quality_threshold:.2f}:")
+
+    try:
+        retention = ar.filter_by_quality(
+            test_data,
+            predicted_col="predicted_hr",
+            target_col="hr",
+            threshold=quality_threshold,
+        )
+
+        r1, r2, r3 = st.columns(3)
+        r1.metric(
+            "Windows retained",
+            f"{retention.n_retained_windows} / {retention.n_input_windows}",
+            delta=f"{retention.retention_rate:.0%} retained",
+        )
+        r2.metric(
+            "MAE at this threshold",
+            f"{retention.agreement.mae:.2f} bpm",
+            delta=f"{retention.agreement.mae - evaluation.mae:+.2f} vs. unfiltered",
+            delta_color="inverse",
+        )
+        r3.metric("Bias at this threshold", f"{retention.agreement.bias:+.2f} bpm")
+
+        st.caption(
+            f"**MAE {retention.agreement.mae:.2f} bpm:** "
+            f"{_mae_sentence(retention.agreement.mae)}"
+        )
+        st.caption(
+            f"**Bias {retention.agreement.bias:+.2f} bpm:** "
+            f"{_bias_sentence(retention.agreement.bias)}"
+        )
+
+        if retention.n_excluded_windows == 0:
+            st.write(
+                "At this threshold, every test window already met the "
+                "bar, so this particular run does not yet show a "
+                "quality-versus-retention tradeoff. Raise the threshold "
+                "further to see whether one appears."
+            )
+        elif retention.retention_rate < 0.5:
+            flagged_item_note(
+                "Retention",
+                f"This threshold keeps only {retention.retention_rate:.0%} "
+                "of test windows. An MAE computed on a minority of the "
+                "data describes that minority, not the full test set.",
+            )
+    except ValueError as error:
+        st.warning(str(error))
+        retention = None
+
+    caveat(
+        "A lower MAE after raising the threshold is not, by itself, an "
+        "improvement: it can just mean the hardest windows were "
+        "excluded. Read the MAE and the percent retained together, "
+        "never one without the other."
+    )
+
+    if stage < STAGE_CONDITIONS_CHECK:
+        if st.button("Continue to the conditions check", type="primary"):
+            _advance_to(STAGE_CONDITIONS_CHECK)
+
+# -----------------------------------------------------------------
+# 7. Does it hold across conditions?
+# -----------------------------------------------------------------
+
+condition_breakdown: tuple[ar.ConditionBreakdown, ...] | None = None
+REVEAL_BREAKDOWN_KEY = "hr_reveal_breakdown"
+
+if stage >= STAGE_CONDITIONS_CHECK and evaluation is not None and test_data is not None:
+    section_header(
+        "Does it hold across conditions?",
+        "The pooled result can hide differences that only show up condition by condition",
+    )
+
+    st.write(
+        f"Your overall test MAE was **{evaluation.mae:.2f} bpm**, pooled "
+        "across every activity condition in the test set."
+    )
+
+    if not st.session_state.get(REVEAL_BREAKDOWN_KEY, False):
+        if st.button("Reveal breakdown by condition"):
+            st.session_state[REVEAL_BREAKDOWN_KEY] = True
+            st.rerun()
+
+    if st.session_state.get(REVEAL_BREAKDOWN_KEY, False):
+        condition_breakdown = ar.breakdown_by_condition(
+            test_data, predicted_col="predicted_hr", target_col="hr", group_col="Label"
+        )
+
+        st.vega_lite_chart(
+            _condition_mae_chart(condition_breakdown, evaluation.mae, "Condition"),
+            theme=None,
+            use_container_width=True,
+        )
+        st.caption(
+            f"Dashed line = pooled test MAE ({evaluation.mae:.2f} bpm). Any "
+            "bar clearing the line has worse-than-aggregate error in that "
+            "condition."
+        )
+
+        worst = max(condition_breakdown, key=lambda item: item.mae)
+        best = min(condition_breakdown, key=lambda item: item.mae)
+
+        if worst.group != best.group:
+            st.markdown(
+                f"**Overall performance hid substantial differences "
+                f"between activities.** MAE was {worst.mae:.2f} bpm "
+                f"during {worst.group}, versus {best.mae:.2f} bpm during "
+                f"{best.group}, a spread the pooled "
+                f"{evaluation.mae:.2f} bpm figure above did not show. "
+                "This shows the two conditions differ in measured error; "
+                "it does not, by itself, explain why."
+            )
+
+        if predicted_problems:
+            st.caption(
+                "You predicted possible problems from: "
+                + ", ".join(predicted_problems)
+                + ". This pattern is consistent with some of those "
+                "hypotheses, but this analysis does not establish what "
+                "caused the difference: condition, participant mix, and "
+                "sample size are all confounded here."
+            )
+
+        median_quality = float(test_data["quality"].median())
+        test_data["quality_bin"] = np.where(
+            test_data["quality"] >= median_quality,
+            "Higher-quality half",
+            "Lower-quality half",
+        )
+
+        quality_breakdown = ar.breakdown_by_condition(
+            test_data, predicted_col="predicted_hr", target_col="hr", group_col="quality_bin"
+        )
+
+        st.markdown(
+            "**By signal-quality half.** Splitting the test set at its "
+            "median quality score gives two roughly equal-sized groups: "
+            "the 'higher-quality half' (the windows the ring itself "
+            "scored above the median) and the 'lower-quality half' "
+            "(the windows scored below it)."
+        )
+        st.vega_lite_chart(
+            _condition_mae_chart(quality_breakdown, evaluation.mae, "Quality half"),
+            theme=None,
+            use_container_width=True,
+        )
+
+    if stage < STAGE_CONCLUSION:
+        if st.button("Continue to your conclusion", type="primary"):
+            _advance_to(STAGE_CONCLUSION)
+
+# -----------------------------------------------------------------
+# 8. Defend your conclusion
+# -----------------------------------------------------------------
+
+if stage >= STAGE_CONCLUSION and evaluation is not None and baseline is not None:
+    section_header(
+        "Defend your conclusion",
+        "Based on what you observed, what would you actually trust this measurement to do?",
+    )
+
+    conclusion_choice = st.radio(
+        "Based on everything above, which best describes what this run "
+        "supports?",
+        options=CONCLUSION_OPTIONS,
+    )
+
+    spread = None
+    if condition_breakdown:
+        spread = max(c.mae for c in condition_breakdown) - min(
+            c.mae for c in condition_breakdown
+        )
+
+    model_delta = evaluation.mae - baseline.mae
+
+    supports_lines = [
+        f"- On this held-out test set, the model's MAE was "
+        f"{evaluation.mae:.2f} bpm versus a {baseline.mae:.2f} bpm "
+        f"baseline ({'an improvement' if model_delta < 0 else 'no improvement'})."
+    ]
+
+    if spread is not None:
+        supports_lines.append(
+            f"- Performance differed by {spread:.2f} bpm between the "
+            "best- and worst-performing activity conditions in the "
+            "breakdown you revealed."
+        )
+
+    if retention is not None:
+        supports_lines.append(
+            f"- At the quality threshold you chose, "
+            f"{retention.retention_rate:.0%} of test windows were usable."
+        )
+
+    uncertain_lines = [
+        "- Why performance differs across conditions: motion, "
+        "participant mix, and sample size are all plausible and are not "
+        "separated by this analysis.",
+        "- Whether this holds for participants outside this small, "
+        "non-random sample.",
+        "- Whether skin tone or perfusion affects this ring's accuracy: "
+        "this dataset does not record skin tone, so nothing here can "
+        "answer that.",
+    ]
+
+    if spread is None:
+        uncertain_lines.insert(
+            0,
+            "- Whether performance is consistent across conditions: the "
+            "per-condition breakdown was never revealed in the previous "
+            "stage, so this run has no figure for that.",
+        )
+
+    st.markdown("**What the evidence supports:**")
+    st.markdown("\n".join(supports_lines))
+    st.markdown("**What remains uncertain:**")
+    st.markdown("\n".join(uncertain_lines))
+
+    caveat(
+        "This is a comparison, not a graded quiz: more than one of the "
+        "conclusion options above can be reasonable depending on how much "
+        "weight you put on the per-condition spread versus the pooled "
+        "average. OpenMeasure states what the evidence shows; deciding "
+        "what it is sufficient for is still a judgment call."
+    )
+
+    if stage < STAGE_FINISH:
+        if st.button("Finish study", type="primary"):
+            _advance_to(STAGE_FINISH)
+
+# -----------------------------------------------------------------
+# 9. Finish study
+# -----------------------------------------------------------------
+
+if stage >= STAGE_FINISH and evaluation is not None and baseline is not None:
+    section_header(
+        "Finish study",
+        "A compact validation record",
+    )
+
+    condition_finding = (
+        "The per-condition breakdown was never revealed in the "
+        "conditions-check stage, so no spread figure is recorded from "
+        "this run."
+    )
+    if condition_breakdown:
+        condition_finding = (
+            f"Per-condition MAE ranged from "
+            f"{min(c.mae for c in condition_breakdown):.2f} to "
+            f"{max(c.mae for c in condition_breakdown):.2f} bpm, so the "
+            "pooled test MAE alone would have hidden that spread."
+        )
+
+    model_delta = evaluation.mae - baseline.mae
+
+    if retention is None:
+        retention_line = (
+            "the signal-quality threshold could not be applied on this "
+            "run, so there is no retention figure to report"
+        )
+    elif retention.n_excluded_windows == 0:
+        retention_line = (
+            f"at a threshold of {quality_threshold:.2f}, every test "
+            "window already met the bar, so this run does not "
+            "demonstrate a quality-versus-retention tradeoff; a higher "
+            "threshold would be needed to see one"
+        )
+    else:
+        retention_line = (
+            f"raising the signal-quality threshold to "
+            f"{quality_threshold:.2f} retained {retention.retention_rate:.0%} "
+            "of test windows, showing the tradeoff directly"
+        )
+
+    st.markdown(
+        f"""
+**Question:** Can we trust this ring's heart-rate estimate, and under
+what conditions?
+
+**Decisions:** a {SPLIT_CHOICE_LABELS[split_choice].split(" (")[0].lower()}
+train/test split (seed {int(split_seed)}); a single linear recalibration
+model fit on training data only; a signal-quality threshold of
+{quality_threshold:.2f} for the retention check.
+
+**Checks:** baseline agreement on held-out data; the leakage consequence
+of a window-level split versus a participant-level split; agreement on
+held-out data overall, after signal-quality filtering, and broken down
+by activity condition and by signal-quality half.
+
+**Findings:** baseline MAE was {baseline.mae:.2f} bpm; the recalibrated
+model reached {evaluation.mae:.2f} bpm on held-out participants
+({'an improvement over' if model_delta < 0 else 'no improvement over'}
+baseline). {condition_finding}
+
+**Tradeoffs:** a participant-level split avoids leakage at the cost of
+fewer distinct training examples per participant; a window-level split
+uses more data per participant but risks leakage. On the signal-quality
+side, {retention_line}.
+
+**Limitations:** a small, non-random subset of participants (bounded for
+responsiveness, not chosen for representativeness); one ring hardware
+design (`ring1`) only; one predictor (`bvp_hr`); the dataset's
+`Experiment` column was not used; Bland-Altman agreement is pooled
+across conditions rather than computed per condition, and its limits of
+agreement assume independent measurement pairs, which repeated windows
+within the same participant only approximate.
+
+**Unresolved questions:** whether the same recalibration holds for the
+archive's second ring design (`ring2`); whether the `Experiment` column
+marks a distinction that matters for agreement; whether the
+per-condition MAE spread reflects motion, a genuine physiological
+difference across conditions, or small per-condition sample sizes;
+whether skin tone or perfusion affects this ring's accuracy, which this
+dataset cannot answer.
+
+**Next checks:** repeat this walkthrough with `ring2` and compare; check
+whether a model with more than one predictor closes the per-condition
+gap or only improves the pooled average; validate against a larger and
+more representative participant sample before drawing any conclusion
+beyond this dataset.
+"""
+    )
+
+    st.markdown("### WIGOR coverage")
+
+    st.caption(
+        "WIGOR is a published reporting checklist for wearable-signal "
+        "model evaluation, not an OpenMeasure invention: Puszkarski, B. "
+        "(2026). Automated analysis of wearable ECG: machine learning "
+        "methods, preprocessing pipelines, and benchmark datasets. "
+        "Physiological Measurement, 47(8), 08TR02. "
+        "https://doi.org/10.1088/1361-6579/ae8b71 (open access, CC BY 4.0)."
+    )
+
+    wigor_rows = (
+        (
+            "Independence",
+            "Demonstrated",
+            ":material/check_circle:",
+            "blue",
+            "The evaluation-design stage keeps test data separate from "
+            "training under a participant-level split, and shows the "
+            "leakage cost of the alternative.",
+        ),
+        (
+            "Gating transparency",
+            "Demonstrated",
+            ":material/check_circle:",
+            "blue",
+            "The research-decision stage always reports how much data a "
+            "signal-quality threshold kept, alongside how performance "
+            "changed at that threshold.",
+        ),
+        (
+            "Out-of-distribution validation",
+            "Partially introduced",
+            ":material/adjust:",
+            "gray",
+            "The conditions-check stage checks performance across "
+            "acquisition conditions within one dataset and population: a "
+            "robustness check, not a test against a genuinely external "
+            "population or device.",
+        ),
+        (
+            "Relevance",
+            "Partially introduced",
+            ":material/adjust:",
+            "gray",
+            "The defend-your-conclusion stage asks whether the result "
+            "fits the intended use, but does not carry out a clinical-"
+            "relevance study.",
+        ),
+        (
+            "Wearable-deployment cost",
+            "Not assessed",
+            ":material/radio_button_unchecked:",
+            "gray",
+            "This page has no battery-life, comfort, or "
+            "real-world-deployment data to draw on.",
+        ),
+    )
+
+    for label, state, icon, color, note in wigor_rows:
+        # Stacked, full-width rows rather than a badge/caption column
+        # split: the longer badge labels and notes did not fit a narrow
+        # column and were getting cut off instead of wrapping.
+        with st.container(border=True):
+            st.badge(f"{label}: {state}", icon=icon, color=color)
+            st.caption(note)

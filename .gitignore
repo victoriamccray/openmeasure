@@ -219,3 +219,7 @@ __marimo__/
 
 # Private research references (papers used for context only, never redistributed)
 private_references/
+
+# Local dataset downloads (large, not redistributed, never committed)
+RingDatasetV2.1_submission.zip
+private_data/

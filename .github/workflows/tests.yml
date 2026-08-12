@@ -46,5 +46,8 @@ jobs:
       - name: Run validation chain tests
         run: pytest modules/validation_chain/tests/ -v
 
+      - name: Run healthring tests
+        run: pytest modules/healthring/tests/ -v
+
       - name: Run shared tests
         run: pytest shared/tests/ -v
