@@ -72,18 +72,20 @@ STAGE_KEY = "hr_stage"
 
 STAGE_RESEARCH_QUESTION = 0
 STAGE_UNDERSTAND_MEASUREMENT = 1
-STAGE_DESIGN_EVALUATION = 2
-STAGE_BASELINE = 3
-STAGE_MODEL = 4
-STAGE_EVALUATE = 5
-STAGE_RETENTION = 6
-STAGE_CONDITIONS_CHECK = 7
-STAGE_CONCLUSION = 8
-STAGE_FINISH = 9
+STAGE_SIGNAL_INSPECTION = 2
+STAGE_DESIGN_EVALUATION = 3
+STAGE_BASELINE = 4
+STAGE_MODEL = 5
+STAGE_EVALUATE = 6
+STAGE_RETENTION = 7
+STAGE_CONDITIONS_CHECK = 8
+STAGE_CONCLUSION = 9
+STAGE_FINISH = 10
 
 JOURNEY_STAGES = (
     "Research question",
     "Understand measurement",
+    "Signal inspection",
     "Design evaluation",
     "Establish baseline",
     "Build model",
@@ -120,6 +122,27 @@ RING_ENTRY = "ring1"
 
 RAW_COLUMNS: tuple[str, ...] = ("Label", "hr", "bvp_hr", "ir-quality", "red-quality")
 
+# Columns for the Signal Inspection stage only. HealthRing's per-window
+# raw pickle carries roughly 60 columns (every channel repeated as raw,
+# standardized, filtered, difference, welch, and respiratory-rate
+# variants); this selects the "-filtered" PPG/ACC waveforms HealthRing
+# itself already computed, plus fs (the sampling rate, used to build a
+# time axis). No new signal processing happens on this page: these
+# columns are used as HealthRing provides them.
+SIGNAL_INSPECTION_COLUMNS: tuple[str, ...] = (
+    "Label",
+    "hr",
+    "bvp_hr",
+    "ir-quality",
+    "red-quality",
+    "ir-filtered",
+    "red-filtered",
+    "ax-filtered",
+    "ay-filtered",
+    "az-filtered",
+    "fs",
+)
+
 DEFAULT_ZIP_PATH = ROOT / "RingDatasetV2.1_submission.zip"
 
 # Palette matching shared/report.py-adjacent OpenMeasure chart conventions
@@ -131,6 +154,8 @@ INK_MUTED = "#898781"
 GRIDLINE = "#e1e0d9"
 SURFACE = "#fcfcfb"
 ACCENT = "#2a78d6"
+ACCENT_2 = "#eb6834"
+ACCENT_3 = "#1baf7a"
 
 _VEGA_CHART_CONFIG = {
     "background": SURFACE,
@@ -252,6 +277,41 @@ def _load_subjects(zip_path_str: str, subject_ids: tuple[int, ...]) -> pd.DataFr
     return pd.concat(frames, ignore_index=True)
 
 
+@st.cache_data(show_spinner="Reading this participant's raw signal...")
+def _load_subject_signal(zip_path_str: str, subject_id: int) -> pd.DataFrame:
+    """
+    Load one participant's per-window PPG/ACC waveforms, for the Signal
+    Inspection stage only.
+
+    Deliberately scoped to a single participant: the raw pickle behind
+    each participant's ring1 entry is 30-160 MB uncompressed once fully
+    unpickled (pickle has no way to deserialize only some columns), so
+    loading it for every participant already in the main journey would
+    defeat the point of keeping that step bounded. Columns are trimmed
+    to SIGNAL_INSPECTION_COLUMNS immediately after unpickling.
+    """
+
+    zip_path = Path(zip_path_str)
+    index = _index_zip_entries(zip_path)
+    entry_name = f"{subject_id:05d}_{RING_ENTRY}_processed.pkl"
+
+    if entry_name not in index:
+        raise KeyError(f"{entry_name} was not found in the archive.")
+
+    offset, csize, method = index[entry_name]
+    raw = pickle.loads(_read_entry(zip_path, offset, csize, method))
+
+    missing = [column for column in SIGNAL_INSPECTION_COLUMNS if column not in raw.columns]
+
+    if missing:
+        raise KeyError(f"{entry_name} is missing expected columns: {missing}.")
+
+    subject_frame = raw[list(SIGNAL_INSPECTION_COLUMNS)].copy()
+    subject_frame["subject_id"] = subject_id
+
+    return subject_frame
+
+
 # ---------------------------------------------------------------------
 # Chart builders (Vega-Lite specs; no matplotlib/plotly)
 # ---------------------------------------------------------------------
@@ -355,6 +415,47 @@ def _error_distribution_chart(data: pd.DataFrame, error_col: str, group_col: str
     }
 
 
+def _time_series_chart(
+    time_values: np.ndarray,
+    series: dict[str, np.ndarray],
+    colors: dict[str, str],
+    y_title: str,
+) -> dict:
+    """
+    A multi-line chart against a shared time axis, in seconds from the
+    start of the window. Used for both the PPG chart (ir/red channels)
+    and the ACC chart (x/y/z axes), so this exists once rather than
+    twice with only the series names and colors different.
+    """
+
+    frames = [
+        pd.DataFrame({"t": time_values, "value": values, "series": name})
+        for name, values in series.items()
+    ]
+    rows = pd.concat(frames, ignore_index=True).to_dict("records")
+
+    domain = list(series.keys())
+    range_ = [colors[name] for name in domain]
+
+    return {
+        "data": {"values": rows},
+        "mark": {"type": "line", "strokeWidth": 1.5},
+        "encoding": {
+            "x": {"field": "t", "type": "quantitative", "title": "Time (seconds)"},
+            "y": {"field": "value", "type": "quantitative", "title": y_title},
+            "color": {
+                "field": "series",
+                "type": "nominal",
+                "scale": {"domain": domain, "range": range_},
+                "legend": {"title": None, "orient": "top"},
+            },
+        },
+        "width": "container",
+        "height": 220,
+        "config": _VEGA_CHART_CONFIG,
+    }
+
+
 # ---------------------------------------------------------------------
 # Stage-gating, pipeline, and plain-language interpretation helpers
 # ---------------------------------------------------------------------
@@ -428,6 +529,91 @@ def _loa_sentence(lower: float, upper: float) -> str:
         f"{lower:+.1f} and {upper:+.1f} bpm, following the Bland-Altman "
         "convention (bias plus or minus 1.96 standard deviations)."
     )
+
+
+def _quality_sentence(value: float) -> str:
+    if value >= 0.7:
+        level = "high"
+    elif value >= 0.4:
+        level = "middling"
+    else:
+        level = "low"
+
+    return (
+        f"The ring scored this window's own reading as {level} usability "
+        f"({value:.2f} on its 0-1 scale). That score does not, by itself, "
+        "say what made it that way."
+    )
+
+
+def _render_signal_window(row: pd.Series, slot_key: str) -> None:
+    """
+    Walk through one real measurement window: activity, movement, PPG,
+    signal quality, HR estimate, then (only after a prediction) error.
+
+    slot_key makes every widget key unique so this can render twice in
+    one script pass, for the two-window comparison, without Streamlit
+    raising a duplicate-widget-ID error.
+    """
+
+    st.markdown(f"**Activity: {row['Label']}**")
+
+    fs = float(row["fs"])
+    n_samples = len(row["ax-filtered"])
+    t = np.arange(n_samples) / fs
+
+    st.caption("Movement (accelerometer, three axes):")
+    st.vega_lite_chart(
+        _time_series_chart(
+            t,
+            {"x": row["ax-filtered"], "y": row["ay-filtered"], "z": row["az-filtered"]},
+            {"x": ACCENT, "y": ACCENT_2, "z": ACCENT_3},
+            "Acceleration (filtered, arbitrary units)",
+        ),
+        theme=None,
+        use_container_width=True,
+    )
+
+    st.caption("PPG (photoplethysmography), two light channels:")
+    st.vega_lite_chart(
+        _time_series_chart(
+            t,
+            {"infrared": row["ir-filtered"], "red": row["red-filtered"]},
+            {"infrared": ACCENT, "red": ACCENT_2},
+            "PPG signal (filtered, arbitrary units)",
+        ),
+        theme=None,
+        use_container_width=True,
+    )
+
+    quality = (row["ir-quality"] + row["red-quality"]) / 2
+    st.caption(_quality_sentence(quality))
+
+    hr_col1, hr_col2 = st.columns(2)
+    hr_col1.metric("Ring estimate (bvp_hr)", f"{row['bvp_hr']:.1f} bpm")
+    hr_col2.metric("Reference (hr)", f"{row['hr']:.1f} bpm")
+
+    predict_key = f"hr_signal_predict_{slot_key}"
+    reveal_key = f"hr_signal_reveal_{slot_key}"
+
+    st.radio(
+        "Before revealing the error: do you expect this window's HR "
+        "estimate to be accurate?",
+        options=["Yes", "No", "Not sure"],
+        index=2,
+        key=predict_key,
+    )
+
+    if not st.session_state.get(reveal_key, False):
+        if st.button("Reveal error", key=f"hr_signal_reveal_button_{slot_key}"):
+            st.session_state[reveal_key] = True
+            st.rerun()
+
+    if st.session_state.get(reveal_key, False):
+        abs_error = abs(row["bvp_hr"] - row["hr"])
+        prediction = st.session_state.get(predict_key, "Not sure")
+        st.metric("Absolute error", f"{abs_error:.1f} bpm")
+        st.caption(f"You predicted: {prediction}. {_mae_sentence(abs_error)}")
 
 
 # ---------------------------------------------------------------------
@@ -675,12 +861,99 @@ Each measurement window in this dataset carries:
                     f"leaving {windows.n_usable_windows} usable windows."
                 )
 
-    if windows is not None and stage < STAGE_DESIGN_EVALUATION:
+    if windows is not None and stage < STAGE_SIGNAL_INSPECTION:
+        if st.button("Continue to signal inspection", type="primary"):
+            _advance_to(STAGE_SIGNAL_INSPECTION)
+
+# -----------------------------------------------------------------
+# 2. Signal inspection
+# -----------------------------------------------------------------
+
+if stage >= STAGE_SIGNAL_INSPECTION and windows is not None:
+    section_header(
+        "Signal inspection",
+        "Walk through one real measurement window end to end",
+    )
+
+    st.write(
+        "This stage follows one real window from activity, to movement, "
+        "to the PPG signal, to the ring's own signal-quality score, to "
+        "the HR estimate, to the error against reference HR. Everything "
+        "shown here is real HealthRing data for the participant and "
+        "window you pick, not a simulated waveform."
+    )
+
+    loaded_subject_ids = sorted(windows.data["subject_id"].unique().tolist())
+
+    signal_subject_id = st.selectbox(
+        "Which participant to inspect",
+        options=loaded_subject_ids,
+        key="hr_signal_subject",
+    )
+
+    try:
+        signal_raw = _load_subject_signal(str(zip_path), int(signal_subject_id))
+        signal_windows = ar.prepare_windows(signal_raw)
+    except (OSError, KeyError, ValueError) as error:
+        st.error(f"Could not load this participant's signal: {error}")
+        signal_windows = None
+
+    if signal_windows is not None:
+        available_labels = signal_windows.condition_order
+
+        if len(available_labels) >= 2:
+            compare = st.checkbox(
+                "Compare two contrasting windows", value=True, key="hr_signal_compare"
+            )
+        else:
+            compare = False
+            st.caption(
+                "Only one activity condition is available for this "
+                "participant, so a two-window comparison is not "
+                "possible here."
+            )
+
+        condition_a = st.selectbox(
+            "Window A: activity/condition",
+            options=available_labels,
+            key="hr_signal_condition_a",
+        )
+        row_a = signal_windows.data.loc[
+            signal_windows.data["Label"] == condition_a
+        ].iloc[0]
+
+        if compare:
+            other_labels = [label for label in available_labels if label != condition_a]
+            condition_b = st.selectbox(
+                "Window B: activity/condition",
+                options=other_labels,
+                key="hr_signal_condition_b",
+            )
+            row_b = signal_windows.data.loc[
+                signal_windows.data["Label"] == condition_b
+            ].iloc[0]
+
+            col_a, col_b = st.columns(2)
+            with col_a:
+                _render_signal_window(row_a, "a")
+            with col_b:
+                _render_signal_window(row_b, "b")
+        else:
+            _render_signal_window(row_a, "a")
+
+        st.caption(
+            "One window is one example, not a pattern: if a higher-"
+            "movement window also shows a larger error here, that is "
+            "something to investigate, not something this single "
+            "comparison proves."
+        )
+
+    if stage < STAGE_DESIGN_EVALUATION:
         if st.button("Continue to evaluation design", type="primary"):
             _advance_to(STAGE_DESIGN_EVALUATION)
 
 # -----------------------------------------------------------------
-# 2. Design the evaluation
+# 3. Design the evaluation
 # -----------------------------------------------------------------
 
 chosen_split: ar.SplitResult | None = None
