@@ -4,3 +4,5 @@ numpy>=1.24
 scipy>=1.10
 pytest>=7.0
 statsmodels>=0.14
+krippendorff>=0.6
+openpyxl>=3.0

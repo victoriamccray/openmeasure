@@ -53,6 +53,7 @@ import pandas as pd
 import streamlit as st
 
 from modules.healthring.core import acquisition_robustness as ar
+from shared.charts import multiline_time_series_chart
 from shared.datasets import DATASETS
 from shared.report import caveat, flagged_item_note, section_header
 
@@ -415,47 +416,6 @@ def _error_distribution_chart(data: pd.DataFrame, error_col: str, group_col: str
     }
 
 
-def _time_series_chart(
-    time_values: np.ndarray,
-    series: dict[str, np.ndarray],
-    colors: dict[str, str],
-    y_title: str,
-) -> dict:
-    """
-    A multi-line chart against a shared time axis, in seconds from the
-    start of the window. Used for both the PPG chart (ir/red channels)
-    and the ACC chart (x/y/z axes), so this exists once rather than
-    twice with only the series names and colors different.
-    """
-
-    frames = [
-        pd.DataFrame({"t": time_values, "value": values, "series": name})
-        for name, values in series.items()
-    ]
-    rows = pd.concat(frames, ignore_index=True).to_dict("records")
-
-    domain = list(series.keys())
-    range_ = [colors[name] for name in domain]
-
-    return {
-        "data": {"values": rows},
-        "mark": {"type": "line", "strokeWidth": 1.5},
-        "encoding": {
-            "x": {"field": "t", "type": "quantitative", "title": "Time (seconds)"},
-            "y": {"field": "value", "type": "quantitative", "title": y_title},
-            "color": {
-                "field": "series",
-                "type": "nominal",
-                "scale": {"domain": domain, "range": range_},
-                "legend": {"title": None, "orient": "top"},
-            },
-        },
-        "width": "container",
-        "height": 220,
-        "config": _VEGA_CHART_CONFIG,
-    }
-
-
 # ---------------------------------------------------------------------
 # Stage-gating, pipeline, and plain-language interpretation helpers
 # ---------------------------------------------------------------------
@@ -564,11 +524,12 @@ def _render_signal_window(row: pd.Series, slot_key: str) -> None:
 
     st.caption("Movement (accelerometer, three axes):")
     st.vega_lite_chart(
-        _time_series_chart(
+        multiline_time_series_chart(
             t,
             {"x": row["ax-filtered"], "y": row["ay-filtered"], "z": row["az-filtered"]},
             {"x": ACCENT, "y": ACCENT_2, "z": ACCENT_3},
             "Acceleration (filtered, arbitrary units)",
+            config=_VEGA_CHART_CONFIG,
         ),
         theme=None,
         use_container_width=True,
@@ -576,11 +537,12 @@ def _render_signal_window(row: pd.Series, slot_key: str) -> None:
 
     st.caption("PPG (photoplethysmography), two light channels:")
     st.vega_lite_chart(
-        _time_series_chart(
+        multiline_time_series_chart(
             t,
             {"infrared": row["ir-filtered"], "red": row["red-filtered"]},
             {"infrared": ACCENT, "red": ACCENT_2},
             "PPG signal (filtered, arbitrary units)",
+            config=_VEGA_CHART_CONFIG,
         ),
         theme=None,
         use_container_width=True,

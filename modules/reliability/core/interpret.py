@@ -42,6 +42,34 @@ def alpha_warnings(alpha: float) -> list[str]:
     return warnings
 
 
+def interpret_agreement(value: float) -> str:
+    """
+    Landis & Koch (1977) agreement thresholds, originally proposed for
+    kappa statistics and conventionally applied to Krippendorff's alpha
+    as well:
+        >= 0.81  Almost perfect agreement
+        >= 0.61  Substantial agreement
+        >= 0.41  Moderate agreement
+        >= 0.21  Fair agreement
+        >= 0.00  Slight agreement
+        <  0.00  Poor agreement
+
+    Landis, J. R., & Koch, G. G. (1977). The measurement of observer
+    agreement for categorical data. Biometrics, 33(1), 159-174.
+    """
+    if value >= 0.81:
+        return "Almost perfect agreement"
+    if value >= 0.61:
+        return "Substantial agreement"
+    if value >= 0.41:
+        return "Moderate agreement"
+    if value >= 0.21:
+        return "Fair agreement"
+    if value >= 0.00:
+        return "Slight agreement"
+    return "Poor agreement"
+
+
 def item_warning(item_total_corr: float, threshold: float = 0.30) -> str | None:
     if item_total_corr != item_total_corr:  # NaN check without importing numpy
         return "Item has zero variance or could not be correlated."

@@ -10,12 +10,19 @@ That makes the catalog the single source for the sidebar, the overview
 cards, and the drift test in shared/tests/test_catalog.py, so a workflow
 cannot exist in one and be missing from another.
 
-Explore Real Data, Method Selection, and the Wearables Research Journey
-(pages/HealthRing_Worked_Example.py) are declared separately, below,
-rather than through the catalog. None of them
-is a validation workflow: they have no lifecycle stage, no validation
-category, and record nothing to shared/handoff.py, so folding any of them
-into workflows_by_category() would imply a status it can never have.
+Explore Real Data, Method Selection, and the Research Journeys are
+declared separately, below, rather than through the catalog. None of
+them is a validation workflow: they have no lifecycle stage, no
+validation category, and record nothing to shared/handoff.py, so folding
+any of them into workflows_by_category() would imply a status it can
+never have.
+
+Research Journeys is one section holding every journey, each titled
+"<domain>: <dataset>" (e.g. "Wearables: HealthRing"). Streamlit's
+st.navigation only groups pages one level deep -- there is no nested
+"domain, then dataset" sidebar tree to build even if there were enough
+journeys to want one. The domain prefix in the title is what stands in
+for that second level.
 
 Two consequences of declaring navigation explicitly, both intended:
 
@@ -57,12 +64,19 @@ sections: dict[str, list[st.Page]] = {
             title="Method Selection",
             url_path="Method_Selection",
         ),
+    ],
+    "Research Journeys": [
         st.Page(
             "pages/HealthRing_Worked_Example.py",
-            title="Wearables Research Journey",
+            title="Wearables: HealthRing",
             url_path="HealthRing_Worked_Example",
         ),
-    ]
+        st.Page(
+            "pages/FMRI_QC_Worked_Example.py",
+            title="Medical Imaging: fMRI QC",
+            url_path="FMRI_QC_Worked_Example",
+        ),
+    ],
 }
 
 # Category headings come from the catalog verbatim. Inventing a shorter
