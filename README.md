@@ -29,13 +29,27 @@ Evaluates predictive performance, robustness, calibration, subgroup behavior, an
 
 OpenMeasure does not prescribe a single definition of fairness. Rather than producing one composite "is this model fair" score, this module reports multiple established metrics side by side, along with their assumptions, tradeoffs, and known mathematical incompatibilities.
 
-**In progress:** core fairness metrics are built and tested (pre-model bias detection, demographic parity, equal opportunity, predictive equality, calibration by group, and a goal-based metric recommender). The interactive page is still being finalized.
+**Available:** Fairness v0.05 (pre-model bias detection and a goal-based metric recommender). Post-model metrics (equal opportunity, predictive equality, equalized odds, calibration by group) are planned for a future release.
 
 ### Program Validation
 
 Supports evaluation of interventions using research designs and statistical methods appropriate to the program, population, and evaluation goals.
 
 **Available:** Impact Evaluation v0.1
+
+### Cross-cutting validation
+
+Connects findings across the other modules rather than producing a validation result of its own.
+
+**Available:** Cross-Analysis Implications v0.1
+
+## Guides and worked examples
+
+A few pages sit outside the validation-workflow catalog above: they record nothing to the cross-analysis handoff and carry no lifecycle stage, because they are not analyses themselves.
+
+- **Explore Real Data** points to real, citable research datasets and the workflow each fits, without prescribing columns or expected results, so practicing validation judgment on real data stays the point.
+- **Method Selection** is a one-question decision tree that routes to the workflow suited to what you're trying to validate.
+- **Wearables Research Journey** (v0.1 prototype) is a guided, gated research simulation built on the HealthRing wearable heart-rate dataset: each stage unlocks only after a decision or inspection, including a real leakage-consequence comparison between participant-level and window-level train/test splits, a signal-quality retention tradeoff, and a per-condition robustness check, ending in a compact validation record with WIGOR checklist coverage. It is a prototype of OpenMeasure's immersive worked-example architecture, not a general Wearables module, and never bundles or redistributes the underlying dataset. See `modules/healthring/README.md`.
 
 ## Design principles
 
@@ -65,11 +79,15 @@ streamlit run Home.py
 openmeasure/
 ├── Home.py
 ├── pages/
+│   ├── Overview.py
 │   ├── 1_Reliability.py
 │   ├── 2_Impact_Evaluation.py
 │   ├── 3_Fairness.py
 │   ├── 4_Time_Series_QA.py
-│   └── 5_Cross_Analysis_Implications.py
+│   ├── 5_Cross_Analysis_Implications.py
+│   ├── Explore_Real_Data.py
+│   ├── Method_Selection.py
+│   └── HealthRing_Worked_Example.py
 ├── modules/
 │   ├── reliability/
 │   │   ├── README.md
@@ -91,15 +109,27 @@ openmeasure/
 │   │   ├── core/
 │   │   ├── tests/
 │   │   └── sample_data/
-│   └── validation_chain/
+│   ├── validation_chain/
+│   │   ├── README.md
+│   │   ├── core/
+│   │   └── tests/
+│   └── healthring/
 │       ├── README.md
 │       ├── core/
-│       └── tests/
+│       ├── tests/
+│       └── sample_data/   # no bundled data; see the module README
 ├── shared/
+│   ├── catalog.py
 │   ├── report.py
 │   ├── validation.py
 │   ├── handoff.py
-│   └── case_studies.py
+│   ├── progress.py
+│   ├── case_studies.py
+│   ├── datasets.py
+│   ├── method_guide.py
+│   └── tests/
+├── scripts/
+│   └── healthring_prototype.py   # exploratory script, not part of the app
 ├── docs/
 │   └── design-standards.md
 └── requirements.txt
@@ -137,8 +167,9 @@ See `modules/program_evaluation/README.md` for methodology and references.
 ### Model Validation (Fairness) v0.05
 
 - Pre-model bias detection: disparate impact and statistical parity difference on raw outcome labels
-- Post-model fairness metrics: demographic parity, equal opportunity, predictive equality, and calibration by group
-- A goal-based metric recommender: states which metric fits a stated fairness goal, and flags when two selected goals are mathematically incompatible (per Kleinberg, Mullainathan, & Raghavan, 2017; Chouldechova, 2017)
+- A goal-based metric recommender: for a stated fairness goal, recommends a metric and explains its reasoning, assumptions, tradeoffs, and alternatives, including why competing fairness definitions can be mutually incompatible (per Kleinberg, Mullainathan, & Raghavan, 2017; Chouldechova, 2017)
+
+Post-model metrics (equal opportunity, predictive equality, equalized odds, calibration by group) are planned for a future release.
 
 See `modules/fairness/README.md` for methodology and references.
 
@@ -161,6 +192,12 @@ See `modules/time_series_qa/README.md` for methodology, non-goals, and reference
 - States plainly that two analyses of the same file usually retain different rows, and that the overlap between those subsets is not reported
 
 See `modules/validation_chain/README.md` for scope and non-goals.
+
+### Wearables Research Journey v0.1 (prototype)
+
+A guided, gated worked example, not a versioned validation module: see
+"Guides and worked examples" above for what it does, and
+`modules/healthring/README.md` for scope, data access, and non-goals.
 
 Future releases will expand the data validation and fairness modules, and may
 connect further findings across the research workflow.
@@ -190,6 +227,7 @@ pytest modules/program_evaluation/tests/ -v
 pytest modules/fairness/tests/ -v
 pytest modules/time_series_qa/tests/ -v
 pytest modules/validation_chain/tests/ -v
+pytest modules/healthring/tests/ -v
 pytest shared/tests/ -v
 ```
 
