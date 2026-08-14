@@ -56,6 +56,36 @@ st.divider()
 
 
 # ---------------------------------------------------------------------
+# How to use OpenMeasure
+# ---------------------------------------------------------------------
+
+st.subheader("How to use OpenMeasure")
+
+st.markdown("OpenMeasure can be used in two ways:")
+
+st.markdown(
+    """
+**Learn with Research Journeys**
+Work through real datasets step by step to see how validation decisions
+arise across the research workflow.
+
+**Apply to your research**
+Use validation modules to identify appropriate checks, understand
+assumptions and tradeoffs, interpret results, and document decisions
+for your own analysis.
+"""
+)
+
+st.caption(
+    "OpenMeasure is designed to support methodological reasoning "
+    "alongside statistical expertise, domain knowledge, and established "
+    "analysis tools."
+)
+
+st.divider()
+
+
+# ---------------------------------------------------------------------
 # Module map, by research lifecycle stage
 # ---------------------------------------------------------------------
 
