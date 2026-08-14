@@ -14,8 +14,15 @@ Archive I/O lives here, not in modules/healthring/core/, because core is
 pure statistics on an already-loaded DataFrame with no I/O of its own
 (see docs/design-standards.md section 1). The HealthRing archive
 (RingDatasetV2.1_submission.zip, Zenodo record 18426864) is never
-bundled or redistributed by this repository; it is read by local path,
-and only from here.
+bundled or redistributed by this repository, and only this page reads
+it. Two ways in feed the same loader below: a local filesystem path
+(the original flow, still available when running locally with the
+archive already on disk) and a Streamlit file uploader (needed because
+the hosted app has no access to a path on the visitor's computer). An
+uploaded archive is written to a session-scoped temp file so
+_index_zip_entries/_load_subjects, both written against a path, never
+need a second, in-memory code path; the temp file is never redistributed
+and lives only as long as the hosting process does.
 
 Known upstream issue, carried over from scripts/healthring_prototype.py:
 the published archive is missing its central directory and its final
@@ -40,7 +47,10 @@ from __future__ import annotations
 import pickle
 import struct
 import sys
+import tempfile
+import uuid
 import zlib
+from hashlib import sha256
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -215,6 +225,45 @@ def _index_zip_entries(zip_path: Path) -> dict[str, tuple[int, int, int]]:
             pos = data_offset + csize
 
     return index
+
+
+def _session_temp_dir() -> Path:
+    """
+    A per-session scratch directory for uploaded archives.
+
+    Keyed on a uuid generated once per Streamlit session (not on anything
+    upload-specific), so two visitors uploading the same file never share
+    a path, and the archive lives only as long as this session's temp
+    files do.
+    """
+
+    session_id = st.session_state.setdefault("hr_session_id", uuid.uuid4().hex)
+    tmp_dir = Path(tempfile.gettempdir()) / "openmeasure_healthring" / session_id
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    return tmp_dir
+
+
+def _save_uploaded_archive(uploaded_file) -> Path:
+    """
+    Persist an uploaded archive to a session-scoped temp file, keyed by
+    content hash, so the same path-based loader below (_available_subject_ids,
+    _load_subjects, _load_subject_signal) reads it with no separate
+    in-memory code path.
+
+    Keying on the hash rather than always writing means a rerun that still
+    has the same file selected in the uploader (Streamlit keeps it in
+    widget state across reruns) does not rewrite a potentially
+    30-160+ MB archive to disk on every script pass.
+    """
+
+    content = uploaded_file.getvalue()
+    digest = sha256(content).hexdigest()
+    tmp_path = _session_temp_dir() / f"{digest}.zip"
+
+    if not tmp_path.is_file():
+        tmp_path.write_bytes(content)
+
+    return tmp_path
 
 
 def _read_entry(zip_path: Path, offset: int, csize: int, method: int) -> bytes:
@@ -644,8 +693,10 @@ with st.expander("Dataset access and citation"):
     st.caption(f"Access: {HEALTHRING_DATASET.access}")
     st.caption(HEALTHRING_DATASET.citation)
     st.caption(
-        "This page never bundles HealthRing data. It reads your own local "
-        "copy of the archive by path, and does not modify or redistribute it."
+        "This page never bundles HealthRing data. Bring your own copy of "
+        "the archive, either by uploading it or by pointing at a local "
+        "path, and it is used only for this session: not modified, "
+        "stored beyond the session, or redistributed."
     )
 
 if stage < STAGE_UNDERSTAND_MEASUREMENT:
@@ -758,17 +809,52 @@ Each measurement window in this dataset carries:
         help="Not graded. The 'Does it hold across conditions?' stage comes back to this.",
     )
 
-    zip_path_input = st.text_input(
-        "Local path to RingDatasetV2.1_submission.zip",
-        value=str(DEFAULT_ZIP_PATH) if DEFAULT_ZIP_PATH.exists() else "",
+    # A hosted Streamlit app has no access to a path on the visitor's
+    # computer, so upload has to be an option, not just a local path. The
+    # default favors whichever is likely to actually work where this
+    # script is running: if the archive already sits at DEFAULT_ZIP_PATH,
+    # this is presumably a local run with the file on disk, so default to
+    # path; otherwise (the hosted case, since the archive is never
+    # bundled with this repo) default to upload.
+    source_mode = st.radio(
+        "How will you provide the archive?",
+        options=["upload", "path"],
+        format_func=lambda key: {
+            "upload": "Upload RingDatasetV2.1_submission.zip",
+            "path": "Enter a local filesystem path",
+        }[key],
+        index=1 if DEFAULT_ZIP_PATH.exists() else 0,
+        horizontal=True,
     )
 
-    zip_path = Path(zip_path_input) if zip_path_input else None
+    zip_path: Path | None = None
+
+    if source_mode == "upload":
+        uploaded_archive = st.file_uploader(
+            "RingDatasetV2.1_submission.zip",
+            type="zip",
+            help=(
+                "Kept for this session only: it is written to a "
+                "session-scoped temp file so the loader below can read "
+                "it the same way it reads a local path, and it is never "
+                "redistributed."
+            ),
+        )
+
+        if uploaded_archive is not None:
+            zip_path = _save_uploaded_archive(uploaded_archive)
+    else:
+        zip_path_input = st.text_input(
+            "Local path to RingDatasetV2.1_submission.zip",
+            value=str(DEFAULT_ZIP_PATH) if DEFAULT_ZIP_PATH.exists() else "",
+        )
+        zip_path = Path(zip_path_input) if zip_path_input else None
 
     if zip_path is None or not zip_path.is_file():
         st.info(
-            "Provide a local path to the archive to continue. See "
-            "'Dataset access and citation' above for where to obtain it."
+            "Provide the archive above to continue, either by uploading "
+            "it or by entering a local path. See 'Dataset access and "
+            "citation' above for where to obtain it."
         )
     else:
         try:
