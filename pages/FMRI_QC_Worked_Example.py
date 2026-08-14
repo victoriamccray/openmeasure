@@ -21,9 +21,13 @@ Data sources, none of them bundled or redistributed by this repository:
 
 - Real subject QC output: github.com/bwilliams96/cinnqc, which hosts
   pyfMRIqc run on the real fMRI Open QC Project subjects (Williams &
-  Lindner, 2023). Read from a local clone you provide; this repository
-  currently has no stated license, so nothing from it is bundled here,
-  only read by local path, the same posture as HealthRing's archive.
+  Lindner, 2023). This repository currently has no stated license, so
+  nothing from it is bundled here; it is only ever read at runtime, not
+  redistributed. Two ways to read it feed the same parsing/rendering
+  code below: fetching the public files directly from GitHub (the
+  default, and the only option that works on the hosted app, which has
+  no access to a visitor's filesystem) or a local clone you provide
+  (useful mainly for running OpenMeasure without a network call).
 - Rater decisions (Include/Uncertain/Exclude per subject per rater):
   not available to this page at all unless you upload your own copy,
   in the wide shape core/interrater.py expects (see the Signal
@@ -42,10 +46,13 @@ HealthRing's own precomputed signal columns.
 
 from __future__ import annotations
 
+import json
 import re
 import sys
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.error import HTTPError, URLError
 
 import numpy as np
 import pandas as pd
@@ -158,6 +165,131 @@ def _list_real_subjects(cinnqc_root: Path) -> list[tuple[str, str, Path]]:
     return found
 
 
+# ---------------------------------------------------------------------
+# Real-subject data I/O, fetched from the public cinnqc repo on GitHub
+# ---------------------------------------------------------------------
+#
+# The hosted app has no filesystem access to a visitor's computer, so a
+# local-path-only loader (the original design here, and HealthRing's
+# design too) does not work for it. Unlike the HealthRing archive,
+# cinnqc's files are public with no access agreement, so instead of an
+# upload widget, this fetches them directly from GitHub: nothing to ask
+# a visitor to provide at all. _remote_cinnqc_index/_remote_pyfmriqc_files
+# mirror _list_real_subjects' layout assumptions exactly, and
+# parse_qc_textfile_text below is the same parser parse_qc_textfile
+# already used, split out so both a local file and downloaded text feed
+# it identically.
+
+_CINNQC_OWNER = "bwilliams96"
+_CINNQC_REPO = "cinnqc"
+_CINNQC_API_ROOT = f"https://api.github.com/repos/{_CINNQC_OWNER}/{_CINNQC_REPO}"
+_CINNQC_RAW_ROOT = f"https://raw.githubusercontent.com/{_CINNQC_OWNER}/{_CINNQC_REPO}"
+
+_CINNQC_SUBJECT_PATTERN = re.compile(
+    r"^(examples/(fmri-open-qc-[^/]+)/derivatives/cinnqc/(sub-[^/]+)/pyfmriqc)/"
+)
+
+
+@dataclass(frozen=True)
+class RemoteCinnqcIndex:
+    """Every file path in the public cinnqc repo, as of one Git Trees call."""
+
+    branch: str
+    paths: tuple[str, ...]
+
+
+def _github_get_json(url: str) -> dict:
+    request = urllib.request.Request(
+        url, headers={"Accept": "application/vnd.github+json", "User-Agent": "OpenMeasure"}
+    )
+    with urllib.request.urlopen(request, timeout=15) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _github_get_bytes(url: str) -> bytes:
+    request = urllib.request.Request(url, headers={"User-Agent": "OpenMeasure"})
+    with urllib.request.urlopen(request, timeout=15) as response:
+        return response.read()
+
+
+@st.cache_data(show_spinner="Listing cinnqc's public files on GitHub...", ttl=3600)
+def _remote_cinnqc_tree() -> tuple[str, tuple[str, ...]]:
+    """
+    List every file path in the public cinnqc repo, in one Git Trees API
+    call rather than walking batch -> subject -> pyfmriqc directories one
+    API call at a time: unauthenticated GitHub API requests are limited
+    to 60/hour, and a directory-at-a-time walk would spend most of that
+    budget just building the subject picker below.
+
+    Returns a plain (branch, paths) tuple rather than a RemoteCinnqcIndex.
+    st.cache_data pickles whatever it stores, and a page script is exec'd
+    into its module rather than import-registered, so pickle's
+    module-lookup step for a class defined here (like RemoteCinnqcIndex)
+    fails with PicklingError. Builtins round-trip with no such lookup;
+    RemoteCinnqcIndex is still built fresh from this on every call, just
+    never itself passed through the cache.
+    """
+
+    repo_info = _github_get_json(_CINNQC_API_ROOT)
+    branch = repo_info["default_branch"]
+    tree = _github_get_json(f"{_CINNQC_API_ROOT}/git/trees/{branch}?recursive=1")
+
+    if tree.get("truncated"):
+        raise ValueError(
+            "cinnqc's file tree is too large to list in a single request."
+        )
+
+    paths = tuple(item["path"] for item in tree["tree"] if item["type"] == "blob")
+    return branch, paths
+
+
+def _remote_cinnqc_index() -> RemoteCinnqcIndex:
+    """RemoteCinnqcIndex built from the cached (branch, paths) tuple."""
+
+    branch, paths = _remote_cinnqc_tree()
+    return RemoteCinnqcIndex(branch=branch, paths=paths)
+
+
+def _list_remote_subjects(paths: tuple[str, ...]) -> list[tuple[str, str, str]]:
+    """
+    Every (batch, subject_id, pyfmriqc_dir_path) found among cinnqc's
+    remote file paths. pyfmriqc_dir_path is a repo-relative path string
+    here, where _list_real_subjects returns a local Path -- the two are
+    used identically below, just resolved by a different loader.
+    """
+
+    found: dict[tuple[str, str], str] = {}
+
+    for path in paths:
+        match = _CINNQC_SUBJECT_PATTERN.match(path)
+        if match:
+            found[(match.group(2), match.group(3))] = match.group(1)
+
+    return sorted(
+        (batch, subject, pyfmriqc_dir)
+        for (batch, subject), pyfmriqc_dir in found.items()
+    )
+
+
+def _remote_pyfmriqc_files(pyfmriqc_dir: str, paths: tuple[str, ...]) -> list[str]:
+    """Every remote file path under one subject's pyfmriqc directory."""
+
+    prefix = pyfmriqc_dir + "/"
+    return sorted(path for path in paths if path.startswith(prefix))
+
+
+@st.cache_data(show_spinner="Downloading this subject's QC report from GitHub...", ttl=3600)
+def _fetch_remote_textfile(branch: str, path: str) -> str:
+    return _github_get_bytes(f"{_CINNQC_RAW_ROOT}/{branch}/{path}").decode(
+        "utf-8", errors="replace"
+    )
+
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def _fetch_remote_image(branch: str, path: str) -> bytes:
+    return _github_get_bytes(f"{_CINNQC_RAW_ROOT}/{branch}/{path}")
+
+
 @dataclass(frozen=True)
 class QCTextfileSummary:
     """The numeric fields pyfMRIqc writes to its per-scan text report."""
@@ -187,9 +319,17 @@ def _grab(text: str, pattern: str, cast=float):
 
 
 def parse_qc_textfile(path: Path) -> QCTextfileSummary:
-    """Parse one pyfMRIqc_textfile_*.txt report into structured fields."""
+    """Parse one local pyfMRIqc_textfile_*.txt report into structured fields."""
 
-    text = path.read_text(encoding="utf-8", errors="replace")
+    return parse_qc_textfile_text(path.read_text(encoding="utf-8", errors="replace"))
+
+
+def parse_qc_textfile_text(text: str) -> QCTextfileSummary:
+    """
+    The actual pyfMRIqc_textfile_*.txt parser, taking text rather than a
+    path so a locally-read file and a downloaded-from-GitHub file are
+    parsed by the exact same code.
+    """
 
     slice_snr: tuple[float, ...] = ()
     snr_line_match = re.search(r"ALL Slice SNRs:\s*(.+)", text)
@@ -307,9 +447,10 @@ with st.expander("Data sources and citations"):
   [doi.org/10.17864/1947.000424](https://doi.org/10.17864/1947.000424).
 - **Real per-subject QC output** used in the Signal Inspection stage
   below comes from [github.com/bwilliams96/cinnqc](https://github.com/bwilliams96/cinnqc),
-  which hosts `pyfMRIqc` run on the study's real subjects. That
-  repository states no license; nothing from it is bundled by this
-  page, only read from a local clone you provide.
+  which hosts `pyfMRIqc` run on the study's real subjects, identified
+  only by pseudonymous IDs (e.g. `sub-013`). That repository states no
+  license; nothing from it is bundled by this page. It is read directly
+  from GitHub at runtime by default, or from a local clone you provide.
 """
     )
 
@@ -382,220 +523,299 @@ if stage >= STAGE_SIGNAL_INSPECTION:
         "Real pyfMRIqc output on real study subjects",
     )
 
-    st.write(
-        "This section reads `pyfMRIqc`'s real output for real subjects "
-        "from a local clone of the `cinnqc` repository. It is never "
-        "bundled with this page."
+    st.markdown(
+        "**Load the QC data.** This journey uses publicly available "
+        "`pyfMRIqc` outputs from the `cinnqc` repository. On the hosted "
+        "OpenMeasure app, the required files are loaded directly from "
+        "the public source. If you are running OpenMeasure locally, you "
+        "may instead use a local clone."
     )
 
-    with st.expander("First time here? Get the data first", expanded=False):
-        st.write("Run this in a terminal, once, outside this app:")
-        st.code("git clone https://github.com/bwilliams96/cinnqc", language="bash")
-        st.write(
-            "That creates a `cinnqc` folder. Enter the path to **that "
-            "folder** below (not the command above) -- for example: "
-            f"`{ROOT.parent / 'cinnqc'}`."
-        )
-
-    cinnqc_path_input = st.text_input(
-        "Local path to the cinnqc folder you cloned",
-        value="",
-        placeholder=str(ROOT.parent / "cinnqc"),
-        help="The folder git clone created, e.g. C:\\Users\\yourname\\cinnqc -- not the git clone command itself.",
+    st.caption(
+        "This journey uses publicly available, derived QC outputs and "
+        "pseudonymous subject identifiers (e.g. `sub-013`), fetched at "
+        "runtime and never bundled or otherwise redistributed by "
+        "OpenMeasure. It reads only these derived images and text "
+        "reports, not raw MRI data. `cinnqc` itself states no license, "
+        "so this stays read-only for the same reason: publicly "
+        "accessible is not the same as freely redistributable."
     )
 
-    if not cinnqc_path_input:
-        st.info("Provide a local path to a cinnqc clone to continue.")
-    elif "git clone" in cinnqc_path_input or "://" in cinnqc_path_input:
-        st.error(
-            "This looks like the `git clone` command, not a folder path. "
-            "Run that command in a terminal first, then enter the path to "
-            "the folder it created (see the expander above)."
-        )
+    source_mode = st.radio(
+        "Where should this subject data come from?",
+        options=["remote", "local"],
+        format_func=lambda key: {
+            "remote": "Fetch from the public cinnqc repository on GitHub",
+            "local": "Use a local clone of cinnqc (for local OpenMeasure runs)",
+        }[key],
+        index=0,
+        horizontal=True,
+        help=(
+            "cinnqc's files are public, so they can be read directly "
+            "from GitHub with nothing to set up first -- this is the "
+            "only option that works on the hosted app, which has no "
+            "access to a visitor's filesystem. A local clone is only "
+            "useful when running OpenMeasure on your own machine, "
+            "typically to avoid a network call."
+        ),
+    )
+
+    subjects: list[tuple[str, str, object]] = []
+    remote_index: RemoteCinnqcIndex | None = None
+    search_attempted = False
+
+    if source_mode == "remote":
+        try:
+            remote_index = _remote_cinnqc_index()
+        except (URLError, HTTPError, ValueError, KeyError) as error:
+            st.error(f"Could not reach cinnqc on GitHub: {error}")
+        else:
+            subjects = _list_remote_subjects(remote_index.paths)
+            search_attempted = True
     else:
-        cinnqc_root = Path(cinnqc_path_input)
+        with st.expander("First time here? Get the data first", expanded=False):
+            st.write("Run this in a terminal, once, outside this app:")
+            st.code("git clone https://github.com/bwilliams96/cinnqc", language="bash")
+            st.write(
+                "That creates a `cinnqc` folder. Enter the path to **that "
+                "folder** below (not the command above)."
+            )
 
-        if not (cinnqc_root / "examples").is_dir():
+        cinnqc_path_input = st.text_input(
+            "Local path to the cinnqc folder you cloned",
+            value="",
+            placeholder="C:\\Users\\yourname\\cinnqc",
+            help="The folder git clone created -- not the git clone command itself.",
+        )
+
+        if not cinnqc_path_input:
+            st.info("Provide a local path to a cinnqc clone to continue.")
+        elif "git clone" in cinnqc_path_input or "://" in cinnqc_path_input:
             st.error(
-                f"No 'examples' directory found under {cinnqc_root}. "
-                "Check that this path points at the root of a cinnqc clone."
+                "This looks like the `git clone` command, not a folder path. "
+                "Run that command in a terminal first, then enter the path to "
+                "the folder it created (see the expander above)."
             )
         else:
-            subjects = _list_real_subjects(cinnqc_root)
+            cinnqc_root = Path(cinnqc_path_input)
 
-            if not subjects:
-                st.warning("No subject QC output was found under this path.")
+            if not (cinnqc_root / "examples").is_dir():
+                st.error(
+                    f"No 'examples' directory found under {cinnqc_root}. "
+                    "Check that this path points at the root of a cinnqc clone."
+                )
             else:
-                st.caption(f"{len(subjects)} real subject scans found.")
+                subjects = _list_real_subjects(cinnqc_root)
+                search_attempted = True
 
-                labels = [f"{batch} / {subject}" for batch, subject, _ in subjects]
-                selected_label = st.selectbox("Which subject to inspect", options=labels)
-                selected_index = labels.index(selected_label)
-                _, subject_id, pyfmriqc_dir = subjects[selected_index]
+    if subjects:
+        st.caption(f"{len(subjects)} real subject scans found.")
 
-                textfiles = sorted(pyfmriqc_dir.glob("pyfMRIqc_textfile_*.txt"))
+        labels = [f"{batch} / {subject}" for batch, subject, _ in subjects]
+        selected_label = st.selectbox("Which subject to inspect", options=labels)
+        selected_index = labels.index(selected_label)
+        _, subject_id, pyfmriqc_dir = subjects[selected_index]
 
-                if not textfiles:
-                    st.warning("No pyfMRIqc text report was found for this subject.")
-                else:
-                    summary = parse_qc_textfile(textfiles[0])
+        # These two closures are the only place remote vs. local
+        # actually differs from here on: everything below reads a
+        # QCTextfileSummary and an image source (a local path string or
+        # remote bytes, both accepted by st.image), identically either way.
+        if source_mode == "remote":
+            remote_files = _remote_pyfmriqc_files(pyfmriqc_dir, remote_index.paths)
 
-                    m1, m2, m3 = st.columns(3)
-                    m1.metric(
-                        "Mean voxel SNR",
-                        f"{summary.mean_voxel_snr:.1f}" if summary.mean_voxel_snr else "n/a",
-                    )
-                    m2.metric(
-                        "Mean intensity (masked)",
-                        f"{summary.mean_masked:.1f}" if summary.mean_masked else "n/a",
-                    )
-                    m3.metric(
-                        "SD (masked)",
-                        f"{summary.sd_masked:.1f}" if summary.sd_masked else "n/a",
-                    )
+            def _get_summary() -> QCTextfileSummary | None:
+                matches = sorted(
+                    p for p in remote_files if re.search(r"pyfMRIqc_textfile_.*\.txt$", p)
+                )
+                if not matches:
+                    return None
+                text = _fetch_remote_textfile(remote_index.branch, matches[0])
+                return parse_qc_textfile_text(text)
 
-                    if summary.slice_snr:
-                        st.caption("Per-slice SNR:")
-                        st.vega_lite_chart(
-                            multiline_time_series_chart(
-                                np.arange(len(summary.slice_snr)),
-                                {"SNR": np.array(summary.slice_snr)},
-                                {"SNR": ACCENT},
-                                "SNR",
-                                config=_VEGA_CHART_CONFIG,
-                                x_title="Slice number",
-                            ),
-                            theme=None,
-                            use_container_width=True,
-                        )
-                        st.caption(
-                            "Some slices show `nan`: pyfMRIqc's own source "
-                            "sets a slice's SNR to nan specifically when that "
-                            "slice has zero voxels inside the computed brain "
-                            "mask (for example, an edge slice entirely "
-                            "outside it), not merely a low value."
-                        )
+            def _get_image(keyword: str) -> bytes | None:
+                matches = sorted(
+                    p for p in remote_files if re.search(rf"pyfMRIqc_{keyword}_.*\.png$", p)
+                )
+                return _fetch_remote_image(remote_index.branch, matches[0]) if matches else None
 
-                    if summary.has_movement_data:
-                        r1, r2, r3 = st.columns(3)
-                        r1.metric(
-                            "Mean relative movement",
-                            f"{summary.mean_rel_movement_mm:.3f} mm",
-                        )
-                        r2.metric(
-                            f"Timepoints > {MOTION_THRESHOLD_FINE_MM}mm",
-                            str(summary.n_rel_movement_over_fine),
-                        )
-                        r3.metric(
-                            f"Timepoints > {MOTION_THRESHOLD_CONCERNING_MM}mm",
-                            str(summary.n_rel_movement_over_concerning),
-                        )
-                    else:
-                        st.caption(
-                            "No motion parameters were supplied for this scan, "
-                            "so pyfMRIqc reports no movement statistics."
-                        )
+        else:
 
-                    st.markdown("**pyfMRIqc's own generated images for this scan:**")
+            def _get_summary() -> QCTextfileSummary | None:
+                matches = sorted(pyfmriqc_dir.glob("pyfMRIqc_textfile_*.txt"))
+                return parse_qc_textfile(matches[0]) if matches else None
 
-                    image_cols = st.columns(2)
-                    image_labels = {
-                        "MEAN": "Mean intensity",
-                        "MASK": "Computed brain mask",
-                        "VARIANCE": "Variance",
-                        "PLOTS": "QC summary plots",
-                    }
+            def _get_image(keyword: str) -> str | None:
+                matches = sorted(pyfmriqc_dir.glob(f"pyfMRIqc_{keyword}_*.png"))
+                return str(matches[0]) if matches else None
 
-                    shown = 0
-                    for keyword, caption in image_labels.items():
-                        matches = sorted(pyfmriqc_dir.glob(f"pyfMRIqc_{keyword}_*.png"))
-                        if matches:
-                            with image_cols[shown % 2]:
-                                st.image(str(matches[0]), caption=caption)
-                            shown += 1
+        summary = _get_summary()
 
-                    with st.expander(
-                        "Optional: cross-reference with rater decisions "
-                        "(bring your own file)"
-                    ):
-                        st.write(
-                            "This page has no rater-decision data of its own. "
-                            "If you have your own copy of rater decisions "
-                            "(from the University of Reading archive, DOI "
-                            "10.17864/1947.000424, or any source), upload it "
-                            "here as a wide-format table: one row per subject, "
-                            "one column per rater, with a category label "
-                            "(e.g. Include/Uncertain/Exclude) in each cell -- "
-                            "leave a cell blank if that rater did not rate "
-                            "that subject."
-                        )
+        if summary is None:
+            st.warning("No pyfMRIqc text report was found for this subject.")
+        else:
+            m1, m2, m3 = st.columns(3)
+            m1.metric(
+                "Mean voxel SNR",
+                f"{summary.mean_voxel_snr:.1f}" if summary.mean_voxel_snr else "n/a",
+            )
+            m2.metric(
+                "Mean intensity (masked)",
+                f"{summary.mean_masked:.1f}" if summary.mean_masked else "n/a",
+            )
+            m3.metric(
+                "SD (masked)",
+                f"{summary.sd_masked:.1f}" if summary.sd_masked else "n/a",
+            )
 
-                        rater_upload = st.file_uploader(
-                            "Rater decisions (CSV or XLSX)",
-                            type=["csv", "xlsx", "xls"],
-                            key="fqc_rater_upload",
-                        )
+            if summary.slice_snr:
+                st.caption("Per-slice SNR:")
+                st.vega_lite_chart(
+                    multiline_time_series_chart(
+                        np.arange(len(summary.slice_snr)),
+                        {"SNR": np.array(summary.slice_snr)},
+                        {"SNR": ACCENT},
+                        "SNR",
+                        config=_VEGA_CHART_CONFIG,
+                        x_title="Slice number",
+                    ),
+                    theme=None,
+                    use_container_width=True,
+                )
+                st.caption(
+                    "Some slices show `nan`: pyfMRIqc's own source "
+                    "sets a slice's SNR to nan specifically when that "
+                    "slice has zero voxels inside the computed brain "
+                    "mask (for example, an edge slice entirely "
+                    "outside it), not merely a low value."
+                )
 
-                        if rater_upload is not None:
+            if summary.has_movement_data:
+                r1, r2, r3 = st.columns(3)
+                r1.metric(
+                    "Mean relative movement",
+                    f"{summary.mean_rel_movement_mm:.3f} mm",
+                )
+                r2.metric(
+                    f"Timepoints > {MOTION_THRESHOLD_FINE_MM}mm",
+                    str(summary.n_rel_movement_over_fine),
+                )
+                r3.metric(
+                    f"Timepoints > {MOTION_THRESHOLD_CONCERNING_MM}mm",
+                    str(summary.n_rel_movement_over_concerning),
+                )
+            else:
+                st.caption(
+                    "No motion parameters were supplied for this scan, "
+                    "so pyfMRIqc reports no movement statistics."
+                )
+
+            st.markdown("**pyfMRIqc's own generated images for this scan:**")
+            st.caption(
+                "These are derived QC images (intensity/mask/variance maps "
+                "and summary plots), not raw anatomical images, identified "
+                "only by the pseudonymous subject ID above."
+            )
+
+            image_cols = st.columns(2)
+            image_labels = {
+                "MEAN": "Mean intensity",
+                "MASK": "Computed brain mask",
+                "VARIANCE": "Variance",
+                "PLOTS": "QC summary plots",
+            }
+
+            shown = 0
+            for keyword, caption in image_labels.items():
+                image_source = _get_image(keyword)
+                if image_source is not None:
+                    with image_cols[shown % 2]:
+                        st.image(image_source, caption=caption)
+                    shown += 1
+
+            with st.expander(
+                "Optional: cross-reference with rater decisions "
+                "(bring your own file)"
+            ):
+                st.write(
+                    "This page has no rater-decision data of its own. "
+                    "If you have your own copy of rater decisions "
+                    "(from the University of Reading archive, DOI "
+                    "10.17864/1947.000424, or any source), upload it "
+                    "here as a wide-format table: one row per subject, "
+                    "one column per rater, with a category label "
+                    "(e.g. Include/Uncertain/Exclude) in each cell -- "
+                    "leave a cell blank if that rater did not rate "
+                    "that subject."
+                )
+
+                rater_upload = st.file_uploader(
+                    "Rater decisions (CSV or XLSX)",
+                    type=["csv", "xlsx", "xls"],
+                    key="fqc_rater_upload",
+                )
+
+                if rater_upload is not None:
+                    try:
+                        rater_table = _read_rater_table(rater_upload)
+                    except Exception as error:
+                        st.error(f"Could not read this file: {error}")
+                        rater_table = None
+
+                    if rater_table is not None:
+                        id_column = rater_table.columns[0]
+                        rater_columns = list(rater_table.columns[1:])
+
+                        if len(rater_columns) < 2:
+                            st.warning(
+                                "At least 2 rater columns are needed "
+                                "besides the subject-identifier column."
+                            )
+                        else:
+                            decisions_only = rater_table.set_index(id_column)[
+                                rater_columns
+                            ]
+
+                            st.write(
+                                f"Loaded {len(decisions_only)} subjects, "
+                                f"{len(rater_columns)} raters."
+                            )
+
                             try:
-                                rater_table = _read_rater_table(rater_upload)
-                            except Exception as error:
-                                st.error(f"Could not read this file: {error}")
-                                rater_table = None
+                                alpha_result = ir.krippendorff_alpha(decisions_only)
+                                st.metric(
+                                    "Krippendorff's alpha (all raters, "
+                                    "tolerates partial coverage)",
+                                    f"{alpha_result.alpha:.3f}",
+                                )
+                            except ValueError as error:
+                                st.warning(str(error))
 
-                            if rater_table is not None:
-                                id_column = rater_table.columns[0]
-                                rater_columns = list(rater_table.columns[1:])
+                            complete_rows = decisions_only.dropna()
 
-                                if len(rater_columns) < 2:
-                                    st.warning(
-                                        "At least 2 rater columns are needed "
-                                        "besides the subject-identifier column."
+                            if len(complete_rows) >= 2 and len(rater_columns) >= 3:
+                                try:
+                                    kappa_result = ir.fleiss_kappa(complete_rows)
+                                    st.caption(
+                                        f"Fleiss' kappa on the "
+                                        f"{kappa_result.n_items} subjects "
+                                        "every rater rated: "
+                                        f"{kappa_result.kappa:.3f}"
                                     )
-                                else:
-                                    decisions_only = rater_table.set_index(id_column)[
-                                        rater_columns
-                                    ]
-
-                                    st.write(
-                                        f"Loaded {len(decisions_only)} subjects, "
-                                        f"{len(rater_columns)} raters."
+                                except ValueError as error:
+                                    st.caption(
+                                        f"Fleiss' kappa unavailable: {error}"
                                     )
 
-                                    try:
-                                        alpha_result = ir.krippendorff_alpha(decisions_only)
-                                        st.metric(
-                                            "Krippendorff's alpha (all raters, "
-                                            "tolerates partial coverage)",
-                                            f"{alpha_result.alpha:.3f}",
-                                        )
-                                    except ValueError as error:
-                                        st.warning(str(error))
-
-                                    complete_rows = decisions_only.dropna()
-
-                                    if len(complete_rows) >= 2 and len(rater_columns) >= 3:
-                                        try:
-                                            kappa_result = ir.fleiss_kappa(complete_rows)
-                                            st.caption(
-                                                f"Fleiss' kappa on the "
-                                                f"{kappa_result.n_items} subjects "
-                                                "every rater rated: "
-                                                f"{kappa_result.kappa:.3f}"
-                                            )
-                                        except ValueError as error:
-                                            st.caption(
-                                                f"Fleiss' kappa unavailable: {error}"
-                                            )
-
-                                    caveat(
-                                        "Krippendorff's alpha is the recommended "
-                                        "default here because it tolerates raters "
-                                        "who did not rate every subject; Fleiss' "
-                                        "kappa (shown for comparison) only uses "
-                                        "the subset every rater rated, and "
-                                        "assumes a fixed rater panel per item."
-                                    )
+                            caveat(
+                                "Krippendorff's alpha is the recommended "
+                                "default here because it tolerates raters "
+                                "who did not rate every subject; Fleiss' "
+                                "kappa (shown for comparison) only uses "
+                                "the subset every rater rated, and "
+                                "assumes a fixed rater panel per item."
+                            )
+    elif search_attempted:
+        st.warning("No subject QC output was found for this source.")
 
 # -----------------------------------------------------------------
 # 3. Compare simulated events
