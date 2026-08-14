@@ -61,7 +61,7 @@ st.divider()
 
 st.subheader("How to use OpenMeasure")
 
-st.markdown("OpenMeasure can be used in two ways:")
+st.markdown("OpenMeasure can be used in multiple ways:")
 
 st.markdown(
     """
