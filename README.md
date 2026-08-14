@@ -202,13 +202,21 @@ A guided, gated worked example, not a versioned validation module: see
 Future releases will expand the data validation and fairness modules, and may
 connect further findings across the research workflow.
 
-## Screenshots
+## Interface
 
 Visit the live application: https://openmeasure.streamlit.app
 
 ### Home
 
 ![Home](docs/images/home.png)
+
+### Explore Real Data & Research Journeys
+
+![Explore Real Data](docs/images/explore_data.png)
+
+![Wearables Signal Inspection](docs/images/wearables.png)
+
+![fMRI QC](docs/images/fmri_qc.png)
 
 ### Reliability Analysis
 
