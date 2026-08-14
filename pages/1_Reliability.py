@@ -1,5 +1,5 @@
 """
-OpenMeasure — Reliability module.
+OpenMeasure - Reliability module.
 
 Computes Cronbach's alpha and item diagnostics from wide-format survey
 data. Core statistics live in modules/reliability/core, this file is
@@ -122,7 +122,9 @@ Cronbach's alpha depends on:
 | ≥ 0.50 | Poor |
 | < 0.50 | Unacceptable |
 
-These labels are commonly used guidelines rather than strict statistical standards. Interpretation should also consider the scale's purpose, length, population, and intended use.
+These labels follow a commonly cited scale (e.g., George & Mallery, 2003) rather than a fixed statistical standard. Interpretation should also consider the scale's purpose, length, population, and intended use.
+
+Alpha is also a **lower-bound** estimate of reliability, not an exact one: it equals true reliability only under the assumption that all items measure the construct equally well (tau-equivalence). True reliability may be somewhat higher than the alpha value shown.
 """
     )
 
@@ -145,7 +147,7 @@ with st.expander("Assumptions & limitations", icon=":material/balance:"):
 
 **Item diagnostics**
 
-- Corrected item-total correlations below **0.30** are flagged as items to review.
+- Corrected item-total correlations below **0.30** are flagged as items to review, following a commonly cited rule of thumb (e.g., Nunnally & Bernstein, 1994).
 - A flagged item should not be removed automatically. Low values may reflect reverse coding, limited variability, multidimensionality, or poor conceptual fit.
 
 **Split-half reliability**

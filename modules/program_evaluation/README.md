@@ -17,12 +17,15 @@ This is a **program validation** question. Reliability asks whether a measure is
 ## Scope for v0.1 (MVP)
 
 - **Design 1: Pre/post, single group**
-  - Paired t-test (or Wilcoxon signed-rank test)
+  - Paired t-test. (Wilcoxon signed-rank test planned but not yet
+    implemented; the current recommender does not check normality.)
   - Effect size
   - Design-specific limitations
 
 - **Design 2: Treatment vs. comparison group**
-  - Independent-samples t-test (or Mann-Whitney U test)
+  - Independent-samples (Welch's) t-test. (Mann-Whitney U test planned
+    but not yet implemented; the current recommender does not check
+    normality.)
   - Effect size
   - Baseline comparison
 

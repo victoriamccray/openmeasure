@@ -139,16 +139,20 @@ with st.expander("Assumptions and limitations"):
 
 **Every threshold used here is an OpenMeasure project convention, not a
 published standard.** No canonical cross-domain completeness standard
-exists, and none of these numbers is presented as a citable one. They are
-editable, and the value used is always shown alongside the result.
+exists, and none of these numbers is presented as a citable one.
 
-That includes the default coverage threshold
-({DEFAULT_PERIOD_COVERAGE_THRESHOLD:.0%}), the regularity threshold, and the
-run flags ({DEFAULT_MAX_CONSECUTIVE_MISSING} or more consecutive unavailable
-days, or more than {DEFAULT_MAX_MISSING_PER_MONTH} in a month). The run
-flags are a starting point for reviewing whether a monthly summary can be
-computed from daily observations. They apply only to daily data grouped by
-month and are not extrapolated to other frequencies.
+The coverage threshold per period is editable above
+({DEFAULT_PERIOD_COVERAGE_THRESHOLD:.0%} by default), and its value is
+shown alongside every result that depends on it. The run flags
+({DEFAULT_MAX_CONSECUTIVE_MISSING} or more consecutive unavailable days,
+or more than {DEFAULT_MAX_MISSING_PER_MONTH} in a month) are fixed in
+this version; their values are shown inline whenever a flag fires. They
+apply only to daily data grouped by month and are not extrapolated to
+other frequencies. The interval-regularity and other verdict bands used
+to classify results on this page are also fixed in this version and are
+not currently exposed as adjustable numbers; the underlying
+measurements they classify (such as the share of matching intervals)
+are shown in full.
 
 If a published standard applies in your field, use its numbers rather than
 these defaults.

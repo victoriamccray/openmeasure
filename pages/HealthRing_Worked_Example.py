@@ -1752,8 +1752,8 @@ beyond this dataset.
         "model evaluation, not an OpenMeasure invention: Puszkarski, B. "
         "(2026). Automated analysis of wearable ECG: machine learning "
         "methods, preprocessing pipelines, and benchmark datasets. "
-        "Physiological Measurement, 47(8), 08TR02. "
-        "https://doi.org/10.1088/1361-6579/ae8b71 (open access, CC BY 4.0)."
+        "Physiological Measurement, 47, 08TR02. "
+        "https://doi.org/10.1088/1361-6579/ae8b71."
     )
 
     wigor_rows = (

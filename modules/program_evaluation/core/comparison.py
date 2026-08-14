@@ -6,9 +6,10 @@ frozen dataclasses. No I/O, no UI logic. Follows the same design pattern
 as modules/reliability/core/reliability.py.
 
 Test selection follows McCray, Dukes, & Pittman (in press), Oxford Open
-Neuroscience: Welch's t-test for two groups, one-way ANOVA + Tukey HSD
-for three or more groups, chi-square for categorical outcomes, and a
-sensitivity-analysis pattern for multi-select categorical predictors.
+Neuroscience: Welch's t-test for two groups, Welch's one-way ANOVA with
+Games-Howell comparisons for three or more groups, chi-square for
+categorical outcomes, and a sensitivity-analysis pattern (using standard
+ANOVA + Tukey HSD per coding) for multi-select categorical predictors.
 """
 
 from __future__ import annotations

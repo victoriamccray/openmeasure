@@ -68,8 +68,8 @@ CASE_STUDIES = {
         stage="Research Question",
         principle="A strong design still only answers what it measured",
         summary=(
-            "The national Head Start Impact Study randomly assigned nearly "
-            "5,000 eligible children either to a group offered access to "
+            "The national Head Start Impact Study randomly assigned about "
+            "4,400 eligible children either to a group offered access to "
             "Head Start or to a control group. Outcomes were measured at "
             "the end of the Head Start year and again after kindergarten "
             "and first grade. The study found several favorable impacts at "
@@ -143,9 +143,9 @@ CASE_STUDIES = {
             "sampling programs found that the state-controlled sentinel "
             "sites were less representative of Flint's housing stock than "
             "the voluntary samples were. Sentinel sites with lead service "
-            "lines tended to be older homes in less-poor areas, and two of "
-            "the most impoverished wards had no sentinel site with a lead "
-            "service line at all."
+            "lines tended to be older homes in less-poor areas, and some "
+            "of the most impoverished wards had no sentinel site with a "
+            "lead service line at all."
         ),
         takeaway=(
             "Validation has to begin with measurement that is trustworthy "

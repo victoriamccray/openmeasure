@@ -133,7 +133,7 @@ DATASETS: tuple[RealDataset, ...] = (
             "Tang, J., Wang, K., Ding, Y., Ji, J., Wang, Y., Wang, Z., "
             "Zhang, X., Chen, P., Gao, N., Shi, Y., & Wang, Y. (2026). "
             "HealthRing: Physiology dataset for health sensing on rings. "
-            "Scientific Data. https://doi.org/10.1038/s41597-026-07289-x"
+            "Scientific Data. https://doi.org/10.1038/s41597-2026-07289-x"
         ),
     ),
     RealDataset(

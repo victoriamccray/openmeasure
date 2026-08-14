@@ -1,8 +1,9 @@
 """
 Turns raw statistics into plain-language interpretation.
 
-Thresholds follow the commonly cited conventions (George & Mallery, 2003;
-Nunnally, 1978). These are conventions, not laws, the docstrings say so.
+The Excellent/Good/.../Unacceptable alpha labels follow George & Mallery
+(2003); the underlying 0.70-and-above acceptability convention traces to
+Nunnally (1978). These are conventions, not statistical laws.
 """
 
 from __future__ import annotations
@@ -44,9 +45,12 @@ def alpha_warnings(alpha: float) -> list[str]:
 
 def interpret_agreement(value: float) -> str:
     """
-    Landis & Koch (1977) agreement thresholds, originally proposed for
-    kappa statistics and conventionally applied to Krippendorff's alpha
-    as well:
+    Landis & Koch (1977) agreement thresholds, proposed for kappa
+    statistics and sometimes informally borrowed for Krippendorff's alpha.
+    Krippendorff himself proposed different, stricter cutoffs for alpha
+    (conventionally, alpha >= 0.800 for confident conclusions, and
+    alpha >= 0.667 only for tentative ones) and cautioned against treating
+    the kappa scale below as equivalent:
         >= 0.81  Almost perfect agreement
         >= 0.61  Substantial agreement
         >= 0.41  Moderate agreement

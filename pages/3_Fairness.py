@@ -1,5 +1,5 @@
 """
-OpenMeasure — Fairness module.
+OpenMeasure - Fairness module.
 
 Guides users toward fairness metrics based on the evaluation goal and
 examines whether favorable labels are distributed differently across

@@ -46,5 +46,5 @@ modules/healthring/
 ## References
 
 - Bland, J. M., & Altman, D. G. (1986). *Statistical methods for assessing agreement between two methods of clinical measurement.* The Lancet, 327(8476), 307-310.
-- Tang, J., Wang, K., Ding, Y., Ji, J., Wang, Y., Wang, Z., Zhang, X., Chen, P., Gao, N., Shi, Y., & Wang, Y. (2026). *HealthRing: Physiology dataset for health sensing on rings.* Scientific Data. https://doi.org/10.1038/s41597-026-07289-x
-- Puszkarski, B. (2026). *Automated analysis of wearable ECG: machine learning methods, preprocessing pipelines, and benchmark datasets.* Physiological Measurement, 47(8), 08TR02. https://doi.org/10.1088/1361-6579/ae8b71 (source of the WIGOR reporting checklist; CC BY 4.0)
+- Tang, J., Wang, K., Ding, Y., Ji, J., Wang, Y., Wang, Z., Zhang, X., Chen, P., Gao, N., Shi, Y., & Wang, Y. (2026). *HealthRing: Physiology dataset for health sensing on rings.* Scientific Data. https://doi.org/10.1038/s41597-2026-07289-x
+- Puszkarski, B. (2026). *Automated analysis of wearable ECG: machine learning methods, preprocessing pipelines, and benchmark datasets.* Physiological Measurement, 47, 08TR02. https://doi.org/10.1088/1361-6579/ae8b71 (source of the WIGOR reporting checklist)

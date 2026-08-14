@@ -1,5 +1,5 @@
 """
-OpenMeasure — Program Evaluation module.
+OpenMeasure - Program Evaluation module.
 
 Compares outcomes across groups or across time (pre/post), auto-
 recommending the appropriate test based on data shape, then lets the
@@ -117,8 +117,9 @@ and recommends a test. You can always override the recommendation.
 
 - **2 groups, continuous outcome** → Welch's t-test, which does not
   assume equal variances between groups.
-- **3+ groups, continuous outcome** → one-way ANOVA with Tukey HSD
-  post-hoc comparisons.
+- **3+ groups, continuous outcome** → Welch's one-way ANOVA with
+  Games-Howell post-hoc comparisons, which also does not assume equal
+  variances across groups.
 - **Categorical outcome** → chi-square test of independence.
 - **Multi-select group field** (e.g. participants who could select more
   than one demographic category) → a sensitivity analysis comparing
@@ -129,7 +130,8 @@ and recommends a test. You can always override the recommendation.
 None of these tests establish causation on their own. If group
 membership wasn't randomized, a difference may reflect selection or
 pre-existing differences between groups rather than a program effect.
-This caveat is shown with every group-comparison result.
+This caveat is shown with two-group and multi-group continuous-outcome
+comparisons.
 """
     )
 
@@ -309,6 +311,7 @@ if "pe_recommendation" in st.session_state:
                     for p in result.pairwise_comparisons
                 ])
                 st.dataframe(pairwise_df, width="stretch", hide_index=True)
+                st.caption("\"Significant\" means the adjusted p-value fell below the conventional threshold α = 0.05.")
 
             elif method == "compare_multiple_groups":
                 result = comp.compare_multiple_groups(df, context["group_col"], context["outcome_col"])
@@ -345,6 +348,7 @@ if "pe_recommendation" in st.session_state:
                     for p in result.pairwise_comparisons
                 ])
                 st.dataframe(pairwise_df, width="stretch", hide_index=True)
+                st.caption("\"Significant\" means the adjusted p-value fell below the conventional threshold α = 0.05.")
 
             elif method == "compare_categorical":
                 result = comp.compare_categorical(df, context["group_col"], context["outcome_col"])
@@ -402,7 +406,7 @@ if "pe_recommendation" in st.session_state:
                     )
                 else:
                     st.warning(
-                        f"The conclusion at α={result.alpha} DIFFERS depending on "
+                        f"The conclusion at α={result.alpha} differs depending on "
                         "how multi-select responses are coded. Treat this result as "
                         "sensitive to an arbitrary coding choice, not as settled."
                     )
