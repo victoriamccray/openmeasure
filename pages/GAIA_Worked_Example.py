@@ -443,9 +443,9 @@ if stage >= STAGE_COMPARE_EFFICIENCY:
     st.write(
         "**Broader implication**: a reported reduction in energy and "
         "CO2 per subject is a reason to treat resource use as part of "
-        "what a model evaluation checks, not a separate concern from "
-        "accuracy - particularly for a model that will be run many "
-        "times over its deployed life."
+        "what a model evaluation checks, along with accuracy - "
+        "particularly for a model that will be run many times over its "
+        "deployed life."
     )
 
     if stage < STAGE_EVALUATE_TRADEOFF:
