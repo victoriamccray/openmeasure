@@ -81,6 +81,11 @@ sections: dict[str, list[st.Page]] = {
             title="Grantmaking: Portfolio Impact Analysis",
             url_path="Portfolio_Impact_Analysis",
         ),
+        st.Page(
+            "pages/GAIA_Worked_Example.py",
+            title="AI & Environmental Equity: GAIA",
+            url_path="GAIA_Worked_Example",
+        ),
     ],
 }
 
