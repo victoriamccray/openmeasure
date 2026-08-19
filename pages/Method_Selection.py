@@ -54,6 +54,39 @@ selected_id = st.radio(
 
 branch = _BRANCH_BY_ID[selected_id]
 
+
+def _decision_tree_dot(branches: tuple, selected: str) -> str:
+    """A small routing diagram: one question, one destination workflow per
+    branch, with the currently selected one highlighted. Situation wording
+    lives only in the radio/Try/Why text above, not duplicated here, so the
+    diagram cannot drift out of sync with it."""
+    lines = [
+        "digraph {",
+        "  rankdir=LR;",
+        "  bgcolor=transparent;",
+        '  node [shape=box, style="rounded,filled", fontname="Helvetica", '
+        'fontsize=11, color="#c3c2b7", fillcolor="#fcfcfb", fontcolor="#0b0b0b"];',
+        '  edge [color="#c3c2b7", arrowsize=0.7];',
+        '  Q [label="What are you\\ntrying to validate?", shape=diamond, '
+        'fillcolor="#f9f9f7"];',
+    ]
+    for item in branches:
+        node_id = f"w_{item.id}"
+        if item.id == selected:
+            lines.append(
+                f'  {node_id} [label="{item.workflow}", fillcolor="#2a78d6", '
+                f'fontcolor="#ffffff", color="#2a78d6"];'
+            )
+        else:
+            lines.append(f'  {node_id} [label="{item.workflow}"];')
+        lines.append(f"  Q -> {node_id};")
+    lines.append("}")
+    return "\n".join(lines)
+
+
+st.graphviz_chart(_decision_tree_dot(BRANCHES, selected_id))
+st.caption("The highlighted box is where your answer points.")
+
 st.markdown(f"**Try: {branch.workflow}**")
 st.page_link(
     _PAGE_BY_WORKFLOW[branch.workflow],
