@@ -379,14 +379,34 @@ class TestGatingTheDisplay(unittest.TestCase):
         self.assertFalse(has_any_records(store.entries()))
 
 
-def stage_named(name: str, entries) -> StageProgress:
+def stage_named(name: str, entries, workflows: tuple[Workflow, ...] = WORKFLOWS) -> StageProgress:
     """The strip entry for one stage."""
 
-    matches = [item for item in stage_progress(entries) if item.stage == name]
+    matches = [
+        item for item in stage_progress(entries, workflows) if item.stage == name
+    ]
 
     assert len(matches) == 1, f"Expected one entry for stage {name}."
 
     return matches[0]
+
+
+# A synthetic stage holding exactly one reader (a workflow with no
+# module_key), used by the reader-only tests below. Built explicitly rather
+# than pointed at the live Interpretation stage, because that stage now also
+# holds Evidence to Claim, an assessable workflow -- the reader-only cases
+# these tests exist for must not be welded to whatever the catalog's
+# Interpretation stage happens to contain today.
+READER_ONLY_STAGE: tuple[Workflow, ...] = (
+    Workflow(
+        workflow="Reader Only",
+        category="Cross-cutting validation",
+        stage="Interpretation",
+        version="0.1",
+        summary="A summary.",
+        page="pages/9_Reader_Only.py",
+    ),
+)
 
 
 class TestTheStageStrip(unittest.TestCase):
@@ -461,14 +481,14 @@ class TestTheStageStrip(unittest.TestCase):
 
     def test_a_stage_holding_only_a_reader_says_it_reads(self):
         """
-        Interpretation has a module, and it is not assessable.
+        A stage whose only workflow records nothing is not assessable.
 
-        Two wrong answers this rules out. Counting Cross-Analysis Implications
-        as an unrecorded workflow would leave the stage permanently
-        unassessed. Dropping it would report "No module yet" for a stage that
-        has a module the user can open from the cards below.
+        Two wrong answers this rules out. Counting such a workflow as an
+        unrecorded one would leave the stage permanently unassessed. Dropping
+        it would report "No module yet" for a stage that has a module the
+        user can open from the cards below.
         """
-        item = stage_named("Interpretation", ())
+        item = stage_named("Interpretation", (), workflows=READER_ONLY_STAGE)
 
         self.assertEqual(item.state, STAGE_READS_RECORDS)
         self.assertEqual(item.n_workflows, 1)
@@ -481,7 +501,7 @@ class TestTheStageStrip(unittest.TestCase):
         for key in MODULE_KEYS:
             record(store, key, f"{key}.csv")
 
-        item = stage_named("Interpretation", store.entries())
+        item = stage_named("Interpretation", store.entries(), workflows=READER_ONLY_STAGE)
 
         self.assertEqual(item.state, STAGE_READS_RECORDS)
 
@@ -489,7 +509,7 @@ class TestTheStageStrip(unittest.TestCase):
         # These look alike on the strip but are different facts: one stage has
         # nothing, the other has something that does not record.
         empty = stage_named("Research Question", ())
-        reader = stage_named("Interpretation", ())
+        reader = stage_named("Interpretation", (), workflows=READER_ONLY_STAGE)
 
         self.assertEqual(empty.state, STAGE_NO_MODULE)
         self.assertEqual(reader.state, STAGE_READS_RECORDS)

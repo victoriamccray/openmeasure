@@ -81,12 +81,14 @@ MODULE_RELIABILITY = "reliability"
 MODULE_PROGRAM_EVALUATION = "program_evaluation"
 MODULE_FAIRNESS = "fairness"
 MODULE_TIME_SERIES_QA = "time_series_qa"
+MODULE_EVIDENCE_TO_CLAIM = "evidence_to_claim"
 
 MODULE_KEYS: tuple[str, ...] = (
     MODULE_RELIABILITY,
     MODULE_PROGRAM_EVALUATION,
     MODULE_FAIRNESS,
     MODULE_TIME_SERIES_QA,
+    MODULE_EVIDENCE_TO_CLAIM,
 )
 
 
@@ -233,6 +235,20 @@ WORKFLOWS: tuple[Workflow, ...] = (
         taxonomy_key="data_validation",
         # No module_key: this page reads the other workflows' records rather
         # than producing one of its own.
+    ),
+    Workflow(
+        workflow="Evidence to Claim",
+        category="Cross-cutting validation",
+        stage="Interpretation",
+        version="0.1",
+        summary=(
+            "Grades the strength of evidence behind a program or portfolio "
+            "claim and drafts defensible reporting language, with "
+            "limitations and portfolio context stated alongside it."
+        ),
+        page="pages/6_Evidence_to_Claim.py",
+        taxonomy_key="program_validation",
+        module_key=MODULE_EVIDENCE_TO_CLAIM,
     ),
 )
 

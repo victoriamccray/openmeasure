@@ -1,0 +1,5 @@
+claim_id,claim_text,claim_type,level,program_id,grantee_id,portfolio_id,related_indicator_ids
+CLAIM-G1-01,Eastside Career Collective's job readiness program increased participants' 6-month job placement rate.,impact,grantee,P-CAREER,G1,RVBD,IND-02
+CLAIM-G2-01,Northgate Mentoring Circle's program increased participants' confidence.,outcome,grantee,P-MENTOR,G2,RVBD,IND-01
+CLAIM-G3-01,Lakeside Job Corps Bridge's program increased participants' 6-month job placement rate.,outcome,grantee,P-CAREER,G3,RVBD,IND-02
+CLAIM-G4-01,Harbor Youth Alliance's program increased participants' confidence.,outcome,grantee,P-MENTOR,G4,RVBD,IND-01

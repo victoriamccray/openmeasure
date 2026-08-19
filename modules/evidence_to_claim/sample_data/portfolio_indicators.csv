@@ -1,0 +1,5 @@
+portfolio_id,grantee_id,grantee_name,program_id,indicator_id,indicator_name,indicator_type,period_start,period_end,result_value,unit,target_value,baseline_value,n_participants,has_comparison_group,data_source,collection_method
+RVBD,G1,Eastside Career Collective,P-CAREER,IND-02,Job placement rate (6 months),outcome,2025-01-01,2025-06-30,62,percent,55,40,180,yes,GivingData export,administrative_record
+RVBD,G2,Northgate Mentoring Circle,P-MENTOR,IND-01,Confidence gain,outcome,2025-02-01,2025-07-31,71,percent,60,,95,no,Rural Senses survey,survey
+RVBD,G3,Lakeside Job Corps Bridge,P-CAREER,IND-02,Job placement rate (6 months),outcome,2025-03-01,2025-08-31,75,percent,55,,8,no,internal database,survey
+RVBD,G4,Harbor Youth Alliance,P-MENTOR,IND-01,Confidence gain,outcome,2023-01-01,2023-06-30,34,count,,,34,no,partner-reported,survey
