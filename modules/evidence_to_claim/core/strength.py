@@ -91,6 +91,7 @@ class SupportedClaimResult:
     level_5_note: str
     suggested_language: str
     claim_type_alignment_warning: str | None
+    next_level_hint: str | None
 
 
 def determine_supported_claim(
@@ -121,6 +122,26 @@ def determine_supported_claim(
 
     nesta_level = _LEVELS_BY_NUMBER[level_number]
 
+    if level_number == 1:
+        next_level_hint = (
+            "To reach Level 2: add evidence data showing the claimed change "
+            "(not just a description of the program)."
+        )
+    elif level_number == 2:
+        next_level_hint = (
+            "To reach Level 3: add evidence with a comparison group, so the "
+            "change can be attributed to the program rather than other "
+            "explanations."
+        )
+    elif level_number == 3:
+        next_level_hint = (
+            f"To reach Level 4: add independent source(s) confirming the "
+            f"finding ({validation.corroboration_count} of "
+            f"{MIN_REPLICATION_SOURCES} needed)."
+        )
+    else:
+        next_level_hint = None
+
     min_expected = MIN_LEVEL_BY_CLAIM_TYPE[claim.claim_type]
     warning = None
     if level_number < min_expected:
@@ -145,4 +166,5 @@ def determine_supported_claim(
         level_5_note=LEVEL_5_NOTE,
         suggested_language=suggested_language,
         claim_type_alignment_warning=warning,
+        next_level_hint=next_level_hint,
     )

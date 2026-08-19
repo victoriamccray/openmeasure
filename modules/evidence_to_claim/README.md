@@ -1,14 +1,25 @@
-# Cross-cutting Validation - Evidence to Claim Journey
+# Program Validation - Portfolio Impact Analysis
 
-**Category:** Cross-cutting validation
-**Workflow:** Evidence to Claim
+**Category:** Program Validation
+**Workflow:** Portfolio Impact Analysis
 **Status:** Available (v0.1)
+
+> This module's folder is named `evidence_to_claim` for historical reasons.
+> The current user-facing workflow is titled "Portfolio Impact Analysis"
+> under the "Program Validation" category.
 
 ## Purpose
 
 Given a program, grantee, or portfolio result, what can be responsibly claimed about it, and how should that be communicated?
 
-Program validation asks whether an observed change is attributable to the program. This module asks a different, later question: given the evidence an analyst has assembled about a result, what can be responsibly claimed and communicated about it, in what language, and with what limitations stated alongside it.
+Program validation (Impact Evaluation) asks whether an observed change is attributable to the program, by running a comparison test. This module asks a later, different question on evidence an analyst has already assembled: what can be responsibly claimed about it, in what language, and with what limitations and comparability issues stated alongside it. It is a review layer, not a statistical test.
+
+**Use cases:**
+
+- Review whether reported results support a proposed claim.
+- Identify limitations or evidence gaps.
+- Determine which grantee results can reasonably be compared or synthesized.
+- Produce concise, defensible language for leadership, board, donor, or public reporting.
 
 ## Scope for v0.1 (MVP)
 
@@ -19,7 +30,7 @@ Program validation asks whether an observed change is attributable to the progra
 - **Examine limitations** - flag every failed validation check, plus a method-bias check (all evidence sharing one collection method) that validation alone does not cover.
 - **Portfolio context** - compare one grantee's indicator value against the rest of a portfolio (median, quartiles, Tukey fences), and flag indicators reported in incompatible units across grantees.
 - **Evidence record** - a leadership-ready summary sentence plus a full technical-detail record, ready to be compared on the Cross-Analysis Implications page.
-- Accepts evidence and portfolio indicators in a structure that could later be populated from a MEL system such as GivingData or Rural Senses; v0.1 ships with a small fictional portfolio, not a real integration.
+- Accepts evidence and indicators in a row-per-observation shape close to what a grant-management or MEL system export looks like, so real data can be substituted using the same columns. v0.1 ships with a small synthetic portfolio; see `sample_data/`.
 
 ## Non-goals for v0.1
 
@@ -27,11 +38,21 @@ Program validation asks whether an observed change is attributable to the progra
 - No causal inference beyond what is already present in the assembled evidence (this module does not run its own comparison test; see Impact Evaluation for that).
 - No cross-portfolio benchmarking against other foundations' portfolios.
 - Does not assess Nesta Level 5 (manualized, systematized delivery at scale), which requires operational and delivery documentation this module does not collect.
-- No real MEL-system integration (GivingData, Rural Senses, or otherwise).
+- No integration with any specific external system.
+
+## Output, outcome, and impact
+
+These are escalating evidentiary expectations, not synonyms (W.K. Kellogg Foundation, 2004):
+
+- **Output** - what was delivered (e.g., number of participants served).
+- **Outcome** - a measured change in participants (e.g., confidence increased), with no claim about what caused it.
+- **Impact** - that change attributed to the program specifically, which conventionally requires a comparison group (Nesta Level 3+).
+
+The claim type an analyst selects sets the level of evidence conventionally expected of it (see `core/strength.py:MIN_LEVEL_BY_CLAIM_TYPE`); a mismatch is flagged, not blocked.
 
 ## Interpretations
 
-This module implements Levels 1-4 of Puttick & Ludlow's (2013) Nesta Standards of Evidence; Level 5 is out of scope (see Non-goals). A level describes the evidence's causal rigor - whether it demonstrates a change, and whether that change is tied to the program via a comparison group and independent replication - not whether the underlying claim is true. The mapping from claim type (output/outcome/impact) to a minimum expected level is an OpenMeasure convention, not part of the cited framework, and is labeled as such wherever it appears. The sample-size and corroboration-count thresholds used in the Validate stage are OpenMeasure defaults informed by the general principles in the cited sources (adequate sample size, triangulation across independent sources); the specific numbers are not drawn from those sources and are configurable per analysis.
+This module implements Levels 1-4 of Puttick & Ludlow's (2013) Nesta Standards of Evidence; Level 5 is out of scope (see Non-goals). A level describes the evidence's causal rigor - whether it demonstrates a change, and whether that change is tied to the program via a comparison group and independent replication - not whether the underlying claim is true. The mapping from claim type to a minimum expected level is an OpenMeasure convention, not part of the cited framework, and is labeled as such wherever it appears. The sample-size and corroboration-count thresholds used in the Validate stage are OpenMeasure defaults informed by the general principles in the cited sources (adequate sample size, triangulation across independent sources); the specific numbers are not drawn from those sources and are configurable per analysis.
 
 ## Planned output
 

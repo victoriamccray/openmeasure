@@ -93,6 +93,28 @@ class TestDetermineSupportedClaim(unittest.TestCase):
         )
         self.assertIsNone(result.claim_type_alignment_warning)
 
+    def test_next_level_hint_none_at_max_level(self):
+        bundle = e.summarize_evidence(
+            [
+                _item(source="Source A", has_comparison_group=True),
+                _item(source="Source B", has_comparison_group=True),
+            ],
+            claim_id="CLAIM-1",
+        )
+        validation = v.validate_evidence(bundle)
+        result = s.determine_supported_claim(_claim(), bundle, validation)
+        self.assertEqual(result.nesta_level.level, 4)
+        self.assertIsNone(result.next_level_hint)
+
+    def test_next_level_hint_present_below_max_level(self):
+        bundle = e.summarize_evidence(
+            [_item(has_comparison_group=False)], claim_id="CLAIM-1"
+        )
+        validation = v.validate_evidence(bundle)
+        result = s.determine_supported_claim(_claim(), bundle, validation)
+        self.assertEqual(result.nesta_level.level, 2)
+        self.assertIsNotNone(result.next_level_hint)
+
     def test_level_5_note_always_present(self):
         bundle = e.summarize_evidence(
             [_item(has_comparison_group=False)], claim_id="CLAIM-1"

@@ -237,17 +237,17 @@ WORKFLOWS: tuple[Workflow, ...] = (
         # than producing one of its own.
     ),
     Workflow(
-        workflow="Evidence to Claim",
-        category="Cross-cutting validation",
+        workflow="Portfolio Impact Analysis",
+        category="Program Validation",
         stage="Interpretation",
         version="0.1",
         summary=(
-            "Grades the strength of evidence behind a program or portfolio "
-            "claim and drafts defensible reporting language, with "
-            "limitations and portfolio context stated alongside it."
+            "Grades the strength of evidence behind a program, grantee, or "
+            "portfolio claim and drafts reporting language, with "
+            "limitations and comparability issues stated alongside it."
         ),
-        page="pages/6_Evidence_to_Claim.py",
-        taxonomy_key="program_validation",
+        page="pages/6_Portfolio_Impact_Analysis.py",
+        taxonomy_key="portfolio_impact_analysis",
         module_key=MODULE_EVIDENCE_TO_CLAIM,
     ),
 )
