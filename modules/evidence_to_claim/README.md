@@ -1,12 +1,14 @@
-# Program Validation - Portfolio Impact Analysis
+# Portfolio Impact Analysis
 
-**Category:** Program Validation
-**Workflow:** Portfolio Impact Analysis
+**Type:** Research Journey (see `pages/Portfolio_Impact_Analysis.py`), not a numbered validation workflow
 **Status:** Available (v0.1)
 
 > This module's folder is named `evidence_to_claim` for historical reasons.
-> The current user-facing workflow is titled "Portfolio Impact Analysis"
-> under the "Program Validation" category.
+> The current user-facing page is titled "Portfolio Impact Analysis" and
+> lives under the app's "Research Journeys" section rather than a
+> validation category: it records nothing to `shared/handoff.py` and
+> carries no catalog entry, matching the pattern already established by
+> the other Research Journeys.
 
 ## Purpose
 
@@ -29,7 +31,7 @@ Program validation (Impact Evaluation) asks whether an observed change is attrib
 - **Determine supported claim** - grade the evidence's causal rigor against Levels 1-4 of Puttick & Ludlow's (2013) Nesta Standards of Evidence, and flag a tension when the claim's stated type expects more rigor than the evidence reaches.
 - **Examine limitations** - flag every failed validation check, plus a method-bias check (all evidence sharing one collection method) that validation alone does not cover.
 - **Portfolio context** - compare one grantee's indicator value against the rest of a portfolio (median, quartiles, Tukey fences), and flag indicators reported in incompatible units across grantees.
-- **Evidence record** - a leadership-ready summary sentence plus a full technical-detail record, ready to be compared on the Cross-Analysis Implications page.
+- **Evidence record** - a leadership-ready summary sentence plus a full technical-detail record.
 - Accepts evidence and indicators in a row-per-observation shape close to what a grant-management or MEL system export looks like, so real data can be substituted using the same columns. v0.1 ships with a small synthetic portfolio; see `sample_data/`.
 
 ## Non-goals for v0.1

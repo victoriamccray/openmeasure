@@ -55,7 +55,6 @@ from shared.handoff import (
 from shared.progress import (
     ALLOWED_STAGE_STATES,
     STAGE_NO_MODULE,
-    STAGE_NOT_ASSESSED,
     STAGE_READS_RECORDS,
     STAGE_RECORDED,
     STATE_NOT_ASSESSED,
@@ -316,11 +315,8 @@ class TestOverviewProgressStatus(unittest.TestCase):
         self.assertIn(STAGE_RECORDED, captions)
         # Research Question has no module, and must not read as a failing.
         self.assertIn(STAGE_NO_MODULE, captions)
-        # Interpretation holds Cross-Analysis Implications (reads records)
-        # and Evidence to Claim (an assessable module). Only Reliability was
-        # recorded here, so Evidence to Claim has not recorded anything and
-        # the stage reads as not assessed rather than as pure reading.
-        self.assertIn(STAGE_NOT_ASSESSED, captions)
+        # Interpretation has a module that reads rather than records.
+        self.assertIn(STAGE_READS_RECORDS, captions)
 
     def test_the_stage_strip_hides_states_before_anything_is_recorded(self):
         app = self._run_entrypoint()

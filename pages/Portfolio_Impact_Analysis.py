@@ -1,11 +1,19 @@
 """
-OpenMeasure - Portfolio Impact Analysis.
+Portfolio Impact Analysis - a guided research journey, not a workflow.
 
 A review layer over evidence an analyst has already assembled about a
 program, grantee, or portfolio result: what does it support, why, can it
-be compared to other results, and what is defensible to report. Core
-logic lives in modules/evidence_to_claim/core, this file is presentation
-only. (The module folder keeps its original name; see the module README.)
+be compared to other results, and what is defensible to report. It
+records nothing to shared/handoff.py, carries no module_key, and is
+deliberately not a numbered page, so it needs no entry in
+shared/catalog.py (see shared/tests/test_catalog.py, which only requires
+a catalog entry for numbered pages). Explore Real Data, Method Selection,
+and the other Research Journeys already establish this "not a workflow"
+pattern.
+
+Core logic lives in modules/evidence_to_claim/core, this file is
+presentation only. (The module folder keeps its original name; see the
+module README.)
 """
 
 import sys
@@ -14,8 +22,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-
-import dataclasses
 
 import pandas as pd
 import streamlit as st
@@ -27,23 +33,13 @@ from modules.evidence_to_claim.core import portfolio as portfolio_core
 from modules.evidence_to_claim.core import record as record_core
 from modules.evidence_to_claim.core import strength as strength_core
 from modules.evidence_to_claim.core import validate as validate_core
-from shared.catalog import MODULE_EVIDENCE_TO_CLAIM
-from shared.handoff import (
-    KIND_ROWS_DROPPED,
-    ExclusionAccount,
-    HandoffStore,
-    RetentionItem,
-    fingerprint_dataframe,
-)
 from shared.report import (
     Band,
     caveat,
     classify,
     flagged_item_note,
-    render_lifecycle_tracker,
     render_verdict,
     section_header,
-    show_case_studies,
 )
 
 SAMPLE_DIR = ROOT / "modules" / "evidence_to_claim" / "sample_data"
@@ -274,59 +270,139 @@ def _portfolio_evidence_map_points(
     return pd.DataFrame(rows)
 
 
-def record_portfolio_impact_analysis(
-    evidence_frame: pd.DataFrame,
-    evidence_filename: str,
-    bundle: evidence_core.EvidenceBundle,
-    claim: claim_core.ClaimDraft,
-    supported: strength_core.SupportedClaimResult,
-    validation: validate_core.ValidationResult,
-) -> None:
-    """
-    Record this analysis for the Cross-Analysis Implications page.
+def _kv_table(pairs: list[tuple[str, object]]) -> None:
+    """A static two-column table, for readable technical detail (no raw JSON/repr)."""
+    rows = [(field, str(value)) for field, value in pairs]
+    df = pd.DataFrame(rows, columns=["Field", "Value"]).set_index("Field")
+    st.table(df)
 
-    Translates into primitives here rather than storing the result object,
-    because the same dataclass is a different class depending on how it was
-    imported.
-    """
-    items = (
-        (
-            RetentionItem(
-                label="Evidence items excluded",
-                count=bundle.n_excluded_items,
-                kind=KIND_ROWS_DROPPED,
-                mechanism=bundle.exclusion_reason,
+
+def _render_claim_detail(claim: claim_core.ClaimDraft) -> None:
+    _kv_table(
+        [
+            ("Claim ID", claim.claim_id),
+            ("Claim text", claim.claim_text),
+            ("Claim type", claim.claim_type),
+            ("Level", claim.level),
+            ("Program ID", claim.program_id or "-"),
+            ("Grantee ID", claim.grantee_id or "-"),
+            ("Portfolio ID", claim.portfolio_id or "-"),
+            ("Related indicators", ", ".join(claim.related_indicator_ids) or "-"),
+        ]
+    )
+
+
+def _render_evidence_detail(bundle: evidence_core.EvidenceBundle) -> None:
+    _kv_table(
+        [
+            ("Evidence items received", bundle.n_input_items),
+            ("Usable", bundle.n_usable_items),
+            ("Excluded", bundle.n_excluded_items),
+            ("Exclusion reason", bundle.exclusion_reason if bundle.n_excluded_items else "-"),
+            ("Independent sources", bundle.n_sources),
+            ("Collection methods used", bundle.n_collection_methods),
+            ("Any comparison group reported", "Yes" if bundle.has_any_comparison_group else "No"),
+            (
+                "Smallest reported sample size",
+                bundle.min_sample_size if bundle.min_sample_size is not None else "-",
             ),
+            (
+                "Oldest evidence (days)",
+                bundle.max_time_lag_days if bundle.max_time_lag_days is not None else "-",
+            ),
+        ]
+    )
+    items_df = pd.DataFrame(
+        [
+            {
+                "Source": item.source,
+                "Finding": item.finding_text,
+                "Comparison group": "Yes" if item.has_comparison_group else "No",
+                "Method": item.collection_method,
+                "Sample size": item.sample_size if item.sample_size is not None else "-",
+                "Age (days)": item.time_lag_days if item.time_lag_days is not None else "-",
+            }
+            for item in bundle.items
+        ]
+    )
+    st.dataframe(items_df, width="stretch", hide_index=True)
+
+
+def _render_validation_detail(validation: validate_core.ValidationResult) -> None:
+    checks_df = pd.DataFrame(
+        [
+            {
+                "Criterion": CRITERION_LABELS.get(c.criterion, c.criterion),
+                "Passed": "Yes" if c.passed else "No",
+                "Severity": c.severity,
+                "Detail": c.detail,
+            }
+            for c in validation.checks
+        ]
+    )
+    st.dataframe(checks_df, width="stretch", hide_index=True)
+    _kv_table(
+        [
+            ("Checks passed", f"{validation.n_checks_passed} of {validation.n_checks_total}"),
+            ("Meets minimum bar", "Yes" if validation.meets_minimum_bar else "No"),
+        ]
+    )
+
+
+def _render_supported_detail(supported: strength_core.SupportedClaimResult) -> None:
+    _kv_table(
+        [
+            ("Nesta level", f"Level {supported.nesta_level.level}: {supported.nesta_level.label}"),
+            ("What that level means", supported.nesta_level.description),
+            ("Framework citation", supported.framework_citation),
+            (
+                "Claim-type alignment",
+                supported.claim_type_alignment_warning or "No tension flagged",
+            ),
+            (
+                "What would strengthen it further",
+                supported.next_level_hint or "Already at the highest level this module assesses",
+            ),
+        ]
+    )
+
+
+def _render_limitations_detail(limitations: limitations_core.LimitationsResult) -> None:
+    if limitations.n_flags == 0:
+        st.write("No limitations flagged.")
+        return
+    flags_df = pd.DataFrame(
+        [
+            {"Category": f.category, "Severity": f.severity, "Message": f.message}
+            for f in limitations.flags
+        ]
+    )
+    st.dataframe(flags_df, width="stretch", hide_index=True)
+
+
+def _render_portfolio_context_detail(
+    pc: portfolio_core.PortfolioContextResult | None, show_ids: bool
+) -> None:
+    if pc is None or pc.indicator_summary is None:
+        st.write("No portfolio context available for this claim.")
+        return
+    s = pc.indicator_summary
+    _kv_table(
+        [
+            ("Indicator", _friendly(s.indicator_id, INDICATOR_NAMES, show_ids)),
+            ("This grantee's result", s.this_value),
+            ("Portfolio median", round(s.median_value, 1)),
+            ("Portfolio range (Q1-Q3)", f"{round(s.q1, 1)} - {round(s.q3, 1)}"),
+            ("Typical range (Tukey fences)", f"{round(s.lower_fence, 1)} - {round(s.upper_fence, 1)}"),
+            ("Grantees reporting", s.n_grantees_reporting),
+            ("Position", s.position.replace("_", " ")),
+        ]
+    )
+    if pc.comparability_flags:
+        flags_df = pd.DataFrame(
+            [{"Indicator": f.indicator_id, "Message": f.message} for f in pc.comparability_flags]
         )
-        if bundle.n_excluded_items
-        else ()
-    )
-
-    account = ExclusionAccount(
-        module=MODULE_EVIDENCE_TO_CLAIM,
-        analysis_label=f"Portfolio Impact Analysis: {claim.claim_id}",
-        columns_considered=(
-            "finding_text",
-            "indicator_id",
-            "sample_size",
-            "has_comparison_group",
-            "collection_method",
-            "time_lag_days",
-        ),
-        n_input_rows=bundle.n_input_items,
-        n_retained_rows=bundle.n_usable_items,
-        items=items,
-    )
-
-    HandoffStore(st.session_state).record(
-        module=MODULE_EVIDENCE_TO_CLAIM,
-        fingerprint=fingerprint_dataframe(evidence_frame, evidence_filename),
-        exclusion=account,
-        primary_statistics={
-            "nesta_level": float(supported.nesta_level.level),
-            "n_checks_passed": float(validation.n_checks_passed),
-        },
-    )
+        st.dataframe(flags_df, width="stretch", hide_index=True)
 
 
 st.set_page_config(
@@ -336,17 +412,10 @@ st.set_page_config(
 )
 
 st.title("Portfolio Impact Analysis")
-st.subheader("Program Validation")
 st.caption(
     "A transparent review layer that helps analysts move from heterogeneous "
     "program evidence to defensible portfolio-level conclusions."
 )
-
-st.divider()
-
-render_lifecycle_tracker(current_workflow="Portfolio Impact Analysis")
-
-show_case_studies("portfolio_impact_analysis")
 
 st.divider()
 
@@ -360,7 +429,7 @@ with st.expander("How to use this workspace"):
 - Produce concise, defensible language for leadership, board, donor, or
   public reporting.
 
-**Seven steps**, each separating a distinct question: *finding* (what you
+**Seven steps**, each separating a distinct question - *finding* (what you
 claim), *evidence* (what backs it), *interpretation* (how strong that
 evidence is and what it does not establish), and *claim* (defensible
 language to report).
@@ -377,9 +446,9 @@ supports; the judgment stays with you.
 
 Sample data below is synthetic (no real grantees). It follows the same
 row-per-indicator shape as a typical grant-management or MEL export, and
-the workflow generalizes across domains: health, education, workforce
-development, environment, or any portfolio that reports indicators and
-results.
+the workflow generalizes across domains such as health, education,
+workforce development, environment, or any portfolio that reports
+indicators and results.
 """
     )
 
@@ -415,7 +484,14 @@ st.divider()
 # 1. Define claim (finding)
 # ---------------------------------------------------------------------
 
-section_header("1. Define claim", "Finding — what you are claiming, and at what level.")
+section_header("1. Define claim", "Finding - what you are claiming, and at what level.")
+
+st.caption(
+    "Output, outcome, and impact are escalating evidentiary expectations, "
+    "not synonyms. Output is what was delivered. Outcome is a measured "
+    "change, with no claim about cause. Impact is that change attributed "
+    "to the program, which conventionally needs a comparison group."
+)
 
 sample_claims = pd.read_csv(SAMPLE_DIR / "claims.csv")
 
@@ -432,7 +508,7 @@ if use_sample == "Use a sample claim":
         if show_ids:
             return f"{cid}: {row['claim_text']}"
         grantee_label = _friendly(row.get("grantee_id"), GRANTEE_NAMES, show_ids)
-        return f"{grantee_label} — {row['claim_text']}"
+        return f"{grantee_label} - {row['claim_text']}"
 
     chosen_id = st.selectbox(
         "Sample claim",
@@ -441,7 +517,7 @@ if use_sample == "Use a sample claim":
     )
     row = sample_claims.set_index("claim_id").loc[chosen_id]
     row["claim_id"] = chosen_id
-    st.caption(f"Claim type: **{row['claim_type']}**, level: **{row['level']}**")
+    st.caption(f"Claim type **{row['claim_type']}**, at the **{row['level']}** level.")
 
     if st.button("Use this claim", type="primary"):
         try:
@@ -455,11 +531,6 @@ else:
     claim_id = st.text_input("Claim ID", value="CLAIM-CUSTOM-01")
     claim_text = st.text_area("Claim text", placeholder="e.g. Our program increased participants' confidence.")
     claim_type = st.selectbox("Claim type", options=claim_core.CLAIM_TYPES, index=1)
-    st.caption(
-        "Output: what was delivered. Outcome: a measured change, cause not "
-        "claimed. Impact: that change attributed to the program (needs a "
-        "comparison group)."
-    )
     level = st.selectbox("Level", options=claim_core.CLAIM_LEVELS, index=1)
 
     program_id = grantee_id = portfolio_id = None
@@ -504,7 +575,7 @@ if stage >= STAGE_DESCRIBE_EVIDENCE and "pia_claim" in st.session_state:
 
     section_header(
         "2. Describe evidence",
-        f"Evidence — what backs {claim.claim_id}. Each row is one independent "
+        f"Evidence - what backs {claim.claim_id}. Each row is one independent "
         "look at the same finding; more of them, from different methods, "
         "makes the finding harder to overturn (checked in Step 3).",
     )
@@ -514,9 +585,9 @@ if stage >= STAGE_DESCRIBE_EVIDENCE and "pia_claim" in st.session_state:
 
     st.caption("Sample data is used until you upload your own.")
     uploaded_evidence = st.file_uploader(
-        "Upload a custom evidence CSV (optional; columns: source, finding_text, "
-        "indicator_id, sample_size, has_comparison_group, collection_method, "
-        "time_lag_days)",
+        "Upload a custom evidence CSV (optional, with columns source, "
+        "finding_text, indicator_id, sample_size, has_comparison_group, "
+        "collection_method, time_lag_days)",
         type="csv",
     )
 
@@ -563,11 +634,15 @@ if stage >= STAGE_DESCRIBE_EVIDENCE and "pia_claim" in st.session_state:
         c2.metric("Usable", bundle.n_usable_items)
         c3.metric("Excluded", bundle.n_excluded_items)
         st.caption(
-            "Usable: has both a finding and an indicator link, so it can be "
-            "checked. Excluded: missing one of those and cannot be assessed."
+            "A usable row names what changed (a finding) and which "
+            "indicator it supports, so it can be traced back to the claim "
+            "and checked in Step 3. An excluded row is missing one of "
+            "those - for example, a note with no linked indicator - so it "
+            "can't be tied to anything and doesn't count as evidence for "
+            "this claim."
         )
         if bundle.n_excluded_items:
-            caveat(f"Excluded because: {bundle.exclusion_reason}.")
+            caveat(f"Excluded because {bundle.exclusion_reason}.")
 
         if stage < STAGE_VALIDATE:
             if st.button("Continue to validate", type="primary"):
@@ -582,24 +657,49 @@ if stage >= STAGE_VALIDATE and "pia_bundle" in st.session_state:
 
     section_header(
         "3. Validate",
-        "Evidence — checked against configurable minimum-bar thresholds, "
-        "each defensible on its own terms (see why below).",
+        "Set the bar you'd want to see before trusting this evidence "
+        "enough to report on it.",
+    )
+
+    st.caption(
+        "Each check below compares what the evidence reports against the "
+        "number you set. Comparison group is a yes-or-no check; sample "
+        "size, sources, and recency are each compared against the minimum "
+        "(or maximum) you choose. What counts as 'enough' varies by field "
+        "and program size - a small pilot may reasonably use lower "
+        "minimums than a national program - so set these to fit the "
+        "program you're assessing, not the defaults below."
     )
 
     t1, t2, t3 = st.columns(3)
     min_sample_size = t1.number_input(
-        "Minimum sample size", min_value=1, value=validate_core.MIN_SAMPLE_SIZE_DEFAULT
+        "Minimum sample size",
+        min_value=1,
+        value=validate_core.MIN_SAMPLE_SIZE_DEFAULT,
+        help="How many participants must be represented before you'd trust an average from this evidence.",
     )
     min_corroboration = t2.number_input(
-        "Minimum independent sources", min_value=1, value=validate_core.MIN_CORROBORATION_DEFAULT
+        "Minimum independent sources",
+        min_value=1,
+        value=validate_core.MIN_CORROBORATION_DEFAULT,
+        help="How many separate reports of the same finding you'd want before treating it as more than a one-off.",
     )
     max_time_lag_days = t3.number_input(
-        "Maximum time lag (days)", min_value=1, value=validate_core.MAX_TIME_LAG_DAYS_DEFAULT
+        "Maximum time lag (days)",
+        min_value=1,
+        value=validate_core.MAX_TIME_LAG_DAYS_DEFAULT,
+        help="How old evidence can be before you'd want it re-checked against current conditions.",
     )
     st.caption(
-        "Defaults are OpenMeasure conventions informed by the cited "
-        "literature's general principles, not fixed thresholds drawn from "
-        "it. Adjust them; see the module README for citations."
+        "These starting numbers are OpenMeasure defaults, not fixed rules. "
+        "The sample-size default is informed by the general discussion of "
+        "statistical power in Gertler, Martinez, Premand, Rawlings, & "
+        "Vermeersch (2016), *Impact Evaluation in Practice*, World Bank. "
+        "The independent-sources default is informed by the triangulation "
+        "principle in Patton (1999), *Health Services Research*, 34(5 Pt "
+        "2), 1189-1208. Recency has no cited convention, so set it to what "
+        "your field or funder treats as current. Neither source specifies "
+        "these exact numbers; adjust them to fit your context."
     )
 
     if st.button("Run validation", type="primary"):
@@ -620,7 +720,7 @@ if stage >= STAGE_VALIDATE and "pia_bundle" in st.session_state:
     if "pia_validation" in st.session_state:
         validation = st.session_state["pia_validation"]
 
-        st.caption("Evidence profile")
+        st.caption("Evidence profile - how this evidence measures up, and why each check matters:")
         profile_cols = st.columns(len(validation.checks))
         for col, check in zip(profile_cols, validation.checks):
             with col:
@@ -649,7 +749,7 @@ if stage >= STAGE_DETERMINE_SUPPORTED_CLAIM and "pia_validation" in st.session_s
 
     section_header(
         "4. Determine supported claim",
-        "Interpretation — evidentiary rigor, graded against Nesta's "
+        "Interpretation - evidentiary rigor, graded against Nesta's "
         "Standards of Evidence.",
     )
 
@@ -698,7 +798,7 @@ if stage >= STAGE_EXAMINE_LIMITATIONS and "pia_supported" in st.session_state:
     bundle = st.session_state["pia_bundle"]
     validation = st.session_state["pia_validation"]
 
-    section_header("5. Examine limitations", "Interpretation — what the evidence does not establish.")
+    section_header("5. Examine limitations", "Interpretation - what the evidence does not establish.")
 
     limitations = limitations_core.examine_limitations(bundle, validation)
     st.session_state["pia_limitations"] = limitations
@@ -722,8 +822,8 @@ if stage >= STAGE_PORTFOLIO_CONTEXT and "pia_limitations" in st.session_state:
 
     section_header(
         "6. Portfolio context",
-        "Interpretation — how this compares to the rest of a portfolio. "
-        "Optional: skipped if no matching portfolio row is found.",
+        "Interpretation - how this compares to the rest of a portfolio. "
+        "Optional, and skipped if no matching portfolio row is found.",
     )
 
     st.caption("Sample data is used until you upload your own.")
@@ -757,11 +857,28 @@ if stage >= STAGE_PORTFOLIO_CONTEXT and "pia_limitations" in st.session_state:
             comparability_flags=comparability_flags,
         )
 
-        st.caption(f"Indicator: {_friendly(indicator_id, INDICATOR_NAMES, show_ids)}")
+        grantee_label = _friendly(claim.grantee_id, GRANTEE_NAMES, show_ids)
+        indicator_label = _friendly(indicator_id, INDICATOR_NAMES, show_ids)
+        st.caption(
+            f"How {grantee_label}'s reported {indicator_label} compares to "
+            "other grantees reporting the same indicator in this portfolio."
+        )
         c1, c2, c3 = st.columns(3)
-        c1.metric("This value", indicator_summary.this_value)
-        c2.metric("Portfolio median", round(indicator_summary.median_value, 1))
-        c3.metric("Grantees reporting", indicator_summary.n_grantees_reporting)
+        c1.metric(
+            "This grantee's reported result",
+            indicator_summary.this_value,
+            help=f"What {grantee_label} reported for this indicator.",
+        )
+        c2.metric(
+            "Portfolio median",
+            round(indicator_summary.median_value, 1),
+            help="The middle value across every grantee reporting this same indicator.",
+        )
+        c3.metric(
+            "Grantees reporting",
+            indicator_summary.n_grantees_reporting,
+            help="How many grantees, including this one, reported this indicator.",
+        )
 
         message = PORTFOLIO_POSITION_MESSAGES[indicator_summary.position]
         if indicator_summary.position == portfolio_core.POSITION_WITHIN_RANGE:
@@ -861,12 +978,12 @@ if stage >= STAGE_PORTFOLIO_CONTEXT and "pia_limitations" in st.session_state:
             if not excluded.empty:
                 with st.container(border=True):
                     st.caption(
-                        "Not shown above — measured in a different unit, not "
+                        "Not shown above - measured in a different unit, not "
                         "directly comparable to the rest:"
                     )
                     for _, r in excluded.iterrows():
-                        grantee_label = _friendly(r["grantee_id"], GRANTEE_NAMES, show_ids)
-                        st.write(f"- {grantee_label}: {r['value']} {r['unit']}")
+                        grantee_label_excl = _friendly(r["grantee_id"], GRANTEE_NAMES, show_ids)
+                        st.write(f"- {grantee_label_excl}: {r['value']} {r['unit']}")
 
     st.session_state["pia_portfolio_context"] = portfolio_context
 
@@ -888,7 +1005,7 @@ if stage >= STAGE_EVIDENCE_RECORD and "pia_portfolio_context" in st.session_stat
 
     section_header(
         "7. Evidence record",
-        "Claim — defensible language for reporting, with full detail on request.",
+        "Claim - defensible language for reporting, with full detail on request.",
     )
 
     record = record_core.EvidenceRecord(
@@ -914,29 +1031,16 @@ if stage >= STAGE_EVIDENCE_RECORD and "pia_portfolio_context" in st.session_stat
     )
 
     with st.expander("Full detail"):
-        st.caption("Claim")
-        st.json(dataclasses.asdict(record.claim), expanded=False)
-        st.caption("Evidence")
-        st.json(dataclasses.asdict(record.evidence), expanded=False)
-        st.caption("Validation")
-        st.json(dataclasses.asdict(record.validation), expanded=False)
-        st.caption("Supported claim")
-        st.json(dataclasses.asdict(record.supported_claim), expanded=False)
-        st.caption("Limitations")
-        st.json(dataclasses.asdict(record.limitations), expanded=False)
+        st.markdown("**Claim**")
+        _render_claim_detail(record.claim)
+        st.markdown("**Evidence**")
+        _render_evidence_detail(record.evidence)
+        st.markdown("**Validation**")
+        _render_validation_detail(record.validation)
+        st.markdown("**Supported claim**")
+        _render_supported_detail(record.supported_claim)
+        st.markdown("**Limitations**")
+        _render_limitations_detail(record.limitations)
         if record.portfolio_context is not None:
-            st.caption("Portfolio context")
-            st.json(dataclasses.asdict(record.portfolio_context), expanded=False)
-
-    record_portfolio_impact_analysis(
-        st.session_state["pia_evidence_frame"],
-        st.session_state["pia_evidence_filename"],
-        bundle,
-        claim,
-        supported,
-        validation,
-    )
-    st.caption(
-        "Recorded for the Cross-Analysis Implications page, which shows "
-        "how much of your data each analysis used."
-    )
+            st.markdown("**Portfolio context**")
+            _render_portfolio_context_detail(record.portfolio_context, show_ids)

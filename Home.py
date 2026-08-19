@@ -76,6 +76,11 @@ sections: dict[str, list[st.Page]] = {
             title="Medical Imaging: fMRI QC",
             url_path="FMRI_QC_Worked_Example",
         ),
+        st.Page(
+            "pages/Portfolio_Impact_Analysis.py",
+            title="Grantmaking: Portfolio Impact Analysis",
+            url_path="Portfolio_Impact_Analysis",
+        ),
     ],
 }
 

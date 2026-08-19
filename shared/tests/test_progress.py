@@ -393,10 +393,9 @@ def stage_named(name: str, entries, workflows: tuple[Workflow, ...] = WORKFLOWS)
 
 # A synthetic stage holding exactly one reader (a workflow with no
 # module_key), used by the reader-only tests below. Built explicitly rather
-# than pointed at the live Interpretation stage, because that stage now also
-# holds Evidence to Claim, an assessable workflow -- the reader-only cases
-# these tests exist for must not be welded to whatever the catalog's
-# Interpretation stage happens to contain today.
+# than pointed at the live Interpretation stage, so these tests do not
+# depend on whatever the catalog's Interpretation stage happens to contain
+# today -- a future workflow could join it without breaking this fixture.
 READER_ONLY_STAGE: tuple[Workflow, ...] = (
     Workflow(
         workflow="Reader Only",

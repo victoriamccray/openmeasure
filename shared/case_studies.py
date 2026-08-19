@@ -95,7 +95,7 @@ CASE_STUDIES = {
             "of Health and Human Services, Administration for Children and "
             "Families, Office of Planning, Research and Evaluation."
         ),
-        modules=("program_validation", "portfolio_impact_analysis"),
+        modules=("program_validation",),
     ),
     "scared_straight": CaseStudy(
         title="'Scared Straight' juvenile deterrence programs",
@@ -126,7 +126,7 @@ CASE_STUDIES = {
             "awareness programs for preventing juvenile delinquency: A "
             "systematic review. Campbell Systematic Reviews, 9(1), 1-55."
         ),
-        modules=("program_validation", "portfolio_impact_analysis"),
+        modules=("program_validation",),
     ),
     # ------------------------------------------------------------------
     # Data
@@ -342,7 +342,7 @@ CASE_STUDIES = {
             "of training programs with experimental data. American Economic "
             "Review, 76(4), 604-620."
         ),
-        modules=("program_validation", "portfolio_impact_analysis"),
+        modules=("program_validation",),
     ),
     "fairness_impossibility": CaseStudy(
         title="Why one fairness metric cannot satisfy every goal",
@@ -502,11 +502,6 @@ PAGE_ORDER: dict[str, tuple[str, ...]] = {
         "lalonde_1986",
         "dead_salmon",
         "narps",
-    ),
-    "portfolio_impact_analysis": (
-        "head_start_impact_study",
-        "scared_straight",
-        "lalonde_1986",
     ),
 }
 
