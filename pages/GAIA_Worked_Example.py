@@ -393,6 +393,15 @@ if stage >= STAGE_COMPARE_PERFORMANCE:
         "confirmation from the authors."
     )
 
+    st.write(
+        "**Broader implication**: because Student and Light Model share "
+        "the same architecture, their comparison is evidence that "
+        "knowledge distillation itself contributed to Student's "
+        "advantage on this task. It does not establish that distillation "
+        "improves every model or every task - only that it did here, "
+        "under these training conditions."
+    )
+
     if stage < STAGE_COMPARE_EFFICIENCY:
         if st.button("Continue to compare efficiency", type="primary"):
             _advance_to(STAGE_COMPARE_EFFICIENCY)
@@ -429,6 +438,14 @@ if stage >= STAGE_COMPARE_EFFICIENCY:
         f"**{GAIA_CO2_SAVED_PER_MILLION_USES_KG} kg of CO2** when "
         "applied 1,000,000 times, compared to the Teacher - explored "
         "further in the next step."
+    )
+
+    st.write(
+        "**Broader implication**: a reported reduction in energy and "
+        "CO2 per subject is a reason to treat resource use as part of "
+        "what a model evaluation checks, not a separate concern from "
+        "accuracy - particularly for a model that will be run many "
+        "times over its deployed life."
     )
 
     if stage < STAGE_EVALUATE_TRADEOFF:
@@ -580,6 +597,15 @@ if stage >= STAGE_EVALUATE_TRADEOFF:
         "scales linearly - not a new estimate."
     )
 
+    st.write(
+        "**Broader implication**: try raising the number above. A "
+        "per-subject difference that looks small in Step 4 can still add "
+        "up to a meaningful total once it is multiplied across a "
+        "deployment's full scale - which is why deployment volume "
+        "matters when weighing efficiency, not just the per-subject "
+        "figures on their own."
+    )
+
     if stage < STAGE_GENERALIZABILITY:
         if st.button("Continue to examine generalizability", type="primary"):
             _advance_to(STAGE_GENERALIZABILITY)
@@ -627,6 +653,15 @@ if stage >= STAGE_GENERALIZABILITY:
         "The performance and resource values used in Step 5's frontier "
         "chart are read from a figure, not the paper's own exact "
         "reported numbers.",
+    )
+
+    st.write(
+        "**Broader implication (potential, not tested here)**: a smaller "
+        "model needs less compute to run, which could lower a barrier to "
+        "using it in settings with limited hardware - low-resource "
+        "hospitals, mobile devices, or point-of-care tools. GAIA did not "
+        "test deployment in any of these settings; this is a plausible "
+        "implication of the size and efficiency result, not a finding."
     )
 
     if stage < STAGE_RESEARCH_DECISION:
@@ -685,9 +720,19 @@ if stage >= STAGE_RESEARCH_DECISION:
             "alone."
         )
 
+    st.write(
+        "**Broader implication**: when computational requirements "
+        "materially affect whether a model can be deployed at all, "
+        "evaluating performance alone is not enough - resource use "
+        "becomes part of what 'good enough' means."
+    )
+
     st.divider()
     st.success(
-        "Model validation can include resource efficiency alongside "
-        "predictive performance when computational requirements affect "
-        "sustainability, scalability, or feasibility of deployment."
+        "**Why this matters:** GAIA illustrates how model evaluation can "
+        "consider predictive performance alongside computational "
+        "efficiency. In settings where resource requirements affect "
+        "sustainability, scale, or deployment feasibility, the most "
+        "accurate model may not automatically be the most appropriate "
+        "one."
     )
