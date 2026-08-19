@@ -78,15 +78,18 @@ _VEGA_CHART_CONFIG = {
 GAIA_CITATION = (
     "Jallais, M., Mancini, M., & Palombo, M. (2026). GAIA - Green "
     "Artificial Intelligence for Accelerated medical imaging: "
-    "Sustainable and Efficient Diffusion MRI Analysis. Conference "
-    "abstract, Cardiff University Brain Research Imaging Centre "
-    "(CUBRIC). Venue and DOI pending confirmation from the authors."
+    "Sustainable and Efficient Diffusion MRI Analysis. Research output, "
+    "Cardiff University Brain Research Imaging Centre (CUBRIC). "
+    "https://doi.org/10.13140/RG.2.2.15336.12807 - an early-stage "
+    "research output (e.g. a conference abstract), not confirmed as "
+    "peer-reviewed."
 )
 WAND_CITATION = (
     "McNabb, C. B., Driver, I. D., Hyde, V. et al. (2025). WAND: A "
     "multi-modal dataset integrating advanced MRI, MEG, and TMS for "
     "multi-scale brain analysis. Sci Data, 12, 220. "
-    "https://doi.org/10.1038/s41597-024-04154-7"
+    "https://doi.org/10.1038/s41597-024-04154-7 (170 participants; GAIA "
+    "used a 161-participant subset)."
 )
 HINTON_CITATION = (
     "Hinton, G., Vinyals, O., & Dean, J. (2015). Distilling the "
@@ -222,11 +225,12 @@ section_header("1. Research question")
 st.markdown("### When is a more efficient model good enough to replace a larger one?")
 
 st.write(
-    "AI models used in medical imaging are usually judged on predictive "
-    "performance alone. But training and running these models consumes "
-    "energy and produces greenhouse gas emissions, and the largest, most "
-    "accurate models are often the hardest to deploy on standard hospital "
-    "hardware or in low-resource settings. This journey asks whether a "
+    "Model evaluations often emphasize predictive performance, while "
+    "computational cost and environmental impact may receive less "
+    "attention. But training and running these models consumes energy "
+    "and produces greenhouse gas emissions, and larger, computationally "
+    "demanding models may also be harder to deploy where hardware or "
+    "energy resources are constrained. This journey asks whether a "
     "smaller, more efficient model can be validated as good enough once "
     "performance and resource use are considered together, rather than "
     "performance alone."
@@ -293,10 +297,10 @@ if stage >= STAGE_UNDERSTAND_TASK:
     st.write(
         "**Knowledge distillation** trains a small 'student' network to "
         "mimic a large 'teacher' network's internal representation, not "
-        "just its final answer - the idea being that the teacher's "
-        "internal representation carries information a student trained "
-        "from scratch would otherwise need many more parameters to "
-        "discover on its own."
+        "just its final answer. The student is trained to reproduce "
+        "information from the teacher's internal representation, "
+        "providing an additional learning signal beyond the original "
+        "target."
     )
     st.caption(HINTON_CITATION)
     st.caption(ROMERO_CITATION)
@@ -304,9 +308,10 @@ if stage >= STAGE_UNDERSTAND_TASK:
     st.write(
         "**Why the Light Model matters**: it is the exact same size and "
         "architecture as the Student, trained the exact same way except "
-        "with no teacher guidance at all. If the Student outperforms the "
-        "Light Model, that gap is attributable to distillation itself, "
-        "not merely to having fewer parameters than the Teacher."
+        "with no teacher guidance at all. Because Student and Light "
+        "Model use the same small architecture, their comparison helps "
+        "isolate the contribution of the distillation training "
+        "procedure."
     )
 
     st.radio(
@@ -336,10 +341,12 @@ if stage >= STAGE_UNDERSTAND_TASK:
 
     with st.expander("Data sources and citations"):
         st.write(
-            f"**Dataset**: WAND ({GAIA_TRAINING_SUBJECTS} subjects), "
-            f"80/10/10 train/test/validation split (test set = "
-            f"{GAIA_TEST_SUBJECTS} subjects), {GAIA_TRAINING_EPOCHS} "
-            "epochs, Adam optimizer (learning rate 1e-4)."
+            f"**Dataset**: GAIA used {GAIA_TRAINING_SUBJECTS} "
+            "participants from WAND (which contains 170 healthy "
+            "volunteers in total), an 80/10/10 train/test/validation "
+            f"split (test set = {GAIA_TEST_SUBJECTS} subjects), "
+            f"{GAIA_TRAINING_EPOCHS} epochs, Adam optimizer (learning "
+            "rate 1e-4)."
         )
         st.caption(WAND_CITATION)
         st.caption(GAIA_CITATION)
@@ -542,9 +549,9 @@ if stage >= STAGE_EVALUATE_TRADEOFF:
         if not frontier_result.is_efficient[profile.name]:
             flagged_item_note(
                 profile.name,
-                "Beaten on both performance and resource use by another "
-                "model here - not a defensible choice at any weighting "
-                "of the two.",
+                "Under the two approximate metrics shown here, this "
+                "model is dominated by another and would not be favored "
+                "by any weighting of these two dimensions alone.",
             )
 
     caveat(
@@ -589,16 +596,18 @@ if stage >= STAGE_GENERALIZABILITY:
 
     st.write(
         "**Measured**: on one dataset, one task, and one held-out test "
-        "set, a distilled model matched a larger model's accuracy and "
-        "used substantially less energy and CO2 than it."
+        "set, the authors report comparable prediction accuracy between "
+        "Student and Teacher, with Student using substantially less "
+        "energy and CO2."
     )
     st.write("**Not measured, and not something this result can establish on its own:**")
 
     flagged_item_note(
         "Single dataset",
-        f"WAND ({GAIA_TRAINING_SUBJECTS} subjects, one acquisition "
-        "protocol, one site). Whether these results hold on a different "
-        "scanner, protocol, or population is untested here.",
+        f"GAIA used {GAIA_TRAINING_SUBJECTS} participants from WAND, "
+        "one acquisition protocol, one site. Whether these results hold "
+        "on a different scanner, protocol, or population is untested "
+        "here.",
     )
     flagged_item_note(
         "Single task",
@@ -650,12 +659,13 @@ if stage >= STAGE_RESEARCH_DECISION:
         )
     elif decision == "Light Model":
         st.warning(
-            "Under the approximate values used in Step 5, Light Model is "
-            "beaten on both performance and resource use by Student - it "
-            "is not on the performance-efficiency frontier, so this "
-            "choice is hard to defend against Student specifically. "
-            "Light Model's role in this study is as the control that "
-            "shows what distillation adds, not as a deployment candidate."
+            "Under the two approximate metrics used in Step 5, Light "
+            "Model is dominated by Student and would not be favored by "
+            "any weighting of these two dimensions alone - though "
+            "deployment could involve other factors not captured by "
+            "those two metrics. Light Model's role in this study is as "
+            "the control that shows what distillation adds beyond "
+            "simply using a smaller architecture."
         )
     elif frontier_result.is_efficient.get(decision, False):
         st.write(
@@ -669,9 +679,10 @@ if stage >= STAGE_RESEARCH_DECISION:
         )
     else:
         st.write(
-            f"{decision} is beaten on both performance and resource use "
-            "by another model here, under the approximate values used in "
-            "Step 5."
+            f"Under the two approximate metrics used in Step 5, "
+            f"{decision} is dominated by another model here and would "
+            "not be favored by any weighting of those two dimensions "
+            "alone."
         )
 
     st.divider()
