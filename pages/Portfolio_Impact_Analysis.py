@@ -416,6 +416,11 @@ st.caption(
     "A transparent review layer that helps analysts move from heterogeneous "
     "program evidence to defensible portfolio-level conclusions."
 )
+st.caption(
+    "Bring your own data: an evidence CSV (source, finding, indicator, "
+    "sample size, comparison group, method, age) and a portfolio CSV "
+    "(grantee, indicator, value, unit) can replace the sample data below."
+)
 
 st.divider()
 

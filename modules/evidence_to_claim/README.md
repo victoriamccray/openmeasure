@@ -34,6 +34,13 @@ Program validation (Impact Evaluation) asks whether an observed change is attrib
 - **Evidence record** - a leadership-ready summary sentence plus a full technical-detail record.
 - Accepts evidence and indicators in a row-per-observation shape close to what a grant-management or MEL system export looks like, so real data can be substituted using the same columns. v0.1 ships with a small synthetic portfolio; see `sample_data/`.
 
+## Bringing your own data
+
+Two CSVs can be uploaded in place of the bundled sample data (see `sample_data/` for worked examples):
+
+- **Evidence file** - one row per piece of evidence behind a claim: `source, finding_text, indicator_id, sample_size, has_comparison_group, collection_method, time_lag_days`.
+- **Portfolio file** - one row per grantee's reported result for an indicator: `grantee_id, grantee_name, indicator_id, indicator_name, result_value, unit` (extra columns are ignored). Units must match across grantees to be compared; a grantee reporting a different unit is set aside automatically rather than plotted.
+
 ## Non-goals for v0.1
 
 - No automated go/no-go decision on the claim itself; the module states what the evidence supports, never whether to publish it.
