@@ -34,6 +34,7 @@ from shared.handoff import (
     RetentionItem,
     fingerprint_dataframe,
 )
+from shared.data_handling import disclosure_for, render_data_handling_summary
 from shared.report import (
     caveat,
     flagged_item_note,
@@ -93,6 +94,8 @@ st.caption(
 st.divider()
 
 render_lifecycle_tracker(current_workflow="Fairness")
+
+render_data_handling_summary(disclosure_for("pages/3_Fairness.py"))
 
 
 # ---------------------------------------------------------------------

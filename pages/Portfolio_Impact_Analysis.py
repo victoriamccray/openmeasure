@@ -33,6 +33,7 @@ from modules.evidence_to_claim.core import portfolio as portfolio_core
 from modules.evidence_to_claim.core import record as record_core
 from modules.evidence_to_claim.core import strength as strength_core
 from modules.evidence_to_claim.core import validate as validate_core
+from shared.data_handling import disclosure_for, render_data_handling_summary
 from shared.report import (
     Band,
     caveat,
@@ -421,6 +422,8 @@ st.caption(
     "sample size, comparison group, method, age) and a portfolio CSV "
     "(grantee, indicator, value, unit) can replace the sample data below."
 )
+
+render_data_handling_summary(disclosure_for("pages/Portfolio_Impact_Analysis.py"))
 
 st.divider()
 

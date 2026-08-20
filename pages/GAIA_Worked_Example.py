@@ -45,6 +45,7 @@ from modules.model_efficiency.core import deployment as deployment_core
 from modules.model_efficiency.core import frontier as frontier_core
 from modules.model_efficiency.core import models as models_core
 from modules.model_efficiency.core import preference as preference_core
+from shared.data_handling import disclosure_for, render_data_handling_summary
 from shared.report import caveat, flagged_item_note, section_header
 
 SAMPLE_DIR = ROOT / "modules" / "model_efficiency" / "sample_data"
@@ -197,6 +198,8 @@ st.caption(
     "A guided research simulation: each stage unlocks after you make a "
     "decision or inspect its consequence."
 )
+
+render_data_handling_summary(disclosure_for("pages/GAIA_Worked_Example.py"))
 
 stage = _current_stage()
 

@@ -64,6 +64,11 @@ sections: dict[str, list[st.Page]] = {
             title="Method Selection",
             url_path="Method_Selection",
         ),
+        st.Page(
+            "pages/Privacy_and_Data_Access.py",
+            title="Privacy & Data Access",
+            url_path="Privacy_and_Data_Access",
+        ),
     ],
     "Research Journeys": [
         st.Page(

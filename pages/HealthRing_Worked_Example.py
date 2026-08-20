@@ -65,6 +65,7 @@ import streamlit as st
 from modules.healthring.core import acquisition_robustness as ar
 from shared.charts import multiline_time_series_chart
 from shared.datasets import DATASETS
+from shared.data_handling import disclosure_for, render_data_handling_summary
 from shared.report import caveat, flagged_item_note, section_header
 
 # ---------------------------------------------------------------------
@@ -642,6 +643,8 @@ st.caption(
     "A guided research simulation: each stage unlocks after you make a "
     "decision or inspect its consequence."
 )
+
+render_data_handling_summary(disclosure_for("pages/HealthRing_Worked_Example.py"))
 
 stage = _current_stage()
 

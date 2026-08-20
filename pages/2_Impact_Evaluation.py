@@ -27,6 +27,7 @@ from shared.handoff import (
     RetentionItem,
     fingerprint_dataframe,
 )
+from shared.data_handling import disclosure_for, render_data_handling_summary
 from shared.report import section_header, caveat, flagged_item_note, show_case_studies, render_lifecycle_tracker
 
 
@@ -100,6 +101,8 @@ st.caption("Compare outcomes across groups, or across time, and see which test f
 st.divider()
 
 render_lifecycle_tracker(current_workflow="Impact Evaluation")
+
+render_data_handling_summary(disclosure_for("pages/2_Impact_Evaluation.py"))
 
 show_case_studies("program_validation")
 

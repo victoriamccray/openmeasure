@@ -60,6 +60,7 @@ import streamlit as st
 
 from modules.reliability.core import interrater as ir
 from shared.charts import multiline_time_series_chart
+from shared.data_handling import disclosure_for, render_data_handling_summary
 from shared.report import caveat, section_header
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -394,6 +395,8 @@ st.set_page_config(
 )
 
 st.title("fMRI QC Worked Example")
+
+render_data_handling_summary(disclosure_for("pages/FMRI_QC_Worked_Example.py"))
 
 stage = _current_stage()
 

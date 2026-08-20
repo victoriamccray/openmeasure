@@ -38,6 +38,7 @@ from shared.handoff import (
     RetentionItem,
     fingerprint_dataframe,
 )
+from shared.data_handling import disclosure_for, render_data_handling_summary
 from shared.report import (
     Band,
     caveat,
@@ -65,6 +66,8 @@ st.caption(
 st.divider()
 
 render_lifecycle_tracker(current_workflow="Time-Series QA")
+
+render_data_handling_summary(disclosure_for("pages/4_Time_Series_QA.py"))
 
 
 # ---------------------------------------------------------------------
