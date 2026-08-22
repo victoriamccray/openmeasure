@@ -587,6 +587,47 @@ class TestMethodSelectionPage(unittest.TestCase):
         self.assertNotIn(STORE_KEY, app.session_state)
 
 
+class TestResourcesPage(unittest.TestCase):
+    """Resources: every entry's name renders, and nothing is recorded."""
+
+    def _run_resources_page(self) -> AppTest:
+        app = AppTest.from_file(str(ENTRYPOINT), default_timeout=LOAD_TIMEOUT_SECONDS)
+        app.run()
+        app.switch_page("pages/Resources.py")
+        app.run()
+
+        self.assertFalse(
+            app.exception,
+            "Resources raised on load.",
+        )
+
+        return app
+
+    def test_the_page_is_reachable_from_the_entrypoint(self):
+        app = self._run_resources_page()
+
+        self.assertIn(
+            "Resources",
+            [str(item.value) for item in app.title],
+        )
+
+    def test_every_resource_name_is_rendered(self):
+        from shared.resources import RESOURCES
+
+        app = self._run_resources_page()
+
+        rendered = " ".join(str(item.value) for item in app.markdown)
+
+        for resource in RESOURCES:
+            with self.subTest(resource=resource.name):
+                self.assertIn(resource.name, rendered)
+
+    def test_the_page_records_nothing_to_the_handoff_store(self):
+        app = self._run_resources_page()
+
+        self.assertNotIn(STORE_KEY, app.session_state)
+
+
 class TestEnvironmentCanRunTheApp(unittest.TestCase):
     """
     The app calls APIs that older Streamlit releases do not have. A host

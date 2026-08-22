@@ -29,6 +29,7 @@ from shared.catalog import (
     workflows_by_stage,
 )
 from shared.handoff import HandoffStore
+from shared.research_journeys import journeys_by_domain
 from shared.progress import (
     SESSION_SCOPE_NOTE,
     has_any_records,
@@ -124,6 +125,36 @@ for stage in LIFECYCLE_STAGES:
 
     st.markdown(f"#### {stage}")
     st.caption(STAGE_QUESTIONS[stage])
+
+    if stage == "Research Question":
+        # No numbered workflow covers this stage (shared/catalog.py's
+        # STAGES_WITHOUT_WORKFLOWS), because framing a research question is
+        # not something a statistic validates. Research Journeys and
+        # Explore Real Data occupy it instead -- see
+        # shared/research_journeys.py's docstring for the fuller reasoning.
+        st.caption(
+            "No numbered workflow covers this stage. Research Journeys and "
+            "Explore Real Data occupy it instead: each walks a real "
+            "dataset through what it can and cannot support, rather than "
+            "computing a statistic."
+        )
+
+        for domain, journeys in journeys_by_domain().items():
+            with st.container(border=True):
+                st.markdown(f"**{domain}**")
+                for journey in journeys:
+                    st.page_link(
+                        journey.page,
+                        label=journey.title,
+                        icon=":material/arrow_forward:",
+                    )
+
+        st.page_link(
+            "pages/Explore_Real_Data.py",
+            label="Open Explore Real Data",
+            icon=":material/arrow_forward:",
+        )
+        continue
 
     if not workflows:
         # Stated rather than hidden. Omitting the stage would imply the

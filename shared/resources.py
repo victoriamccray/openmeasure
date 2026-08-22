@@ -1,0 +1,159 @@
+"""
+Resources: existing toolkits, methods guides, and dataset directories that
+sit outside OpenMeasure itself.
+
+Explore_Real_Data.py already points to specific datasets chosen because
+they pair with a specific OpenMeasure workflow (RealDataset.try_with
+requires exactly that). This catalog is for the broader case: a tool, a
+methods-selection guide, or a dataset directory worth knowing about that
+does not fit that one-workflow contract, or is not itself a dataset at all.
+
+Entries here are maintained by the OpenMeasure project rather than
+verified against a published citation the way shared/case_studies.py's
+entries are -- there is no paper to check a description against. Treat
+this list as a pointer, not an endorsement of accuracy for content on the
+linked site, which can change after the description below was written.
+
+url is deliberately optional (RealDataset's DataSource requires one; a
+Resource does not) because some entries are recorded by name only, with a
+link to follow once confirmed, rather than left out of the list entirely.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class Resource:
+    """One external resource, and what it is for."""
+
+    name: str
+    kind: str
+    description: str
+    url: str = ""
+
+    def __post_init__(self) -> None:
+        for field_name in ("name", "kind", "description"):
+            if not getattr(self, field_name):
+                raise ValueError(
+                    f"{self.name or 'A resource'} is missing a value for "
+                    f"'{field_name}'."
+                )
+
+        if self.kind not in KIND_ORDER:
+            raise ValueError(
+                f"{self.name} has kind '{self.kind}', which is not in "
+                f"KIND_ORDER, so it would render in no section. Known "
+                f"kinds: {', '.join(KIND_ORDER)}."
+            )
+
+        if self.url and not self.url.startswith("https://"):
+            raise ValueError(
+                f"'{self.name}' has url '{self.url}', which is not an "
+                "https link. A given link must be verifiable, not relative "
+                "or unsecured; leave url empty instead of using a "
+                "non-https placeholder."
+            )
+
+
+# Display order for kinds. Declared explicitly, same reasoning as
+# shared/catalog.py's CATEGORY_ORDER: there is no honest way to derive one.
+KIND_ORDER: tuple[str, ...] = (
+    "Method selection tool",
+    "Statistical toolkit",
+    "Dataset directory",
+    "Measures repository",
+    "Research platform",
+    "Research impact resource",
+)
+
+RESOURCES: tuple[Resource, ...] = (
+    Resource(
+        name="Co-Creation Methods Navigator",
+        kind="Method selection tool",
+        description=(
+            "A decision-support tool for exploring over 500 co-creation "
+            "and participatory-research methods, to find an approach "
+            "suited to a specific community-engagement or research "
+            "context."
+        ),
+        url="https://ccmethodsselector.lovable.app/",
+    ),
+    Resource(
+        name="OpenEpi",
+        kind="Statistical toolkit",
+        description=(
+            "Free, open-source web calculators for epidemiologic and "
+            "biostatistical analysis: sample size and power, 2x2 and "
+            "stratified tables, person-time rates, and related "
+            "calculations."
+        ),
+        url="https://www.openepi.com/Menu/OE_Menu.htm",
+    ),
+    Resource(
+        name="Neuro2.ai Neuroscience Datasets",
+        kind="Dataset directory",
+        description=(
+            "A searchable directory of neuroscience datasets, filterable "
+            "by modality and source."
+        ),
+        url="https://datasets.neuro2.ai/",
+    ),
+    Resource(
+        name="HEALthy Brain and Child Development (HBCD) Study - Release 2.1",
+        kind="Dataset directory",
+        description=(
+            "A longitudinal dataset of more than 3,500 participants, with "
+            "structural MRI, diffusion MRI, resting-state fMRI, and EEG "
+            "alongside behavioral, cognitive, and health assessments of "
+            "early child development. Access requires completing the "
+            "study's own data-access process."
+        ),
+        url="https://www.nbdc-datahub.org/hbcd-release-2-1",
+    ),
+    Resource(
+        name="Open Measurement Network Initiative for Alzheimer's Disease "
+        "and Related Dementias (OMNI ADRD)",
+        kind="Measures repository",
+        description=(
+            "An open science repository of broadly applicable, precise, "
+            "and sensitive measures for use in dementia prevention trials."
+        ),
+        url="https://omni-adrd.org/",
+    ),
+    Resource(
+        name="OpenNerve",
+        kind="Research platform",
+        description=(
+            "An open-source implantable neuromodulation system intended "
+            "to support diverse clinical research needs."
+        ),
+        url="https://sites.usc.edu/carss/",
+    ),
+    Resource(
+        name="Science with Impact (Anne Toomey)",
+        kind="Research impact resource",
+        description=(
+            "Ways to make science more impactful for society, including "
+            "community-based science, improved science communication, "
+            "and science policy."
+        ),
+    ),
+)
+
+
+def resources_by_kind() -> dict[str, tuple[Resource, ...]]:
+    """
+    Group resources by kind, in KIND_ORDER.
+
+    A kind with no resource is omitted, same reasoning as
+    shared/catalog.py's workflows_by_category.
+    """
+
+    grouped: dict[str, list[Resource]] = {kind: [] for kind in KIND_ORDER}
+
+    for resource in RESOURCES:
+        grouped[resource.kind].append(resource)
+
+    return {kind: tuple(items) for kind, items in grouped.items() if items}
