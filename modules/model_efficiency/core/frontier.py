@@ -7,11 +7,17 @@ resource use, with at least one dimension strictly better. A dominated
 model is one some other model beats outright on both axes at once - never
 a defensible choice regardless of how performance and resource use are
 weighted against each other.
+
+The dominance check itself lives in shared/pareto.py, shared with
+modules/signal_pipeline's gain-vs-cost frontier; this module keeps its
+own ModelProfile-specific FrontierResult and vocabulary.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+
+from shared.pareto import ParetoPoint, compute_pareto_efficiency
 
 from .models import ModelProfile
 
@@ -30,24 +36,15 @@ def compute_frontier(profiles: tuple[ModelProfile, ...]) -> FrontierResult:
     if not profiles:
         raise ValueError("profiles cannot be empty.")
 
-    is_efficient: dict[str, bool] = {}
+    points = tuple(
+        ParetoPoint(
+            name=profile.name,
+            x_value=profile.performance_value,
+            y_value=profile.resource_value,
+        )
+        for profile in profiles
+    )
 
-    for candidate in profiles:
-        dominated = False
-        for other in profiles:
-            if other is candidate:
-                continue
-            not_worse_on_both = (
-                other.performance_value <= candidate.performance_value
-                and other.resource_value <= candidate.resource_value
-            )
-            strictly_better_on_one = (
-                other.performance_value < candidate.performance_value
-                or other.resource_value < candidate.resource_value
-            )
-            if not_worse_on_both and strictly_better_on_one:
-                dominated = True
-                break
-        is_efficient[candidate.name] = not dominated
-
-    return FrontierResult(profiles=profiles, is_efficient=is_efficient)
+    return FrontierResult(
+        profiles=profiles, is_efficient=compute_pareto_efficiency(points)
+    )
