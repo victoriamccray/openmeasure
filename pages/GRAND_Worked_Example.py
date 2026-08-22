@@ -37,29 +37,35 @@ Citation-integrity note - read this before trusting any number below.
    cited papers' own metadata - not recalled from memory.
 2. Sample size discrepancy: GRAND's README and dataset_description.json
    both describe 110 participants, matching the 110 rows actually in
-   participants.tsv. The associated preprint's public abstract instead
-   states "116 neurotypical adults." Presented as-is, unreconciled - the
-   same treatment GAIA_Worked_Example.py gives its own paper/figure
-   discrepancy.
-3. Connectome construction is under-documented in what this page could
-   verify: GRAND's README states it "includes DTI and derived
-   connectomes," but this page's author could not confirm the
-   parcellation or tractography pipeline used to build them.
-4. Quality-control figures in Step 3 (the 0.5 mm mean framewise-
-   displacement cutoff, tSNR characterization, the Semantic > Pseudofont
-   language-localization contrast and its comparison to a NeuroSynth
-   meta-analytic map, and behavioral split-half reliability figures) are
-   presented as provided for this page. They are consistent with
-   standard fMRI/diffusion-MRI methodology and with GRAND's own
-   documented task design, but every attempt to independently verify the
-   exact figures against the published manuscript returned an HTTP 429
-   rate-limit error from bioRxiv while this page was being built,
-   including one automated fetch that returned a fluent, detailed,
-   internally-consistent answer despite the underlying request having
-   failed - that response was caught (by directly checking the same URL
-   returned 429) and discarded rather than used. Readers who can access
-   the manuscript directly should treat Step 3's figures as provisional
-   pending that check.
+   participants.tsv. The preprint's abstract instead states "116
+   neurotypical adults," and its Methods section explains the 116 as the
+   sum of two parent recruitment protocols - BUILD ("Brain-based
+   Understanding of Individual Language Differences after stroke,"
+   ClinicalTrials.gov NCT04991519, N=69) and ReadMap ("Reading in Stroke
+   Alexia and Typical Aging," ClinicalTrials.gov NCT06700005, N=47).
+   Nothing in the accessible text explains the gap between that 116 and
+   the 110 rows actually released in participants.tsv; presented as-is,
+   unreconciled - the same treatment GAIA_Worked_Example.py gives its own
+   paper/figure discrepancy.
+3. Connectome construction, previously flagged here as unverified, was
+   confirmed on a later attempt (see item 4): connectomes are derived
+   from the HARDI diffusion acquisition (not a separately acquired DTI
+   sequence) via probabilistic, anatomically-constrained tractography,
+   assigning streamlines to parcels of the Brainnetome atlas; each edge
+   is the apparent fiber density between two parcels.
+4. Quality-control figures in Step 3: the 0.5 mm mean framewise-
+   displacement cutoff, its exact exception counts, the tSNR description,
+   and the Semantic > Pseudofont-vs-NeuroSynth overlap were confirmed
+   directly against the preprint's Methods and Technical Validation
+   sections once bioRxiv's rate limit (which returned HTTP 429 for every
+   attempt while this page was first built, including one fetch that
+   returned a fluent but unusable answer under the same failed request -
+   caught and discarded rather than used) stopped blocking the fetch.
+   The exact split-half reliability values (Spearman-Brown corrected)
+   remain unconfirmed: the accessible text states only that "results
+   indicate high reliability across measures for all tasks," without the
+   Tables 2-4 figures. The specific 0.92-0.99 range shown at that step is
+   presented as provided for this page, not independently confirmed.
 5. Step 6's feature-set comparison (Pearson correlation and coefficient
    of determination by feature set) uses illustrative, invented numbers
    to teach the best-vs-necessary distinction - GRAND's own per-feature-
@@ -70,6 +76,13 @@ Citation-integrity note - read this before trusting any number below.
    score informed by GRAND's own acquisition parameters and by cited
    re-identification/privacy literature - not a value GRAND or that
    literature reports directly.
+7. The preprint's accessible Methods and Technical Validation text names
+   no explicit hemispheric-lateralization finding. Step 8's mention of a
+   left-lateralized language network is standard, independently citable
+   neuroscience background (e.g. Broca's and Wernicke's areas), presented
+   as context for GRAND's confirmed frontal/temporal activation - not as
+   a lateralization result this page verified GRAND's own paper to
+   report.
 
 Core logic lives in modules/signal_pipeline/core; this file is
 presentation plus GRAND's own facts and citations, which are specific to
@@ -135,7 +148,10 @@ _VEGA_CHART_CONFIG = {
 # README, and participants.tsv (all at
 # https://openneuro.org/datasets/ds007831/versions/1.0.1), and from the
 # cited papers - not recalled from memory. Step 3's QC-specific figures
-# are a separate case; see citation-integrity note item 4 above.
+# were confirmed directly against the preprint's Methods and Technical
+# Validation text; see citation-integrity note items 3 and 4 above for
+# exactly what is confirmed and what (the exact split-half values) is
+# not.
 # ---------------------------------------------------------------------
 
 GRAND_DATASET_CITATION = (
@@ -161,9 +177,23 @@ SCHWARZ_CITATION = (
     "face-recognition software. New England Journal of Medicine, 381(17), "
     "1684-1686. https://doi.org/10.1056/NEJMc1908881"
 )
+BUILD_CITATION = (
+    "Turkeltaub, P. E. (Principal Investigator). Brain-based Understanding "
+    "of Individual Language Differences after Stroke (BUILD). "
+    "ClinicalTrials.gov identifier NCT04991519."
+)
+READMAP_CITATION = (
+    "Turkeltaub, P. E. (Principal Investigator). Reading in Stroke Alexia "
+    "and Typical Aging (ReadMap). ClinicalTrials.gov identifier NCT06700005."
+)
 
 GRAND_N_PARTICIPANTS = 110  # participants.tsv row count, fetched directly
 GRAND_N_PARTICIPANTS_PREPRINT_ABSTRACT = 116  # stated in the preprint's abstract - see docstring
+GRAND_N_BUILD = 69  # of the 116, recruited via BUILD - preprint Methods
+GRAND_N_READMAP = 47  # of the 116, recruited via ReadMap - preprint Methods
+GRAND_FD_CUTOFF_MM = 0.5  # mean framewise-displacement cutoff, both MRI modalities
+GRAND_N_OVER_FD_CUTOFF_FUNCTIONAL = 2  # preprint Technical Validation
+GRAND_N_OVER_FD_CUTOFF_DIFFUSION = 7  # preprint Technical Validation
 GRAND_AGE_MIN = 22.42
 GRAND_AGE_MAX = 84.15
 GRAND_AGE_MEAN = 59.7
@@ -175,9 +205,10 @@ GRAND_PURPOSE = (
     "reading, as well as language-associated fMRI activations"
 )
 QC_FIGURES_CAVEAT = (
-    "Figures on this page are as provided for it, consistent with standard "
-    "fMRI/diffusion-MRI methodology, but not independently verified against "
-    "the published manuscript - see the page's citation-integrity note."
+    "The motion cutoffs, exception counts, tSNR description, and task-"
+    "contrast overlap below are confirmed directly against the published "
+    "manuscript. The exact split-half reliability values are not - see the "
+    "page's citation-integrity note, item 4."
 )
 
 BASELINE_MODALITY_NAME = "Structural MRI (T1w/FLAIR)"
@@ -305,9 +336,15 @@ def _brain_scene_html(modalities: tuple[modality_core.Modality, ...], height: in
         icons_svg.append(f'<g style="--pulse-amt:{amt};--pulse-dur:{dur};">')
         icons_svg.append(_icon_markup(_MODALITY_ICON_PATHS[m.category], color, sx, sy, 1.05, "icon-pulse"))
         label_y = sy - 24 if sy < by else sy + 34
+        # The category (e.g. "Structural"), not the full m.name (e.g.
+        # "Structural MRI (T1w/FLAIR)"): the satellites sit close to the
+        # 300px-wide scene's edges, and a long centered label there
+        # overflows past the viewBox and gets clipped. The full name is
+        # still shown in the legend below and in each modality's own
+        # expander.
         icons_svg.append(
             f'<text x="{sx}" y="{label_y}" text-anchor="middle" font-size="10" '
-            f'fill="{INK_SECONDARY}">{m.name}</text>'
+            f'fill="{INK_SECONDARY}">{m.category}</text>'
         )
         icons_svg.append("</g>")
 
@@ -581,8 +618,12 @@ QC_NOTES = {
     "Structural MRI (T1w/FLAIR)": {
         "what_to_inspect": "Visual inspection for gross artifacts, motion blurring, or incidental findings.",
         "interpretation": (
-            "This page does not have a modality-specific quantitative QC figure for "
-            "Structural MRI; standard practice is qualitative visual review unless a "
+            "FLAIR (fluid-attenuated inversion recovery) is a structural "
+            "sequence tuned to suppress fluid signal, which makes white-"
+            "matter change and certain lesions easier to see than on a "
+            "plain T1-weighted scan alone. This page does not have a "
+            "modality-specific quantitative QC figure for Structural MRI; "
+            "standard practice is qualitative visual review unless a "
             "specific metric is reported."
         ),
     },
@@ -594,40 +635,68 @@ QC_NOTES = {
             "\"language\" meta-analytic map."
         ),
         "interpretation": (
-            "A commonly used mean framewise-displacement cutoff for excluding a run "
-            "is 0.5 mm; most participants are reported to fall under this threshold. "
-            "tSNR is the voxelwise mean signal divided by its standard deviation "
-            "across time; comparable tSNR across participants supports comparable "
-            "signal quality, and tSNR varying spatially across the brain is expected "
-            "(MRI sensitivity is not uniform across regions), not evidence of a "
-            "data-quality problem on its own. Strong spatial overlap between the "
-            "task contrast and the NeuroSynth language map is external evidence that "
-            "the task engaged expected language-associated regions."
+            f"A commonly used mean framewise-displacement cutoff for "
+            f"excluding a run is {GRAND_FD_CUTOFF_MM} mm; GRAND's preprint "
+            f"reports that all but {GRAND_N_OVER_FD_CUTOFF_FUNCTIONAL} "
+            "participants average less than this. tSNR is the voxelwise "
+            "mean signal divided by its standard deviation across time; "
+            "comparable tSNR across participants supports comparable "
+            "signal quality, and tSNR varying spatially across the brain is "
+            "expected (MRI sensitivity is not uniform across regions), not "
+            "evidence of a data-quality problem on its own. \"Semantic > "
+            "Pseudofont\" contrasts real-word reading against a visually "
+            "matched control condition (pseudofont strings: shapes similar "
+            "in size and spacing to letters, but not readable as words), so "
+            "the resulting activation reflects word-reading itself rather "
+            "than just looking at something on a screen. NeuroSynth is an "
+            "automated meta-analysis tool that pools thousands of published "
+            "fMRI studies into a single map per search term; GRAND's "
+            "preprint reports strong spatial overlap between this contrast "
+            "and NeuroSynth's \"language\" map, external evidence that the "
+            "task engaged expected language-associated regions."
         ),
     },
     "Diffusion MRI (HARDI/DTI)": {
         "what_to_inspect": "Mean framewise displacement during the diffusion sequence.",
         "interpretation": (
-            "The same 0.5 mm mean framewise-displacement cutoff is reported to apply "
-            "here; a small number of participants are reported to exceed it for this "
-            "specific, longer sequence."
+            "HARDI (high angular resolution diffusion imaging) acquires "
+            "diffusion-weighted volumes along many more gradient directions "
+            "than a standard DTI (diffusion tensor imaging) scan, which "
+            "supports more detailed tractography; GRAND acquires HARDI-"
+            "density data (128 volumes total, see Step 2) and derives its "
+            "connectomes from it. "
+            f"The same {GRAND_FD_CUTOFF_MM} mm mean framewise-displacement "
+            f"cutoff is reported to apply here; GRAND's preprint reports "
+            f"that {GRAND_N_OVER_FD_CUTOFF_DIFFUSION} participants exceed "
+            "it for this specific, longer sequence."
         ),
     },
     "Connectome (derived)": {
         "what_to_inspect": "Whichever QC was applied to the modality this connectome was derived from.",
         "interpretation": (
-            "This page could not verify GRAND's own connectome-construction "
-            "pipeline (see the citation-integrity note). Any connectome's quality "
-            "is bounded by the quality of its source data and by a derivation this "
-            "page cannot fully check."
+            "GRAND's preprint reports that each connectome is built by "
+            "probabilistic, anatomically-constrained tractography, "
+            "tracing likely white-matter fiber pathways through the "
+            "diffusion data, then assigning those pathways to parcels "
+            "(anatomically defined regions) of the Brainnetome atlas, a "
+            "published whole-brain parcellation scheme. Each edge in the "
+            "resulting connectome is the apparent fiber density between two "
+            "parcels. Any connectome's quality is still bounded by the "
+            "quality of the diffusion data it was built from, the same "
+            "framewise-displacement figures above."
         ),
     },
     "Behavioral reading/language measures": {
         "what_to_inspect": "Split-half reliability of accuracy and reaction time, computed separately.",
         "interpretation": (
-            "Split-half reliability (Spearman-Brown corrected) is reported as "
-            "generally high, on the order of 0.92 to 0.99 for reaction-time and "
-            "time-on-item measures specifically. Accuracy is reported as more "
+            "Split-half reliability (Spearman-Brown corrected: a formula "
+            "that adjusts a reliability estimate for the fact that each "
+            "half of a split test is shorter than the full test) is "
+            "reported as generally high, on the order of 0.92 to 0.99 for "
+            "reaction-time and time-on-item measures specifically. The "
+            "preprint's accessible text confirms reliability is high across "
+            "measures, but not this exact numeric range; see the "
+            "citation-integrity note, item 4. Accuracy is reported as more "
             "variable, partly attributable to ceiling effects on an easier task."
         ),
     },
@@ -707,8 +776,8 @@ st.set_page_config(
 
 st.title("GRAND: A Real-Data Multimodal Signal-Flow Example")
 st.caption(
-    "This journey uses one real, cited dataset - GRAND (Anderson et al., "
-    "2026) - to run the same signal-flow engine built for illustrative "
+    "This journey uses one real, cited dataset, GRAND (Anderson et al., "
+    "2026), to run the same signal-flow engine built for illustrative "
     "modalities in Multimodal Signal Convergence, on real structural, "
     "functional, and diffusion MRI, a derived connectome, and behavioral "
     "reading/language measures."
@@ -745,9 +814,11 @@ st.markdown("### What Does Each Imaging Modality Contribute To Understanding Rea
 
 st.write(
     f"GRAND scanned {GRAND_N_PARTICIPANTS} healthy older adults with "
-    "structural, functional, and diffusion MRI, derived a connectome from "
-    "that data, and separately measured reading and language performance "
-    "outside the scanner. Each of these five modalities measures a "
+    "structural, functional, and diffusion MRI, derived a connectome (a "
+    "map of how strongly different brain regions are structurally "
+    "connected) from that data, and separately measured reading and "
+    "language performance outside the scanner. Each of these five "
+    "modalities measures a "
     "different thing about the same participants. This page follows the "
     "sequence a researcher moves through to turn that raw acquisition "
     "into a defensible statement about what each modality adds: "
@@ -756,15 +827,40 @@ st.write(
     "interpretation."
 )
 
+st.write(
+    "Reading and language ability are frequently disrupted by stroke, and "
+    "stroke risk rises with age, so a study of stroke-related language "
+    "impairment needs a normative picture of how reading and its brain "
+    "basis work in healthy older adults first, to know what a patient's "
+    "performance is being compared against. GRAND's participants were "
+    "recruited through two studies aimed at exactly that: BUILD "
+    "(\"Brain-based Understanding of Individual Language Differences after "
+    "stroke\") and ReadMap (\"Reading in Stroke Alexia and Typical Aging\"), "
+    "both run by GRAND's senior author. GRAND itself scans only "
+    "neurotypical adults - it is the normative half of that research "
+    "program, not a stroke dataset."
+)
+
 with st.expander("About GRAND"):
     st.write(
         f"Purpose, as stated by the dataset: \"{GRAND_PURPOSE}.\" Data was "
         f"collected at {GRAND_SITE} using a {GRAND_SCANNER}. The functional "
         f"task was {GRAND_TASK_NAME}."
     )
+    st.write(
+        f"Of the preprint's {GRAND_N_PARTICIPANTS_PREPRINT_ABSTRACT} "
+        f"participants, {GRAND_N_BUILD} were recruited via BUILD and "
+        f"{GRAND_N_READMAP} via ReadMap ({GRAND_N_BUILD} + "
+        f"{GRAND_N_READMAP} = {GRAND_N_BUILD + GRAND_N_READMAP}). "
+        f"participants.tsv in the released dataset has "
+        f"{GRAND_N_PARTICIPANTS} rows; nothing in the accessible text "
+        "explains that gap - see the citation-integrity note, item 2."
+    )
     st.caption(GRAND_DATASET_CITATION)
     st.caption(GRAND_PREPRINT_CITATION)
     st.caption(WILSON_CITATION)
+    st.caption(BUILD_CITATION)
+    st.caption(READMAP_CITATION)
 
 if stage < STAGE_ACQUIRE:
     if st.button("Begin study", type="primary"):
@@ -812,7 +908,7 @@ if stage >= STAGE_ACQUIRE:
     )
 
     for m in current_modalities:
-        with st.expander(f"{m.name} - what this measures"):
+        with st.expander(f"{m.name}, what this measures"):
             st.caption(f"Examples: {m.signal_examples}.")
             st.write(m.notes)
             st.caption(m.citation)
@@ -833,7 +929,7 @@ if stage >= STAGE_ACQUIRE:
     caveat(
         "Every interpretive-gain and cost rating on this page is an "
         "illustrative, author-assigned score informed by GRAND's own "
-        "acquisition parameters and by cited literature - not a value "
+        "acquisition parameters and by cited literature, not a value "
         "GRAND or that literature reports directly. See the page "
         "docstring for what is flagged rather than resolved."
     )
@@ -854,6 +950,25 @@ if stage >= STAGE_QC:
 
     st.caption(QC_FIGURES_CAVEAT)
 
+    _fd_over_cutoff = {
+        "Functional MRI (T2*, language task)": GRAND_N_OVER_FD_CUTOFF_FUNCTIONAL,
+        "Diffusion MRI (HARDI/DTI)": GRAND_N_OVER_FD_CUTOFF_DIFFUSION,
+    }
+    _fd_columns_needed = [
+        m for m in _current_modalities() if m.name in _fd_over_cutoff
+    ]
+    if _fd_columns_needed:
+        st.write(
+            f"**Motion QC**: participants exceeding the "
+            f"{GRAND_FD_CUTOFF_MM} mm mean framewise-displacement cutoff, "
+            "per modality:"
+        )
+        fd_columns = st.columns(len(_fd_columns_needed))
+        for column, m in zip(fd_columns, _fd_columns_needed):
+            with column:
+                st.metric(m.category, _fd_over_cutoff[m.name])
+        st.caption(GRAND_PREPRINT_CITATION)
+
     for m in _current_modalities():
         qc = QC_NOTES.get(m.name)
         if qc is None:
@@ -865,7 +980,7 @@ if stage >= STAGE_QC:
     st.write(
         "**Implications**: a modality that fails its own quality check "
         "should not proceed to the same processing and integration steps "
-        "as one that passes - QC is a gate on the pipeline, not a summary "
+        "as one that passes; QC is a gate on the pipeline, not a summary "
         "written after the fact."
     )
 
@@ -902,7 +1017,7 @@ if stage >= STAGE_PROCESS:
         "node; the diagram converges only at Inference, using "
         "modules/signal_pipeline/core's convergence_stage parameter "
         "(the illustrative EEG/ECG/EMG journey converges immediately "
-        "after Sensors instead - both are the same underlying engine)."
+        "after Sensors instead, both are the same underlying engine)."
     )
 
     if stage < STAGE_ALIGN:
@@ -982,7 +1097,7 @@ if stage >= STAGE_EVALUATE:
     st.warning(
         "The feature sets and performance figures below are illustrative "
         "numbers invented to demonstrate the method, not GRAND's own "
-        "model-comparison results - this page did not have access to "
+        "model-comparison results; this page did not have access to "
         "GRAND's raw imaging or per-subject model outputs. See the page's "
         "citation-integrity note, item 5."
     )
@@ -1014,9 +1129,9 @@ if stage >= STAGE_EVALUATE:
 
     st.write(
         f"**What this shows**: the best-performing illustrative feature "
-        f"set is **{selection.best}**. The necessary feature set - the "
+        f"set is **{selection.best}**. The necessary feature set, the "
         f"fewest features whose performance is not distinguishable from "
-        f"best by the one-standard-error rule - is **{selection.necessary}**."
+        f"best by the one-standard-error rule, is **{selection.necessary}**."
     )
     with st.expander("The one-standard-error rule"):
         st.write(
@@ -1062,10 +1177,29 @@ if stage >= STAGE_INTERPRET:
 
     st.write("**Was its quality adequate for this analysis?**")
     st.write(
-        "Per Step 3, subject to the QC figures' own caveat: most "
-        "participants are reported to meet the motion criteria used for "
-        "the MRI modalities, and behavioral measures are reported as "
-        "reliable, particularly the reaction-time-based ones."
+        f"Per Step 3: nearly all participants meet the "
+        f"{GRAND_FD_CUTOFF_MM} mm motion cutoff used for the MRI "
+        f"modalities: all but {GRAND_N_OVER_FD_CUTOFF_FUNCTIONAL} for "
+        f"the functional task, all but {GRAND_N_OVER_FD_CUTOFF_DIFFUSION} "
+        "for the longer diffusion sequence, and behavioral measures are "
+        "reported as reliable, particularly the reaction-time-based ones, "
+        "though the exact reliability figures remain unconfirmed (see the "
+        "citation-integrity note, item 4)."
+    )
+
+    st.write("**Where did the task activate?**")
+    st.write(
+        "Per Step 3: the Semantic > Pseudofont contrast overlapped "
+        "strongly with core language-critical regions in frontal and "
+        "temporal cortex, consistent with the classic, left-lateralized "
+        "language network described since Broca and Wernicke, background "
+        "neuroscience offered as context, not a page-verified claim about "
+        "what GRAND's own paper reports on lateralization specifically "
+        "(citation-integrity note, item 7). That network's relevance here "
+        "is not academic: BUILD and ReadMap, the parent studies GRAND's "
+        "normative data supports, study how surviving brain regions take "
+        "on new or expanded roles after a stroke damages part of this "
+        "network: neuroplasticity in aphasia recovery."
     )
 
     st.write("**What information did it add?**")
@@ -1085,42 +1219,11 @@ if stage >= STAGE_INTERPRET:
     st.write(
         "A statement about which modalities' derived features "
         "statistically improve prediction of the behavioral outcome in "
-        "this illustrative demonstration - not a statement about which "
+        "this illustrative demonstration, not a statement about which "
         "modalities are biologically necessary for reading and language, "
         "which would require evidence this page does not have."
     )
 
     st.divider()
-    st.write("**Limitations**")
-    flagged_item_note(
-        "Sample size discrepancy",
-        f"GRAND's own files describe {GRAND_N_PARTICIPANTS} participants; "
-        f"the preprint's abstract states {GRAND_N_PARTICIPANTS_PREPRINT_ABSTRACT}. "
-        "Unreconciled here.",
-    )
-    flagged_item_note(
-        "Connectome construction",
-        "Not documented in what this page could verify.",
-    )
-    flagged_item_note(
-        "QC figures",
-        "Provided for this page, not independently verified against the "
-        "published manuscript.",
-    )
-    flagged_item_note(
-        "Feature-set comparison",
-        "Illustrative numbers, not GRAND's own reported model-comparison "
-        "results.",
-    )
-
-    st.write("**Implications**")
-    st.write(
-        "modules/signal_pipeline/core needed one backward-compatible "
-        "addition (a convergence_stage parameter on build_pipeline) to "
-        "represent modalities that are processed separately before being "
-        "integrated, rather than converging immediately after "
-        "acquisition. The illustrative EEG/ECG/EMG journey's behavior is "
-        "unchanged by this addition."
-    )
     st.caption(GRAND_DATASET_CITATION)
     st.caption(GRAND_PREPRINT_CITATION)
