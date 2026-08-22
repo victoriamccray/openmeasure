@@ -68,7 +68,7 @@ CATEGORY_ORDER: tuple[str, ...] = (
     "Data Validation",
     "Fairness & Model Validation",
     "Program Validation",
-    "Cross-cutting validation",
+    "Cross-Cutting Validation",
 )
 
 # The keys workflow pages record their results under, via shared/handoff.py.
@@ -222,7 +222,7 @@ WORKFLOWS: tuple[Workflow, ...] = (
     ),
     Workflow(
         workflow="Cross-Analysis Implications",
-        category="Cross-cutting validation",
+        category="Cross-Cutting Validation",
         stage="Interpretation",
         version="0.1",
         summary=(

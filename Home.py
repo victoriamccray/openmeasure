@@ -17,15 +17,17 @@ stage, no validation category, and record nothing to shared/handoff.py,
 so folding any of them into workflows_by_category() would imply a status
 it can never have.
 
-Research Journeys renders one sidebar section per domain
-(shared/research_journeys.py's JOURNEY_DOMAINS), built from
-journeys_by_domain(), rather than one section holding all of them. That
-module is the single source those domains and titles come from, same
-relationship shared/catalog.py has to the validation workflow sections
-below. A domain is a second level under "Research Journeys" in substance,
-even though Streamlit's st.navigation only groups pages one level deep in
-the sidebar: each domain becomes its own top-level section, titled
-"Research Journeys: <domain>", rather than a nested tree.
+Research Journeys does not get one sidebar entry per journey, or one
+section per domain: both read as repetitive once there are six of them
+across three domains. Instead there is a single visible "Research
+Journeys" entry, pages/Research_Journeys.py, which is a landing page
+listing every journey grouped by domain (shared/research_journeys.py's
+journeys_by_domain()) for a reader to pick one from. The six individual
+journey pages are still declared below, with visibility="hidden": each
+still resolves for st.page_link and its existing direct URL (e.g.
+/HealthRing_Worked_Example keeps working), it just is not listed in the
+sidebar itself. pages/Research_Journeys.py and pages/Overview.py's
+"Research Question" card are what a reader actually clicks through.
 
 Two consequences of declaring navigation explicitly, both intended:
 
@@ -41,7 +43,7 @@ Two consequences of declaring navigation explicitly, both intended:
 import streamlit as st
 
 from shared.catalog import workflows_by_category
-from shared.research_journeys import journeys_by_domain
+from shared.research_journeys import JOURNEYS
 
 st.set_page_config(
     page_title="OpenMeasure Lab",
@@ -78,22 +80,27 @@ sections: dict[str, list[st.Page]] = {
             title="Resources",
             url_path="Resources",
         ),
+        st.Page(
+            "pages/Research_Journeys.py",
+            title="Research Journeys",
+            url_path="Research_Journeys",
+        ),
     ],
-}
-
-# One sidebar section per Research Journeys domain. Titles and url_paths
-# come from shared/research_journeys.py verbatim, for the same reason
-# workflow titles below come from shared/catalog.py verbatim: a
-# shorter sidebar-only label would be a second name for the same thing.
-for domain, journeys in journeys_by_domain().items():
-    sections[f"Research Journeys: {domain}"] = [
+    # Hidden from the sidebar (each journey would otherwise be its own
+    # entry, or its own domain section -- both read as repetitive). Still
+    # part of the navigation graph, so st.page_link and each existing
+    # direct URL keep resolving; pages/Research_Journeys.py and
+    # pages/Overview.py's "Research Question" card are what links to them.
+    "Research Journeys (hidden)": [
         st.Page(
             journey.page,
             title=journey.title,
             url_path=journey.url_path,
+            visibility="hidden",
         )
-        for journey in journeys
-    ]
+        for journey in JOURNEYS
+    ],
+}
 
 # Category headings come from the catalog verbatim. Inventing a shorter
 # sidebar-only label per category would mean a second name for the same

@@ -399,7 +399,7 @@ def stage_named(name: str, entries, workflows: tuple[Workflow, ...] = WORKFLOWS)
 READER_ONLY_STAGE: tuple[Workflow, ...] = (
     Workflow(
         workflow="Reader Only",
-        category="Cross-cutting validation",
+        category="Cross-Cutting Validation",
         stage="Interpretation",
         version="0.1",
         summary="A summary.",

@@ -672,10 +672,10 @@ st.divider()
 # 0. Research question
 # -----------------------------------------------------------------
 
-section_header("Research question")
+section_header("Research Question")
 
 st.markdown(
-    "### Can we trust ring-derived heart rate across real-world conditions?"
+    "### Can We Trust Ring-Derived Heart Rate Across Real-World Conditions?"
 )
 
 st.write(
@@ -715,7 +715,7 @@ predicted_problems: list[str] = []
 
 if stage >= STAGE_UNDERSTAND_MEASUREMENT:
     section_header(
-        "Understand measurement",
+        "Understand Measurement",
         "What is actually being compared, before any analysis runs",
     )
 
@@ -922,7 +922,7 @@ Each measurement window in this dataset carries:
 
 if stage >= STAGE_SIGNAL_INSPECTION and windows is not None:
     section_header(
-        "Signal inspection",
+        "Signal Inspection",
         "Walk through one real measurement window end to end",
     )
 
@@ -1014,7 +1014,7 @@ fitted: dict[str, tuple[ar.RecalibrationModel, ar.AgreementResult, pd.DataFrame]
 
 if stage >= STAGE_DESIGN_EVALUATION and windows is not None:
     section_header(
-        "Design the evaluation",
+        "Design the Evaluation",
         "How you split training and test data decides what the test result can claim",
     )
 
@@ -1165,7 +1165,7 @@ model_prediction = "Not sure"
 
 if stage >= STAGE_BASELINE and chosen_split is not None:
     section_header(
-        "Establish baseline",
+        "Establish Baseline",
         "What agreement looks like on the test set, before introducing any model",
     )
 
@@ -1214,7 +1214,7 @@ test_data: pd.DataFrame | None = None
 
 if stage >= STAGE_MODEL and chosen_split is not None and split_choice in fitted:
     section_header(
-        "Build model",
+        "Build Model",
         "One simple, interpretable model, fit on training data only",
     )
 
@@ -1395,7 +1395,7 @@ quality_threshold = 0.5
 
 if stage >= STAGE_RETENTION and evaluation is not None and test_data is not None:
     section_header(
-        "Make a research decision",
+        "Make a Research Decision",
         "Cleaner signal keeps less data: watch retention and error move together",
     )
 
@@ -1494,7 +1494,7 @@ REVEAL_BREAKDOWN_KEY = "hr_reveal_breakdown"
 
 if stage >= STAGE_CONDITIONS_CHECK and evaluation is not None and test_data is not None:
     section_header(
-        "Does it hold across conditions?",
+        "Does It Hold Across Conditions?",
         "The pooled result can hide differences that only show up condition by condition",
     )
 
@@ -1582,7 +1582,7 @@ if stage >= STAGE_CONDITIONS_CHECK and evaluation is not None and test_data is n
 
 if stage >= STAGE_CONCLUSION and evaluation is not None and baseline is not None:
     section_header(
-        "Defend your conclusion",
+        "Defend Your Conclusion",
         "Based on what you observed, what would you actually trust this measurement to do?",
     )
 
@@ -1661,7 +1661,7 @@ if stage >= STAGE_CONCLUSION and evaluation is not None and baseline is not None
 
 if stage >= STAGE_FINISH and evaluation is not None and baseline is not None:
     section_header(
-        "Finish study",
+        "Finish Study",
         "A compact validation record",
     )
 
@@ -1748,7 +1748,7 @@ beyond this dataset.
 """
     )
 
-    st.markdown("### WIGOR coverage")
+    st.markdown("### WIGOR Coverage")
 
     st.caption(
         "WIGOR is a published reporting checklist for wearable-signal "

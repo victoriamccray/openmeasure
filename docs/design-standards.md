@@ -40,6 +40,15 @@ and type-checkable. Every result dataclass includes, at minimum:
 
 ## 3. Reporting layer
 
+Every heading (`st.title`, `st.subheader`, `section_header()`'s title
+argument, and any raw `####`/`###` markdown heading) is title case: every
+word capitalized except the small grammatical connectors — articles (a,
+an, the), and the coordinating conjunctions and, but, or, nor, for, so,
+yet — which stay lowercase unless they are the first or last word.
+Acronyms (QA, QC, GAIA, WIGOR, fMRI's own house style, etc.) keep their
+own casing. This applies to headings only — body text, captions, badges,
+and bold inline labels inside a card stay sentence case.
+
 Every module's Streamlit page uses `shared/report.py` for:
 
 - `section_header()` — consistent section dividers, never ad hoc `st.subheader()` calls

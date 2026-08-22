@@ -169,7 +169,7 @@ with st.expander("Assumptions & limitations", icon=":material/balance:"):
 """
     )
 
-section_header("1. Upload your data", "CSV file in wide format, one row per participant")
+section_header("1. Upload Your Data", "CSV file in wide format, one row per participant")
 
 uploaded = st.file_uploader("CSV file", type="csv", label_visibility="collapsed")
 
@@ -184,7 +184,7 @@ df = pd.read_csv(uploaded)
 st.write(f"Loaded **{df.shape[0]} rows** and **{df.shape[1]} columns**.")
 st.dataframe(df.head(), width="stretch")
 
-section_header("2. Select columns")
+section_header("2. Select Columns")
 
 id_col = st.selectbox(
     "Participant ID column (optional, excluded from analysis)",
@@ -290,7 +290,7 @@ if analyze_clicked:
         "this scale."
     )
 
-    section_header("Item diagnostics")
+    section_header("Item Diagnostics")
 
     diag_rows = []
     for d in result.item_diagnostics:
@@ -323,7 +323,7 @@ if analyze_clicked:
             "This item should be reviewed rather than automatically removed."
         )
 
-    section_header("Item-total correlation chart")
+    section_header("Item-Total Correlation Chart")
     chart_df = pd.DataFrame(
         {d.item: [d.item_total_corr] for d in result.item_diagnostics}
     ).T

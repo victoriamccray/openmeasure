@@ -132,7 +132,7 @@ class TestEveryPageLoads(unittest.TestCase):
             "The entrypoint failed to render its default page.",
         )
         self.assertIn(
-            "Where each module fits",
+            "Where Each Module Fits",
             [str(item.value) for item in app.subheader],
             "The entrypoint ran but did not render the overview content.",
         )
@@ -624,6 +624,68 @@ class TestResourcesPage(unittest.TestCase):
 
     def test_the_page_records_nothing_to_the_handoff_store(self):
         app = self._run_resources_page()
+
+        self.assertNotIn(STORE_KEY, app.session_state)
+
+
+class TestResearchJourneysPage(unittest.TestCase):
+    """
+    The landing page for Research Journeys: every journey's title renders,
+    and each journey page is still reachable even though it is hidden from
+    the sidebar (Home.py declares them with visibility="hidden").
+    """
+
+    def _run_research_journeys_page(self) -> AppTest:
+        app = AppTest.from_file(str(ENTRYPOINT), default_timeout=LOAD_TIMEOUT_SECONDS)
+        app.run()
+        app.switch_page("pages/Research_Journeys.py")
+        app.run()
+
+        self.assertFalse(
+            app.exception,
+            "Research Journeys raised on load.",
+        )
+
+        return app
+
+    def test_the_page_is_reachable_from_the_entrypoint(self):
+        app = self._run_research_journeys_page()
+
+        self.assertIn(
+            "Research Journeys",
+            [str(item.value) for item in app.title],
+        )
+
+    def test_every_journey_title_is_rendered(self):
+        from shared.research_journeys import JOURNEYS
+
+        app = self._run_research_journeys_page()
+
+        rendered = " ".join(str(item.value) for item in app.markdown)
+
+        for journey in JOURNEYS:
+            with self.subTest(journey=journey.title):
+                self.assertIn(journey.title, rendered)
+
+    def test_a_hidden_journey_page_is_still_reachable_directly(self):
+        from shared.research_journeys import JOURNEYS
+
+        app = AppTest.from_file(str(ENTRYPOINT), default_timeout=LOAD_TIMEOUT_SECONDS)
+        app.run()
+
+        for journey in JOURNEYS:
+            with self.subTest(journey=journey.title):
+                app.switch_page(journey.page)
+                app.run()
+
+                self.assertFalse(
+                    app.exception,
+                    f"{journey.page} raised when reached directly, despite "
+                    "being hidden from the sidebar.",
+                )
+
+    def test_the_page_records_nothing_to_the_handoff_store(self):
+        app = self._run_research_journeys_page()
 
         self.assertNotIn(STORE_KEY, app.session_state)
 

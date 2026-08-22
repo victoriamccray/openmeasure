@@ -419,7 +419,7 @@ st.divider()
 # 0. Research question
 # -----------------------------------------------------------------
 
-section_header("Research question")
+section_header("Research Question")
 
 st.markdown(
     "### Do trained raters agree on which fMRI scans are usable, and "
@@ -467,7 +467,7 @@ if stage < STAGE_UNDERSTAND_MEASUREMENT:
 
 if stage >= STAGE_UNDERSTAND_MEASUREMENT:
     section_header(
-        "Understand measurement",
+        "Understand Measurement",
         "What pyfMRIqc measures, and what a QC decision means",
     )
 
@@ -522,7 +522,7 @@ decision, and measured how much they agreed with each other.
 
 if stage >= STAGE_SIGNAL_INSPECTION:
     section_header(
-        "Signal inspection",
+        "Signal Inspection",
         "Real pyfMRIqc output on real study subjects",
     )
 
@@ -826,7 +826,7 @@ if stage >= STAGE_SIGNAL_INSPECTION:
 
 if stage >= STAGE_SIMULATED_COMPARISON:
     section_header(
-        "Compare simulated events",
+        "Compare Simulated Events",
         "Three known-cause examples, kept separate from the real subject data above",
     )
 

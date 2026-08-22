@@ -60,18 +60,18 @@ class Resource:
 # Display order for kinds. Declared explicitly, same reasoning as
 # shared/catalog.py's CATEGORY_ORDER: there is no honest way to derive one.
 KIND_ORDER: tuple[str, ...] = (
-    "Method selection tool",
-    "Statistical toolkit",
-    "Dataset directory",
-    "Measures repository",
-    "Research platform",
-    "Research impact resource",
+    "Method Selection Tool",
+    "Statistical Toolkit",
+    "Dataset Directory",
+    "Measures Repository",
+    "Research Platform",
+    "Research Impact Resource",
 )
 
 RESOURCES: tuple[Resource, ...] = (
     Resource(
         name="Co-Creation Methods Navigator",
-        kind="Method selection tool",
+        kind="Method Selection Tool",
         description=(
             "A decision-support tool for exploring over 500 co-creation "
             "and participatory-research methods, to find an approach "
@@ -82,7 +82,7 @@ RESOURCES: tuple[Resource, ...] = (
     ),
     Resource(
         name="OpenEpi",
-        kind="Statistical toolkit",
+        kind="Statistical Toolkit",
         description=(
             "Free, open-source web calculators for epidemiologic and "
             "biostatistical analysis: sample size and power, 2x2 and "
@@ -93,7 +93,7 @@ RESOURCES: tuple[Resource, ...] = (
     ),
     Resource(
         name="Neuro2.ai Neuroscience Datasets",
-        kind="Dataset directory",
+        kind="Dataset Directory",
         description=(
             "A searchable directory of neuroscience datasets, filterable "
             "by modality and source."
@@ -102,7 +102,7 @@ RESOURCES: tuple[Resource, ...] = (
     ),
     Resource(
         name="HEALthy Brain and Child Development (HBCD) Study - Release 2.1",
-        kind="Dataset directory",
+        kind="Dataset Directory",
         description=(
             "A longitudinal dataset of more than 3,500 participants, with "
             "structural MRI, diffusion MRI, resting-state fMRI, and EEG "
@@ -115,7 +115,7 @@ RESOURCES: tuple[Resource, ...] = (
     Resource(
         name="Open Measurement Network Initiative for Alzheimer's Disease "
         "and Related Dementias (OMNI ADRD)",
-        kind="Measures repository",
+        kind="Measures Repository",
         description=(
             "An open science repository of broadly applicable, precise, "
             "and sensitive measures for use in dementia prevention trials."
@@ -124,7 +124,7 @@ RESOURCES: tuple[Resource, ...] = (
     ),
     Resource(
         name="OpenNerve",
-        kind="Research platform",
+        kind="Research Platform",
         description=(
             "An open-source implantable neuromodulation system intended "
             "to support diverse clinical research needs."
@@ -132,13 +132,14 @@ RESOURCES: tuple[Resource, ...] = (
         url="https://sites.usc.edu/carss/",
     ),
     Resource(
-        name="Science with Impact (Anne Toomey)",
-        kind="Research impact resource",
+        name="Science With Impact (Anne Toomey)",
+        kind="Research Impact Resource",
         description=(
             "Ways to make science more impactful for society, including "
             "community-based science, improved science communication, "
             "and science policy."
         ),
+        url="https://digitalcommons.pace.edu/bookshelf/25/",
     ),
 )
 

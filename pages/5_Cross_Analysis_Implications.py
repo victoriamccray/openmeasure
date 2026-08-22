@@ -123,7 +123,7 @@ summary = summarize_retention(accounts_by_dataset)
 # ---------------------------------------------------------------------
 
 section_header(
-    "What was recorded",
+    "What Was Recorded",
     "Where every number below came from",
 )
 
@@ -272,7 +272,7 @@ for dataset in summary.datasets:
 # Implication
 # ---------------------------------------------------------------------
 
-section_header("What this means")
+section_header("What This Means")
 
 st.markdown("**Observation**")
 st.write(
@@ -294,7 +294,7 @@ for limitation in summary.limitations:
 # Housekeeping
 # ---------------------------------------------------------------------
 
-section_header("Recorded results")
+section_header("Recorded Results")
 
 st.caption(
     "Records last for this browser session only. Re-running a module "

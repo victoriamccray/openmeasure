@@ -138,7 +138,7 @@ comparisons.
 """
     )
 
-section_header("1. Upload your data", "CSV file, one row per participant")
+section_header("1. Upload Your Data", "CSV file, one row per participant")
 
 uploaded = st.file_uploader("CSV file", type="csv", label_visibility="collapsed")
 
@@ -166,7 +166,7 @@ if st.session_state.get("pe_uploaded_file_id") != uploaded.file_id:
 st.write(f"Loaded **{df.shape[0]} rows** and **{df.shape[1]} columns**.")
 st.dataframe(df.head(), width="stretch")
 
-section_header("2. Describe your comparison")
+section_header("2. Describe Your Comparison")
 
 design = st.radio(
     "What are you comparing?",
@@ -302,7 +302,7 @@ if "pe_recommendation" in st.session_state:
                         "groups may be unstable."
                     )
 
-                section_header("Pairwise comparisons (Games-Howell)")
+                section_header("Pairwise Comparisons (Games-Howell)")
                 pairwise_df = pd.DataFrame([
                     {
                         "Group A": p.group_a,
@@ -339,7 +339,7 @@ if "pe_recommendation" in st.session_state:
                         "groups may be unstable."
                     )
 
-                section_header("Pairwise comparisons (Tukey HSD)")
+                section_header("Pairwise Comparisons (Tukey HSD)")
                 pairwise_df = pd.DataFrame([
                     {
                         "Group A": p.group_a,
@@ -395,7 +395,7 @@ if "pe_recommendation" in st.session_state:
                     delimiter=context.get("delimiter", ","),
                 )
 
-                section_header("Result: sensitivity across coding schemes")
+                section_header("Result: Sensitivity Across Coding Schemes")
                 p_df = pd.DataFrame([
                     {"Coding scheme": name, "p-value": round(p, 4)}
                     for name, p in result.p_values_by_coding.items()

@@ -16,10 +16,20 @@ fuller reasoning already given there).
 
 domain groups journeys because a single undifferentiated "Research
 Journeys" list stopped being legible once it held six entries spanning
-three unrelated fields. Home.py renders one sidebar section per domain by
-iterating journeys_by_domain(), so a new journey only needs a domain from
-JOURNEY_DOMAINS (or a new domain added to that tuple) and an entry below --
-no navigation restructuring.
+three unrelated fields. It does not get its own sidebar level -- Home.py
+renders one flat "Research Journeys" section, because st.navigation only
+groups pages one level deep, and a separate top-level section per domain
+read as repetitive tabs rather than one topic with sub-groups. Instead,
+JOURNEYS is declared in domain order, so a domain's journeys sit together
+in that one list, and pages/Overview.py's "Research Question" stage
+renders one card per domain using journeys_by_domain(). A new journey
+only needs a domain from JOURNEY_DOMAINS (or a new domain added to that
+tuple) and an entry placed next to the others in its domain.
+
+title is the short, plain-language name a domain expert would use for the
+journey's field (e.g. "fMRI QC", "Neurosecurity"), not a "domain: dataset"
+label -- what the underlying dataset or study actually is belongs in
+summary instead, since the sidebar and Overview's cards render title only.
 
 title and page are unchanged from before this module existed, so every URL
 already linked to (e.g. /HealthRing_Worked_Example) keeps working: url_path
@@ -33,7 +43,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-# Domains, in the order Home.py renders their sidebar sections. Declared
+# Domains, in the order journeys are grouped within Home.py's single
+# "Research Journeys" section and rendered on Overview.py. Declared
 # explicitly, same reasoning as shared/catalog.py's CATEGORY_ORDER: there is
 # no honest way to derive an order, and alphabetical would be arbitrary.
 JOURNEY_DOMAINS: tuple[str, ...] = (
@@ -45,21 +56,10 @@ JOURNEY_DOMAINS: tuple[str, ...] = (
 
 @dataclass(frozen=True)
 class ResearchJourney:
-    """
-    One Research Journey, and where it belongs.
-
-    subdomain is the more specific field named within domain (e.g.
-    "Wearable signal processing" within "Multi-Modal Health Imaging"). It is
-    not shown in the sidebar -- Streamlit's st.navigation only groups pages
-    one level deep, the same limit Home.py's docstring already notes for
-    the domain grouping itself -- but it is kept as data so a page rendering
-    journeys (Overview.py, a future filter) can show it without re-deriving
-    it from title text.
-    """
+    """One Research Journey, and where it belongs."""
 
     title: str
     domain: str
-    subdomain: str
     summary: str
     page: str
 
@@ -71,7 +71,7 @@ class ResearchJourney:
                 f"Known domains: {', '.join(JOURNEY_DOMAINS)}."
             )
 
-        for name in ("title", "subdomain", "summary", "page"):
+        for name in ("title", "summary", "page"):
             if not getattr(self, name):
                 raise ValueError(
                     f"{self.title or 'A journey'} is missing a value for "
@@ -95,32 +95,30 @@ class ResearchJourney:
 
 JOURNEYS: tuple[ResearchJourney, ...] = (
     ResearchJourney(
-        title="Wearables: HealthRing",
+        title="Wearable signal processing",
         domain="Multi-Modal Health Imaging",
-        subdomain="Wearable signal processing",
         summary=(
             "A gated, step-by-step validation of consumer wearable "
-            "heart-rate and SpO2 data, from signal quality through a "
-            "leakage-aware train/test split to a closing validation record."
+            "heart-rate and SpO2 data (HealthRing), from signal quality "
+            "through a leakage-aware train/test split to a closing "
+            "validation record."
         ),
         page="pages/HealthRing_Worked_Example.py",
     ),
     ResearchJourney(
-        title="Neuroimaging: GRAND",
+        title="Neurocognitive",
         domain="Multi-Modal Health Imaging",
-        subdomain="Neurocognitive",
         summary=(
             "How separate imaging and behavioral modalities in a real "
-            "multimodal neuroimaging dataset are quality-checked on their "
-            "own before being combined into evidence about a research "
-            "question."
+            "multimodal neuroimaging dataset (GRAND) are quality-checked "
+            "on their own before being combined into evidence about a "
+            "research question."
         ),
         page="pages/GRAND_Worked_Example.py",
     ),
     ResearchJourney(
-        title="Medical Imaging: fMRI QC",
+        title="fMRI QC",
         domain="Multi-Modal Health Imaging",
-        subdomain="fMRI QC",
         summary=(
             "Whether an existing fMRI quality-control tool's own metrics "
             "line up with trained human raters' decisions, and how much "
@@ -129,9 +127,8 @@ JOURNEYS: tuple[ResearchJourney, ...] = (
         page="pages/FMRI_QC_Worked_Example.py",
     ),
     ResearchJourney(
-        title="Grantmaking: Portfolio Impact Analysis",
+        title="Grantmaking portfolio analysis",
         domain="Social Impact Evaluation",
-        subdomain="Grantmaking portfolio analysis",
         summary=(
             "A review layer over evidence already assembled about a "
             "program, grantee, or portfolio result: what it supports, "
@@ -141,26 +138,24 @@ JOURNEYS: tuple[ResearchJourney, ...] = (
         page="pages/Portfolio_Impact_Analysis.py",
     ),
     ResearchJourney(
-        title="AI & Environmental Equity: GAIA",
+        title="Green AI (GAIA)",
         domain="Responsible AI",
-        subdomain="Green AI",
         summary=(
             "When a more efficient model is good enough to replace a "
             "larger one, once energy use, CO2, and size are weighed "
             "alongside predictive performance, using a real "
-            "knowledge-distillation study as the worked example."
+            "knowledge-distillation study (GAIA) as the worked example."
         ),
         page="pages/GAIA_Worked_Example.py",
     ),
     ResearchJourney(
-        title="Neurotechnology: Multimodal Signal Convergence",
+        title="Neurosecurity",
         domain="Responsible AI",
-        subdomain="Neurosecurity",
         summary=(
             "Whether the added interpretive value of combining more than "
-            "one signal about a person justifies the added privacy, "
-            "security, and agency cost of collecting each additional "
-            "signal."
+            "one neurotech signal about a person justifies the added "
+            "privacy, security, and agency cost of collecting each "
+            "additional signal."
         ),
         page="pages/Multimodal_Signal_Convergence.py",
     ),

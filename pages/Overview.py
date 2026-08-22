@@ -29,7 +29,6 @@ from shared.catalog import (
     workflows_by_stage,
 )
 from shared.handoff import HandoffStore
-from shared.research_journeys import journeys_by_domain
 from shared.progress import (
     SESSION_SCOPE_NOTE,
     has_any_records,
@@ -60,7 +59,7 @@ st.divider()
 # How to use OpenMeasure
 # ---------------------------------------------------------------------
 
-st.subheader("How to use OpenMeasure")
+st.subheader("How To Use OpenMeasure")
 
 st.markdown("OpenMeasure can be used in multiple ways:")
 
@@ -90,7 +89,7 @@ st.divider()
 # Module map, by research lifecycle stage
 # ---------------------------------------------------------------------
 
-st.subheader("Where each module fits")
+st.subheader("Where Each Module Fits")
 
 st.markdown(
     """
@@ -139,21 +138,29 @@ for stage in LIFECYCLE_STAGES:
             "computing a statistic."
         )
 
-        for domain, journeys in journeys_by_domain().items():
-            with st.container(border=True):
-                st.markdown(f"**{domain}**")
-                for journey in journeys:
-                    st.page_link(
-                        journey.page,
-                        label=journey.title,
-                        icon=":material/arrow_forward:",
-                    )
+        with st.container(border=True):
+            st.markdown("**Research Journeys**")
+            st.write(
+                "Guided worked examples, grouped by field: Multi-Modal "
+                "Health Imaging, Social Impact Evaluation, Responsible AI."
+            )
+            st.page_link(
+                "pages/Research_Journeys.py",
+                label="Open Research Journeys",
+                icon=":material/arrow_forward:",
+            )
 
-        st.page_link(
-            "pages/Explore_Real_Data.py",
-            label="Open Explore Real Data",
-            icon=":material/arrow_forward:",
-        )
+        with st.container(border=True):
+            st.markdown("**Explore Real Data**")
+            st.write(
+                "Real, citable datasets to practice validation judgment "
+                "on, with no prescribed columns or expected results."
+            )
+            st.page_link(
+                "pages/Explore_Real_Data.py",
+                label="Open Explore Real Data",
+                icon=":material/arrow_forward:",
+            )
         continue
 
     if not workflows:
@@ -191,7 +198,7 @@ for stage in LIFECYCLE_STAGES:
 
 st.divider()
 
-st.subheader("Design principles")
+st.subheader("Design Principles")
 
 st.markdown(
     """

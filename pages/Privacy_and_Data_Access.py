@@ -41,7 +41,7 @@ st.caption(
 
 st.divider()
 
-st.subheader("What the categories mean")
+st.subheader("What the Categories Mean")
 st.markdown(
     """
 - **Data access** - how data gets into the page: a **user upload**, a **local** path read directly on the machine running the app, a **public remote** source fetched live at runtime, or a **bundled example** shipped with OpenMeasure itself.
@@ -54,7 +54,7 @@ st.markdown(
 
 st.divider()
 
-st.subheader("Every page, side by side")
+st.subheader("Every Page, Side By Side")
 
 table_rows = [
     {
@@ -77,7 +77,7 @@ for item in DISCLOSURES:
 
 st.divider()
 
-st.subheader("Known limitations")
+st.subheader("Known Limitations")
 st.write(
     "Stated as plainly as the rest of the app states its statistical "
     "caveats, not smoothed over:"

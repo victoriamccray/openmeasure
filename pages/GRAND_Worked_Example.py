@@ -739,9 +739,9 @@ st.divider()
 # 1. Research question
 # -----------------------------------------------------------------
 
-section_header("1. Research question")
+section_header("1. Research Question")
 
-st.markdown("### What does each imaging modality contribute to understanding reading and language?")
+st.markdown("### What Does Each Imaging Modality Contribute To Understanding Reading and Language?")
 
 st.write(
     f"GRAND scanned {GRAND_N_PARTICIPANTS} healthy older adults with "
@@ -776,7 +776,7 @@ if stage < STAGE_ACQUIRE:
 
 if stage >= STAGE_ACQUIRE:
     section_header(
-        "2. Acquire modalities",
+        "2. Acquire Modalities",
         "Select modalities to add to the pipeline.",
     )
 
@@ -848,7 +848,7 @@ if stage >= STAGE_ACQUIRE:
 
 if stage >= STAGE_QC:
     section_header(
-        "3. QC each modality",
+        "3. QC Each Modality",
         "What to inspect before trusting a modality's data, and what it supports.",
     )
 
@@ -879,7 +879,7 @@ if stage >= STAGE_QC:
 
 if stage >= STAGE_PROCESS:
     section_header(
-        "4. Process separately",
+        "4. Process Separately",
         "Structural, functional, diffusion, and behavioral data require different preprocessing.",
     )
 
@@ -915,7 +915,7 @@ if stage >= STAGE_PROCESS:
 
 if stage >= STAGE_ALIGN:
     section_header(
-        "5. Align & derive features",
+        "5. Align & Derive Features",
         "Each modality's processed output is registered to a common space and reduced to one derived feature.",
     )
 
@@ -946,7 +946,7 @@ if stage >= STAGE_ALIGN:
 
 if stage >= STAGE_INTEGRATE:
     section_header(
-        "6. Integrate evidence",
+        "6. Integrate Evidence",
         "Modalities are combined only after acquisition, QC, processing, and alignment.",
     )
 
@@ -975,7 +975,7 @@ if stage >= STAGE_INTEGRATE:
 
 if stage >= STAGE_EVALUATE:
     section_header(
-        "7. Evaluate added value",
+        "7. Evaluate Added Value",
         "Does this modality add enough information to justify collecting and integrating it?",
     )
 

@@ -37,7 +37,7 @@ Supports evaluation of interventions using research designs and statistical meth
 
 **Available:** Impact Evaluation v0.1
 
-### Cross-cutting validation
+### Cross-Cutting Validation
 
 Connects findings across the other modules rather than producing a validation result of its own.
 

@@ -223,9 +223,9 @@ st.divider()
 # 1. Research question
 # -----------------------------------------------------------------
 
-section_header("1. Research question")
+section_header("1. Research Question")
 
-st.markdown("### When is a more efficient model good enough to replace a larger one?")
+st.markdown("### When Is a More Efficient Model Good Enough To Replace a Larger One?")
 
 st.write(
     "Model evaluations often emphasize predictive performance, while "
@@ -259,7 +259,7 @@ if stage < STAGE_UNDERSTAND_TASK:
 
 if stage >= STAGE_UNDERSTAND_TASK:
     section_header(
-        "2. Understand the task",
+        "2. Understand the Task",
         "Three models, one task: predicting hard-to-acquire diffusion MRI signals.",
     )
 
@@ -364,7 +364,7 @@ if stage >= STAGE_UNDERSTAND_TASK:
 
 if stage >= STAGE_COMPARE_PERFORMANCE:
     section_header(
-        "3. Compare performance",
+        "3. Compare Performance",
         "The paper's own reported findings, quoted directly.",
     )
 
@@ -415,7 +415,7 @@ if stage >= STAGE_COMPARE_PERFORMANCE:
 
 if stage >= STAGE_COMPARE_EFFICIENCY:
     section_header(
-        "4. Compare efficiency",
+        "4. Compare Efficiency",
         "The paper's own reported findings, quoted directly.",
     )
 
@@ -461,7 +461,7 @@ if stage >= STAGE_COMPARE_EFFICIENCY:
 
 if stage >= STAGE_EVALUATE_TRADEOFF:
     section_header(
-        "5. Evaluate tradeoff",
+        "5. Evaluate Tradeoff",
         "An illustrative synthesis built on approximate values, secondary "
         "to the exact findings in Steps 3-4.",
     )
@@ -619,7 +619,7 @@ if stage >= STAGE_EVALUATE_TRADEOFF:
 
 if stage >= STAGE_GENERALIZABILITY:
     section_header(
-        "6. Examine generalizability",
+        "6. Examine Generalizability",
         "What was measured, versus what it implies.",
     )
 
@@ -676,7 +676,7 @@ if stage >= STAGE_GENERALIZABILITY:
 # -----------------------------------------------------------------
 
 if stage >= STAGE_RESEARCH_DECISION:
-    section_header("7. Research decision")
+    section_header("7. Research Decision")
 
     decision = st.radio(
         "Given everything above, which would you deploy?",

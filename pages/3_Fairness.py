@@ -174,7 +174,7 @@ ground-truth outcomes. Those analyses belong to a later post-model stage.
 # ---------------------------------------------------------------------
 
 section_header(
-    "1. Identify the fairness goal",
+    "1. Identify the Fairness Goal",
     "Start with the harm or protection that matters in the application",
 )
 
@@ -243,7 +243,7 @@ if recommendation.metric != "demographic_parity":
 # ---------------------------------------------------------------------
 
 section_header(
-    "2. Upload your data",
+    "2. Upload Your Data",
     "CSV file, one row per participant, observation, or prediction",
 )
 
@@ -332,7 +332,7 @@ else:
         # Configure analysis
         # -------------------------------------------------------------
 
-        section_header("3. Configure the pre-model analysis")
+        section_header("3. Configure The Pre-Model Analysis")
 
         label_col = st.selectbox(
             "Observed label or outcome column",
@@ -535,7 +535,7 @@ else:
                 # -------------------------------------------------------------
 
                 section_header(
-                    "Favorable-label rates by group",
+                    "Favorable-Label Rates By Group",
                     "Review all groups rather than only one selected pair",
                 )
 
@@ -581,7 +581,7 @@ else:
                 # -------------------------------------------------------------
 
                 if not rates_df.empty:
-                    section_header("Group-rate chart")
+                    section_header("Group-Rate Chart")
 
                     chart_df = (
                         rates_df[
@@ -596,7 +596,7 @@ else:
                 # Limitations
                 # -------------------------------------------------------------
 
-                section_header("What this result does not establish")
+                section_header("What This Result Does Not Establish")
 
                 st.markdown(
                     """

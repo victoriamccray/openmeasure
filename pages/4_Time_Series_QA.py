@@ -249,7 +249,7 @@ def render_check(
 # ---------------------------------------------------------------------
 
 section_header(
-    "1. Upload your data",
+    "1. Upload Your Data",
     "CSV file, one row per observation, with a timestamp column and a value column",
 )
 
@@ -324,7 +324,7 @@ if frame.empty or len(frame.columns) < 2:
 # Configure
 # ---------------------------------------------------------------------
 
-section_header("2. Select columns")
+section_header("2. Select Columns")
 
 columns = list(frame.columns)
 
@@ -513,7 +513,7 @@ caveat(
 # ---------------------------------------------------------------------
 
 section_header(
-    "Sampling frequency",
+    "Sampling Frequency",
     "Every gap and coverage figure below depends on this",
 )
 
@@ -536,7 +536,7 @@ if frequency.is_calendar_anchored and frequency.offset is not None:
 # Temporal integrity
 # ---------------------------------------------------------------------
 
-section_header("Temporal integrity", "Is the time axis itself trustworthy?")
+section_header("Temporal Integrity", "Is the time axis itself trustworthy?")
 
 if temporal.gaps_assessable:
     metric_one, metric_two, metric_three = st.columns(3)
@@ -617,7 +617,7 @@ if temporal.n_jittered_observations:
 # ---------------------------------------------------------------------
 
 section_header(
-    "Completeness and coverage",
+    "Completeness and Coverage",
     "Are enough usable values actually present?",
 )
 
@@ -784,7 +784,7 @@ if result.n_rows_used:
 # ---------------------------------------------------------------------
 
 section_header(
-    "Which checks are defensible",
+    "Which Checks Are Defensible",
     "What this series can and cannot support, and why",
 )
 
@@ -822,7 +822,7 @@ for item in recommendation.recommendations:
 # Limitations
 # ---------------------------------------------------------------------
 
-section_header("What this result does not establish")
+section_header("What This Result Does Not Establish")
 
 st.markdown(
     """

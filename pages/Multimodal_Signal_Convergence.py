@@ -790,11 +790,11 @@ st.divider()
 # 1. Research question
 # -----------------------------------------------------------------
 
-section_header("1. Research question")
+section_header("1. Research Question")
 
 st.markdown(
-    "### Does combining signals improve interpretation enough to justify "
-    "the added privacy, security, and agency cost of collecting them?"
+    "### Does Combining Signals Improve Interpretation Enough To Justify "
+    "the Added Privacy, Security, and Agency Cost Of Collecting Them?"
 )
 
 st.write(
@@ -830,7 +830,7 @@ if stage < STAGE_BUILD_PIPELINE:
 
 if stage >= STAGE_BUILD_PIPELINE:
     section_header(
-        "2. Build the pipeline",
+        "2. Build the Pipeline",
         "One general shape, starting with a single neurotech signal.",
     )
 
@@ -876,7 +876,7 @@ if stage >= STAGE_BUILD_PIPELINE:
 
 if stage >= STAGE_ADD_MODALITIES:
     section_header(
-        "3. Add modalities",
+        "3. Add Modalities",
         "Add categories one at a time; the diagram below updates as you do.",
     )
 
@@ -977,7 +977,7 @@ if stage >= STAGE_ADD_MODALITIES:
 
 if stage >= STAGE_CONVERGENCE:
     section_header(
-        "4. Examine convergence",
+        "4. Examine Convergence",
         "Where the added signals actually meet, and what meets there.",
     )
 
@@ -1035,7 +1035,7 @@ if stage >= STAGE_CONVERGENCE:
 
 if stage >= STAGE_WEIGH_TRADEOFF:
     section_header(
-        "5. Weigh the tradeoff",
+        "5. Weigh the Tradeoff",
         "An illustrative synthesis built on the ratings from Step 3, not "
         "on any single study's measurements.",
     )
@@ -1205,7 +1205,7 @@ if stage >= STAGE_WEIGH_TRADEOFF:
 # -----------------------------------------------------------------
 
 if stage >= STAGE_RESEARCH_DECISION:
-    section_header("6. Research decision")
+    section_header("6. Research Decision")
 
     all_modalities = _load_modalities()
     modalities_by_name = {m.name: m for m in all_modalities}

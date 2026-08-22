@@ -492,7 +492,7 @@ st.divider()
 # 1. Define claim (finding)
 # ---------------------------------------------------------------------
 
-section_header("1. Define claim", "Finding - what you are claiming, and at what level.")
+section_header("1. Define Claim", "Finding - what you are claiming, and at what level.")
 
 st.caption(
     "Output, outcome, and impact are escalating evidentiary expectations, "
@@ -582,7 +582,7 @@ if stage >= STAGE_DESCRIBE_EVIDENCE and "pia_claim" in st.session_state:
     claim = st.session_state["pia_claim"]
 
     section_header(
-        "2. Describe evidence",
+        "2. Describe Evidence",
         f"Evidence - what backs {claim.claim_id}. Each row is one independent "
         "look at the same finding; more of them, from different methods, "
         "makes the finding harder to overturn (checked in Step 3).",
@@ -756,7 +756,7 @@ if stage >= STAGE_DETERMINE_SUPPORTED_CLAIM and "pia_validation" in st.session_s
     validation = st.session_state["pia_validation"]
 
     section_header(
-        "4. Determine supported claim",
+        "4. Determine Supported Claim",
         "Interpretation - evidentiary rigor, graded against Nesta's "
         "Standards of Evidence.",
     )
@@ -806,7 +806,7 @@ if stage >= STAGE_EXAMINE_LIMITATIONS and "pia_supported" in st.session_state:
     bundle = st.session_state["pia_bundle"]
     validation = st.session_state["pia_validation"]
 
-    section_header("5. Examine limitations", "Interpretation - what the evidence does not establish.")
+    section_header("5. Examine Limitations", "Interpretation - what the evidence does not establish.")
 
     limitations = limitations_core.examine_limitations(bundle, validation)
     st.session_state["pia_limitations"] = limitations
@@ -829,7 +829,7 @@ if stage >= STAGE_PORTFOLIO_CONTEXT and "pia_limitations" in st.session_state:
     claim = st.session_state["pia_claim"]
 
     section_header(
-        "6. Portfolio context",
+        "6. Portfolio Context",
         "Interpretation - how this compares to the rest of a portfolio. "
         "Optional, and skipped if no matching portfolio row is found.",
     )
@@ -1012,7 +1012,7 @@ if stage >= STAGE_EVIDENCE_RECORD and "pia_portfolio_context" in st.session_stat
     portfolio_context = st.session_state["pia_portfolio_context"]
 
     section_header(
-        "7. Evidence record",
+        "7. Evidence Record",
         "Claim - defensible language for reporting, with full detail on request.",
     )
 

@@ -1,6 +1,6 @@
 # Cross-Analysis Implications Module
 
-**Category:** Cross-cutting validation
+**Category:** Cross-Cutting Validation
 
 > The folder is named `validation_chain` for historical reasons. The
 > user-facing workflow is titled "Cross-Analysis Implications". "Chain" was

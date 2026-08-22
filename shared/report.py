@@ -167,7 +167,9 @@ CURRENT_STAGE_MARKER = "You are here"
 CURRENT_STAGE_MARKER_ICON = ":material/near_me:"
 CURRENT_STAGE_MARKER_COLOR = "blue"
 
-# Shown inside a stage's popover when no workflow exists for it yet.
+# Shown inside a stage's popover when no workflow exists for it yet, and
+# the stage has no other page to point to instead (unlike Research
+# Question, which points to pages/Research_Journeys.py below).
 NO_WORKFLOW_FOR_STAGE = "Not yet covered by a module."
 
 # One icon per stage, purely for visual identity. Muted Material Symbols,
@@ -250,7 +252,16 @@ def render_lifecycle_tracker(
 
                     workflows = grouped[stage]
 
-                    if not workflows:
+                    if not workflows and stage == "Research Question":
+                        # No numbered workflow covers this stage; Research
+                        # Journeys does instead (see
+                        # shared/research_journeys.py's docstring).
+                        st.page_link(
+                            "pages/Research_Journeys.py",
+                            label="Open Research Journeys",
+                            icon=":material/arrow_forward:",
+                        )
+                    elif not workflows:
                         st.caption(NO_WORKFLOW_FOR_STAGE)
 
                     for workflow in workflows:
