@@ -91,6 +91,16 @@ sections: dict[str, list[st.Page]] = {
             title="AI & Environmental Equity: GAIA",
             url_path="GAIA_Worked_Example",
         ),
+        st.Page(
+            "pages/GRAND_Worked_Example.py",
+            title="Neuroimaging: GRAND",
+            url_path="GRAND_Worked_Example",
+        ),
+        st.Page(
+            "pages/Multimodal_Signal_Convergence.py",
+            title="Neurotechnology: Multimodal Signal Convergence",
+            url_path="Multimodal_Signal_Convergence",
+        ),
     ],
 }
 

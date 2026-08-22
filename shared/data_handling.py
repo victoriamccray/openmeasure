@@ -226,6 +226,44 @@ DISCLOSURES: tuple[DataHandlingDisclosure, ...] = (
             "to this repository; only figures extracted from it are used."
         ),
     ),
+    DataHandlingDisclosure(
+        page="pages/GRAND_Worked_Example.py",
+        data_access=(DATA_ACCESS_BUNDLED_EXAMPLE,),
+        processing=(PROCESSING_IN_MEMORY,),
+        persistent_storage=PERSISTENT_STORAGE_NONE,
+        data_accessed=(
+            "Bundled sample_data/grand_modalities.csv only; no user data, "
+            "and no raw imaging data of any kind - this page never fetches "
+            "or loads GRAND's actual MRI files, only illustrative ratings "
+            "about GRAND's four modalities plus dataset-level facts "
+            "(participant count, age range, scanner) hardcoded from the "
+            "dataset's own public files."
+        ),
+        redistribution=REDISTRIBUTION_NOT_APPLICABLE,
+        notes=(
+            "GRAND (Anderson et al., 2026; OpenNeuro ds007831) is CC0 "
+            "licensed. This page reports participant-level counts already "
+            "public in the dataset's own participants.tsv, never "
+            "individual-level rows."
+        ),
+    ),
+    DataHandlingDisclosure(
+        page="pages/Multimodal_Signal_Convergence.py",
+        data_access=(DATA_ACCESS_BUNDLED_EXAMPLE,),
+        processing=(PROCESSING_IN_MEMORY,),
+        persistent_storage=PERSISTENT_STORAGE_NONE,
+        data_accessed=(
+            "Bundled sample_data/modality_profiles.csv only; no user data, "
+            "and no real biosignal data of any kind."
+        ),
+        redistribution=REDISTRIBUTION_NOT_APPLICABLE,
+        notes=(
+            "Unlike this app's other worked examples, modality_profiles.csv "
+            "is not one real study's reported data - every rating in it is "
+            "an illustrative, author-assigned score informed by cited "
+            "literature, not a value that literature reports directly."
+        ),
+    ),
 )
 
 

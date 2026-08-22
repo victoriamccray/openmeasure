@@ -236,6 +236,7 @@ pytest modules/fairness/tests/ -v
 pytest modules/time_series_qa/tests/ -v
 pytest modules/validation_chain/tests/ -v
 pytest modules/healthring/tests/ -v
+pytest modules/signal_pipeline/tests/ -v
 pytest shared/tests/ -v
 ```
 

@@ -49,5 +49,8 @@ jobs:
       - name: Run healthring tests
         run: pytest modules/healthring/tests/ -v
 
+      - name: Run signal pipeline tests
+        run: pytest modules/signal_pipeline/tests/ -v
+
       - name: Run shared tests
         run: pytest shared/tests/ -v
