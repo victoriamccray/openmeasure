@@ -397,7 +397,7 @@ if stage >= STAGE_COMPARE_PERFORMANCE:
     )
 
     st.write(
-        "**Broader implication**: because Student and Light Model share "
+        "**Interpretation**: because Student and Light Model share "
         "the same architecture, their comparison is evidence that "
         "knowledge distillation itself contributed to Student's "
         "advantage on this task. It does not establish that distillation "
@@ -444,7 +444,7 @@ if stage >= STAGE_COMPARE_EFFICIENCY:
     )
 
     st.write(
-        "**Broader implication**: a reported reduction in energy and "
+        "**Implications**: a reported reduction in energy and "
         "CO2 per subject is a reason to treat resource use as part of "
         "what a model evaluation checks, along with accuracy - "
         "particularly for a model that will be run many times over its "
@@ -601,7 +601,7 @@ if stage >= STAGE_EVALUATE_TRADEOFF:
     )
 
     st.write(
-        "**Broader implication**: try raising the number above. A "
+        "**What to inspect**: try raising the number above. A "
         "per-subject difference that looks small in Step 4 can still add "
         "up to a meaningful total once it is multiplied across a "
         "deployment's full scale - which is why deployment volume "
@@ -659,7 +659,7 @@ if stage >= STAGE_GENERALIZABILITY:
     )
 
     st.write(
-        "**Broader implication (potential, not tested here)**: a smaller "
+        "**Implications (potential, not tested here)**: a smaller "
         "model needs less compute to run, which could lower a barrier to "
         "using it in settings with limited hardware - low-resource "
         "hospitals, mobile devices, or point-of-care tools. GAIA did not "
@@ -724,18 +724,19 @@ if stage >= STAGE_RESEARCH_DECISION:
         )
 
     st.write(
-        "**Broader implication**: when computational requirements "
+        "**Implications**: when computational requirements "
         "materially affect whether a model can be deployed at all, "
         "evaluating performance alone is not enough - resource use "
         "becomes part of what 'good enough' means."
     )
 
     st.divider()
-    st.success(
-        "**Why this matters:** GAIA illustrates how model evaluation can "
-        "consider predictive performance alongside computational "
-        "efficiency. In settings where resource requirements affect "
-        "sustainability, scale, or deployment feasibility, the most "
-        "accurate model may not automatically be the most appropriate "
-        "one."
-    )
+    with st.container(border=True):
+        st.write(
+            "**Implications**: GAIA illustrates how model evaluation can "
+            "consider predictive performance alongside computational "
+            "efficiency. In settings where resource requirements affect "
+            "sustainability, scale, or deployment feasibility, the most "
+            "accurate model may not automatically be the most appropriate "
+            "one."
+        )

@@ -859,7 +859,7 @@ if stage >= STAGE_BUILD_PIPELINE:
     st.vega_lite_chart(_pipeline_diagram_spec(baseline_pipeline), width="stretch")
 
     st.write(
-        "**Broader implication**: a pipeline with one modality already "
+        "**Interpretation**: a pipeline with one modality already "
         "has every stage a multimodal pipeline will have. What changes "
         "when a modality is added is not the shape of the pipeline, but "
         "how many signals converge into it, and what that convergence "
@@ -961,7 +961,7 @@ if stage >= STAGE_ADD_MODALITIES:
     )
 
     st.write(
-        "**Broader implication**: each added node is easy to draw. What "
+        "**Limitations**: each added node is easy to draw. What "
         "the diagram does not show on its own is whether the resulting "
         "pipeline's combined interpretive value is worth its combined "
         "cost - that comparison is Step 5."
@@ -1017,7 +1017,7 @@ if stage >= STAGE_CONVERGENCE:
     st.write(CONVERGENCE_PERSPECTIVE_TEXT[perspective])
 
     st.write(
-        "**Broader implication**: convergence is where a multimodal "
+        "**Implications**: convergence is where a multimodal "
         "pipeline's distinctive claim to power - and its distinctive "
         "risk - both live. The model can infer something from the "
         "combination that it could not infer from any signal alone, "
@@ -1189,7 +1189,7 @@ if stage >= STAGE_WEIGH_TRADEOFF:
             )
 
             st.write(
-                "**Broader implication**: try setting privacy weight to 1.0 "
+                "**What to inspect**: try setting privacy weight to 1.0 "
                 "and the others to 0.0, then reverse it. Which modalities are "
                 "dominated changes with the weights - the frontier is a map "
                 "of what the ratings imply under a given weighting, not a "
@@ -1273,22 +1273,24 @@ if stage >= STAGE_RESEARCH_DECISION:
             )
 
         st.write(
-            "**Broader implication**: when a pipeline can act on what it "
-            "infers - flagging a clinician, triggering a device, shaping "
-            "what someone sees next - the cost of being wrong, or of "
-            "acting on an inference the person did not consent to, is not "
-            "the same question as whether the inference itself is "
+            "**Research considerations**: when a pipeline can act on what "
+            "it infers - flagging a clinician, triggering a device, "
+            "shaping what someone sees next - the cost of being wrong, or "
+            "of acting on an inference the person did not consent to, is "
+            "not the same question as whether the inference itself is "
             "accurate. Validating a multimodal pipeline means validating "
             "both."
         )
 
     st.divider()
-    st.success(
-        "**Why this matters:** the Signals -> Sensors -> Processing -> "
-        "Inference -> Decision -> Action -> Feedback shape used throughout "
-        "this journey does not change when a modality is added - only how "
-        "many signals converge into it. That is what makes 'is this "
-        "combination worth its cost' an answerable, revisitable question "
-        "instead of a one-time architectural decision."
-    )
+    with st.container(border=True):
+        st.write(
+            "**Implications**: the Signals -> Sensors -> Processing -> "
+            "Inference -> Decision -> Action -> Feedback shape used "
+            "throughout this journey does not change when a modality is "
+            "added - only how many signals converge into it. That is what "
+            "makes 'is this combination worth its cost' an answerable, "
+            "revisitable question instead of a one-time architectural "
+            "decision."
+        )
     st.caption(DE_MONTJOYE_CITATION)
