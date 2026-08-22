@@ -83,12 +83,20 @@ Citation-integrity note - read this before trusting any number below.
    as context for GRAND's confirmed frontal/temporal activation - not as
    a lateralization result this page verified GRAND's own paper to
    report.
+8. Step 2's adaptive-staircase simulator uses a generic two-correct-in-
+   a-row-to-increase, one-wrong-to-decrease rule to illustrate what
+   "adaptive" means. GRAND's task is confirmed to use an adaptive
+   staircase (Wilson, Yen, & Eriksson, 2018, WILSON_CITATION), but this
+   page could not verify that paper's own up/down rule or step sizes, so
+   the simulator does not claim to reproduce it.
 
 Core logic lives in modules/signal_pipeline/core; this file is
 presentation plus GRAND's own facts and citations, which are specific to
 this worked example and so live here rather than in the reusable core.
 """
 
+import math
+import random
 import sys
 from pathlib import Path
 
@@ -405,6 +413,81 @@ def _brain_scene_html(modalities: tuple[modality_core.Modality, ...], height: in
       </div>
     </div>
     """
+
+
+STAIRCASE_MIN_LEVEL = 1
+STAIRCASE_MAX_LEVEL = 10
+STAIRCASE_START_LEVEL = 1
+STAIRCASE_N_TRIALS = 20
+
+
+def _simulate_staircase(ability_level: int, n_trials: int = STAIRCASE_N_TRIALS, seed: int = 0) -> list[int]:
+    """
+    A generic 2-down-1-up adaptive staircase: two consecutive correct
+    responses raise the difficulty one level, one incorrect response
+    lowers it one level. This is illustrative of what "adaptive" means in
+    an adaptive-staircase task, not a reproduction of GRAND's own
+    algorithm -- see WILSON_CITATION for the actual paradigm, which this
+    page cannot fully verify (see the citation-integrity note).
+
+    ability_level is the level at which this simulated participant would
+    respond correctly about half the time; responses below it are more
+    often correct, responses above it less often, via a logistic curve.
+    seed makes the same ability_level always draw the same run, so moving
+    the slider back to a value you've already seen shows the same trace
+    rather than a new random one.
+    """
+    rng = random.Random(seed + ability_level)
+    level = STAIRCASE_START_LEVEL
+    levels = [level]
+    correct_streak = 0
+
+    for _ in range(n_trials):
+        p_correct = 1 / (1 + math.exp(level - ability_level))
+        correct = rng.random() < p_correct
+
+        if correct:
+            correct_streak += 1
+            if correct_streak >= 2:
+                level = min(level + 1, STAIRCASE_MAX_LEVEL)
+                correct_streak = 0
+        else:
+            correct_streak = 0
+            level = max(level - 1, STAIRCASE_MIN_LEVEL)
+
+        levels.append(level)
+
+    return levels
+
+
+def _staircase_spec(levels: list[int]) -> dict:
+    rows = [{"trial": i, "level": level} for i, level in enumerate(levels)]
+
+    return {
+        "data": {"values": rows},
+        "layer": [
+            {
+                "mark": {"type": "line", "color": PIPELINE_NODE_COLOR, "strokeWidth": 1.5},
+                "encoding": {
+                    "x": {"field": "trial", "type": "quantitative", "title": "Trial"},
+                    "y": {
+                        "field": "level",
+                        "type": "quantitative",
+                        "title": "Difficulty level",
+                        "scale": {"domain": [STAIRCASE_MIN_LEVEL, STAIRCASE_MAX_LEVEL]},
+                    },
+                },
+            },
+            {
+                "mark": {"type": "point", "filled": True, "size": 40, "color": "#2a78d6"},
+                "encoding": {
+                    "x": {"field": "trial", "type": "quantitative"},
+                    "y": {"field": "level", "type": "quantitative"},
+                },
+            },
+        ],
+        "config": _VEGA_CHART_CONFIG,
+    }
 
 
 def _node_rows(pipeline: pipeline_core.SignalPipeline):
@@ -912,6 +995,48 @@ if stage >= STAGE_ACQUIRE:
             st.caption(f"Examples: {m.signal_examples}.")
             st.write(m.notes)
             st.caption(m.citation)
+
+    # Not gated on Functional MRI being selected above: the task happened
+    # for every GRAND participant regardless of which modality a reader
+    # is currently exploring in this journey, so hiding it behind that
+    # selection just made it hard to find.
+    st.write(f"**How {GRAND_TASK_NAME} adapts to each participant**")
+    st.write(
+        "Every participant performed this task during the functional "
+        "scan. It is adaptive: a participant doing well sees harder "
+        "trials, and a participant struggling sees easier ones, so most "
+        "trials land near that participant's own threshold rather than "
+        "being wasted on trials that are trivially easy or effectively "
+        "impossible."
+    )
+
+    ability_level = st.slider(
+        "Illustrative participant ability level",
+        min_value=STAIRCASE_MIN_LEVEL,
+        max_value=STAIRCASE_MAX_LEVEL,
+        value=5,
+        help=(
+            "The difficulty level at which this simulated participant "
+            "would respond correctly about half the time."
+        ),
+    )
+    staircase_levels = _simulate_staircase(ability_level)
+    st.vega_lite_chart(_staircase_spec(staircase_levels), width="stretch")
+    st.caption(
+        "Once the staircase finds this participant's level, it "
+        "oscillates around it rather than climbing or falling further; "
+        "that oscillation is the adaptive procedure working as intended, "
+        "not noise to smooth over."
+    )
+    caveat(
+        "This is a generic two-correct-in-a-row-to-increase, "
+        "one-wrong-to-decrease staircase, illustrating what "
+        "\"adaptive\" means, not a reproduction of GRAND's own "
+        "algorithm. See the citation below for the actual paradigm, "
+        "which this page cannot fully verify (see the "
+        "citation-integrity note)."
+    )
+    st.caption(WILSON_CITATION)
 
     with st.expander("Research considerations: acquisition"):
         st.write(

@@ -53,6 +53,7 @@ for domain, journeys in journeys_by_domain().items():
     for journey in journeys:
         with st.container(border=True):
             st.markdown(f"**{journey.title}**")
+            st.caption(journey.subdomain)
             st.write(journey.summary)
             st.page_link(
                 journey.page,

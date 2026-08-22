@@ -26,10 +26,16 @@ renders one card per domain using journeys_by_domain(). A new journey
 only needs a domain from JOURNEY_DOMAINS (or a new domain added to that
 tuple) and an entry placed next to the others in its domain.
 
-title is the short, plain-language name a domain expert would use for the
-journey's field (e.g. "fMRI QC", "Neurosecurity"), not a "domain: dataset"
-label -- what the underlying dataset or study actually is belongs in
-summary instead, since the sidebar and Overview's cards render title only.
+title names the primary dataset or platform a journey demos (e.g. "GRAND",
+"GAIA") when one real, specific thing anchors the journey, or the page's
+own title when it does not (Portfolio Impact Analysis has no single named
+dataset; Multimodal Signal Convergence is explicitly illustrative rather
+than anchored to one real study -- see its own docstring). subdomain is
+the short, plain-language
+field name a domain expert would use (e.g. "fMRI QC", "Neurosecurity"):
+narrower than domain, but not tied to one dataset the way title is. The
+sidebar and Overview's cards render title only; pages/Research_Journeys.py
+renders both.
 
 title and page are unchanged from before this module existed, so every URL
 already linked to (e.g. /HealthRing_Worked_Example) keeps working: url_path
@@ -60,6 +66,7 @@ class ResearchJourney:
 
     title: str
     domain: str
+    subdomain: str
     summary: str
     page: str
 
@@ -71,7 +78,7 @@ class ResearchJourney:
                 f"Known domains: {', '.join(JOURNEY_DOMAINS)}."
             )
 
-        for name in ("title", "summary", "page"):
+        for name in ("title", "subdomain", "summary", "page"):
             if not getattr(self, name):
                 raise ValueError(
                     f"{self.title or 'A journey'} is missing a value for "
@@ -95,8 +102,9 @@ class ResearchJourney:
 
 JOURNEYS: tuple[ResearchJourney, ...] = (
     ResearchJourney(
-        title="Wearable signal processing",
+        title="HealthRing",
         domain="Multi-Modal Health Imaging",
+        subdomain="Wearable signal processing",
         summary=(
             "A gated, step-by-step validation of consumer wearable "
             "heart-rate and SpO2 data (HealthRing), from signal quality "
@@ -106,8 +114,9 @@ JOURNEYS: tuple[ResearchJourney, ...] = (
         page="pages/HealthRing_Worked_Example.py",
     ),
     ResearchJourney(
-        title="Neurocognitive",
+        title="GRAND",
         domain="Multi-Modal Health Imaging",
+        subdomain="Neurocognitive",
         summary=(
             "How separate imaging and behavioral modalities in a real "
             "multimodal neuroimaging dataset (GRAND) are quality-checked "
@@ -117,8 +126,9 @@ JOURNEYS: tuple[ResearchJourney, ...] = (
         page="pages/GRAND_Worked_Example.py",
     ),
     ResearchJourney(
-        title="fMRI QC",
+        title="pyfMRIqc",
         domain="Multi-Modal Health Imaging",
+        subdomain="fMRI QC",
         summary=(
             "Whether an existing fMRI quality-control tool's own metrics "
             "line up with trained human raters' decisions, and how much "
@@ -127,8 +137,9 @@ JOURNEYS: tuple[ResearchJourney, ...] = (
         page="pages/FMRI_QC_Worked_Example.py",
     ),
     ResearchJourney(
-        title="Grantmaking portfolio analysis",
+        title="Portfolio Impact Analysis",
         domain="Social Impact Evaluation",
+        subdomain="Grantmaking portfolio analysis",
         summary=(
             "A review layer over evidence already assembled about a "
             "program, grantee, or portfolio result: what it supports, "
@@ -138,8 +149,9 @@ JOURNEYS: tuple[ResearchJourney, ...] = (
         page="pages/Portfolio_Impact_Analysis.py",
     ),
     ResearchJourney(
-        title="Green AI (GAIA)",
+        title="GAIA",
         domain="Responsible AI",
+        subdomain="Green AI",
         summary=(
             "When a more efficient model is good enough to replace a "
             "larger one, once energy use, CO2, and size are weighed "
@@ -149,8 +161,9 @@ JOURNEYS: tuple[ResearchJourney, ...] = (
         page="pages/GAIA_Worked_Example.py",
     ),
     ResearchJourney(
-        title="Neurosecurity",
+        title="Multimodal Signal Convergence",
         domain="Responsible AI",
+        subdomain="Neurosecurity",
         summary=(
             "Whether the added interpretive value of combining more than "
             "one neurotech signal about a person justifies the added "

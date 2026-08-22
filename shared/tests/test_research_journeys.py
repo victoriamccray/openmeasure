@@ -44,6 +44,7 @@ class TestJourneyFields(unittest.TestCase):
             with self.subTest(journey=journey.title):
                 self.assertTrue(journey.title)
                 self.assertTrue(journey.domain)
+                self.assertTrue(journey.subdomain)
                 self.assertTrue(journey.summary)
                 self.assertTrue(journey.page)
 
@@ -52,6 +53,7 @@ class TestJourneyFields(unittest.TestCase):
             ResearchJourney(
                 title="",
                 domain="Responsible AI",
+                subdomain="Something",
                 summary="A summary.",
                 page="pages/9_X.py",
             )
@@ -61,6 +63,7 @@ class TestJourneyFields(unittest.TestCase):
             ResearchJourney(
                 title="Orphan",
                 domain="Not A Domain",
+                subdomain="Something",
                 summary="A summary.",
                 page="pages/9_Orphan.py",
             )
@@ -72,6 +75,7 @@ class TestJourneyFields(unittest.TestCase):
             ResearchJourney(
                 title="Wordy",
                 domain="Responsible AI",
+                subdomain="Something",
                 summary="Line one.\nLine two.",
                 page="pages/9_X.py",
             )
