@@ -702,6 +702,26 @@ with st.expander("Dataset access and citation"):
         "stored beyond the session, or redistributed."
     )
 
+with st.expander("What the HealthRing paper's own benchmarks found"):
+    st.write(
+        "The dataset's own paper benchmarks physics-based and supervised "
+        "models against these same cohorts, and two of its findings are "
+        "useful context before this walkthrough runs its own, much "
+        "simpler model: error rose sharply during motion (roughly "
+        "tripling versus stationary scenarios in their benchmarks), and "
+        "blood pressure was the hardest of the four vital signs this "
+        "dataset carries to estimate accurately. Their best supervised "
+        "models also matched or beat two commercial rings (Samsung "
+        "Galaxy Ring, Oura Ring) on heart rate."
+    )
+    st.caption(
+        "This page fits one predictor with ordinary least squares, not "
+        "the supervised models the paper benchmarks. Treat these as "
+        "prior findings from the literature to compare this walkthrough's "
+        "own result against, not a bar this page's model is expected to "
+        "clear."
+    )
+
 if stage < STAGE_UNDERSTAND_MEASUREMENT:
     if st.button("Begin study", type="primary"):
         _advance_to(STAGE_UNDERSTAND_MEASUREMENT)
@@ -813,24 +833,36 @@ Each measurement window in this dataset carries:
     )
 
     # A hosted Streamlit app has no access to a path on the visitor's
-    # computer, so upload has to be an option, not just a local path. The
+    # computer, so "browse" (a file uploader, which opens the browser's own
+    # native file picker) has to be an option, not just a path typed in. The
     # default favors whichever is likely to actually work where this
     # script is running: if the archive already sits at DEFAULT_ZIP_PATH,
     # this is presumably a local run with the file on disk, so default to
     # path; otherwise (the hosted case, since the archive is never
-    # bundled with this repo) default to upload.
+    # bundled with this repo) default to browse.
     source_mode = st.radio(
         "How will you provide the archive?",
         options=["upload", "path"],
         format_func=lambda key: {
-            "upload": "Upload RingDatasetV2.1_submission.zip",
-            "path": "Enter a local filesystem path",
+            "upload": "Browse for the archive on this computer",
+            "path": "Enter a local filesystem path already on this machine",
         }[key],
         index=1 if DEFAULT_ZIP_PATH.exists() else 0,
         horizontal=True,
     )
 
+    st.caption(
+        "Most people want 'Browse': it opens your browser's own file "
+        "picker, works for a file anywhere on disk (including Downloads), "
+        "and cannot be mistyped. 'Enter a local filesystem path' only "
+        "works if this app is running on the same machine where the "
+        "archive already sits; on a hosted copy of this app, a typed "
+        "path points at the server, not your computer, and will never "
+        "resolve."
+    )
+
     zip_path: Path | None = None
+    path_input_given = False
 
     if source_mode == "upload":
         uploaded_archive = st.file_uploader(
@@ -850,15 +882,51 @@ Each measurement window in this dataset carries:
         zip_path_input = st.text_input(
             "Local path to RingDatasetV2.1_submission.zip",
             value=str(DEFAULT_ZIP_PATH) if DEFAULT_ZIP_PATH.exists() else "",
+            help=(
+                "The full path to the archive, exactly as your file "
+                "browser shows it -- for example "
+                "C:\\Users\\you\\Downloads\\RingDatasetV2.1_submission.zip "
+                "on Windows, or "
+                "/home/you/Downloads/RingDatasetV2.1_submission.zip on "
+                "macOS/Linux. Surrounding quotes are stripped "
+                "automatically if a 'copy path' action added them."
+            ),
         )
-        zip_path = Path(zip_path_input) if zip_path_input else None
+        cleaned_input = zip_path_input.strip().strip('"').strip("'")
+        path_input_given = bool(cleaned_input)
+        zip_path = Path(cleaned_input).expanduser() if cleaned_input else None
 
-    if zip_path is None or not zip_path.is_file():
-        st.info(
-            "Provide the archive above to continue, either by uploading "
-            "it or by entering a local path. See 'Dataset access and "
-            "citation' above for where to obtain it."
-        )
+        if zip_path is not None and not zip_path.is_file():
+            if zip_path.is_dir():
+                st.warning(
+                    f"'{zip_path}' is a folder, not the archive itself. "
+                    "Point at RingDatasetV2.1_submission.zip inside it, "
+                    "not the folder it is in."
+                )
+            elif not zip_path.exists():
+                st.warning(
+                    f"No file was found at '{zip_path}'. Check the path is "
+                    "typed exactly as your file browser shows it (on "
+                    "Windows, including the drive letter), or switch to "
+                    "'Browse for the archive' above, which cannot be "
+                    "mistyped."
+                )
+            elif zip_path.suffix.lower() != ".zip":
+                st.warning(
+                    f"'{zip_path}' does not end in .zip. Point at "
+                    "RingDatasetV2.1_submission.zip itself, not a folder "
+                    "it was extracted into."
+                )
+            zip_path = None
+
+    if zip_path is None:
+        if not path_input_given:
+            st.info(
+                "Provide the archive above to continue, either by "
+                "browsing for it or by entering a local path. See "
+                "'Dataset access and citation' above for where to obtain "
+                "it."
+            )
     else:
         try:
             available_subjects = _available_subject_ids(str(zip_path))

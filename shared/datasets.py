@@ -111,10 +111,20 @@ DATASETS: tuple[RealDataset, ...] = (
         name="HealthRing (RingDatasetV2.1)",
         domain="Wearable sensing / digital health",
         description=(
-            "Synchronized PPG and accelerometer signals from two smart-ring "
-            "designs, alongside derived heart rate, respiratory rate, SpO2, "
-            "and blood pressure readings, collected across daily-activity, "
-            "walking, and treadmill sessions."
+            "Synchronized PPG (reflective and transmissive) and "
+            "accelerometer signals from two smart-ring designs, "
+            "time-aligned to clinical-grade reference heart rate, "
+            "respiratory rate, SpO2, and blood pressure. Three "
+            "synchronized cohorts, 54 adults total, cover stationary, "
+            "motion, low-oxygen-simulation, and treadmill-running "
+            "scenarios, which best supports algorithm-development "
+            "questions (does a candidate model beat a physics-based or "
+            "commercial-ring baseline, and where does it fail) rather "
+            "than population-level physiology questions. Each "
+            "participant file already carries HealthRing's own processed "
+            "columns; RingTool, the toolkit published alongside this "
+            "dataset, documents the raw-to-processed preprocessing "
+            "pipeline for anyone who needs to redo or extend it."
         ),
         try_with=("Time-Series QA",),
         explore_question=(
@@ -133,7 +143,7 @@ DATASETS: tuple[RealDataset, ...] = (
             "Tang, J., Wang, K., Ding, Y., Ji, J., Wang, Y., Wang, Z., "
             "Zhang, X., Chen, P., Gao, N., Shi, Y., & Wang, Y. (2026). "
             "HealthRing: Physiology dataset for health sensing on rings. "
-            "Scientific Data. https://doi.org/10.1038/s41597-2026-07289-x"
+            "Scientific Data. https://doi.org/10.1038/s41597-026-07289-x"
         ),
     ),
     RealDataset(
