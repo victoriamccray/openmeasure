@@ -44,6 +44,7 @@ proposing separately rather than adding quietly here.
 
 from __future__ import annotations
 
+import math
 import pickle
 import struct
 import sys
@@ -61,6 +62,7 @@ if str(ROOT) not in sys.path:
 import numpy as np
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 from modules.healthring.core import acquisition_robustness as ar
 from shared.charts import multiline_time_series_chart
@@ -180,6 +182,167 @@ _VEGA_CHART_CONFIG = {
     },
     "view": {"stroke": "transparent"},
 }
+
+# ---------------------------------------------------------------------
+# Original, static icons for the "Understand measurement" stage.
+#
+# Static on purpose, not animated: a flickering/pulsing version of a
+# similar icon set on the GRAND worked example was flagged as both a
+# seizure-trigger risk (rapid, high-contrast flicker) and useless to a
+# screen-reader user, who already has the same information in the prose
+# and unit labels next to each icon. These are original, generic
+# pictographs, not real recorded PPG/accelerometer traces or a
+# reproduction of any device's actual display.
+# ---------------------------------------------------------------------
+
+_MEASUREMENT_ICON_PATHS = {
+    "ppg": (
+        '<circle cx="5" cy="16" r="3" fill="{c}"/>'
+        '<path d="M9 16L13 16L16 8L19 24L22 12L25 16L29 16" '
+        'stroke="{c}" stroke-width="1.8" fill="none" stroke-linecap="round"/>'
+    ),
+    "acc": (
+        '<line x1="16" y1="16" x2="27" y2="16" stroke="{c}" stroke-width="1.6"/>'
+        '<polygon points="27,16 22.5,13.5 22.5,18.5" fill="{c}"/>'
+        '<line x1="16" y1="16" x2="16" y2="5" stroke="{c}" stroke-width="1.6"/>'
+        '<polygon points="16,5 13.5,9.5 18.5,9.5" fill="{c}"/>'
+        '<line x1="16" y1="16" x2="8" y2="24" stroke="{c}" stroke-width="1.6"/>'
+        '<polygon points="8,24 12,21.5 10.5,25.5" fill="{c}"/>'
+        '<circle cx="16" cy="16" r="1.6" fill="{c}"/>'
+    ),
+    "window": (
+        '<rect x="3" y="12" width="26" height="8" rx="1" fill="{c}" opacity="0.12"/>'
+        '<line x1="10.5" y1="11" x2="10.5" y2="21" stroke="{c}" stroke-width="1"/>'
+        '<line x1="16" y1="11" x2="16" y2="21" stroke="{c}" stroke-width="1"/>'
+        '<line x1="21.5" y1="11" x2="21.5" y2="21" stroke="{c}" stroke-width="1"/>'
+        '<rect x="10.5" y="12" width="5.5" height="8" fill="{c}" opacity="0.45"/>'
+    ),
+    "hr": (
+        '<path d="M3 16L9 16L12 7L16 25L19 11L22 16L29 16" '
+        'stroke="{c}" stroke-width="2" fill="none" stroke-linecap="round"/>'
+    ),
+    "quality": (
+        '<path d="M6 23A10 10 0 0 1 26 23" stroke="{c}" stroke-width="2" fill="none"/>'
+        '<line x1="16" y1="23" x2="21" y2="15" stroke="{c}" stroke-width="1.6" stroke-linecap="round"/>'
+        '<circle cx="16" cy="23" r="1.6" fill="{c}"/>'
+    ),
+}
+
+MEASUREMENT_LEGEND = (
+    ("ppg", "PPG waveform", "light returned from skin"),
+    ("acc", "ACC (motion)", "3-axis acceleration"),
+    ("window", "Window", "one fixed-length segment"),
+    ("hr", "HR", "beats per minute"),
+    ("quality", "Signal quality", "0-1 scale"),
+)
+
+_PIPELINE_STAGE_ICON_PATHS = {
+    "raw": (
+        '<path d="M2 16L5 10L8 21L11 8L14 23L17 12L20 19L23 9L26 16L30 16" '
+        'stroke="{c}" stroke-width="1.4" fill="none" stroke-linecap="round"/>'
+    ),
+    "filtered": (
+        '<path d="M2 16C7 8 11 24 16 16C21 8 25 24 30 16" '
+        'stroke="{c}" stroke-width="1.7" fill="none" stroke-linecap="round"/>'
+    ),
+    "windows": _MEASUREMENT_ICON_PATHS["window"],
+    "derived": (
+        '<circle cx="16" cy="16" r="10" fill="{c}" opacity="0.14" stroke="{c}" stroke-width="1.3"/>'
+        '<line x1="10" y1="16" x2="22" y2="16" stroke="{c}" stroke-width="1.4"/>'
+        '<line x1="16" y1="10" x2="16" y2="22" stroke="{c}" stroke-width="1.4"/>'
+    ),
+}
+
+PIPELINE_STAGES = (
+    ("raw", "Raw PPG signal"),
+    ("filtered", "Filtering"),
+    ("windows", "Windows"),
+    ("derived", "Derived measurement"),
+)
+
+
+def _icon_svg(path_template: str, color: str, cx: float, cy: float, scale: float = 1.0) -> str:
+    path = path_template.format(c=color)
+    tx, ty = cx - 16 * scale, cy - 16 * scale
+    return f'<g transform="translate({tx:.1f},{ty:.1f}) scale({scale:.3f})">{path}</g>'
+
+
+def _arrow_svg(x1: float, y1: float, x2: float, y2: float, color: str) -> str:
+    angle = math.atan2(y2 - y1, x2 - x1)
+    hx1 = x2 - 6 * math.cos(angle - math.pi / 7)
+    hy1 = y2 - 6 * math.sin(angle - math.pi / 7)
+    hx2 = x2 - 6 * math.cos(angle + math.pi / 7)
+    hy2 = y2 - 6 * math.sin(angle + math.pi / 7)
+    return (
+        f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
+        f'stroke="{color}" stroke-width="1.5" opacity="0.6"/>'
+        f'<polygon points="{x2:.1f},{y2:.1f} {hx1:.1f},{hy1:.1f} {hx2:.1f},{hy2:.1f}" '
+        f'fill="{color}" opacity="0.8"/>'
+    )
+
+
+def _measurement_legend_html() -> str:
+    """A static, at-a-glance legend for the vocabulary just introduced in
+    prose above: what each icon stands for and its real unit or scale."""
+
+    items = []
+    for key, label, unit in MEASUREMENT_LEGEND:
+        icon = _icon_svg(_MEASUREMENT_ICON_PATHS[key], ACCENT, 16, 16, 1.0)
+        items.append(
+            f'<div style="display:flex; flex-direction:column; align-items:center; '
+            f'width:88px; gap:2px;">'
+            f'<svg width="32" height="32" viewBox="0 0 32 32">{icon}</svg>'
+            f'<span style="font-size:11px; color:{INK_PRIMARY}; text-align:center;">{label}</span>'
+            f'<span style="font-size:9.5px; color:{INK_SECONDARY}; text-align:center;">{unit}</span>'
+            f"</div>"
+        )
+
+    return f"""
+    <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+                background:{SURFACE}; border-radius:6px; padding:10px 4px;
+                display:flex; flex-wrap:wrap; justify-content:center; gap:6px;">
+      {"".join(items)}
+    </div>
+    """
+
+
+def _signal_pipeline_glyph_html() -> str:
+    """A static box-and-arrow rendering of the 'raw PPG signal -> filtering
+    -> windows -> derived measurement' chain described in prose above."""
+
+    slot_w, gap, badge = 84.0, 26.0, 40.0
+    boxes: list[str] = []
+    arrows: list[str] = []
+
+    for i, (key, label) in enumerate(PIPELINE_STAGES):
+        x = i * (slot_w + gap) + (slot_w - badge) / 2
+        cx, cy = x + badge / 2, badge / 2 + 4
+
+        if i > 0:
+            prev_x = (i - 1) * (slot_w + gap) + (slot_w - badge) / 2
+            arrows.append(_arrow_svg(prev_x + badge, cy, x, cy, GRIDLINE))
+
+        boxes.append(
+            f'<rect x="{x:.0f}" y="4" width="{badge:.0f}" height="{badge:.0f}" rx="8" '
+            f'fill="{ACCENT}" opacity="0.1" stroke="{ACCENT}" stroke-width="1.1"/>'
+        )
+        boxes.append(_icon_svg(_PIPELINE_STAGE_ICON_PATHS[key], ACCENT, cx, cy, badge / 32))
+        boxes.append(
+            f'<text x="{i * (slot_w + gap) + slot_w / 2:.0f}" y="{badge + 20:.0f}" '
+            f'text-anchor="middle" font-size="10" fill="{INK_SECONDARY}">{label}</text>'
+        )
+
+    scene_w = len(PIPELINE_STAGES) * (slot_w + gap) - gap + 8
+
+    return f"""
+    <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+                background:{SURFACE}; border-radius:6px; padding:10px 4px;">
+      <svg width="100%" height="70" viewBox="-4 0 {scene_w:.0f} 70" preserveAspectRatio="xMidYMid meet">
+        {"".join(arrows)}
+        {"".join(boxes)}
+      </svg>
+    </div>
+    """
 
 
 # ---------------------------------------------------------------------
@@ -768,13 +931,31 @@ does not include HRV, so it is not analyzed on this page.
 """
     )
 
+    components.html(_measurement_legend_html(), height=90)
+    st.caption(
+        "Original, static icons standing in for the vocabulary above and "
+        "its real unit or scale, not a real recorded waveform or a "
+        "device's actual display."
+    )
+
     with st.expander("How a raw signal becomes one number per window"):
         st.markdown(
             """
 The pipeline behind `hr` and the quality score generally looks like:
 
 **raw PPG signal -> filtering -> windows -> derived measurement**
-
+"""
+        )
+        components.html(_signal_pipeline_glyph_html(), height=70)
+        st.caption(
+            "An original, static illustration of the chain above, not a "
+            "real signal trace: 'filtering' shows the wave becoming "
+            "smoother, 'windows' shows it split into fixed-length "
+            "segments, and 'derived measurement' shows one number coming "
+            "out of one window."
+        )
+        st.markdown(
+            """
 Filtering here means reducing unwanted parts of the signal, such as slow
 drift or high-frequency noise. Filtering does not delete observations;
 it reshapes the signal that is still there. It is not free of tradeoffs

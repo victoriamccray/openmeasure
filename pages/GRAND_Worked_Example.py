@@ -331,36 +331,48 @@ ANATOMY_LEGEND_BUFFER_PX = 56
 # bars visually echo the same resolution-versus-coverage tradeoff QC_NOTES
 # describes in words.
 MODALITY_ACQUISITION_GLYPHS: dict[str, str] = {
+    # A literal stack of thin, tightly-spaced slices, viewed edge-on --
+    # the standard way "many thin slices" is drawn in radiology figures.
+    # Seven slices here, deliberately more and thinner than Functional's
+    # three below, using the same stack grammar so the two read as a
+    # direct resolution contrast rather than two unrelated icons.
     "Structural MRI (T1w/FLAIR)": (
-        '<rect x="4" y="4" width="24" height="24" rx="4" fill="{fill}" opacity="0.08"/>'
-        '<line x1="6" y1="7" x2="26" y2="7" stroke="{fill}" stroke-width="0.8" opacity="0.8"/>'
-        '<line x1="6" y1="10" x2="26" y2="10" stroke="{fill}" stroke-width="0.8" opacity="0.8"/>'
-        '<line x1="6" y1="13" x2="26" y2="13" stroke="{fill}" stroke-width="0.8" opacity="0.8"/>'
-        '<line x1="6" y1="16" x2="26" y2="16" stroke="{fill}" stroke-width="0.8" opacity="0.8"/>'
-        '<line x1="6" y1="19" x2="26" y2="19" stroke="{fill}" stroke-width="0.8" opacity="0.8"/>'
-        '<line x1="6" y1="22" x2="26" y2="22" stroke="{fill}" stroke-width="0.8" opacity="0.8"/>'
-        '<line x1="6" y1="25" x2="26" y2="25" stroke="{fill}" stroke-width="0.8" opacity="0.8"/>'
+        '<rect x="5" y="4.0" width="22" height="2.6" rx="1" fill="{fill}"/>'
+        '<rect x="5" y="7.6" width="22" height="2.6" rx="1" fill="{fill}"/>'
+        '<rect x="5" y="11.2" width="22" height="2.6" rx="1" fill="{fill}"/>'
+        '<rect x="5" y="14.8" width="22" height="2.6" rx="1" fill="{fill}"/>'
+        '<rect x="5" y="18.4" width="22" height="2.6" rx="1" fill="{fill}"/>'
+        '<rect x="5" y="22.0" width="22" height="2.6" rx="1" fill="{fill}"/>'
+        '<rect x="5" y="25.6" width="22" height="2.6" rx="1" fill="{fill}"/>'
     ),
+    # The same stack, now fewer and thicker: fewer, coarser slices.
     "Functional MRI (T2*, language task)": (
-        '<rect x="4" y="4" width="24" height="24" rx="4" fill="{fill}" opacity="0.08"/>'
-        '<rect x="6" y="6" width="20" height="3.4" fill="{fill}" opacity="0.75"/>'
-        '<rect x="6" y="13" width="20" height="3.4" fill="{fill}" opacity="0.75"/>'
-        '<rect x="6" y="20" width="20" height="3.4" fill="{fill}" opacity="0.75"/>'
+        '<rect x="5" y="5" width="22" height="6" rx="1.5" fill="{fill}"/>'
+        '<rect x="5" y="13" width="22" height="6" rx="1.5" fill="{fill}"/>'
+        '<rect x="5" y="21" width="22" height="6" rx="1.5" fill="{fill}"/>'
     ),
+    # A gradient-direction sampling sphere: a center point (the voxel)
+    # measured from several directions around it, each drawn as a dot at
+    # the end of a spoke -- the same kind of plot a dMRI methods figure
+    # would use to show its b-vector scheme, not an abstract starburst.
     "Diffusion MRI (HARDI/DTI)": (
-        '<line x1="16" y1="16" x2="16" y2="3" stroke="{fill}" stroke-width="1.1" opacity="0.85"/>'
-        '<line x1="16" y1="16" x2="26" y2="7" stroke="{fill}" stroke-width="1.1" opacity="0.85"/>'
-        '<line x1="16" y1="16" x2="29" y2="16" stroke="{fill}" stroke-width="1.1" opacity="0.85"/>'
-        '<line x1="16" y1="16" x2="26" y2="25" stroke="{fill}" stroke-width="1.1" opacity="0.85"/>'
-        '<line x1="16" y1="16" x2="16" y2="29" stroke="{fill}" stroke-width="1.1" opacity="0.85"/>'
-        '<line x1="16" y1="16" x2="6" y2="25" stroke="{fill}" stroke-width="1.1" opacity="0.85"/>'
-        '<line x1="16" y1="16" x2="3" y2="16" stroke="{fill}" stroke-width="1.1" opacity="0.85"/>'
-        '<line x1="16" y1="16" x2="6" y2="7" stroke="{fill}" stroke-width="1.1" opacity="0.85"/>'
-        '<line x1="16" y1="16" x2="22" y2="9" stroke="{fill}" stroke-width="0.7" opacity="0.45"/>'
-        '<line x1="16" y1="16" x2="23" y2="23" stroke="{fill}" stroke-width="0.7" opacity="0.45"/>'
-        '<line x1="16" y1="16" x2="9" y2="23" stroke="{fill}" stroke-width="0.7" opacity="0.45"/>'
-        '<line x1="16" y1="16" x2="9" y2="9" stroke="{fill}" stroke-width="0.7" opacity="0.45"/>'
-        '<circle cx="16" cy="16" r="2" fill="{fill}"/>'
+        '<circle cx="16" cy="16" r="1.8" fill="{fill}"/>'
+        '<line x1="16" y1="16" x2="27" y2="16" stroke="{fill}" stroke-width="1" opacity="0.5"/>'
+        '<line x1="16" y1="16" x2="23.8" y2="8.2" stroke="{fill}" stroke-width="1" opacity="0.5"/>'
+        '<line x1="16" y1="16" x2="16" y2="5" stroke="{fill}" stroke-width="1" opacity="0.5"/>'
+        '<line x1="16" y1="16" x2="8.2" y2="8.2" stroke="{fill}" stroke-width="1" opacity="0.5"/>'
+        '<line x1="16" y1="16" x2="5" y2="16" stroke="{fill}" stroke-width="1" opacity="0.5"/>'
+        '<line x1="16" y1="16" x2="8.2" y2="23.8" stroke="{fill}" stroke-width="1" opacity="0.5"/>'
+        '<line x1="16" y1="16" x2="16" y2="27" stroke="{fill}" stroke-width="1" opacity="0.5"/>'
+        '<line x1="16" y1="16" x2="23.8" y2="23.8" stroke="{fill}" stroke-width="1" opacity="0.5"/>'
+        '<circle cx="27" cy="16" r="1.7" fill="{fill}"/>'
+        '<circle cx="23.8" cy="8.2" r="1.7" fill="{fill}"/>'
+        '<circle cx="16" cy="5" r="1.7" fill="{fill}"/>'
+        '<circle cx="8.2" cy="8.2" r="1.7" fill="{fill}"/>'
+        '<circle cx="5" cy="16" r="1.7" fill="{fill}"/>'
+        '<circle cx="8.2" cy="23.8" r="1.7" fill="{fill}"/>'
+        '<circle cx="16" cy="27" r="1.7" fill="{fill}"/>'
+        '<circle cx="23.8" cy="23.8" r="1.7" fill="{fill}"/>'
     ),
     "Connectome (derived)": _MODALITY_ICON_PATHS["Network"],
     "Behavioral reading/language measures": (
@@ -650,6 +662,47 @@ FLOW_BOX_H = 34.0
 FLOW_ROW_GAP = 56.0
 FLOW_TOP_MARGIN = 44.0
 
+# One icon per stage concept, not per modality: a reader asked for the
+# "Signals" column to actually look like a signal rather than repeating
+# the same per-modality icon (_MODALITY_ICON_PATHS, used elsewhere for
+# the brain scene) in all three columns. Modality identity is still
+# color-coded per row; shape now encodes which stage that box is.
+FLOW_STAGE_ICON_PATHS = {
+    "Signals": (
+        '<path d="M3 16L8 16L11 8L14 24L17 12L20 20L23 10L26 16L29 16" '
+        'stroke="{fill}" stroke-width="1.7" fill="none" stroke-linecap="round"/>'
+    ),
+    "Sensors": (
+        '<rect x="10" y="10" width="12" height="12" rx="2" fill="{fill}" opacity="0.25"/>'
+        '<rect x="13" y="13" width="6" height="6" rx="1" fill="{fill}"/>'
+        '<line x1="16" y1="4" x2="16" y2="8" stroke="{fill}" stroke-width="1.4"/>'
+        '<line x1="16" y1="24" x2="16" y2="28" stroke="{fill}" stroke-width="1.4"/>'
+        '<line x1="4" y1="16" x2="8" y2="16" stroke="{fill}" stroke-width="1.4"/>'
+        '<line x1="24" y1="16" x2="28" y2="16" stroke="{fill}" stroke-width="1.4"/>'
+    ),
+    "Processing": (
+        '<circle cx="16" cy="16" r="6" fill="none" stroke="{fill}" stroke-width="2"/>'
+        '<circle cx="16" cy="16" r="2" fill="{fill}"/>'
+        '<line x1="16" y1="6" x2="16" y2="9" stroke="{fill}" stroke-width="2"/>'
+        '<line x1="16" y1="23" x2="16" y2="26" stroke="{fill}" stroke-width="2"/>'
+        '<line x1="6" y1="16" x2="9" y2="16" stroke="{fill}" stroke-width="2"/>'
+        '<line x1="23" y1="16" x2="26" y2="16" stroke="{fill}" stroke-width="2"/>'
+        '<line x1="9.5" y1="9.5" x2="11.5" y2="11.5" stroke="{fill}" stroke-width="2"/>'
+        '<line x1="20.5" y1="20.5" x2="22.5" y2="22.5" stroke="{fill}" stroke-width="2"/>'
+        '<line x1="9.5" y1="22.5" x2="11.5" y2="20.5" stroke="{fill}" stroke-width="2"/>'
+        '<line x1="20.5" y1="11.5" x2="22.5" y2="9.5" stroke="{fill}" stroke-width="2"/>'
+    ),
+}
+FLOW_INFERENCE_ICON = (
+    '<circle cx="9" cy="9" r="2.4" fill="{fill}" opacity="0.6"/>'
+    '<circle cx="9" cy="23" r="2.4" fill="{fill}" opacity="0.6"/>'
+    '<circle cx="22" cy="9" r="2.4" fill="{fill}" opacity="0.6"/>'
+    '<line x1="11" y1="10" x2="18" y2="15" stroke="{fill}" stroke-width="1.3" opacity="0.7"/>'
+    '<line x1="11" y1="22" x2="18" y2="17" stroke="{fill}" stroke-width="1.3" opacity="0.7"/>'
+    '<line x1="20" y1="10" x2="19" y2="15" stroke="{fill}" stroke-width="1.3" opacity="0.7"/>'
+    '<circle cx="20" cy="16" r="3.5" fill="{fill}"/>'
+)
+
 
 def _flow_arrow(x1: float, y1: float, x2: float, y2: float, color: str) -> str:
     """One arrowed connector from (x1, y1) to (x2, y2), used for every edge
@@ -719,7 +772,7 @@ def _pipeline_flow_html(modalities: tuple[modality_core.Modality, ...], height: 
             )
             boxes_svg.append(
                 _icon_markup(
-                    _MODALITY_ICON_PATHS[m.category], color,
+                    FLOW_STAGE_ICON_PATHS[FLOW_STAGE_LABELS[col]], color,
                     x + FLOW_BOX_W / 2, row_center_y, (FLOW_BOX_H - 8) / 32, "",
                 )
             )
@@ -741,8 +794,10 @@ def _pipeline_flow_html(modalities: tuple[modality_core.Modality, ...], height: 
         f'fill="{PIPELINE_NODE_COLOR}" opacity="0.22" stroke="{PIPELINE_NODE_COLOR}" stroke-width="1.5"/>'
     )
     boxes_svg.append(
-        f'<text x="{FLOW_INFERENCE_X + FLOW_BOX_W / 2:.0f}" y="{inference_center_y + 3:.0f}" '
-        f'text-anchor="middle" font-size="10" fill="{INK_SECONDARY}">shared</text>'
+        _icon_markup(
+            FLOW_INFERENCE_ICON, PIPELINE_NODE_COLOR,
+            FLOW_INFERENCE_X + FLOW_BOX_W / 2, inference_center_y, (FLOW_BOX_H - 8) / 32, "",
+        )
     )
 
     scene_w = FLOW_INFERENCE_X + FLOW_BOX_W + 12
@@ -1149,6 +1204,88 @@ QC_NOTES = {
     },
 }
 
+# One small, static icon per QC concept named in "what to inspect" above,
+# so a reader gets a quick visual sense of what that check actually
+# looks like rather than only prose. Static, not animated, for the same
+# accessibility reasons as the other icons on this page (see
+# PROCESSING_STEP_ICONS above). Two are reused rather than redrawn:
+# "derived_from" and "artifact_check" are the same icons already used
+# for the Connectome and Functional processing steps.
+QC_VISUAL_ICON_PATHS: dict[str, str] = {
+    "motion_trace": (
+        '<line x1="2" y1="10" x2="30" y2="10" stroke="{fill}" stroke-width="1" '
+        'stroke-dasharray="2 2" opacity="0.55"/>'
+        '<path d="M2 22L6 20L10 23L14 8L18 21L22 19L26 22L30 20" stroke="{fill}" '
+        'stroke-width="1.6" fill="none" stroke-linecap="round"/>'
+        '<circle cx="14" cy="8" r="2.4" fill="none" stroke="{fill}" stroke-width="1.3"/>'
+    ),
+    "tsnr_map": (
+        '<circle cx="16" cy="16" r="13" fill="{fill}" opacity="0.12"/>'
+        '<circle cx="16" cy="16" r="9" fill="{fill}" opacity="0.28"/>'
+        '<circle cx="16" cy="16" r="5" fill="{fill}" opacity="0.55"/>'
+    ),
+    # Two semi-transparent, overlapping regions: SVG's own alpha
+    # compositing makes the overlap visibly darker on its own, without a
+    # separately drawn "agreement" shape.
+    "activation_overlap": (
+        '<circle cx="12" cy="16" r="9" fill="{fill}" opacity="0.3"/>'
+        '<circle cx="20" cy="16" r="9" fill="{fill}" opacity="0.3"/>'
+    ),
+    "split_half": (
+        '<rect x="5" y="14" width="8" height="14" rx="2" fill="{fill}" opacity="0.4"/>'
+        '<rect x="19" y="14" width="8" height="14" rx="2" fill="{fill}" opacity="0.4"/>'
+        '<path d="M13 10C16 4 16 4 19 10" stroke="{fill}" stroke-width="1.4" fill="none"/>'
+        '<polygon points="13,10 15.5,9.3 14.6,12.6" fill="{fill}"/>'
+        '<polygon points="19,10 16.5,9.3 17.4,12.6" fill="{fill}"/>'
+    ),
+    "derived_from": PROCESSING_STEP_ICONS["Network"][0],
+    "artifact_check": PROCESSING_STEP_ICONS["Functional"][0],
+}
+
+QC_VISUAL_LABELS: dict[str, str] = {
+    "motion_trace": "Motion trace vs. cutoff",
+    "tsnr_map": "tSNR: higher near center, fades toward edges",
+    "activation_overlap": "Task contrast vs. meta-analytic map overlap",
+    "split_half": "Split-half agreement",
+    "derived_from": "Inherits its source modality's QC",
+    "artifact_check": "Motion/ghosting artifact check",
+}
+
+QC_VISUAL_KEYS_BY_MODALITY: dict[str, tuple[str, ...]] = {
+    "Structural MRI (T1w/FLAIR)": ("artifact_check",),
+    "Functional MRI (T2*, language task)": ("motion_trace", "tsnr_map", "activation_overlap"),
+    "Diffusion MRI (HARDI/DTI)": ("motion_trace",),
+    "Connectome (derived)": ("derived_from",),
+    "Behavioral reading/language measures": ("split_half",),
+}
+
+
+def _qc_visual_row_html(name: str, color: str) -> str:
+    keys = QC_VISUAL_KEYS_BY_MODALITY.get(name, ())
+    if not keys:
+        return ""
+
+    items = []
+    for key in keys:
+        icon = _icon_markup(QC_VISUAL_ICON_PATHS[key], color, 16, 16, 1.0, "")
+        items.append(
+            f'<div style="display:flex; flex-direction:column; align-items:center; '
+            f'width:110px; gap:2px;">'
+            f'<svg width="32" height="32" viewBox="0 0 32 32">{icon}</svg>'
+            f'<span style="font-size:10px; color:{INK_SECONDARY}; text-align:center;">'
+            f'{QC_VISUAL_LABELS[key]}</span>'
+            f"</div>"
+        )
+
+    return f"""
+    <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+                background:{SURFACE}; border-radius:6px; padding:8px 4px;
+                display:flex; flex-wrap:wrap; justify-content:center; gap:6px;">
+      {"".join(items)}
+    </div>
+    """
+
+
 REDUNDANCY_NOTES = {
     "Functional MRI (T2*, language task)": (
         "Measures which regions activate during reading, not their anatomy. Low "
@@ -1526,6 +1663,14 @@ if stage >= STAGE_QC:
             continue
         with st.expander(m.name):
             st.write(f"**What to inspect**: {qc['what_to_inspect']}")
+            visual_row = _qc_visual_row_html(m.name, CATEGORY_COLORS[m.category])
+            if visual_row:
+                components.html(visual_row, height=70)
+                st.caption(
+                    "Original, static icons for a quick visual sense of "
+                    "each check above, not a real scan or a real motion/"
+                    "tSNR/reliability figure from this dataset."
+                )
             st.write(f"**Interpretation**: {qc['interpretation']}")
 
     st.write(
