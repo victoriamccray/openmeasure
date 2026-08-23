@@ -111,20 +111,14 @@ DATASETS: tuple[RealDataset, ...] = (
         name="HealthRing (RingDatasetV2.1)",
         domain="Wearable sensing / digital health",
         description=(
-            "Synchronized PPG (reflective and transmissive) and "
-            "accelerometer signals from two smart-ring designs, "
-            "time-aligned to clinical-grade reference heart rate, "
-            "respiratory rate, SpO2, and blood pressure. Three "
-            "synchronized cohorts, 54 adults total, cover stationary, "
-            "motion, low-oxygen-simulation, and treadmill-running "
-            "scenarios, which best supports algorithm-development "
-            "questions (does a candidate model beat a physics-based or "
-            "commercial-ring baseline, and where does it fail) rather "
-            "than population-level physiology questions. Each "
-            "participant file already carries HealthRing's own processed "
-            "columns; RingTool, the toolkit published alongside this "
-            "dataset, documents the raw-to-processed preprocessing "
-            "pipeline for anyone who needs to redo or extend it."
+            "Synchronized PPG and accelerometer signals from two "
+            "smart-ring designs, time-aligned to reference heart rate, "
+            "respiratory rate, SpO2, and blood pressure across 54 adults "
+            "in stationary, motion, low-oxygen-simulation, and "
+            "treadmill-running scenarios. Best suited to algorithm-"
+            "development questions rather than population-level "
+            "physiology; RingTool, published alongside the dataset, "
+            "documents its preprocessing pipeline."
         ),
         try_with=("Time-Series QA",),
         explore_question=(

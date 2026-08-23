@@ -129,15 +129,7 @@ CATEGORY_COLORS = {
     "Network": "#4a3aa7",
     "Behavioral": "#e87ba4",
 }
-CATEGORY_SHAPES = {
-    "Structural": "square",
-    "Functional": "circle",
-    "Diffusion": "triangle-up",
-    "Network": "diamond",
-    "Behavioral": "triangle-down",
-}
 PIPELINE_NODE_COLOR = MUTED
-PIPELINE_NODE_SHAPE = "circle"
 
 _VEGA_CHART_CONFIG = {
     "background": SURFACE,
@@ -193,6 +185,22 @@ BUILD_CITATION = (
 READMAP_CITATION = (
     "Turkeltaub, P. E. (Principal Investigator). Reading in Stroke Alexia "
     "and Typical Aging (ReadMap). ClinicalTrials.gov identifier NCT06700005."
+)
+CORNSWEET_CITATION = (
+    "Cornsweet, T. N. (1962). The staircase-method in psychophysics. "
+    "American Journal of Psychology, 75(3), 485-491. "
+    "https://doi.org/10.2307/1419876"
+)
+LEVITT_CITATION = (
+    "Levitt, H. (1971). Transformed up-down methods in psychoacoustics. "
+    "Journal of the Acoustical Society of America, 49(2B), 467-477. "
+    "https://doi.org/10.1121/1.1912375"
+)
+FUSION3D_CITATION = (
+    "Biehler, M., Li, J., & Shi, J. (2025). FUSION3D: Multimodal data "
+    "fusion for 3D shape reconstruction: A soft-sensing approach. IISE "
+    "Transactions, 57(9), 1041-1055. "
+    "https://doi.org/10.1080/24725854.2024.2376650"
 )
 
 GRAND_N_PARTICIPANTS = 110  # participants.tsv row count, fetched directly
@@ -460,13 +468,56 @@ def _simulate_staircase(ability_level: int, n_trials: int = STAIRCASE_N_TRIALS, 
     return levels
 
 
-def _staircase_spec(levels: list[int]) -> dict:
+def _staircase_reversals(levels: list[int]) -> list[int]:
+    """
+    Trial indices where the staircase changed direction (a reversal):
+    the standard landmark psychophysics reads a staircase by (Cornsweet,
+    1962; Levitt, 1971), since the level oscillating around a value,
+    rather than the raw level at any one trial, is what shows the
+    procedure has converged.
+    """
+    reversals: list[int] = []
+    direction = 0
+
+    for i in range(1, len(levels)):
+        step = levels[i] - levels[i - 1]
+        if step == 0:
+            continue
+        if direction != 0 and step != direction:
+            reversals.append(i - 1)
+        direction = step
+
+    return reversals
+
+
+def _staircase_threshold_estimate(levels: list[int], reversals: list[int]) -> float | None:
+    """
+    Mean level at the last several reversals -- the conventional way to
+    read a threshold off a staircase (Cornsweet, 1962; Levitt, 1971). The
+    first reversal is dropped when there are others to use, since it is
+    biased by the arbitrary starting level rather than by the
+    participant's responses yet. Returns None when too few reversals
+    occurred in this short a run to estimate anything.
+    """
+    usable = reversals[1:] if len(reversals) > 1 else reversals
+    if not usable:
+        return None
+    return sum(levels[i] for i in usable) / len(usable)
+
+
+def _staircase_spec(levels: list[int], ability_level: int, reversals: list[int]) -> dict:
     rows = [{"trial": i, "level": level} for i, level in enumerate(levels)]
+    reversal_rows = [{"trial": i, "level": levels[i]} for i in reversals]
 
     return {
-        "data": {"values": rows},
         "layer": [
             {
+                "data": {"values": [{"y": ability_level}]},
+                "mark": {"type": "rule", "color": INK_SECONDARY, "strokeDash": [4, 4]},
+                "encoding": {"y": {"field": "y", "type": "quantitative"}},
+            },
+            {
+                "data": {"values": rows},
                 "mark": {"type": "line", "color": PIPELINE_NODE_COLOR, "strokeWidth": 1.5},
                 "encoding": {
                     "x": {"field": "trial", "type": "quantitative", "title": "Trial"},
@@ -479,7 +530,16 @@ def _staircase_spec(levels: list[int]) -> dict:
                 },
             },
             {
+                "data": {"values": rows},
                 "mark": {"type": "point", "filled": True, "size": 40, "color": "#2a78d6"},
+                "encoding": {
+                    "x": {"field": "trial", "type": "quantitative"},
+                    "y": {"field": "level", "type": "quantitative"},
+                },
+            },
+            {
+                "data": {"values": reversal_rows},
+                "mark": {"type": "point", "filled": True, "size": 100, "shape": "diamond", "color": "#eb6834"},
                 "encoding": {
                     "x": {"field": "trial", "type": "quantitative"},
                     "y": {"field": "level", "type": "quantitative"},
@@ -490,99 +550,215 @@ def _staircase_spec(levels: list[int]) -> dict:
     }
 
 
-def _node_rows(pipeline: pipeline_core.SignalPipeline):
-    modality_order = {m.name: i for i, m in enumerate(pipeline.modalities)}
-    n = len(pipeline.modalities)
-    rows = []
-    coords = {}
-    for node in pipeline.nodes:
-        if node.modality is not None:
-            y = modality_order[node.modality.name] - (n - 1) / 2
-            label = node.modality.name if node.stage == "Signals" else ""
-            category = node.modality.category
-            key = (node.stage, node.modality.name)
-        else:
-            y = 0.0
-            label = node.stage
-            category = "Pipeline"
-            key = (node.stage, None)
-        coords[key] = (node.stage, y)
-        rows.append({"stage": node.stage, "y": y, "label": label, "category": category})
-    return rows, coords
+FLOW_STAGE_LABELS = ("Signals", "Sensors", "Processing")
+FLOW_COL_X = (60.0, 172.0, 284.0)
+FLOW_INFERENCE_X = 396.0
+FLOW_BOX_W = 88.0
+FLOW_BOX_H = 34.0
+FLOW_ROW_GAP = 56.0
+FLOW_TOP_MARGIN = 44.0
 
 
-def _edge_rows(pipeline: pipeline_core.SignalPipeline, coords: dict) -> list[dict]:
-    rows = []
-    for edge in pipeline.edges:
-        source_key = (edge.source.stage, edge.source.modality.name if edge.source.modality else None)
-        target_key = (edge.target.stage, edge.target.modality.name if edge.target.modality else None)
-        x, y = coords[source_key]
-        x2, y2 = coords[target_key]
-        rows.append({"stage": x, "y": y, "stage2": x2, "y2": y2})
-    return rows
+def _flow_arrow(x1: float, y1: float, x2: float, y2: float, color: str) -> str:
+    """One arrowed connector from (x1, y1) to (x2, y2), used for every edge
+    in _pipeline_flow_html so the diagram reads as boxes-and-arrows rather
+    than an axis of colored dots (see FUSION3D_CITATION for the converging-
+    arrows convention this borrows, e.g. its Figure 3)."""
+
+    angle = math.atan2(y2 - y1, x2 - x1)
+    head_len = 7.0
+    hx1 = x2 - head_len * math.cos(angle - math.pi / 7)
+    hy1 = y2 - head_len * math.sin(angle - math.pi / 7)
+    hx2 = x2 - head_len * math.cos(angle + math.pi / 7)
+    hy2 = y2 - head_len * math.sin(angle + math.pi / 7)
+    return (
+        f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
+        f'stroke="{color}" stroke-width="1.6" opacity="0.65"/>'
+        f'<polygon points="{x2:.1f},{y2:.1f} {hx1:.1f},{hy1:.1f} {hx2:.1f},{hy2:.1f}" '
+        f'fill="{color}" opacity="0.85"/>'
+    )
 
 
-def _pipeline_diagram_spec(pipeline: pipeline_core.SignalPipeline) -> dict:
-    node_rows, coords = _node_rows(pipeline)
-    edge_rows = _edge_rows(pipeline, coords)
+def _pipeline_flow_html(modalities: tuple[modality_core.Modality, ...], height: int = 260) -> str:
+    """
+    Each modality's own Signals -> Sensors -> Processing lane, converging
+    with an arrow into one shared Inference box -- an original diagram,
+    drawn as boxes and arrows rather than the axis-of-colored-dots this
+    replaced, in the same converging-per-source-box convention used for
+    multimodal-fusion methods figures (see FUSION3D_CITATION, e.g. its
+    Figure 3). Decision/Action/Feedback (later pipeline_core.STAGES) are
+    left out on purpose: this page's prose never discusses them, and
+    drawing stages nothing here explains was part of why the previous
+    version of this diagram was hard to read.
+    """
 
-    categories_present = [c for c in CATEGORY_COLORS if any(r["category"] == c for r in node_rows)]
-    color_domain = categories_present + ["Pipeline"]
-    color_range = [CATEGORY_COLORS[c] for c in categories_present] + [PIPELINE_NODE_COLOR]
-    shape_domain = categories_present + ["Pipeline"]
-    shape_range = [CATEGORY_SHAPES[c] for c in categories_present] + [PIPELINE_NODE_SHAPE]
+    n = max(len(modalities), 1)
+    scene_h = FLOW_TOP_MARGIN + n * FLOW_ROW_GAP + 16
+    inference_center_y = FLOW_TOP_MARGIN + ((n - 1) * FLOW_ROW_GAP) / 2 + FLOW_BOX_H / 2
 
-    stage_x = {
-        "field": "stage",
-        "type": "nominal",
-        "sort": list(pipeline_core.STAGES),
-        "axis": {"title": None, "labelAngle": 0},
-    }
-    stage_x2 = {"field": "stage2", "type": "nominal", "sort": list(pipeline_core.STAGES)}
-    hidden_y = {"field": "y", "type": "quantitative", "axis": None}
+    header_svg = [
+        f'<text x="{x + FLOW_BOX_W / 2:.0f}" y="{FLOW_TOP_MARGIN - 16:.0f}" text-anchor="middle" '
+        f'font-size="11" fill="{INK_SECONDARY}">{label}</text>'
+        for label, x in zip(FLOW_STAGE_LABELS, FLOW_COL_X)
+    ]
+    header_svg.append(
+        f'<text x="{FLOW_INFERENCE_X + FLOW_BOX_W / 2:.0f}" y="{FLOW_TOP_MARGIN - 16:.0f}" '
+        f'text-anchor="middle" font-size="11" fill="{INK_SECONDARY}">Inference</text>'
+    )
 
-    height = min(360, 90 + 40 * max(len(pipeline.modalities), 3))
+    boxes_svg: list[str] = []
+    arrows_svg: list[str] = []
 
-    return {
-        "layer": [
-            {
-                "data": {"values": edge_rows},
-                "mark": {"type": "rule", "color": GRIDLINE, "strokeWidth": 1.5},
-                "encoding": {"x": stage_x, "y": hidden_y, "x2": stage_x2, "y2": {"field": "y2"}},
-            },
-            {
-                "data": {"values": node_rows},
-                "mark": {"type": "point", "filled": True, "size": 220},
-                "encoding": {
-                    "x": stage_x,
-                    "y": hidden_y,
-                    "color": {
-                        "field": "category",
-                        "type": "nominal",
-                        "scale": {"domain": color_domain, "range": color_range},
-                        "legend": {"title": None, "orient": "bottom", "columns": 3},
-                    },
-                    "shape": {
-                        "field": "category",
-                        "type": "nominal",
-                        "scale": {"domain": shape_domain, "range": shape_range},
-                    },
-                },
-            },
-            {
-                "data": {"values": [row for row in node_rows if row["label"]]},
-                "mark": {"type": "text", "dy": -16, "fontSize": 11, "color": INK_SECONDARY},
-                "encoding": {
-                    "x": stage_x,
-                    "y": {"field": "y", "type": "quantitative"},
-                    "text": {"field": "label", "type": "nominal"},
-                },
-            },
-        ],
-        "width": "container",
-        "height": height,
-        "config": _VEGA_CHART_CONFIG,
-    }
+    for row, m in enumerate(modalities):
+        color = CATEGORY_COLORS[m.category]
+        y = FLOW_TOP_MARGIN + row * FLOW_ROW_GAP
+        row_center_y = y + FLOW_BOX_H / 2
+
+        boxes_svg.append(
+            f'<text x="0" y="{row_center_y + 3:.0f}" font-size="10" '
+            f'fill="{INK_SECONDARY}">{m.category}</text>'
+        )
+
+        for col, x in enumerate(FLOW_COL_X):
+            boxes_svg.append(
+                f'<rect x="{x:.0f}" y="{y:.0f}" width="{FLOW_BOX_W:.0f}" '
+                f'height="{FLOW_BOX_H:.0f}" rx="6" fill="{color}" opacity="0.16" '
+                f'stroke="{color}" stroke-width="1.3"/>'
+            )
+            boxes_svg.append(
+                _icon_markup(
+                    _MODALITY_ICON_PATHS[m.category], color,
+                    x + FLOW_BOX_W / 2, row_center_y, (FLOW_BOX_H - 8) / 32, "",
+                )
+            )
+            if col + 1 < len(FLOW_COL_X):
+                arrows_svg.append(
+                    _flow_arrow(x + FLOW_BOX_W, row_center_y, FLOW_COL_X[col + 1], row_center_y, color)
+                )
+
+        arrows_svg.append(
+            _flow_arrow(
+                FLOW_COL_X[-1] + FLOW_BOX_W, row_center_y,
+                FLOW_INFERENCE_X, inference_center_y, color,
+            )
+        )
+
+    boxes_svg.append(
+        f'<rect x="{FLOW_INFERENCE_X:.0f}" y="{inference_center_y - FLOW_BOX_H / 2:.0f}" '
+        f'width="{FLOW_BOX_W:.0f}" height="{FLOW_BOX_H:.0f}" rx="6" '
+        f'fill="{PIPELINE_NODE_COLOR}" opacity="0.22" stroke="{PIPELINE_NODE_COLOR}" stroke-width="1.5"/>'
+    )
+    boxes_svg.append(
+        f'<text x="{FLOW_INFERENCE_X + FLOW_BOX_W / 2:.0f}" y="{inference_center_y + 3:.0f}" '
+        f'text-anchor="middle" font-size="10" fill="{INK_SECONDARY}">shared</text>'
+    )
+
+    scene_w = FLOW_INFERENCE_X + FLOW_BOX_W + 12
+
+    return f"""
+    <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+                background:{SURFACE}; border-radius:6px; padding:10px 4px;">
+      <svg width="100%" height="{height}" viewBox="-4 0 {scene_w:.0f} {scene_h:.0f}"
+           preserveAspectRatio="xMidYMid meet">
+        {"".join(header_svg)}
+        {"".join(arrows_svg)}
+        {"".join(boxes_svg)}
+      </svg>
+    </div>
+    """
+
+
+PROCESSING_STEPS_BY_CATEGORY: dict[str, tuple[str, ...]] = {
+    "Structural": ("Raw volume", "Bias-field corrected", "Segmented into tissue types"),
+    "Functional": (
+        "Raw volume", "Motion-corrected", "Slice-time corrected", "Spatially normalized",
+    ),
+    "Diffusion": ("Raw volume", "Motion/eddy-current corrected", "Tractography"),
+    "Behavioral": ("Raw trial responses", "Scored per trial", "Accuracy/RT summary"),
+    # Connectome has no raw signal of its own to process here -- it is
+    # derived downstream from already-processed Diffusion (and/or
+    # Functional) data, per QC_NOTES above, not acquired and preprocessed
+    # independently the way the other four modalities are.
+    "Network": ("Derived from Diffusion/Functional", "No separate raw signal to process"),
+}
+STEP_CHIP_W = 118.0
+STEP_CHIP_H = 30.0
+STEP_CHIP_GAP = 34.0
+STEP_ROW_GAP = 52.0
+STEP_TOP_MARGIN = 14.0
+
+
+def _processing_steps_html(modalities: tuple[modality_core.Modality, ...], height: int = 240) -> str:
+    """
+    One animated step-chain per modality: Raw -> ... -> ready for
+    alignment, each chip pulsing in sequence (staggered animation-delay,
+    the same technique _brain_scene_html uses for its activation-blob
+    icon) so a traveling highlight visibly moves left to right, standing
+    in for "data flowing through this modality's own preprocessing."
+    These are original, generic chips, not real preprocessed images or a
+    reproduction of any specific software's output.
+    """
+
+    n = max(len(modalities), 1)
+    scene_h = STEP_TOP_MARGIN + n * STEP_ROW_GAP + 10
+
+    rows_svg: list[str] = []
+    max_steps = 1
+
+    for row, m in enumerate(modalities):
+        steps = PROCESSING_STEPS_BY_CATEGORY.get(m.category, ())
+        max_steps = max(max_steps, len(steps))
+        color = CATEGORY_COLORS[m.category]
+        y = STEP_TOP_MARGIN + row * STEP_ROW_GAP
+        cy = y + STEP_CHIP_H / 2
+
+        rows_svg.append(
+            f'<text x="0" y="{cy - STEP_CHIP_H / 2 - 6:.0f}" font-size="10" '
+            f'fill="{INK_SECONDARY}">{m.category}</text>'
+        )
+
+        for i, step_label in enumerate(steps):
+            x = i * (STEP_CHIP_W + STEP_CHIP_GAP)
+            delay = i * 0.35
+
+            if i + 1 < len(steps):
+                rows_svg.append(
+                    _flow_arrow(x + STEP_CHIP_W, cy, x + STEP_CHIP_W + STEP_CHIP_GAP, cy, GRIDLINE)
+                )
+
+            rows_svg.append(
+                f'<g style="--pulse-dur:{len(steps) * 0.7:.2f}s; '
+                f'animation-delay:{delay:.2f}s;" class="step-pulse">'
+                f'<rect x="{x:.0f}" y="{y:.0f}" width="{STEP_CHIP_W:.0f}" height="{STEP_CHIP_H:.0f}" '
+                f'rx="15" fill="{color}" opacity="0.18" stroke="{color}" stroke-width="1.3"/>'
+                f'</g>'
+            )
+            rows_svg.append(
+                f'<text x="{x + STEP_CHIP_W / 2:.0f}" y="{cy + 3:.0f}" text-anchor="middle" '
+                f'font-size="9.5" fill="{INK_SECONDARY}">{step_label}</text>'
+            )
+
+    scene_w = max_steps * (STEP_CHIP_W + STEP_CHIP_GAP) - STEP_CHIP_GAP + 8
+
+    return f"""
+    <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+                background:{SURFACE}; border-radius:6px; padding:10px 4px;">
+      <style>
+        @keyframes stepPulse {{
+          0%, 100% {{ opacity: 0.7; }}
+          50% {{ opacity: 1; }}
+        }}
+        .step-pulse rect {{
+          animation: stepPulse var(--pulse-dur, 2.4s) ease-in-out infinite;
+          animation-delay: inherit;
+        }}
+      </style>
+      <svg width="100%" height="{height}" viewBox="-4 0 {scene_w:.0f} {scene_h:.0f}"
+           preserveAspectRatio="xMidYMid meet">
+        {"".join(rows_svg)}
+      </svg>
+    </div>
+    """
 
 
 def _feature_set_spec(results: tuple[feature_selection_core.FeatureSetResult, ...], selection) -> dict:
@@ -993,6 +1169,16 @@ if stage >= STAGE_ACQUIRE:
     for m in current_modalities:
         with st.expander(f"{m.name}, what this measures"):
             st.caption(f"Examples: {m.signal_examples}.")
+            st.write(
+                f"Interpretive gain (illustrative): **{m.interpretive_gain:.2f}** "
+                "/ 1.00 -- how much information this modality adds that "
+                "the others don't already carry, higher is more. Cost "
+                f"(illustrative): privacy **{m.privacy_cost:.2f}**, "
+                f"security **{m.security_cost:.2f}**, agency "
+                f"**{m.agency_cost:.2f}** -- each 0 = negligible, 1 = "
+                "severe. See 'Research considerations: acquisition' "
+                "below for what these scores are rated against."
+            )
             st.write(m.notes)
             st.caption(m.citation)
 
@@ -1010,33 +1196,73 @@ if stage >= STAGE_ACQUIRE:
         "impossible."
     )
 
+    st.write(
+        "The point of the demo below: a real staircase algorithm never "
+        "gets to see a participant's true ability directly, only whether "
+        "each response was right or wrong. Set a 'true' level below as if "
+        "you were that participant, then watch the algorithm -- which "
+        "cannot see the number you just set -- discover it from your "
+        "right/wrong responses alone. This is why adaptive designs are "
+        f"used for a study spanning ages {GRAND_AGE_MIN:.0f}-{GRAND_AGE_MAX:.0f}: a "
+        "fixed set of trials would be too easy for some participants and "
+        "too hard for others, but a staircase finds each person's own "
+        "level regardless of where they start."
+    )
+
     ability_level = st.slider(
-        "Illustrative participant ability level",
+        "This simulated participant's true ability level (hidden from the algorithm)",
         min_value=STAIRCASE_MIN_LEVEL,
         max_value=STAIRCASE_MAX_LEVEL,
         value=5,
         help=(
             "The difficulty level at which this simulated participant "
-            "would respond correctly about half the time."
+            "would respond correctly about half the time. Only you can "
+            "see this value; the staircase below only ever sees right or "
+            "wrong."
         ),
     )
     staircase_levels = _simulate_staircase(ability_level)
-    st.vega_lite_chart(_staircase_spec(staircase_levels), width="stretch")
-    st.caption(
-        "Once the staircase finds this participant's level, it "
-        "oscillates around it rather than climbing or falling further; "
-        "that oscillation is the adaptive procedure working as intended, "
-        "not noise to smooth over."
+    reversals = _staircase_reversals(staircase_levels)
+    threshold_estimate = _staircase_threshold_estimate(staircase_levels, reversals)
+
+    st.vega_lite_chart(
+        _staircase_spec(staircase_levels, ability_level, reversals), width="stretch"
     )
+    st.caption(
+        "Dashed line = the true level you set. Diamonds = reversals, the "
+        "trials where the staircase switched from rising to falling or "
+        "back -- the conventional landmark for reading a threshold off a "
+        "staircase (see citations below)."
+    )
+
+    if threshold_estimate is None:
+        st.write(
+            "Too few reversals occurred in this short a run to estimate a "
+            "threshold; a real study runs more trials or a longer "
+            "staircase than this 20-trial illustration."
+        )
+    else:
+        st.write(
+            f"**Threshold estimate from this run: {threshold_estimate:.1f}.** "
+            f"Computed as the mean level across the reversals above, "
+            "dropping the first (biased by the arbitrary starting level, "
+            f"not yet by this participant's responses). Compare it to the "
+            f"true level you set, **{ability_level}**: the algorithm never "
+            "saw that number, only right/wrong answers, and still landed "
+            "close to it."
+        )
+
     caveat(
         "This is a generic two-correct-in-a-row-to-increase, "
         "one-wrong-to-decrease staircase, illustrating what "
-        "\"adaptive\" means, not a reproduction of GRAND's own "
-        "algorithm. See the citation below for the actual paradigm, "
-        "which this page cannot fully verify (see the "
-        "citation-integrity note)."
+        "\"adaptive\" means and how a threshold is conventionally read "
+        "off one, not a reproduction of GRAND's own algorithm. See the "
+        "first citation below for the actual paradigm, which this page "
+        "cannot fully verify (see the citation-integrity note)."
     )
     st.caption(WILSON_CITATION)
+    st.caption(CORNSWEET_CITATION)
+    st.caption(LEVITT_CITATION)
 
     with st.expander("Research considerations: acquisition"):
         st.write(
@@ -1124,7 +1350,6 @@ if stage >= STAGE_PROCESS:
     )
 
     current_modalities = _current_modalities()
-    current_pipeline = pipeline_core.build_pipeline(current_modalities, convergence_stage="Inference")
 
     st.write(
         "Structural volumes are bias-field corrected and segmented into "
@@ -1136,14 +1361,37 @@ if stage >= STAGE_PROCESS:
         "is shared across modalities."
     )
 
-    st.vega_lite_chart(_pipeline_diagram_spec(current_pipeline), width="stretch")
+    components.html(
+        _processing_steps_html(current_modalities),
+        height=240,
+    )
+    st.caption(
+        "Generic, animated chips standing in for each modality's own "
+        "processing steps above, not real preprocessed images -- the "
+        "traveling highlight is only meant to suggest data moving through "
+        "a sequence of stages, in the order named just above."
+    )
+
+    components.html(
+        _pipeline_flow_html(current_modalities),
+        height=260,
+    )
     st.caption(
         "Each modality keeps its own Signals, Sensors, and Processing "
-        "node; the diagram converges only at Inference, using "
+        "box; all four converge with an arrow only at Inference, using "
         "modules/signal_pipeline/core's convergence_stage parameter "
         "(the illustrative EEG/ECG/EMG journey converges immediately "
-        "after Sensors instead, both are the same underlying engine)."
+        "after Sensors instead, both are the same underlying engine). "
+        "Decision, Action, and Feedback -- later stages this same engine "
+        "supports -- are left off the diagram because this page's prose "
+        "never discusses them."
     )
+    st.caption(
+        "Diagram style, not the pipeline itself, follows the same "
+        "converging-per-source-box convention used in multimodal-fusion "
+        "methods figures:"
+    )
+    st.caption(FUSION3D_CITATION)
 
     if stage < STAGE_ALIGN:
         if st.button("Continue to align & derive features", type="primary"):

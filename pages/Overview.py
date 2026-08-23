@@ -219,3 +219,51 @@ st.caption(
     "research. The toolkit emphasizes transparent validation methods that are "
     "accessible, reproducible, and adaptable across disciplines."
 )
+
+st.divider()
+
+
+# ---------------------------------------------------------------------
+# Getting started, limitations, AI use, and contact
+# ---------------------------------------------------------------------
+
+st.subheader("Getting Started")
+st.markdown(
+    "New to a dataset or question? Start with Research Journeys or "
+    "Explore Real Data to build validation judgment on real examples. "
+    "Already know which check you need? Jump straight to a module from "
+    "the sidebar, or use Method Selection to get routed to one."
+)
+
+st.subheader("Best-Suited Workflows")
+st.markdown(
+    "OpenMeasure fits reproducibility, reliability, fairness, data-"
+    "quality, and program-evaluation questions on your own research "
+    "data, models, or programs. It does not replace domain expertise, "
+    "and it does not produce a single composite pass/fail score."
+)
+
+st.subheader("Limitations & Future Directions")
+st.markdown(
+    "Current modules cover a defined set of established statistical "
+    "methods and worked examples, not every validation question or "
+    "dataset type. Future releases are expected to expand data-"
+    "validation and fairness coverage and connect further findings "
+    "across the research workflow."
+)
+
+st.subheader("Generative AI Use Statement")
+st.markdown(
+    "Portions of this codebase were developed with the assistance of "
+    "generative AI tools for code drafting, debugging, and "
+    "documentation; all statistical methods were independently "
+    "verified, and all design and scope decisions were made by the "
+    "project's author. See `docs/Authorship.md` for details."
+)
+
+st.subheader("Contact")
+st.markdown(
+    "Questions, feedback, or contributions are welcome: please open an "
+    "issue on the [GitHub repository](https://github.com/victoriamccray/openmeasure) "
+    "before submitting a pull request. See `CONTRIBUTING.md` for details."
+)

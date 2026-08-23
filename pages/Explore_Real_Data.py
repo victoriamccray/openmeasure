@@ -41,12 +41,14 @@ st.caption(
 
 st.markdown(
     """
-These are real, imperfect measurement datasets, not clean benchmarks:
-expect missing values, condition-specific behavior, and results that
-shift with how you split or filter the data. They best support
-validation questions -- does a measurement or model agree across
-methods, conditions, or groups -- rather than questions with one fixed
-right answer.
+These measurement datasets reflect real-world complexities rather than
+standardized benchmarks. Consequently, you should anticipate missing
+values, condition-dependent traits, and outcomes that vary based on
+data filtering and splitting. Rather than addressing questions with a
+single definitive answer, they are best suited for validation
+inquiries, such as evaluating whether a model or measurement
+demonstrates consistency across different methods, conditions, or
+groups.
 
 Each dataset below names a workflow it fits and one open-ended question
 worth asking of it. Deciding how to approach the data, and what its
