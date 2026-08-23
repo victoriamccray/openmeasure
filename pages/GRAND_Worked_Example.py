@@ -1244,11 +1244,11 @@ QC_VISUAL_ICON_PATHS: dict[str, str] = {
 
 QC_VISUAL_LABELS: dict[str, str] = {
     "motion_trace": "Motion trace vs. cutoff",
-    "tsnr_map": "tSNR: higher near center, fades toward edges",
-    "activation_overlap": "Task contrast vs. meta-analytic map overlap",
+    "tsnr_map": "tSNR: high center, low edges",
+    "activation_overlap": "Task map vs. reference overlap",
     "split_half": "Split-half agreement",
-    "derived_from": "Inherits its source modality's QC",
-    "artifact_check": "Motion/ghosting artifact check",
+    "derived_from": "Inherits source's QC",
+    "artifact_check": "Motion/ghosting check",
 }
 
 QC_VISUAL_KEYS_BY_MODALITY: dict[str, tuple[str, ...]] = {
@@ -1270,10 +1270,10 @@ def _qc_visual_row_html(name: str, color: str) -> str:
         icon = _icon_markup(QC_VISUAL_ICON_PATHS[key], color, 16, 16, 1.0, "")
         items.append(
             f'<div style="display:flex; flex-direction:column; align-items:center; '
-            f'width:110px; gap:2px;">'
+            f'width:132px; gap:2px;">'
             f'<svg width="32" height="32" viewBox="0 0 32 32">{icon}</svg>'
-            f'<span style="font-size:10px; color:{INK_SECONDARY}; text-align:center;">'
-            f'{QC_VISUAL_LABELS[key]}</span>'
+            f'<span style="font-size:10px; line-height:1.25; color:{INK_SECONDARY}; '
+            f'text-align:center;">{QC_VISUAL_LABELS[key]}</span>'
             f"</div>"
         )
 
@@ -1665,12 +1665,7 @@ if stage >= STAGE_QC:
             st.write(f"**What to inspect**: {qc['what_to_inspect']}")
             visual_row = _qc_visual_row_html(m.name, CATEGORY_COLORS[m.category])
             if visual_row:
-                components.html(visual_row, height=70)
-                st.caption(
-                    "Original, static icons for a quick visual sense of "
-                    "each check above, not a real scan or a real motion/"
-                    "tSNR/reliability figure from this dataset."
-                )
+                components.html(visual_row, height=90)
             st.write(f"**Interpretation**: {qc['interpretation']}")
 
     st.write(
@@ -1723,14 +1718,14 @@ if stage >= STAGE_PROCESS:
         height=260,
     )
     st.caption(
-        "Each modality keeps its own Signals, Sensors, and Processing "
-        "box; all four converge with an arrow only at Inference, using "
-        "modules/signal_pipeline/core's convergence_stage parameter "
-        "(the illustrative EEG/ECG/EMG journey converges immediately "
-        "after Sensors instead, both are the same underlying engine). "
-        "Decision, Action, and Feedback -- later stages this same engine "
-        "supports -- are left off the diagram because this page's prose "
-        "never discusses them."
+        "Alt text: Each modality keeps its own Signals, Sensors, and "
+        "Processing box; all four converge with an arrow only at "
+        "Inference, using modules/signal_pipeline/core's "
+        "convergence_stage parameter (the illustrative EEG/ECG/EMG "
+        "journey converges immediately after Sensors instead, both are "
+        "the same underlying engine). Decision, Action, and Feedback, "
+        "later stages this same engine supports, are left off the "
+        "diagram because this page's prose never discusses them."
     )
     st.caption(
         "Diagram style, not the pipeline itself, follows the same "
@@ -1815,16 +1810,6 @@ if stage >= STAGE_EVALUATE:
         "Does this modality add enough information to justify collecting and integrating it?",
     )
 
-    st.warning(
-        "The feature sets and performance figures below are illustrative "
-        "numbers invented to demonstrate the method, not GRAND's own "
-        "model-comparison results; this page did not have access to "
-        "GRAND's raw imaging or per-subject model outputs, and GRAND's "
-        "own preprint is a data descriptor, confirmed to report no "
-        "per-feature-set or per-modality prediction comparison of this "
-        "kind at all. See the page's citation-integrity note, item 5."
-    )
-
     st.write(
         "For a real sense of whether this kind of pattern shows up in "
         "practice: a 2026 study of 450 adults (ages 21-90, the Dallas "
@@ -1835,11 +1820,9 @@ if stage >= STAGE_EVALUATE:
         "(R² ≈ .51), more than any single modality alone, with "
         "diffusion-weighted imaging and functional connectivity the "
         "next-strongest individually. That is a different dataset, "
-        "outcome, and modality set from GRAND's own five feature sets "
-        "below, so it cannot substitute for GRAND's own numbers -- but it "
-        "is real evidence that combining modalities can genuinely add "
-        "predictive value, which is the general pattern the illustrative "
-        "numbers below are built to demonstrate."
+        "outcome, and modality set from GRAND's own, so it cannot "
+        "substitute for GRAND's own numbers -- but it is real evidence "
+        "that combining modalities can genuinely add predictive value."
     )
     st.caption(KONOPKINA_CITATION)
 
@@ -1853,61 +1836,88 @@ if stage >= STAGE_EVALUATE:
             "baseline, and a COD below 0 performs worse than it."
         )
 
-    ALL_FEATURE_SETS = (
-        feature_selection_core.FeatureSetResult("Structural only", 1, 0.18, 0.08),
-        feature_selection_core.FeatureSetResult("+ Functional", 2, 0.34, 0.07),
-        feature_selection_core.FeatureSetResult("+ Diffusion", 3, 0.37, 0.07),
-        feature_selection_core.FeatureSetResult("+ Connectome", 4, 0.39, 0.09),
-        feature_selection_core.FeatureSetResult("+ Behavioral", 5, 0.41, 0.10),
-    )
-
     st.write(
-        "Pick which candidate feature sets to compare: the best/"
-        "necessary computation below re-runs live over whichever subset "
-        "you keep, the same way it would if a real analysis dropped a "
-        "candidate feature set from consideration."
+        "**A preliminary comparative analysis derived from GRAND's "
+        "publicly accessible records**"
     )
-    included_names = st.multiselect(
-        "Feature sets to compare",
-        options=[fs.name for fs in ALL_FEATURE_SETS],
-        default=[fs.name for fs in ALL_FEATURE_SETS],
+    st.write(
+        "Dual feature sets are authentically calculated from GRAND's "
+        "public derivatives hosted on OpenNeuro (ds007831). For 109 out "
+        "of the 110 participants included in the release, excluding one "
+        "individual due to an unusable connectome file, structural "
+        "connectomes utilizing the Brainnetome atlas and Semantic > "
+        "Pseudofont functional beta maps were acquired. These datasets "
+        "were condensed into representative values: the mean weight of "
+        "nonzero edges for connectomes, and the mean absolute value "
+        "across nonzero voxels for beta maps. A linear regression model "
+        "targets **age at the time of MRI** as the dependent variable, "
+        "rather than linguistic or reading proficiency; since "
+        "trial-level behavioral data remains excluded from the "
+        "accessible public release, age serves as the sole tangible "
+        "outcome available for pairing with authentic GRAND features. "
+        "The reported performance metrics and associated standard "
+        "errors reflect the mean and standard error of R² across 15 "
+        "validation folds, utilizing a 5-fold cross-validation protocol "
+        "repeated thrice with varied random partitions. See the page's "
+        "citation-integrity note, item 5, for why GRAND's own preprint "
+        "could not supply this comparison instead."
     )
-    feature_sets = tuple(fs for fs in ALL_FEATURE_SETS if fs.name in included_names)
 
-    if not feature_sets:
-        st.info("Select at least one feature set above to compare.")
-    else:
-        selection = feature_selection_core.select_necessary_feature_set(feature_sets)
+    real_feature_sets = (
+        feature_selection_core.FeatureSetResult("Connectome only", 1, 0.0030, 0.0093),
+        feature_selection_core.FeatureSetResult("+ Functional", 2, -0.0266, 0.0172),
+    )
+    real_selection = feature_selection_core.select_necessary_feature_set(real_feature_sets)
 
-        st.vega_lite_chart(_feature_set_spec(feature_sets, selection), width="stretch")
-        st.caption(
-            "Vertical lines show +/- 1 standard error around each "
-            "illustrative point estimate."
-        )
-
+    st.vega_lite_chart(_feature_set_spec(real_feature_sets, real_selection), width="stretch")
+    st.caption(
+        "Vertical lines show +/- 1 standard error around each real, "
+        "computed point estimate. R² ≈ 0.003 (Connectome only) "
+        "and R² ≈ -0.027 (+ Functional); the chart's tooltip "
+        "rounds to two decimals, which is not enough to show that "
+        "Connectome only's estimate is slightly positive rather than "
+        "exactly zero."
+    )
+    st.write(
+        f"**What this shows**: both real R² values are close to "
+        "zero, and adding the functional feature made the "
+        "cross-validated estimate worse, not better. Under the "
+        "one-standard-error rule, the necessary feature set here is "
+        f"**{real_selection.necessary}**; neither feature set shows "
+        "clear evidence of predicting age from these two coarse, global "
+        "summaries."
+    )
+    with st.expander("The one-standard-error rule"):
         st.write(
-            f"**What this shows**: the best-performing illustrative feature "
-            f"set is **{selection.best}**. The necessary feature set, the "
-            f"fewest features whose performance is not distinguishable from "
-            f"best by the one-standard-error rule, is **{selection.necessary}**."
+            "Among feature sets whose performance is within one standard "
+            "error of the best-observed performance, prefer the one with "
+            "the fewest features. This is a convention for trading a "
+            "small, uncertain performance gain against model simplicity, "
+            "not a significance test."
         )
-        with st.expander("The one-standard-error rule"):
-            st.write(
-                "Among feature sets whose performance is within one standard "
-                "error of the best-observed performance, prefer the one with "
-                "the fewest features. This is a convention for trading a "
-                "small, uncertain performance gain against model simplicity, "
-                "not a significance test."
-            )
-            st.caption(feature_selection_core.ONE_STANDARD_ERROR_RULE_CITATION)
+        st.caption(feature_selection_core.ONE_STANDARD_ERROR_RULE_CITATION)
 
-        for name, within in selection.within_one_se_of_best.items():
-            if not within:
-                flagged_item_note(
-                    name,
-                    "Not within one standard error of the best illustrative "
-                    "feature set's performance.",
-                )
+    for name, within in real_selection.within_one_se_of_best.items():
+        if not within:
+            flagged_item_note(
+                name,
+                "Not within one standard error of the best real, "
+                "computed feature set's performance.",
+            )
+
+    caveat(
+        "This is a deliberately blunt analysis, not a claim that "
+        "GRAND's connectome or functional data carry no real signal: a "
+        "single whole-brain mean throws away almost all spatial "
+        "information, and a richer feature set, like the per-region "
+        "features a full analysis (or Konopkina et al.'s stacked-"
+        "modality model above) would use, could look very different. "
+        "What this real comparison does show honestly is what a fast, "
+        "coarse first pass on real GRAND data actually looks like, not "
+        "necessarily the steadily-improving pattern combining modalities "
+        "can produce in a larger, richer analysis like Konopkina et "
+        "al.'s above."
+    )
 
     current_modalities = _current_modalities()
     if len(current_modalities) > 1:
@@ -1967,19 +1977,32 @@ if stage >= STAGE_INTERPRET:
 
     st.write("**Did integration materially improve the result?**")
     st.write(
-        "Per Step 7's illustrative demonstration: performance increased "
-        "with each added feature set, but not every increase exceeded one "
-        "standard error, so not every addition would be judged necessary "
-        "under that rule."
+        "Per Step 7's real, computed comparison: no. Adding the "
+        "functional feature made the cross-validated estimate worse, "
+        "not better, and neither feature set's real R² was clearly "
+        "distinguishable from zero, so this specific pairing shows no "
+        "support for integration mattering, at least for two coarse "
+        "global summaries predicting age."
     )
 
     st.write("**What can the combined evidence actually support?**")
     st.write(
-        "A statement about which modalities' derived features "
-        "statistically improve prediction of the behavioral outcome in "
-        "this illustrative demonstration, not a statement about which "
-        "modalities are biologically necessary for reading and language, "
-        "which would require evidence this page does not have."
+        "A statement about whether two coarse, real feature sets "
+        "(a connectome-strength summary and a functional-activation "
+        "summary) improve prediction of age at MRI in this specific "
+        "reduced analysis, not a statement about which modalities are "
+        "biologically necessary for reading and language, which would "
+        "require the trial-wise behavioral outcome data this page could "
+        "not access."
+    )
+
+    st.write("**Could this data support a fairness check?**")
+    st.write(
+        "Yes: participants.tsv records sex, race, ethnicity, education, "
+        "and handedness alongside age. Checking whether a predictive "
+        "model built on this data performs consistently across those "
+        "groups is exactly the kind of question OpenMeasure's Fairness "
+        "module is for; this page does not run that check itself."
     )
 
     st.divider()
