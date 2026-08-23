@@ -202,6 +202,17 @@ FUSION3D_CITATION = (
     "Transactions, 57(9), 1041-1055. "
     "https://doi.org/10.1080/24725854.2024.2376650"
 )
+# A real study, a different dataset, outcome, and modality set from
+# GRAND's own five feature sets in Step 7 below -- checked directly
+# against its own abstract, not recalled from memory (see that step's
+# warning for why GRAND's own numbers are not substituted here).
+KONOPKINA_CITATION = (
+    "Konopkina, K., Buianova, I., Lal Khakpoor, F., Pornprasertmanit, S., "
+    "Chan, M., & Pat, N. (2026). Multimodal MRI prediction of cognitive "
+    "functioning across the lifespan: separating between-person "
+    "differences from within-person changes. GeroScience. "
+    "https://doi.org/10.1007/s11357-026-02441-2"
+)
 
 GRAND_N_PARTICIPANTS = 110  # participants.tsv row count, fetched directly
 GRAND_N_PARTICIPANTS_PREPRINT_ABSTRACT = 116  # stated in the preprint's abstract - see docstring
@@ -308,6 +319,87 @@ _ICON_PULSE = {
     "Behavioral": (1.1, "1.3s"),
 }
 ANATOMY_LEGEND_BUFFER_PX = 56
+
+# One small, static, drawn glyph per modality, keyed by name rather than
+# category since each modality's own real acquisition numbers -- already
+# in signal_examples above -- differ even where two modalities share a
+# category. The glyph is a mnemonic for the real numbers stated next to
+# it in ACQUISITION_SUMMARY_BY_MODALITY below, not a substitute for them:
+# a screen-reader user gets the real numbers from that text either way.
+# Slice-stack line spacing/thickness is drawn coarser for a larger real
+# voxel size, so Structural's fine hatching and Functional's fewer, thicker
+# bars visually echo the same resolution-versus-coverage tradeoff QC_NOTES
+# describes in words.
+MODALITY_ACQUISITION_GLYPHS: dict[str, str] = {
+    "Structural MRI (T1w/FLAIR)": (
+        '<rect x="4" y="4" width="24" height="24" rx="4" fill="{fill}" opacity="0.08"/>'
+        '<line x1="6" y1="7" x2="26" y2="7" stroke="{fill}" stroke-width="0.8" opacity="0.8"/>'
+        '<line x1="6" y1="10" x2="26" y2="10" stroke="{fill}" stroke-width="0.8" opacity="0.8"/>'
+        '<line x1="6" y1="13" x2="26" y2="13" stroke="{fill}" stroke-width="0.8" opacity="0.8"/>'
+        '<line x1="6" y1="16" x2="26" y2="16" stroke="{fill}" stroke-width="0.8" opacity="0.8"/>'
+        '<line x1="6" y1="19" x2="26" y2="19" stroke="{fill}" stroke-width="0.8" opacity="0.8"/>'
+        '<line x1="6" y1="22" x2="26" y2="22" stroke="{fill}" stroke-width="0.8" opacity="0.8"/>'
+        '<line x1="6" y1="25" x2="26" y2="25" stroke="{fill}" stroke-width="0.8" opacity="0.8"/>'
+    ),
+    "Functional MRI (T2*, language task)": (
+        '<rect x="4" y="4" width="24" height="24" rx="4" fill="{fill}" opacity="0.08"/>'
+        '<rect x="6" y="6" width="20" height="3.4" fill="{fill}" opacity="0.75"/>'
+        '<rect x="6" y="13" width="20" height="3.4" fill="{fill}" opacity="0.75"/>'
+        '<rect x="6" y="20" width="20" height="3.4" fill="{fill}" opacity="0.75"/>'
+    ),
+    "Diffusion MRI (HARDI/DTI)": (
+        '<line x1="16" y1="16" x2="16" y2="3" stroke="{fill}" stroke-width="1.1" opacity="0.85"/>'
+        '<line x1="16" y1="16" x2="26" y2="7" stroke="{fill}" stroke-width="1.1" opacity="0.85"/>'
+        '<line x1="16" y1="16" x2="29" y2="16" stroke="{fill}" stroke-width="1.1" opacity="0.85"/>'
+        '<line x1="16" y1="16" x2="26" y2="25" stroke="{fill}" stroke-width="1.1" opacity="0.85"/>'
+        '<line x1="16" y1="16" x2="16" y2="29" stroke="{fill}" stroke-width="1.1" opacity="0.85"/>'
+        '<line x1="16" y1="16" x2="6" y2="25" stroke="{fill}" stroke-width="1.1" opacity="0.85"/>'
+        '<line x1="16" y1="16" x2="3" y2="16" stroke="{fill}" stroke-width="1.1" opacity="0.85"/>'
+        '<line x1="16" y1="16" x2="6" y2="7" stroke="{fill}" stroke-width="1.1" opacity="0.85"/>'
+        '<line x1="16" y1="16" x2="22" y2="9" stroke="{fill}" stroke-width="0.7" opacity="0.45"/>'
+        '<line x1="16" y1="16" x2="23" y2="23" stroke="{fill}" stroke-width="0.7" opacity="0.45"/>'
+        '<line x1="16" y1="16" x2="9" y2="23" stroke="{fill}" stroke-width="0.7" opacity="0.45"/>'
+        '<line x1="16" y1="16" x2="9" y2="9" stroke="{fill}" stroke-width="0.7" opacity="0.45"/>'
+        '<circle cx="16" cy="16" r="2" fill="{fill}"/>'
+    ),
+    "Connectome (derived)": _MODALITY_ICON_PATHS["Network"],
+    "Behavioral reading/language measures": (
+        '<path d="M6 16L10 20L16 10" stroke="{fill}" stroke-width="2.2" fill="none" stroke-linecap="round"/>'
+        '<path d="M20 9L26 15M26 9L20 15" stroke="{fill}" stroke-width="2.2" stroke-linecap="round"/>'
+        '<circle cx="16" cy="24" r="5" fill="none" stroke="{fill}" stroke-width="1.4"/>'
+        '<line x1="16" y1="24" x2="16" y2="20.5" stroke="{fill}" stroke-width="1.2"/>'
+        '<line x1="16" y1="24" x2="18.5" y2="24" stroke="{fill}" stroke-width="1.2"/>'
+    ),
+}
+
+# The real numbers the glyphs above are mnemonics for -- already present
+# in each modality's own signal_examples, repeated here as a short,
+# stated summary rather than left implicit in the icon alone.
+ACQUISITION_SUMMARY_BY_MODALITY: dict[str, str] = {
+    "Structural MRI (T1w/FLAIR)": "T1w: 176 slices. FLAIR: 192 slices. Both at 1 mm3 voxels.",
+    "Functional MRI (T2*, language task)": "48 slices at 2.9 mm3 voxels: fewer, coarser slices than structural, trading resolution for the speed a task-based scan needs.",
+    "Diffusion MRI (HARDI/DTI)": "121 gradient directions (81 at b=3000, 40 at b=1200) plus 7 at b=0: 128 volumes total.",
+    "Connectome (derived)": "Derived from already-acquired data: no independent scan time of its own.",
+    "Behavioral reading/language measures": "Trial-wise accuracy and reaction time, scored outside the scanner.",
+}
+
+
+def _acquisition_glyph_html(name: str, color: str) -> str:
+    """A small, static, centered glyph for one modality's real acquisition
+    numbers -- see MODALITY_ACQUISITION_GLYPHS and
+    ACQUISITION_SUMMARY_BY_MODALITY above for what it stands for and the
+    real numbers it is a mnemonic for."""
+
+    glyph = MODALITY_ACQUISITION_GLYPHS.get(name)
+    if glyph is None:
+        return ""
+
+    icon = _icon_markup(glyph, color, 20, 20, 1.1, "")
+    return f"""
+    <div style="display:flex; justify-content:center;">
+      <svg width="40" height="40" viewBox="0 0 40 40">{icon}</svg>
+    </div>
+    """
 
 
 def _icon_markup(path_template: str, fill: str, cx: float, cy: float, scale: float, pulse_class: str) -> str:
@@ -681,21 +773,115 @@ PROCESSING_STEPS_BY_CATEGORY: dict[str, tuple[str, ...]] = {
     # independently the way the other four modalities are.
     "Network": ("Derived from Diffusion/Functional", "No separate raw signal to process"),
 }
-STEP_CHIP_W = 118.0
-STEP_CHIP_H = 30.0
-STEP_CHIP_GAP = 34.0
-STEP_ROW_GAP = 52.0
+
+# One drawn, static pictograph per step, each visually gesturing at what
+# that step changes (noisy -> even shading, offset -> centered outline,
+# scattered -> aligned points, and so on) rather than a generic colored
+# box. No motion or flashing anywhere here on purpose: a "traveling
+# highlight" was flagged as both a seizure-trigger risk (rapid, high-
+# contrast flicker) and useless to a screen-reader user, and the plain-
+# language step labels already carry the same information a moving
+# highlight would only gesture at. Coordinates are drawn on the same
+# 0-32 box _icon_markup already assumes for _MODALITY_ICON_PATHS.
+PROCESSING_STEP_ICONS: dict[str, tuple[str, ...]] = {
+    "Structural": (
+        # Raw volume: uneven shading (hatching of mixed weight/opacity).
+        '<rect x="4" y="4" width="24" height="24" rx="10" fill="{fill}" opacity="0.22"/>'
+        '<line x1="8" y1="10" x2="14" y2="9" stroke="{fill}" stroke-width="2" opacity="0.9"/>'
+        '<line x1="17" y1="13" x2="24" y2="11" stroke="{fill}" stroke-width="0.8" opacity="0.35"/>'
+        '<line x1="9" y1="18" x2="16" y2="16" stroke="{fill}" stroke-width="1.6" opacity="0.6"/>'
+        '<line x1="18" y1="22" x2="24" y2="23" stroke="{fill}" stroke-width="0.6" opacity="0.25"/>',
+        # Bias-field corrected: same volume, evenly shaded.
+        '<rect x="4" y="4" width="24" height="24" rx="10" fill="{fill}" opacity="0.4"/>'
+        '<line x1="8" y1="12" x2="24" y2="12" stroke="{stroke_light}" stroke-width="1" opacity="0.6"/>'
+        '<line x1="8" y1="20" x2="24" y2="20" stroke="{stroke_light}" stroke-width="1" opacity="0.6"/>',
+        # Segmented into tissue types: nested regions of different density.
+        '<rect x="4" y="4" width="24" height="24" rx="10" fill="{fill}" opacity="0.15"/>'
+        '<circle cx="16" cy="16" r="9" fill="{fill}" opacity="0.35"/>'
+        '<circle cx="16" cy="16" r="4.5" fill="{fill}" opacity="0.65"/>',
+    ),
+    "Functional": (
+        # Raw volume: two offset outlines suggest motion blur/ghosting.
+        '<path d="M6 9C10 6 20 6 24 9C27 12 27 19 24 23C20 27 10 27 6 23'
+        'C3 19 3 12 6 9Z" stroke="{fill}" stroke-width="1.6" fill="none" opacity="0.9"/>'
+        '<path d="M9 11C13 8 23 8 27 11C30 14 30 21 27 25C23 29 13 29 9 25'
+        'C6 21 6 14 9 11Z" stroke="{fill}" stroke-width="1.6" fill="none" opacity="0.35"/>',
+        # Motion-corrected: a single, centered outline.
+        '<path d="M7 9C11 6 21 6 25 9C28 12 28 20 25 24C21 28 11 28 7 24'
+        'C4 20 4 12 7 9Z" stroke="{fill}" stroke-width="1.8" fill="none"/>',
+        # Slice-time corrected: evenly aligned parallel slices.
+        '<rect x="6" y="6" width="20" height="20" rx="8" fill="{fill}" opacity="0.15"/>'
+        '<line x1="6" y1="11" x2="26" y2="11" stroke="{fill}" stroke-width="1.4"/>'
+        '<line x1="6" y1="16" x2="26" y2="16" stroke="{fill}" stroke-width="1.4"/>'
+        '<line x1="6" y1="21" x2="26" y2="21" stroke="{fill}" stroke-width="1.4"/>',
+        # Spatially normalized: resized to fit a standard-space template.
+        '<rect x="4" y="4" width="24" height="24" rx="4" fill="none" '
+        'stroke="{stroke_light}" stroke-width="1.2" stroke-dasharray="3 2"/>'
+        '<rect x="8" y="8" width="16" height="16" rx="6" fill="{fill}" opacity="0.4"/>',
+    ),
+    "Diffusion": (
+        # Raw volume: a scattered, unaligned point cloud.
+        '<circle cx="8" cy="10" r="1.6" fill="{fill}"/><circle cx="15" cy="7" r="1.3" fill="{fill}"/>'
+        '<circle cx="22" cy="11" r="1.7" fill="{fill}"/><circle cx="10" cy="19" r="1.4" fill="{fill}"/>'
+        '<circle cx="19" cy="23" r="1.6" fill="{fill}"/><circle cx="25" cy="17" r="1.3" fill="{fill}"/>'
+        '<circle cx="16" cy="15" r="1.5" fill="{fill}"/>',
+        # Motion/eddy-current corrected: the same points, now on a grid.
+        '<circle cx="10" cy="10" r="1.5" fill="{fill}"/><circle cx="16" cy="10" r="1.5" fill="{fill}"/>'
+        '<circle cx="22" cy="10" r="1.5" fill="{fill}"/><circle cx="10" cy="16" r="1.5" fill="{fill}"/>'
+        '<circle cx="16" cy="16" r="1.5" fill="{fill}"/><circle cx="22" cy="16" r="1.5" fill="{fill}"/>'
+        '<circle cx="10" cy="22" r="1.5" fill="{fill}"/><circle cx="16" cy="22" r="1.5" fill="{fill}"/>'
+        '<circle cx="22" cy="22" r="1.5" fill="{fill}"/>',
+        # Tractography: the same flowing streamlines as the Diffusion
+        # modality icon above, reused rather than redrawn.
+        _MODALITY_ICON_PATHS["Diffusion"],
+    ),
+    "Behavioral": (
+        # Raw trial responses: unscored right/wrong marks.
+        '<path d="M5 15L9 19L15 9" stroke="{fill}" stroke-width="2.2" fill="none" stroke-linecap="round"/>'
+        '<path d="M19 8L25 14M25 8L19 14" stroke="{fill}" stroke-width="2.2" stroke-linecap="round"/>'
+        '<path d="M8 24L12 28L20 22" stroke="{fill}" stroke-width="2" fill="none" '
+        'stroke-linecap="round" opacity="0.55"/>',
+        # Scored per trial: each response now tallied in its own box.
+        '<rect x="3" y="5" width="11" height="9" rx="2" fill="{fill}" opacity="0.18"/>'
+        '<path d="M6 10L8 12L12 7" stroke="{fill}" stroke-width="1.6" fill="none" stroke-linecap="round"/>'
+        '<rect x="17" y="5" width="11" height="9" rx="2" fill="{fill}" opacity="0.18"/>'
+        '<path d="M19 7L26 13M26 7L19 13" stroke="{fill}" stroke-width="1.6" stroke-linecap="round"/>'
+        '<rect x="10" y="18" width="11" height="9" rx="2" fill="{fill}" opacity="0.18"/>'
+        '<path d="M12 22L14 25L19 20" stroke="{fill}" stroke-width="1.6" fill="none" stroke-linecap="round"/>',
+        # Accuracy/RT summary: a small bar-chart summary.
+        '<line x1="4" y1="28" x2="28" y2="28" stroke="{stroke_light}" stroke-width="1.2"/>'
+        '<rect x="7" y="16" width="5" height="12" fill="{fill}"/>'
+        '<rect x="14" y="10" width="5" height="18" fill="{fill}" opacity="0.75"/>'
+        '<rect x="21" y="20" width="5" height="8" fill="{fill}" opacity="0.5"/>',
+    ),
+    "Network": (
+        # Derived from Diffusion/Functional: two sources converging into one.
+        '<circle cx="6" cy="8" r="3" fill="{fill}" opacity="0.5"/>'
+        '<circle cx="6" cy="24" r="3" fill="{fill}" opacity="0.5"/>'
+        '<path d="M10 9L20 15M10 23L20 17" stroke="{fill}" stroke-width="1.4" opacity="0.65"/>'
+        '<circle cx="24" cy="16" r="4" fill="{fill}"/>',
+        # No separate raw signal: the same network icon used elsewhere here.
+        _MODALITY_ICON_PATHS["Network"],
+    ),
+}
+
+STEP_SLOT_W = 118.0
+STEP_SLOT_GAP = 34.0
+STEP_BADGE_SIZE = 40.0
+STEP_ROW_GAP = 70.0
 STEP_TOP_MARGIN = 14.0
 
 
-def _processing_steps_html(modalities: tuple[modality_core.Modality, ...], height: int = 240) -> str:
+def _processing_steps_html(modalities: tuple[modality_core.Modality, ...], height: int = 280) -> str:
     """
-    One animated step-chain per modality: Raw -> ... -> ready for
-    alignment, each chip pulsing in sequence (staggered animation-delay,
-    the same technique _brain_scene_html uses for its activation-blob
-    icon) so a traveling highlight visibly moves left to right, standing
-    in for "data flowing through this modality's own preprocessing."
-    These are original, generic chips, not real preprocessed images or a
+    One static, drawn pictograph per processing step per modality (Raw
+    -> ... -> ready for alignment), each icon visually showing what that
+    step changes rather than an animated or generic placeholder. Static
+    on purpose: an earlier flickering/pulsing version was both a
+    seizure-trigger risk (rapid, high-contrast flashing) and added
+    nothing for a screen-reader user, who already has the same
+    information in the step labels and the surrounding prose. These are
+    original, generic icons, not real preprocessed images or a
     reproduction of any specific software's output.
     """
 
@@ -707,52 +893,54 @@ def _processing_steps_html(modalities: tuple[modality_core.Modality, ...], heigh
 
     for row, m in enumerate(modalities):
         steps = PROCESSING_STEPS_BY_CATEGORY.get(m.category, ())
+        icons = PROCESSING_STEP_ICONS.get(m.category, ())
         max_steps = max(max_steps, len(steps))
         color = CATEGORY_COLORS[m.category]
         y = STEP_TOP_MARGIN + row * STEP_ROW_GAP
-        cy = y + STEP_CHIP_H / 2
+        badge_cy = y + STEP_BADGE_SIZE / 2
 
         rows_svg.append(
-            f'<text x="0" y="{cy - STEP_CHIP_H / 2 - 6:.0f}" font-size="10" '
-            f'fill="{INK_SECONDARY}">{m.category}</text>'
+            f'<text x="0" y="{y - 6:.0f}" font-size="10" fill="{INK_SECONDARY}">{m.category}</text>'
         )
 
+        badge_x_by_step = [
+            i * (STEP_SLOT_W + STEP_SLOT_GAP) + (STEP_SLOT_W - STEP_BADGE_SIZE) / 2
+            for i in range(len(steps))
+        ]
+
         for i, step_label in enumerate(steps):
-            x = i * (STEP_CHIP_W + STEP_CHIP_GAP)
-            delay = i * 0.35
+            slot_x = i * (STEP_SLOT_W + STEP_SLOT_GAP)
+            badge_x = badge_x_by_step[i]
+            badge_cx = badge_x + STEP_BADGE_SIZE / 2
 
             if i + 1 < len(steps):
                 rows_svg.append(
-                    _flow_arrow(x + STEP_CHIP_W, cy, x + STEP_CHIP_W + STEP_CHIP_GAP, cy, GRIDLINE)
+                    _flow_arrow(
+                        badge_x + STEP_BADGE_SIZE, badge_cy,
+                        badge_x_by_step[i + 1], badge_cy,
+                        GRIDLINE,
+                    )
                 )
 
             rows_svg.append(
-                f'<g style="--pulse-dur:{len(steps) * 0.7:.2f}s; '
-                f'animation-delay:{delay:.2f}s;" class="step-pulse">'
-                f'<rect x="{x:.0f}" y="{y:.0f}" width="{STEP_CHIP_W:.0f}" height="{STEP_CHIP_H:.0f}" '
-                f'rx="15" fill="{color}" opacity="0.18" stroke="{color}" stroke-width="1.3"/>'
-                f'</g>'
+                f'<rect x="{badge_x:.0f}" y="{y:.0f}" width="{STEP_BADGE_SIZE:.0f}" '
+                f'height="{STEP_BADGE_SIZE:.0f}" rx="8" fill="{color}" opacity="0.10" '
+                f'stroke="{color}" stroke-width="1.1"/>'
             )
+            if i < len(icons):
+                rows_svg.append(
+                    _icon_markup(icons[i], color, badge_cx, badge_cy, STEP_BADGE_SIZE / 32, "")
+                )
             rows_svg.append(
-                f'<text x="{x + STEP_CHIP_W / 2:.0f}" y="{cy + 3:.0f}" text-anchor="middle" '
-                f'font-size="9.5" fill="{INK_SECONDARY}">{step_label}</text>'
+                f'<text x="{slot_x + STEP_SLOT_W / 2:.0f}" y="{y + STEP_BADGE_SIZE + 13:.0f}" '
+                f'text-anchor="middle" font-size="9.5" fill="{INK_SECONDARY}">{step_label}</text>'
             )
 
-    scene_w = max_steps * (STEP_CHIP_W + STEP_CHIP_GAP) - STEP_CHIP_GAP + 8
+    scene_w = max_steps * (STEP_SLOT_W + STEP_SLOT_GAP) - STEP_SLOT_GAP + 8
 
     return f"""
     <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
                 background:{SURFACE}; border-radius:6px; padding:10px 4px;">
-      <style>
-        @keyframes stepPulse {{
-          0%, 100% {{ opacity: 0.7; }}
-          50% {{ opacity: 1; }}
-        }}
-        .step-pulse rect {{
-          animation: stepPulse var(--pulse-dur, 2.4s) ease-in-out infinite;
-          animation-delay: inherit;
-        }}
-      </style>
       <svg width="100%" height="{height}" viewBox="-4 0 {scene_w:.0f} {scene_h:.0f}"
            preserveAspectRatio="xMidYMid meet">
         {"".join(rows_svg)}
@@ -1102,18 +1290,18 @@ st.write(
 
 with st.expander("About GRAND"):
     st.write(
-        f"Purpose, as stated by the dataset: \"{GRAND_PURPOSE}.\" Data was "
-        f"collected at {GRAND_SITE} using a {GRAND_SCANNER}. The functional "
-        f"task was {GRAND_TASK_NAME}."
+        f"According to the dataset documentation, the primary objective is "
+        f"{GRAND_PURPOSE}. Data acquisition occurred at {GRAND_SITE}, "
+        f"using a {GRAND_SCANNER}. The functional protocol was "
+        f"{GRAND_TASK_NAME}."
     )
     st.write(
-        f"Of the preprint's {GRAND_N_PARTICIPANTS_PREPRINT_ABSTRACT} "
-        f"participants, {GRAND_N_BUILD} were recruited via BUILD and "
-        f"{GRAND_N_READMAP} via ReadMap ({GRAND_N_BUILD} + "
-        f"{GRAND_N_READMAP} = {GRAND_N_BUILD + GRAND_N_READMAP}). "
-        f"participants.tsv in the released dataset has "
-        f"{GRAND_N_PARTICIPANTS} rows; nothing in the accessible text "
-        "explains that gap - see the citation-integrity note, item 2."
+        f"While the preprint details {GRAND_N_PARTICIPANTS_PREPRINT_ABSTRACT} "
+        f"participants, comprising {GRAND_N_BUILD} from BUILD and "
+        f"{GRAND_N_READMAP} from ReadMap, the released participants.tsv "
+        f"file contains only {GRAND_N_PARTICIPANTS} entries. The existing "
+        "documentation does not account for this discrepancy; for further "
+        "details, refer to item 2 in the citation-integrity note."
     )
     st.caption(GRAND_DATASET_CITATION)
     st.caption(GRAND_PREPRINT_CITATION)
@@ -1167,8 +1355,18 @@ if stage >= STAGE_ACQUIRE:
     )
 
     for m in current_modalities:
-        with st.expander(f"{m.name}, what this measures"):
+        with st.expander(f"{m.name} Measures"):
             st.caption(f"Examples: {m.signal_examples}.")
+
+            glyph_col, summary_col = st.columns([1, 5])
+            with glyph_col:
+                components.html(
+                    _acquisition_glyph_html(m.name, CATEGORY_COLORS[m.category]),
+                    height=44,
+                )
+            with summary_col:
+                st.caption(ACQUISITION_SUMMARY_BY_MODALITY.get(m.name, ""))
+
             st.write(
                 f"Interpretive gain (illustrative): **{m.interpretive_gain:.2f}** "
                 "/ 1.00 -- how much information this modality adds that "
@@ -1197,16 +1395,18 @@ if stage >= STAGE_ACQUIRE:
     )
 
     st.write(
-        "The point of the demo below: a real staircase algorithm never "
-        "gets to see a participant's true ability directly, only whether "
-        "each response was right or wrong. Set a 'true' level below as if "
-        "you were that participant, then watch the algorithm -- which "
-        "cannot see the number you just set -- discover it from your "
-        "right/wrong responses alone. This is why adaptive designs are "
-        f"used for a study spanning ages {GRAND_AGE_MIN:.0f}-{GRAND_AGE_MAX:.0f}: a "
-        "fixed set of trials would be too easy for some participants and "
-        "too hard for others, but a staircase finds each person's own "
-        "level regardless of where they start."
+        "The objective of the following demonstration is to illustrate "
+        "how a staircase algorithm operates without direct access to a "
+        "participant's actual aptitude, relying solely on the accuracy "
+        "of individual responses. By establishing a \"true\" proficiency "
+        "level, you can observe the algorithm, unaware of your preset "
+        "value, identify that threshold through response patterns "
+        "alone. This utility explains the selection of adaptive designs "
+        f"for research encompassing ages {GRAND_AGE_MIN:.0f} to "
+        f"{GRAND_AGE_MAX:.0f}; while static trials might prove either "
+        "trivial or insurmountable for various individuals, a staircase "
+        "methodology determines a personalized level independent of the "
+        "initial starting point."
     )
 
     ability_level = st.slider(
@@ -1363,13 +1563,14 @@ if stage >= STAGE_PROCESS:
 
     components.html(
         _processing_steps_html(current_modalities),
-        height=240,
+        height=280,
     )
     st.caption(
-        "Generic, animated chips standing in for each modality's own "
-        "processing steps above, not real preprocessed images -- the "
-        "traveling highlight is only meant to suggest data moving through "
-        "a sequence of stages, in the order named just above."
+        "Generic, drawn icons standing in for each modality's own "
+        "processing steps above, not real preprocessed images: each one "
+        "gestures at what that step changes (for example, uneven "
+        "shading becoming even, or scattered points becoming aligned), "
+        "in the order named just above."
     )
 
     components.html(
@@ -1446,11 +1647,13 @@ if stage >= STAGE_INTEGRATE:
     st.write(f"Categories represented: **{', '.join(convergence.categories)}**.")
 
     st.write(
-        "**Research considerations**: integration is a choice, motivated "
-        "by the research question, not a default outcome of having "
-        "acquired multiple modalities. A question about anatomy alone "
-        "does not need Functional or Behavioral data integrated into it; "
-        "a question about brain-behavior relationships does."
+        "**Research considerations**: data integration represents a "
+        "deliberate methodological decision driven by specific research "
+        "objectives, rather than an automatic consequence of multi-modal "
+        "acquisition. While inquiries focused solely on structural "
+        "anatomy do not require the incorporation of behavioral or "
+        "functional datasets, investigations concerning brain-behavior "
+        "correlations necessitate such a synthesized approach."
     )
 
     if stage < STAGE_EVALUATE:
@@ -1471,9 +1674,29 @@ if stage >= STAGE_EVALUATE:
         "The feature sets and performance figures below are illustrative "
         "numbers invented to demonstrate the method, not GRAND's own "
         "model-comparison results; this page did not have access to "
-        "GRAND's raw imaging or per-subject model outputs. See the page's "
-        "citation-integrity note, item 5."
+        "GRAND's raw imaging or per-subject model outputs, and GRAND's "
+        "own preprint is a data descriptor, confirmed to report no "
+        "per-feature-set or per-modality prediction comparison of this "
+        "kind at all. See the page's citation-integrity note, item 5."
     )
+
+    st.write(
+        "For a real sense of whether this kind of pattern shows up in "
+        "practice: a 2026 study of 450 adults (ages 21-90, the Dallas "
+        "Lifespan Brain Study) found that stacking five real MRI "
+        "modalities (task fMRI, functional connectivity, structural MRI, "
+        "diffusion-weighted imaging, and arterial spin labeling) to "
+        "predict cognitive functioning explained about half the variance "
+        "(R² ≈ .51), more than any single modality alone, with "
+        "diffusion-weighted imaging and functional connectivity the "
+        "next-strongest individually. That is a different dataset, "
+        "outcome, and modality set from GRAND's own five feature sets "
+        "below, so it cannot substitute for GRAND's own numbers -- but it "
+        "is real evidence that combining modalities can genuinely add "
+        "predictive value, which is the general pattern the illustrative "
+        "numbers below are built to demonstrate."
+    )
+    st.caption(KONOPKINA_CITATION)
 
     with st.expander("Pearson correlation and coefficient of determination"):
         st.write(
@@ -1485,44 +1708,61 @@ if stage >= STAGE_EVALUATE:
             "baseline, and a COD below 0 performs worse than it."
         )
 
-    feature_sets = (
+    ALL_FEATURE_SETS = (
         feature_selection_core.FeatureSetResult("Structural only", 1, 0.18, 0.08),
         feature_selection_core.FeatureSetResult("+ Functional", 2, 0.34, 0.07),
         feature_selection_core.FeatureSetResult("+ Diffusion", 3, 0.37, 0.07),
         feature_selection_core.FeatureSetResult("+ Connectome", 4, 0.39, 0.09),
         feature_selection_core.FeatureSetResult("+ Behavioral", 5, 0.41, 0.10),
     )
-    selection = feature_selection_core.select_necessary_feature_set(feature_sets)
-
-    st.vega_lite_chart(_feature_set_spec(feature_sets, selection), width="stretch")
-    st.caption(
-        "Vertical lines show +/- 1 standard error around each illustrative "
-        "point estimate."
-    )
 
     st.write(
-        f"**What this shows**: the best-performing illustrative feature "
-        f"set is **{selection.best}**. The necessary feature set, the "
-        f"fewest features whose performance is not distinguishable from "
-        f"best by the one-standard-error rule, is **{selection.necessary}**."
+        "Pick which candidate feature sets to compare: the best/"
+        "necessary computation below re-runs live over whichever subset "
+        "you keep, the same way it would if a real analysis dropped a "
+        "candidate feature set from consideration."
     )
-    with st.expander("The one-standard-error rule"):
-        st.write(
-            "Among feature sets whose performance is within one standard "
-            "error of the best-observed performance, prefer the one with "
-            "the fewest features. This is a convention for trading a "
-            "small, uncertain performance gain against model simplicity, "
-            "not a significance test."
-        )
-        st.caption(feature_selection_core.ONE_STANDARD_ERROR_RULE_CITATION)
+    included_names = st.multiselect(
+        "Feature sets to compare",
+        options=[fs.name for fs in ALL_FEATURE_SETS],
+        default=[fs.name for fs in ALL_FEATURE_SETS],
+    )
+    feature_sets = tuple(fs for fs in ALL_FEATURE_SETS if fs.name in included_names)
 
-    for name, within in selection.within_one_se_of_best.items():
-        if not within:
-            flagged_item_note(
-                name,
-                "Not within one standard error of the best illustrative "
-                "feature set's performance.",
+    if not feature_sets:
+        st.info("Select at least one feature set above to compare.")
+    else:
+        selection = feature_selection_core.select_necessary_feature_set(feature_sets)
+
+        st.vega_lite_chart(_feature_set_spec(feature_sets, selection), width="stretch")
+        st.caption(
+            "Vertical lines show +/- 1 standard error around each "
+            "illustrative point estimate."
+        )
+
+        st.write(
+            f"**What this shows**: the best-performing illustrative feature "
+            f"set is **{selection.best}**. The necessary feature set, the "
+            f"fewest features whose performance is not distinguishable from "
+            f"best by the one-standard-error rule, is **{selection.necessary}**."
+        )
+        with st.expander("The one-standard-error rule"):
+            st.write(
+                "Among feature sets whose performance is within one standard "
+                "error of the best-observed performance, prefer the one with "
+                "the fewest features. This is a convention for trading a "
+                "small, uncertain performance gain against model simplicity, "
+                "not a significance test."
             )
+            st.caption(feature_selection_core.ONE_STANDARD_ERROR_RULE_CITATION)
+
+        for name, within in selection.within_one_se_of_best.items():
+            if not within:
+                flagged_item_note(
+                    name,
+                    "Not within one standard error of the best illustrative "
+                    "feature set's performance.",
+                )
 
     current_modalities = _current_modalities()
     if len(current_modalities) > 1:
