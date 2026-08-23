@@ -36,16 +36,21 @@ st.set_page_config(
 st.title("Explore Real Data")
 st.caption(
     "Real research datasets to try against OpenMeasure's existing "
-    "workflows, chosen for how they connect to the toolkit rather than as "
-    "a complete survey of what is out there."
+    "workflows."
 )
 
 st.markdown(
     """
+These are real, imperfect measurement datasets, not clean benchmarks:
+expect missing values, condition-specific behavior, and results that
+shift with how you split or filter the data. They best support
+validation questions -- does a measurement or model agree across
+methods, conditions, or groups -- rather than questions with one fixed
+right answer.
+
 Each dataset below names a workflow it fits and one open-ended question
-worth asking of it. There are no columns, steps, or expected results here
-on purpose: deciding how to approach the data, and what its answer would
-actually support, is the exercise.
+worth asking of it. Deciding how to approach the data, and what its
+answer would actually support, is the exercise.
 """
 )
 
