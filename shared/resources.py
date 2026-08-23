@@ -132,6 +132,28 @@ RESOURCES: tuple[Resource, ...] = (
         url="https://sites.usc.edu/carss/",
     ),
     Resource(
+        name="RuralSenses",
+        kind="Research Platform",
+        description=(
+            "An AI-based platform for NGOs, foundations, and social "
+            "enterprises to measure social and environmental impact by "
+            "collecting qualitative voice data in local languages and "
+            "analyzing it into impact reports."
+        ),
+        url="https://ruralsenses.com/",
+    ),
+    Resource(
+        name="SPARC Portal",
+        kind="Dataset Directory",
+        description=(
+            "The public data and tools portal for the NIH Common Fund's "
+            "SPARC (Stimulating Peripheral Activity to Relieve "
+            "Conditions) program, sharing FAIR peripheral-nervous-system "
+            "and bioelectronic-medicine datasets."
+        ),
+        url="https://sparc.science/",
+    ),
+    Resource(
         name="Science With Impact (Anne Toomey)",
         kind="Research Impact Resource",
         description=(
@@ -140,6 +162,27 @@ RESOURCES: tuple[Resource, ...] = (
             "and science policy."
         ),
         url="https://digitalcommons.pace.edu/bookshelf/25/",
+    ),
+    Resource(
+        name="Co-Creation Methods for Public Health Research (Agnello et al., 2025)",
+        kind="Research Impact Resource",
+        description=(
+            "A Health CASCADE scoping review characterizing the "
+            "co-creation methods used in public-health research, "
+            "including their reported characteristics, benefits, and "
+            "challenges. Published in BMC Medical Research Methodology."
+        ),
+        url="https://doi.org/10.1186/s12874-025-02514-4",
+    ),
+    Resource(
+        name="Center for Implementation Science",
+        kind="Research Impact Resource",
+        description=(
+            "Training and consulting on evidence-informed implementation "
+            "methods: assessing readiness, planning adaptations, and "
+            "sustaining change efforts across fields."
+        ),
+        url="https://thecenterforimplementation.com/",
     ),
 )
 
