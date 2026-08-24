@@ -1367,8 +1367,8 @@ st.caption(
     "reading/language measures."
 )
 st.caption(
-    "A guided research simulation: each stage unlocks after you make a "
-    "decision or inspect its consequence."
+    "A guided case study: each stage unlocks after you make a decision "
+    "or inspect its consequence."
 )
 
 render_data_handling_summary(disclosure_for("pages/GRAND_Worked_Example.py"))
