@@ -458,6 +458,7 @@ with st.expander("Context: energy use in AI-based MRI"):
         "that footprint is treated here as part of model evaluation "
         "itself, alongside accuracy, rather than as a separate concern."
     )
+    st.caption(GAIA_CITATION)
     st.caption(KAACK_CITATION)
     st.caption(DHAR_CITATION)
 
