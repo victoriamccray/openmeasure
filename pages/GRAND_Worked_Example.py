@@ -1415,7 +1415,7 @@ rq_col1, rq_col2 = st.columns(2)
 with rq_col1:
     st.badge("Five modalities", icon=":material/hub:", color="blue")
 with rq_col2:
-    st.badge("One question", icon=":material/help:", color="blue")
+    st.badge("Reading & language", icon=":material/menu_book:", color="blue")
 
 st.write(
     "Reading and language ability are frequently disrupted by stroke, and "
