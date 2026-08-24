@@ -888,6 +888,12 @@ st.write(
     "model look good, and it explains each term as it comes up."
 )
 
+rq_col1, rq_col2 = st.columns(2)
+with rq_col1:
+    st.badge("Ring estimate", icon=":material/watch:", color="blue")
+with rq_col2:
+    st.badge("Reference device", icon=":material/monitor_heart:", color="blue")
+
 st.info(
     "\"Smart rings enable unobtrusive monitoring of cardiovascular "
     "vital signs via photoplethysmography (PPG), yet rigorous "

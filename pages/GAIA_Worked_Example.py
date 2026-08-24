@@ -446,6 +446,12 @@ st.write(
     "together, rather than performance alone."
 )
 
+rq_col1, rq_col2 = st.columns(2)
+with rq_col1:
+    st.badge("Performance", icon=":material/insights:", color="blue")
+with rq_col2:
+    st.badge("Efficiency", icon=":material/eco:", color="blue")
+
 with st.expander("Context: energy use in AI-based MRI"):
     st.write(
         "AI development and deployment is energy-intensive. Reducing "

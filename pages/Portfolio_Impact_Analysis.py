@@ -503,6 +503,12 @@ st.caption(
     "to the program, which conventionally needs a comparison group."
 )
 
+rq_col1, rq_col2 = st.columns(2)
+with rq_col1:
+    st.badge("Claim", icon=":material/campaign:", color="blue")
+with rq_col2:
+    st.badge("Evidence", icon=":material/verified:", color="blue")
+
 sample_claims = pd.read_csv(SAMPLE_DIR / "claims.csv")
 
 use_sample = st.radio(

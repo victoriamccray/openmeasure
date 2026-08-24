@@ -834,7 +834,13 @@ st.write(
     "automatically better."
 )
 
-with st.expander("A validation question, not an engineering one"):
+rq_col1, rq_col2 = st.columns(2)
+with rq_col1:
+    st.badge("Interpretive gain", icon=":material/trending_up:", color="blue")
+with rq_col2:
+    st.badge("Privacy/security/agency cost", icon=":material/shield:", color="blue")
+
+with st.expander("Validation Question"):
     st.write(
         "Mental privacy and cognitive liberty (the right to control "
         "access to one's own brain data and mental processes) have been "

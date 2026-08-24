@@ -555,6 +555,12 @@ st.write(
     "own metrics for the same scans, independently."
 )
 
+rq_col1, rq_col2 = st.columns(2)
+with rq_col1:
+    st.badge("Tool metrics", icon=":material/fact_check:", color="blue")
+with rq_col2:
+    st.badge("Rater judgment", icon=":material/how_to_vote:", color="blue")
+
 st.info(
     "\"pyfMRIqc is a tool for checking the quality of raw functional "
     "magnetic resonance imaging (fMRI) data. pyfMRIqc produces a range "
