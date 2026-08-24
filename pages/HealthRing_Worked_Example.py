@@ -842,8 +842,8 @@ st.set_page_config(
 st.title("Wearables Research Journey")
 st.caption("This prototype uses the HealthRing dataset specifically.")
 st.caption(
-    "A guided research simulation: each stage unlocks after you make a "
-    "decision or inspect its consequence."
+    "A guided case study: each stage unlocks after you make a decision "
+    "or inspect its consequence."
 )
 
 render_data_handling_summary(disclosure_for("pages/HealthRing_Worked_Example.py"))
@@ -888,6 +888,16 @@ st.write(
     "model look good, and it explains each term as it comes up."
 )
 
+st.info(
+    "\"Smart rings enable unobtrusive monitoring of cardiovascular "
+    "vital signs via photoplethysmography (PPG), yet rigorous "
+    "validation is limited by the scarcity of open, multi-parameter "
+    "datasets.\" HealthRing is that dataset: three synchronized "
+    "cohorts from 54 adults, recorded on two custom ring designs "
+    "(reflective and transmissive PPG) alongside clinical-grade "
+    "reference devices."
+)
+
 with st.expander("Dataset access and citation"):
     st.write(
         f"**{HEALTHRING_DATASET.name}** ({HEALTHRING_DATASET.domain}). "
@@ -906,15 +916,30 @@ with st.expander("Dataset access and citation"):
 
 with st.expander("What the HealthRing paper's own benchmarks found"):
     st.write(
-        "The dataset's own paper benchmarks physics-based and supervised "
-        "models against these same cohorts, and two of its findings are "
-        "useful context before this walkthrough runs its own, much "
-        "simpler model: error rose sharply during motion (roughly "
-        "tripling versus stationary scenarios in their benchmarks), and "
-        "blood pressure was the hardest of the four vital signs this "
-        "dataset carries to estimate accurately. Their best supervised "
-        "models also matched or beat two commercial rings (Samsung "
-        "Galaxy Ring, Oura Ring) on heart rate."
+        "On the controlled and daily-life cohorts, the paper's own "
+        "physics-based and supervised benchmarks reach mean absolute "
+        "errors of 5.33 BPM (heart rate), 2.98 breaths/min (respiratory "
+        "rate), 1.72% (SpO2), 12.98 mmHg (systolic blood pressure), and "
+        "7.64 mmHg (diastolic blood pressure)."
+    )
+    st.write(
+        "On the treadmill cohort, fine-tuning cuts heart-rate error "
+        "from 36.91 to 23.99 BPM, and respiratory-rate error from 5.44 "
+        "to 4.61 breaths/min, relative to applying a model with no "
+        "retraining on that cohort's motion."
+    )
+    st.write(
+        "Other findings from the paper, useful context before this "
+        "walkthrough runs its own, much simpler model: supervised "
+        "models consistently beat physics-based methods, but the best "
+        "model varied by task; error increases sharply with more "
+        "intense motion, roughly tripling versus stationary scenarios; "
+        "blood pressure was the hardest of the four vital signs to "
+        "estimate; adding extra sensor channels (a second PPG "
+        "wavelength, the accelerometer) gave only modest, inconsistent "
+        "gains depending on ring design; and their best supervised "
+        "models matched or beat two commercial rings (Samsung Galaxy "
+        "Ring, Oura Ring) on heart rate."
     )
     st.caption(
         "This page fits one predictor with ordinary least squares, not "

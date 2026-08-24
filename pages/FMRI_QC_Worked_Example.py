@@ -46,6 +46,7 @@ HealthRing's own precomputed signal columns.
 
 from __future__ import annotations
 
+import base64
 import json
 import re
 import sys
@@ -57,6 +58,7 @@ from urllib.error import HTTPError, URLError
 import numpy as np
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 from modules.reliability.core import interrater as ir
 from shared.charts import multiline_time_series_chart
@@ -128,6 +130,90 @@ SIMULATED_EXAMPLES: dict[str, tuple[str, str, str]] = {
         "A sudden drop in mean signal intensity across the whole volume.",
     ),
 }
+
+# Static pictographs, not the animated kind: this project moved away from
+# flickering step animations toward still icons (see GAIA, HealthRing).
+PIPELINE_STEPS = (
+    (":material/scanner:", "Acquire", "EPI scan, one volume per TR"),
+    (":material/tune:", "Preprocess", "Motion correction applied"),
+    (":material/fact_check:", "QC", "pyfMRIqc: SNR, intensity, movement"),
+    (":material/how_to_vote:", "Rate", "Trained rater: Include/Uncertain/Exclude"),
+    (":material/balance:", "Compare", "Tool metrics vs. rater agreement"),
+)
+
+def _acquisition_diagram_svg() -> str:
+    """
+    Five icons along a time axis, each a stack of slices standing in for
+    one 3D fMRI volume, what pyfMRIqc's own reported metrics (mean
+    intensity/variance, per-slice SNR, movement) are computed on. Static,
+    not a real per-subject scan; three of the five carry the same
+    artifact types SIMULATED_EXAMPLES already names (Motion, Local
+    signal loss, Global intensity loss), the other two a typical volume.
+    Hover an icon (native SVG <title>) for what it represents.
+    """
+
+    slice_h, slice_w, gap, n_slices = 6, 34, 1.5, 4
+    stack_h = n_slices * (slice_h + gap) - gap
+    y0 = 45 - stack_h / 2
+    xs = (26, 86, 146, 206, 266)
+    kinds = ("normal", "Motion", "normal", "Local signal loss", "Global intensity loss")
+    titles = {
+        "normal": "A typical volume: consistent slice intensities, no shift.",
+        "Motion": (
+            "Motion: the volume is shifted relative to its neighbors, "
+            "flagged by pyfMRIqc's movement parameters."
+        ),
+        "Local signal loss": (
+            "Local signal loss: a subset of slices lose signal, not the "
+            "whole volume, flagged by a drop in those slices' SNR."
+        ),
+        "Global intensity loss": (
+            "Global intensity loss: a sudden drop in mean signal across "
+            "the whole volume, flagged by mean intensity/variance over "
+            "time."
+        ),
+    }
+
+    parts = [
+        f'<line x1="10" y1="80" x2="300" y2="80" stroke="{GRIDLINE}" '
+        f'stroke-width="1.5" marker-end="url(#fqc-arrow)"/>',
+        f'<defs><marker id="fqc-arrow" markerWidth="8" markerHeight="8" '
+        f'refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" '
+        f'fill="{GRIDLINE}"/></marker></defs>',
+        f'<text x="300" y="72" font-size="9" fill="{INK_MUTED}" '
+        f'text-anchor="end">time (one volume per TR)</text>',
+    ]
+
+    for x, kind in zip(xs, kinds):
+        color = ACCENT_2 if kind == "Global intensity loss" else ACCENT
+        transform = f' transform="rotate(-12 {x} {y0 + stack_h / 2:.1f})"' if kind == "Motion" else ""
+        parts.append(f'<g style="cursor:help;"{transform}><title>{titles[kind]}</title>')
+        for i in range(n_slices):
+            sy = y0 + i * (slice_h + gap)
+            dropout_slice = kind == "Local signal loss" and i == 1
+            fill = "none" if dropout_slice else color
+            opacity = "1" if dropout_slice else "0.75"
+            parts.append(
+                f'<rect x="{x - slice_w / 2:.1f}" y="{sy:.1f}" '
+                f'width="{slice_w}" height="{slice_h}" rx="1" fill="{fill}" '
+                f'fill-opacity="{opacity}" stroke="{color}" stroke-width="0.8"/>'
+            )
+        parts.append("</g>")
+        parts.append(
+            f'<line x1="{x}" y1="80" x2="{x}" y2="84" stroke="{GRIDLINE}" stroke-width="1"/>'
+        )
+
+    return "".join(parts)
+
+
+def _acquisition_diagram_html() -> str:
+    return (
+        '<div style="text-align:center;">'
+        '<svg width="100%" height="90" viewBox="0 0 320 90" '
+        f'preserveAspectRatio="xMidYMid meet">{_acquisition_diagram_svg()}</svg>'
+        "</div>"
+    )
+
 
 # pyfMRIqc's own stated guidance (Lindner & Williams,
 # https://drmichaellindner.github.io/pyfMRIqc/): relative movement over
@@ -291,6 +377,41 @@ def _fetch_remote_image(branch: str, path: str) -> bytes:
     return _github_get_bytes(f"{_CINNQC_RAW_ROOT}/{branch}/{path}")
 
 
+_HTML_IMG_SRC_PATTERN = re.compile(r'src\s*=\s*"?([^"\s>]+\.png)"?')
+_HTML_IMG_KEYWORD_PATTERN = re.compile(r"pyfMRIqc_([A-Z_]+)_scan")
+
+
+def _inline_html_images(html_text: str, get_image) -> str:
+    """
+    Rewrite every relative <img src="pyfMRIqc_KEYWORD_...png"> reference
+    in pyfMRIqc's own HTML report to a base64 data URI, using the same
+    get_image(keyword) closure the PNGs above are fetched with (bytes
+    for a remote subject, a local path string for a cloned one), so the
+    report renders correctly regardless of source, without redistributing
+    or rehosting any image file of its own.
+    """
+
+    def _replace(match: re.Match[str]) -> str:
+        filename = match.group(1)
+        keyword_match = _HTML_IMG_KEYWORD_PATTERN.search(filename)
+        if keyword_match is None:
+            return match.group(0)
+
+        image_source = get_image(keyword_match.group(1))
+        if image_source is None:
+            return match.group(0)
+
+        image_bytes = (
+            image_source
+            if isinstance(image_source, (bytes, bytearray))
+            else Path(image_source).read_bytes()
+        )
+        encoded = base64.b64encode(image_bytes).decode("ascii")
+        return f'src="data:image/png;base64,{encoded}"'
+
+    return _HTML_IMG_SRC_PATTERN.sub(_replace, html_text)
+
+
 @dataclass(frozen=True)
 class QCTextfileSummary:
     """The numeric fields pyfMRIqc writes to its per-scan text report."""
@@ -434,6 +555,13 @@ st.write(
     "own metrics for the same scans, independently."
 )
 
+st.info(
+    "\"pyfMRIqc is a tool for checking the quality of raw functional "
+    "magnetic resonance imaging (fMRI) data. pyfMRIqc produces a range "
+    "of output files which can be used to identify fMRI data quality "
+    "issues such as artefacts, motion, signal loss etc.\""
+)
+
 with st.expander("Data sources and citations"):
     st.markdown(
         """
@@ -441,7 +569,13 @@ with st.expander("Data sources and citations"):
   Software Package for Raw fMRI Data Quality Assurance. *Journal of
   Open Research Software*, 8(1), 23.
   [doi.org/10.5334/jors.280](https://doi.org/10.5334/jors.280)
-  ([source](https://github.com/DrMichaelLindner/pyfMRIqc), GPLv3).
+  ([source](https://github.com/DrMichaelLindner/pyfMRIqc), GPLv3). It
+  creates 3D and 4D NIFTI files for in-depth QA, plus a 2D image per
+  NIFTI file for a quick overview; these and other information (SNR,
+  scan parameters) are combined into one HTML report. It runs from the
+  command line, so it can batch-QC a whole series of datasets as part
+  of a processing pipeline, or through dialog boxes for a single
+  dataset.
 - **The rating study**: Williams, B., et al. (2023). Inter-rater
   reliability of functional MRI data quality control assessments: a
   standardised protocol and practical guide using pyfMRIqc.
@@ -471,14 +605,56 @@ if stage >= STAGE_UNDERSTAND_MEASUREMENT:
         "What pyfMRIqc measures, and what a QC decision means",
     )
 
+    pipeline_cols = st.columns(5)
+    for col, (icon, label, note) in zip(pipeline_cols, PIPELINE_STEPS):
+        with col:
+            st.badge(label, icon=icon, color="blue")
+            st.caption(note)
+
     st.markdown(
         """
 An fMRI scan is a sequence of 3D brain volumes taken over time (a
-"time series" of images, one every few seconds). Several things can
-make a volume, or a stretch of volumes, unusable: the participant
-moving inside the scanner, a sudden signal dropout in part of the
-brain, or a global intensity change across the whole volume.
+"time series" of images, one every few seconds). Each volume is itself
+a stack of 2D slices. Several things can make a volume, or a stretch of
+volumes, unusable: the participant moving inside the scanner, a sudden
+signal dropout in part of the brain, or a global intensity change
+across the whole volume.
+"""
+    )
 
+    st.markdown(_acquisition_diagram_html(), unsafe_allow_html=True)
+    st.caption(
+        "A static diagram, not a real scan: five volumes across time, "
+        "each a stack of slices. Two are typical; the other three carry "
+        "the artifact types named above and in the simulated examples "
+        "further down this page. Hover a volume for detail."
+    )
+
+    with st.expander("Where these artifacts come from"):
+        st.write(
+            "fMRI is typically acquired with an echoplanar (EPI) "
+            "sequence; multiband/multislice and multi-echo variants "
+            "exist too, trading spatial resolution against temporal "
+            "resolution differently. A sequence choice can itself "
+            "introduce distortion in the resulting images."
+        )
+        st.write(
+            "Motion or a change in field homogeneity (how uniform the "
+            "scanner's magnetic field is) produces locally incorrect "
+            "values; together, sequence artifacts, motion, and field "
+            "homogeneity changes are what cause the change or loss of "
+            "local or global signal that pyfMRIqc's per-slice SNR and "
+            "mean-intensity/variance metrics are built to catch."
+        )
+        st.caption(
+            "pyfMRIqc is one of several established fMRI QC pipelines, "
+            "alongside tools such as VisualQC and MRIQC; this page "
+            "demonstrates pyfMRIqc specifically, not a comparison "
+            "between them."
+        )
+
+    st.markdown(
+        """
 **`pyfMRIqc`** checks for exactly these things and reports what it
 finds. It is meant to run early, before most preprocessing; the real
 subject scans this page reads had already had one step (motion
@@ -641,6 +817,12 @@ if stage >= STAGE_SIGNAL_INSPECTION:
                 )
                 return _fetch_remote_image(remote_index.branch, matches[0]) if matches else None
 
+            def _get_html() -> str | None:
+                matches = sorted(
+                    p for p in remote_files if re.search(r"pyfMRIqc_HTML_.*\.html$", p)
+                )
+                return _fetch_remote_textfile(remote_index.branch, matches[0]) if matches else None
+
         else:
 
             def _get_summary() -> QCTextfileSummary | None:
@@ -651,11 +833,23 @@ if stage >= STAGE_SIGNAL_INSPECTION:
                 matches = sorted(pyfmriqc_dir.glob(f"pyfMRIqc_{keyword}_*.png"))
                 return str(matches[0]) if matches else None
 
+            def _get_html() -> str | None:
+                matches = sorted(pyfmriqc_dir.glob("pyfMRIqc_HTML_*.html"))
+                return matches[0].read_text(encoding="utf-8", errors="replace") if matches else None
+
         summary = _get_summary()
 
         if summary is None:
             st.warning("No pyfMRIqc text report was found for this subject.")
         else:
+            icon_cols = st.columns(3)
+            with icon_cols[0]:
+                st.badge("Signal-to-noise", icon=":material/graphic_eq:", color="blue")
+            with icon_cols[1]:
+                st.badge("Mean intensity", icon=":material/brightness_6:", color="blue")
+            with icon_cols[2]:
+                st.badge("Spread (SD)", icon=":material/scatter_plot:", color="blue")
+
             m1, m2, m3 = st.columns(3)
             m1.metric(
                 "Mean voxel SNR",
@@ -693,6 +887,7 @@ if stage >= STAGE_SIGNAL_INSPECTION:
                 )
 
             if summary.has_movement_data:
+                st.badge("Head movement", icon=":material/vibration:", color="blue")
                 r1, r2, r3 = st.columns(3)
                 r1.metric(
                     "Mean relative movement",
@@ -734,6 +929,25 @@ if stage >= STAGE_SIGNAL_INSPECTION:
                     with image_cols[shown % 2]:
                         st.image(image_source, caption=caption)
                     shown += 1
+
+            with st.expander(f"Sample HTML output for participant {subject_id}"):
+                st.caption(
+                    "`pyfMRIqc` combines every image and metric for a scan "
+                    "into one HTML report. This is that report, generated "
+                    "by `pyfMRIqc` for the participant above, not bundled "
+                    "or redistributed by this page."
+                )
+
+                report_html = _get_html()
+
+                if report_html is None:
+                    st.warning("No pyfMRIqc HTML report was found for this subject.")
+                else:
+                    components.html(
+                        _inline_html_images(report_html, _get_image),
+                        height=650,
+                        scrolling=True,
+                    )
 
             with st.expander(
                 "Optional: cross-reference with rater decisions "
@@ -809,7 +1023,7 @@ if stage >= STAGE_SIGNAL_INSPECTION:
                                 st.caption(
                                     "For reference, Williams et al. "
                                     "(2023) reported 0.508 on their own "
-                                    "raters and subjects - not a target "
+                                    "raters and subjects, not a target "
                                     "this upload should match, since the "
                                     "raters, subjects, or both may "
                                     "differ."
