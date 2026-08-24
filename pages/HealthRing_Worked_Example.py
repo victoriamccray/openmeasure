@@ -898,7 +898,7 @@ st.info(
     "\"Smart rings enable unobtrusive monitoring of cardiovascular "
     "vital signs via photoplethysmography (PPG), yet rigorous "
     "validation is limited by the scarcity of open, multi-parameter "
-    "datasets.\" HealthRing is that dataset: three synchronized "
+    "datasets.\" HealthRing dataset includes three synchronized "
     "cohorts from 54 adults, recorded on two custom ring designs "
     "(reflective and transmissive PPG) alongside clinical-grade "
     "reference devices."
