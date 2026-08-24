@@ -153,7 +153,7 @@ JOURNEYS: tuple[ResearchJourney, ...] = (
         domain="Responsible AI",
         subdomain="Green AI",
         summary=(
-            "When a more efficient model is good enough to replace a "
+            "When a more efficient model is appropriate to replace a "
             "larger one, once energy use, CO2, and size are weighed "
             "alongside predictive performance, using a real "
             "knowledge-distillation study (GAIA) as the worked example."

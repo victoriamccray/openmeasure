@@ -236,14 +236,24 @@ MEASUREMENT_LEGEND = (
     ("quality", "Signal quality", "0-1 scale"),
 )
 
+# "raw" and "filtered" trace two cycles of a PPG pulse's established shape
+# (systolic upstroke -> systolic peak -> dicrotic notch -> diastolic wave
+# -> decay to baseline; Elgendi, 2012 - see PPG_MORPHOLOGY_CITATION below),
+# not an arbitrary squiggle: "raw" draws it as jagged line segments to
+# read as noisy, "filtered" draws the same landmarks as a smooth curve.
+# Still not a real recorded trace - this page loads no raw waveform (see
+# module docstring) - only a more accurately shaped stand-in for one.
 _PIPELINE_STAGE_ICON_PATHS = {
     "raw": (
-        '<path d="M2 16L5 10L8 21L11 8L14 23L17 12L20 19L23 9L26 16L30 16" '
-        'stroke="{c}" stroke-width="1.4" fill="none" stroke-linecap="round"/>'
+        '<path d="M2,24 L4,20 L5,7 L6,17 L7,12 L9,20 L12,24 '
+        'L14,22 L16,20 L17,7 L18,17 L19,12 L21,20 L24,24 L30,24" '
+        'stroke="{c}" stroke-width="1.3" fill="none" stroke-linecap="round"/>'
     ),
     "filtered": (
-        '<path d="M2 16C7 8 11 24 16 16C21 8 25 24 30 16" '
-        'stroke="{c}" stroke-width="1.7" fill="none" stroke-linecap="round"/>'
+        '<path d="M2,24 C4,10 5,6 6,11 C7,15 9,19 12,24 '
+        'C14,22 16,10 17,6 C18,11 19,15 21,19 C22,22 23,24 24,24 L30,24" '
+        'stroke="{c}" stroke-width="1.6" fill="none" stroke-linecap="round" '
+        'stroke-linejoin="round"/>'
     ),
     "windows": _MEASUREMENT_ICON_PATHS["window"],
     "derived": (
@@ -258,6 +268,28 @@ PIPELINE_STAGES = (
     ("filtered", "Filtering"),
     ("windows", "Windows"),
     ("derived", "Derived measurement"),
+)
+
+PIPELINE_STAGE_HOVER = {
+    "raw": (
+        "Normative shape of a PPG pulse: systolic upstroke, systolic "
+        "peak, dicrotic notch, and diastolic wave (Elgendi, 2012)."
+    ),
+    "filtered": (
+        "The same pulse landmarks, smoothed. Filtering removes noise; "
+        "it does not remove the underlying physiological shape."
+    ),
+    "windows": (
+        "The smoothed signal cut into fixed-length windows. One "
+        "segment (highlighted) becomes one row in this dataset."
+    ),
+    "derived": "One derived value (e.g. HR) computed from one window.",
+}
+
+PPG_MORPHOLOGY_CITATION = (
+    "Elgendi, M. (2012). On the analysis of fingertip photoplethysmogram "
+    "signals. Current Cardiology Reviews, 8(1), 14-25. "
+    "https://doi.org/10.2174/157340312801215782"
 )
 
 
@@ -307,8 +339,13 @@ def _measurement_legend_html() -> str:
 
 
 def _signal_pipeline_glyph_html() -> str:
-    """A static box-and-arrow rendering of the 'raw PPG signal -> filtering
-    -> windows -> derived measurement' chain described in prose above."""
+    """
+    A static box-and-arrow rendering of the 'raw PPG signal -> filtering
+    -> windows -> derived measurement' chain described in prose above.
+
+    Each stage's icon carries a native SVG <title>, so hovering it shows
+    PIPELINE_STAGE_HOVER's explanation - no click or animation needed.
+    """
 
     slot_w, gap, badge = 84.0, 26.0, 40.0
     boxes: list[str] = []
@@ -322,11 +359,13 @@ def _signal_pipeline_glyph_html() -> str:
             prev_x = (i - 1) * (slot_w + gap) + (slot_w - badge) / 2
             arrows.append(_arrow_svg(prev_x + badge, cy, x, cy, GRIDLINE))
 
+        boxes.append(f'<g style="cursor:help;"><title>{PIPELINE_STAGE_HOVER[key]}</title>')
         boxes.append(
             f'<rect x="{x:.0f}" y="4" width="{badge:.0f}" height="{badge:.0f}" rx="8" '
             f'fill="{ACCENT}" opacity="0.1" stroke="{ACCENT}" stroke-width="1.1"/>'
         )
         boxes.append(_icon_svg(_PIPELINE_STAGE_ICON_PATHS[key], ACCENT, cx, cy, badge / 32))
+        boxes.append("</g>")
         boxes.append(
             f'<text x="{i * (slot_w + gap) + slot_w / 2:.0f}" y="{badge + 20:.0f}" '
             f'text-anchor="middle" font-size="10" fill="{INK_SECONDARY}">{label}</text>'
@@ -948,19 +987,20 @@ The pipeline behind `hr` and the quality score generally looks like:
         )
         components.html(_signal_pipeline_glyph_html(), height=70)
         st.caption(
-            "An original, static illustration of the chain above, not a "
-            "real signal trace: 'filtering' shows the wave becoming "
-            "smoother, 'windows' shows it split into fixed-length "
-            "segments, and 'derived measurement' shows one number coming "
-            "out of one window."
+            "The pulse shape drawn for 'raw' and 'filtered' is the "
+            "normative PPG waveform (systolic peak, dicrotic notch, "
+            "diastolic wave); this page loads no raw waveform of its "
+            "own (see module docstring). 'Windows' shows it split into "
+            "fixed-length segments, and 'derived measurement' shows one "
+            "number coming out of one window. Hover an icon for detail."
         )
+        st.caption(PPG_MORPHOLOGY_CITATION)
         st.markdown(
             """
 Filtering here means reducing unwanted parts of the signal, such as slow
 drift or high-frequency noise. Filtering does not delete observations;
-it reshapes the signal that is still there. It is not free of tradeoffs
-either: a filter tuned to remove noise can also remove real, useful
-signal if it is too aggressive.
+it reshapes the signal that is still there. A filter tuned to remove
+noise can also remove real, useful signal if it is too aggressive.
 
 That is a different operation from a decision later on this page:
 choosing a minimum signal-quality threshold to decide which whole

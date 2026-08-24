@@ -728,7 +728,7 @@ if stage >= STAGE_VALIDATE and "pia_bundle" in st.session_state:
     if "pia_validation" in st.session_state:
         validation = st.session_state["pia_validation"]
 
-        st.caption("Evidence profile - how this evidence measures up, and why each check matters:")
+        st.caption("Evidence profile: each check below, what it verifies, and how this evidence measures up.")
         profile_cols = st.columns(len(validation.checks))
         for col, check in zip(profile_cols, validation.checks):
             with col:
@@ -920,68 +920,71 @@ if stage >= STAGE_PORTFOLIO_CONTEXT and "pia_limitations" in st.session_state:
             comparable["grantee"] = comparable["grantee_id"].map(
                 lambda v: _friendly(v, GRANTEE_NAMES, show_ids)
             )
-            comparable["label"] = comparable.apply(
-                lambda r: f"◆ {r['grantee']} (this claim)" if r["is_current"] else r["grantee"],
-                axis=1,
+            comparable["current_label"] = comparable["is_current"].map(
+                {True: "This claim", False: "Other reported results"}
             )
 
+            # Grantee identity is unbounded (any number of comparable
+            # grantees), so it goes in the tooltip rather than color/shape,
+            # which are reserved for the one bounded distinction that
+            # matters here: this claim versus every other reported result.
             # Color is validated CVD-safe (dataviz skill palette, first two
-            # categorical slots) but is never the only signal: shape and a
-            # direct "(this claim)" label carry identity too, so the
-            # highlight still reads without color.
+            # categorical slots) and shown with a real legend, same pattern
+            # used for GAIA's frontier chart.
             map_spec = {
                 "data": {"values": comparable.to_dict("records")},
-                "layer": [
-                    {
-                        "mark": {"type": "point", "filled": True, "size": 180},
-                        "encoding": {
-                            "x": {
-                                "field": "value",
-                                "type": "quantitative",
-                                "title": f"Reported result ({common_unit})",
-                            },
-                            "y": {
-                                "field": "level",
-                                "type": "quantitative",
-                                "title": "Evidence strength (Nesta level)",
-                                "scale": {"domain": [0.5, 4.5]},
-                                "axis": {"values": [1, 2, 3, 4], "tickMinStep": 1},
-                            },
-                            "shape": {
-                                "field": "is_current",
-                                "type": "nominal",
-                                "scale": {
-                                    "domain": [False, True],
-                                    "range": ["circle", "diamond"],
-                                },
-                                "legend": None,
-                            },
-                            "color": {
-                                "field": "is_current",
-                                "type": "nominal",
-                                "scale": {
-                                    "domain": [False, True],
-                                    "range": [CATEGORICAL_1, CATEGORICAL_2],
-                                },
-                                "legend": None,
-                            },
-                        },
+                "mark": {"type": "point", "filled": True, "size": 200},
+                "encoding": {
+                    "x": {
+                        "field": "value",
+                        "type": "quantitative",
+                        "title": f"Reported result ({common_unit})",
                     },
-                    {
-                        "mark": {"type": "text", "dy": -14, "fontSize": 11, "color": INK_SECONDARY},
-                        "encoding": {
-                            "x": {"field": "value", "type": "quantitative"},
-                            "y": {"field": "level", "type": "quantitative"},
-                            "text": {"field": "label", "type": "nominal"},
-                        },
+                    "y": {
+                        "field": "level",
+                        "type": "quantitative",
+                        "title": "Evidence strength (Nesta level)",
+                        "scale": {"domain": [0.5, 4.5]},
+                        "axis": {"values": [1, 2, 3, 4], "tickMinStep": 1},
                     },
-                ],
+                    "shape": {
+                        "field": "is_current",
+                        "type": "nominal",
+                        "scale": {
+                            "domain": [False, True],
+                            "range": ["circle", "diamond"],
+                        },
+                        "legend": None,
+                    },
+                    "color": {
+                        "field": "current_label",
+                        "type": "nominal",
+                        "scale": {
+                            "domain": ["Other reported results", "This claim"],
+                            "range": [CATEGORICAL_1, CATEGORICAL_2],
+                        },
+                        "legend": {"title": None, "orient": "bottom"},
+                    },
+                    "tooltip": [
+                        {"field": "grantee", "type": "nominal", "title": "Grantee"},
+                        {
+                            "field": "value",
+                            "type": "quantitative",
+                            "title": f"Result ({common_unit})",
+                        },
+                        {"field": "level", "type": "quantitative", "title": "Nesta level"},
+                        {"field": "current_label", "type": "nominal", "title": "Status"},
+                    ],
+                },
                 "width": "container",
                 "height": 260,
                 "config": _VEGA_CHART_CONFIG,
             }
             st.vega_lite_chart(map_spec, width="stretch")
-            st.caption("Diamond marks the claim you are currently reviewing.")
+            st.caption(
+                "Diamond marks the claim you are currently reviewing. "
+                "Hover a point for the grantee and exact values."
+            )
 
             if not excluded.empty:
                 with st.container(border=True):

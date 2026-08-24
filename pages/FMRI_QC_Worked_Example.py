@@ -751,6 +751,22 @@ if stage >= STAGE_SIGNAL_INSPECTION:
                     "that subject."
                 )
 
+                st.info(
+                    "Williams et al. (2023)'s own rating study reports "
+                    "\"moderate to substantial agreement between raters "
+                    "for 'include' and 'exclude,' but little to no "
+                    "agreement for 'uncertain'\": Krippendorff's alpha = "
+                    "0.508 [95% CI 0.381-0.615] across all three "
+                    "categories, rising to 0.694 [95% CI 0.559-0.802] "
+                    "when 'uncertain' ratings are excluded."
+                )
+                st.caption(
+                    "Williams, B., et al. (2023). Inter-rater "
+                    "reliability of functional MRI data quality control "
+                    "assessments: a standardised protocol and practical "
+                    "guide using pyfMRIqc. PMC9936142."
+                )
+
                 rater_upload = st.file_uploader(
                     "Rater decisions (CSV or XLSX)",
                     type=["csv", "xlsx", "xls"],
@@ -789,6 +805,14 @@ if stage >= STAGE_SIGNAL_INSPECTION:
                                     "Krippendorff's alpha (all raters, "
                                     "tolerates partial coverage)",
                                     f"{alpha_result.alpha:.3f}",
+                                )
+                                st.caption(
+                                    "For reference, Williams et al. "
+                                    "(2023) reported 0.508 on their own "
+                                    "raters and subjects - not a target "
+                                    "this upload should match, since the "
+                                    "raters, subjects, or both may "
+                                    "differ."
                                 )
                             except ValueError as error:
                                 st.warning(str(error))

@@ -5,7 +5,7 @@
 
 ## Purpose
 
-When is a more efficient model good enough to replace a larger one? Most model validation looks at predictive performance alone. This module makes resource use (parameter count, energy, CO2, or any other lower-is-better cost) a first-class dimension alongside performance, so a comparison can state a model's standing on both at once rather than treating efficiency as an afterthought.
+When is a more efficient model appropriate to replace a larger one? Most model validation looks at predictive performance alone. This module makes resource use (parameter count, energy, CO2, or any other lower-is-better cost) a first-class dimension alongside performance, so a comparison can state a model's standing on both at once rather than treating efficiency as an afterthought.
 
 **This core is domain-agnostic.** It has no notion of medical imaging, diffusion MRI, or knowledge distillation anywhere in it. GAIA (see below) is the worked example this module ships with, not the framework itself: the same `ModelProfile`/`compute_frontier`/`rank_by_preference`/`project_deployment_savings` functions apply equally to comparing models in wearables, multimodal AI, or any other setting where a set of models can each be scored on one performance metric and one resource metric.
 

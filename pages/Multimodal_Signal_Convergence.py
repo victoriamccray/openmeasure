@@ -754,8 +754,8 @@ st.caption(
     "Processing -> Inference -> Decision -> Action -> Feedback pipeline."
 )
 st.caption(
-    "A guided research simulation: each stage unlocks after you make a "
-    "decision or inspect its consequence."
+    "A guided illustrative walkthrough: each stage unlocks after you "
+    "make a decision or inspect its consequence."
 )
 
 render_data_handling_summary(disclosure_for("pages/Multimodal_Signal_Convergence.py"))
