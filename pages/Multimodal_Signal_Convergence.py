@@ -267,6 +267,12 @@ KOELSTRA_CITATION = (
     "using Physiological Signals. IEEE Transactions on Affective "
     "Computing, 3(1), 18-31. https://doi.org/10.1109/T-AFFC.2011.15"
 )
+BAGLEY_ET_AL_CITATION = (
+    "Bagley, B. A., Rose, N., Kilbourn, Q., & Canham, M. (2026). Threat "
+    "vectors and the state of the art in defense methods for security "
+    "in neurotechnology. arXiv:2607.10451. "
+    "https://arxiv.org/abs/2607.10451"
+)
 
 BASELINE_MODALITY_NAME = "Neural (EEG)"
 
@@ -821,8 +827,8 @@ st.write(
     "rate, movement, self-report, even a clinician's notes. Each addition "
     "can sharpen what the pipeline infers, but each also adds its own "
     "cost: a new way for the data to be re-identifying (traceable back "
-    "to a specific person, even without a name attached), a new attack "
-    "surface, a new way the system can act on someone without their "
+    "to a specific person, even without a name attached), a new point "
+    "of exposure, a new way the system can act on someone without their "
     "deliberate say. This journey asks whether an added modality's gain "
     "is validated as worth its cost, rather than assuming more signal is "
     "automatically better."
@@ -839,6 +845,19 @@ with st.expander("A validation question, not an engineering one"):
         "what their combination can infer."
     )
     st.caption(IENCA_ANDORNO_CITATION)
+    st.write(
+        "Security is a separate concern from privacy, and BCI research "
+        "surveys it across the full \"BCI cycle\": acquisition hardware, "
+        "on-device processing, transmission between devices, the machine "
+        "learning models decoding the signal, and the applications or "
+        "cloud services consuming the result. More traditional points of "
+        "exposure in that cycle, such as wireless communication or cloud "
+        "storage, can adopt existing methods (encryption, secure "
+        "communication protocols, differential privacy) directly; the "
+        "closer to the brain a surface is, the more those methods need "
+        "to be modified or replaced entirely."
+    )
+    st.caption(BAGLEY_ET_AL_CITATION)
 
 if stage < STAGE_BUILD_PIPELINE:
     if st.button("Begin study", type="primary"):
@@ -1189,6 +1208,24 @@ if stage >= STAGE_WEIGH_TRADEOFF:
                 "kind of harm than a re-identifying one, and this axis "
                 "now carries both at once."
             )
+
+            if any(m.category == "Neural" for m in current_modalities):
+                st.info(
+                    "A real, demonstrated security threat behind Neural's "
+                    "rating: researchers showed that amplitude-modulated "
+                    "radio-frequency signals from a remote antenna can be "
+                    "picked up by EEG electrode wires acting as unintended "
+                    "antennas and injected into the acquisition hardware "
+                    "as fabricated brain activity - through walls, at "
+                    "roughly three meters, with no access to the BCI "
+                    "software or data. Separately, EEG's own activity "
+                    "patterns are distinctive enough to identify who "
+                    "produced them, so a device collecting EEG for one "
+                    "purpose is, in effect, also collecting a biometric "
+                    "identifier as a byproduct - the same signal serves "
+                    "both purposes at once."
+                )
+                st.caption(BAGLEY_ET_AL_CITATION)
 
             if tradeoff_step < TRADEOFF_ADD_AGENCY:
                 if st.button("Now add agency cost, and set your own weights", type="primary"):
