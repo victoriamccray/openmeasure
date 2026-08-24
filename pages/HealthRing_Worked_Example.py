@@ -914,7 +914,7 @@ with st.expander("Dataset access and citation"):
         "stored beyond the session, or redistributed."
     )
 
-with st.expander("What the HealthRing paper's own benchmarks found"):
+with st.expander("What was found by HealthRing researchers"):
     st.write(
         "On the controlled and daily-life cohorts, the paper's own "
         "physics-based and supervised benchmarks reach mean absolute "

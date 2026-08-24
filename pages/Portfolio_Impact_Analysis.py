@@ -80,14 +80,16 @@ PORTFOLIO_POSITION_MESSAGES = {
         "Within the rest of the portfolio's typical range for this indicator."
     ),
     portfolio_core.POSITION_ABOVE_RANGE: (
-        "Above the rest of the portfolio's typical range for this indicator "
-        "(outside the Tukey fence). Worth checking why, not necessarily a "
-        "problem."
+        "Above the rest of the portfolio's typical range for this "
+        "indicator (outside the Tukey fence: more than 1.5x the "
+        "middle 50% of values above the top of that middle range). "
+        "Worth checking why, not necessarily a problem."
     ),
     portfolio_core.POSITION_BELOW_RANGE: (
-        "Below the rest of the portfolio's typical range for this indicator "
-        "(outside the Tukey fence). Worth checking why, not necessarily a "
-        "problem."
+        "Below the rest of the portfolio's typical range for this "
+        "indicator (outside the Tukey fence: more than 1.5x the "
+        "middle 50% of values below the bottom of that middle range). "
+        "Worth checking why, not necessarily a problem."
     ),
 }
 

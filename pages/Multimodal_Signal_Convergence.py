@@ -71,7 +71,6 @@ CATEGORY_COLORS = {
     "Environmental": "#008300",
     "Institutional": "#4a3aa7",
 }
-PIPELINE_NODE_COLOR = MUTED
 
 # A second, redundant identity channel alongside color: with up to seven
 # categories visible on screen at once (a "scatter"-like diagram, per the
@@ -88,7 +87,20 @@ CATEGORY_SHAPES = {
     "Environmental": "cross",
     "Institutional": "triangle-right",
 }
-PIPELINE_NODE_SHAPE = "circle"
+
+# Static pictographs, not the animated kind: this project moved away from
+# flickering step animations toward still icons (see GAIA, HealthRing,
+# pyfMRIqc). One per pipeline_core.STAGES entry, in that order - what
+# each stage means in general, not tied to any one modality.
+PIPELINE_STAGE_NOTES = (
+    (":material/waves:", "Signals", "The raw physical signal a body or context produces"),
+    (":material/sensors:", "Sensors", "What a device actually measures from that signal"),
+    (":material/tune:", "Processing", "Cleaning and transforming the raw measurement"),
+    (":material/psychology:", "Inference", "Turning the processed signal into an estimate"),
+    (":material/rule:", "Decision", "Comparing that estimate against a threshold or rule"),
+    (":material/bolt:", "Action", "The system responds based on that decision"),
+    (":material/loop:", "Feedback", "The response changes the signal that comes next"),
+)
 
 # Anatomy scene layout: an original, simplified biological-illustration
 # style (brain / heart / muscle / soundwave icons on a soft body outline),
@@ -250,6 +262,11 @@ DE_MONTJOYE_CITATION = (
     "(2013). Unique in the crowd: The privacy bounds of human mobility. "
     "Scientific Reports, 3, 1376. https://doi.org/10.1038/srep01376"
 )
+KOELSTRA_CITATION = (
+    "Koelstra, S. et al. (2012). DEAP: A Database for Emotion Analysis "
+    "using Physiological Signals. IEEE Transactions on Affective "
+    "Computing, 3(1), 18-31. https://doi.org/10.1109/T-AFFC.2011.15"
+)
 
 BASELINE_MODALITY_NAME = "Neural (EEG)"
 
@@ -317,114 +334,115 @@ def _load_modalities() -> tuple[modality_core.Modality, ...]:
     )
 
 
-def _node_rows(pipeline: pipeline_core.SignalPipeline):
-    """Node rows plus a lookup from (stage, modality name) to (x, y)."""
+def _pipeline_pictograph_html(pipeline: pipeline_core.SignalPipeline) -> str:
+    """
+    A drawn pictograph of the pipeline: each modality's own icon (the
+    same ones and, where applicable, the same gentle pulse as the
+    anatomy scene above, for one consistent icon language on this page)
+    at its own per-modality stages, converging into one shared, unlabeled
+    node from convergence_stage onward. Static shapes, animated only
+    where the anatomy scene above already animates the same category.
+    """
 
-    modality_order = {m.name: i for i, m in enumerate(pipeline.modalities)}
-    n = len(pipeline.modalities)
+    stages = pipeline_core.STAGES
+    convergence_index = stages.index(pipeline.convergence_stage)
+    pre_stages = stages[:convergence_index]
+    shared_stages = stages[convergence_index:]
+    modalities = pipeline.modalities
+    n = len(modalities)
 
-    rows = []
-    coords = {}
+    stage_gap, left_margin, row_gap, top_margin = 92, 46, 46, 30
+    stage_x = {stage: left_margin + i * stage_gap for i, stage in enumerate(stages)}
+    row_y = {m.name: top_margin + i * row_gap for i, m in enumerate(modalities)}
+    shared_y = top_margin + (n - 1) * row_gap / 2
 
-    for node in pipeline.nodes:
-        if node.modality is not None:
-            y = modality_order[node.modality.name] - (n - 1) / 2
-            label = node.modality.name if node.stage == "Signals" else ""
-            category = node.modality.category
-            key = (node.stage, node.modality.name)
-        else:
-            y = 0.0
-            label = node.stage
-            category = "Pipeline"
-            key = (node.stage, None)
+    width = left_margin + (len(stages) - 1) * stage_gap + 46
+    height = top_margin + max(n - 1, 0) * row_gap + 46
 
-        coords[key] = (node.stage, y)
-        rows.append({"stage": node.stage, "y": y, "label": label, "category": category})
+    lines: list[str] = []
+    icons: list[str] = []
 
-    return rows, coords
+    for m in modalities:
+        y = row_y[m.name]
+        color = CATEGORY_COLORS[m.category]
 
+        if len(pre_stages) > 1:
+            x1, x2 = stage_x[pre_stages[0]], stage_x[pre_stages[-1]]
+            lines.append(
+                f'<line x1="{x1}" y1="{y}" x2="{x2}" y2="{y}" '
+                f'stroke="{color}" stroke-width="2" opacity="0.5"/>'
+            )
+        conv_x = stage_x[shared_stages[0]]
+        lines.append(
+            f'<line x1="{stage_x[pre_stages[-1]]}" y1="{y}" x2="{conv_x}" '
+            f'y2="{shared_y}" stroke="{color}" stroke-width="1.5" opacity="0.4"/>'
+        )
 
-def _edge_rows(pipeline: pipeline_core.SignalPipeline, coords: dict) -> list[dict]:
-    rows = []
-    for edge in pipeline.edges:
-        source_key = (edge.source.stage, edge.source.modality.name if edge.source.modality else None)
-        target_key = (edge.target.stage, edge.target.modality.name if edge.target.modality else None)
-        x, y = coords[source_key]
-        x2, y2 = coords[target_key]
-        rows.append({"stage": x, "y": y, "stage2": x2, "y2": y2})
-    return rows
+        amt, dur = _ICON_PULSE.get(m.category, (1.08, "1.2s"))
+        pulse_style = f"--pulse-amt:{amt};--pulse-dur:{dur};"
+        pulse_class = "icon-pulse" if m.category in _ICON_PULSE else "icon-float"
 
+        for stage in pre_stages:
+            x = stage_x[stage]
+            icons.append(f'<g style="{pulse_style}cursor:help;">')
+            icons.append(f"<title>{m.name} ({stage})</title>")
+            icons.append(_icon_markup(m.category, x, y, 0.75, pulse_class))
+            icons.append("</g>")
 
-def _pipeline_diagram_spec(pipeline: pipeline_core.SignalPipeline) -> dict:
-    node_rows, coords = _node_rows(pipeline)
-    edge_rows = _edge_rows(pipeline, coords)
+        icons.append(
+            f'<text x="{stage_x[pre_stages[0]]}" y="{y - 22}" text-anchor="middle" '
+            f'font-size="10" fill="{INK_SECONDARY}">{m.name}</text>'
+        )
 
-    categories_present = [
-        category
-        for category in CATEGORY_COLORS
-        if any(row["category"] == category for row in node_rows)
-    ]
-    color_domain = categories_present + ["Pipeline"]
-    color_range = [CATEGORY_COLORS[c] for c in categories_present] + [PIPELINE_NODE_COLOR]
-    shape_domain = categories_present + ["Pipeline"]
-    shape_range = [CATEGORY_SHAPES[c] for c in categories_present] + [PIPELINE_NODE_SHAPE]
+    if len(shared_stages) > 1:
+        x1, x2 = stage_x[shared_stages[0]], stage_x[shared_stages[-1]]
+        lines.append(
+            f'<line x1="{x1}" y1="{shared_y}" x2="{x2}" y2="{shared_y}" '
+            f'stroke="{MUTED}" stroke-width="2.5"/>'
+        )
+    for stage in shared_stages:
+        x = stage_x[stage]
+        icons.append(
+            f'<circle cx="{x}" cy="{shared_y}" r="6" fill="{MUTED}" '
+            f'style="cursor:help;"><title>{stage}: shared across every '
+            f"modality above from here on.</title></circle>"
+        )
 
-    stage_x = {
-        "field": "stage",
-        "type": "nominal",
-        "sort": list(pipeline_core.STAGES),
-        "axis": {"title": None, "labelAngle": 0},
-    }
-    stage_x2 = {"field": "stage2", "type": "nominal", "sort": list(pipeline_core.STAGES)}
-    hidden_y = {"field": "y", "type": "quantitative", "axis": None}
+    stage_labels = "".join(
+        f'<text x="{stage_x[stage]}" y="{height - 8}" text-anchor="middle" '
+        f'font-size="10" fill="{MUTED}">{stage}</text>'
+        for stage in stages
+    )
 
-    height = min(360, 90 + 40 * max(len(pipeline.modalities), 3))
-
-    return {
-        "layer": [
-            {
-                "data": {"values": edge_rows},
-                "mark": {"type": "rule", "color": GRIDLINE, "strokeWidth": 1.5},
-                "encoding": {
-                    "x": stage_x,
-                    "y": hidden_y,
-                    "x2": stage_x2,
-                    "y2": {"field": "y2"},
-                },
-            },
-            {
-                "data": {"values": node_rows},
-                "mark": {"type": "point", "filled": True, "size": 220},
-                "encoding": {
-                    "x": stage_x,
-                    "y": hidden_y,
-                    "color": {
-                        "field": "category",
-                        "type": "nominal",
-                        "scale": {"domain": color_domain, "range": color_range},
-                        "legend": {"title": None, "orient": "bottom", "columns": 4},
-                    },
-                    "shape": {
-                        "field": "category",
-                        "type": "nominal",
-                        "scale": {"domain": shape_domain, "range": shape_range},
-                    },
-                },
-            },
-            {
-                "data": {"values": [row for row in node_rows if row["label"]]},
-                "mark": {"type": "text", "dy": -16, "fontSize": 11, "color": INK_SECONDARY},
-                "encoding": {
-                    "x": stage_x,
-                    "y": {"field": "y", "type": "quantitative"},
-                    "text": {"field": "label", "type": "nominal"},
-                },
-            },
-        ],
-        "width": "container",
-        "height": height,
-        "config": _VEGA_CHART_CONFIG,
-    }
+    return f"""
+    <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+                background:{SURFACE}; border-radius:6px; padding:6px 0;">
+      <style>
+        @keyframes pulseScale {{
+          0%, 100% {{ transform: scale(1); }}
+          50% {{ transform: scale(var(--pulse-amt, 1.08)); }}
+        }}
+        .icon-pulse {{
+          animation: pulseScale var(--pulse-dur, 1.2s) ease-in-out infinite;
+          transform-box: fill-box;
+          transform-origin: center;
+        }}
+        @keyframes floatBob {{
+          0%, 100% {{ transform: translateY(0); }}
+          50% {{ transform: translateY(-3px); }}
+        }}
+        .icon-float {{ animation: floatBob 2.6s ease-in-out infinite; }}
+      </style>
+      <div style="display:flex; justify-content:center;">
+        <svg width="100%" height="{height}" viewBox="0 0 {width} {height}"
+             preserveAspectRatio="xMidYMid meet">
+          {"".join(lines)}
+          {"".join(icons)}
+          {stage_labels}
+        </svg>
+      </div>
+    </div>
+    """
 
 
 ANATOMY_LEGEND_BUFFER_PX = 56
@@ -802,18 +820,20 @@ st.write(
     "always be made 'more informative' by adding another stream: heart "
     "rate, movement, self-report, even a clinician's notes. Each addition "
     "can sharpen what the pipeline infers, but each also adds its own "
-    "cost: a new way for the data to be re-identifying, a new attack "
+    "cost: a new way for the data to be re-identifying (traceable back "
+    "to a specific person, even without a name attached), a new attack "
     "surface, a new way the system can act on someone without their "
     "deliberate say. This journey asks whether an added modality's gain "
     "is validated as worth its cost, rather than assuming more signal is "
     "automatically better."
 )
 
-with st.expander("Why this is a validation question, not just an engineering one"):
+with st.expander("A validation question, not an engineering one"):
     st.write(
-        "Mental privacy and cognitive liberty have been proposed as "
-        "human rights specifically because neural data can reveal more "
-        "about a person than they intended to disclose. The same "
+        "Mental privacy and cognitive liberty (the right to control "
+        "access to one's own brain data and mental processes) have been "
+        "proposed as human rights specifically because neural data can "
+        "reveal more about a person than they intended to disclose. The same "
         "concern scales to any signal that is collected continuously and "
         "combined with others: the risk is not any one signal alone, but "
         "what their combination can infer."
@@ -842,6 +862,18 @@ if stage >= STAGE_BUILD_PIPELINE:
         "used at every later stage of this journey."
     )
 
+    with st.expander("Using this module with your own modalities"):
+        st.write(
+            "The Multimodal Signal Pipeline core this journey is built "
+            "on (`modules/signal_pipeline/core`) needs, for each "
+            "modality, one interpretive-gain rating (higher is better) "
+            "and three cost ratings, privacy, security, and agency "
+            "(each higher is worse), plus a supporting citation - see "
+            "`modules/signal_pipeline/README.md` for the exact "
+            "`Modality` format and what `combine_costs` and "
+            "`compute_gain_cost_frontier` compute from them."
+        )
+
     all_modalities = _load_modalities()
     modalities_by_name = {m.name: m for m in all_modalities}
     baseline = modalities_by_name[BASELINE_MODALITY_NAME]
@@ -854,9 +886,12 @@ if stage >= STAGE_BUILD_PIPELINE:
     st.caption(f"Signal examples: {baseline.signal_examples}.")
     st.caption(baseline.citation)
 
-    st.caption("How that signal travels through the pipeline:")
-    baseline_pipeline = pipeline_core.build_pipeline((baseline,))
-    st.vega_lite_chart(_pipeline_diagram_spec(baseline_pipeline), width="stretch")
+    st.caption(f"How {baseline.name}'s signal travels through the pipeline:")
+    pipeline_cols = st.columns(len(PIPELINE_STAGE_NOTES))
+    for col, (icon, label, note) in zip(pipeline_cols, PIPELINE_STAGE_NOTES):
+        with col:
+            st.badge(label, icon=icon, color="blue")
+            st.caption(note)
 
     st.write(
         "**Interpretation**: a pipeline with one modality already "
@@ -925,7 +960,16 @@ if stage >= STAGE_ADD_MODALITIES:
         st.caption("Marker size here scales with each modality's illustrative agency cost.")
 
     st.caption("How those signals travel through the pipeline:")
-    st.vega_lite_chart(_pipeline_diagram_spec(current_pipeline), width="stretch")
+    pictograph_height = 30 + max(len(current_modalities) - 1, 0) * 46 + 46
+    components.html(
+        _pipeline_pictograph_html(current_pipeline),
+        height=pictograph_height + 10,
+    )
+    st.caption(
+        "Hover an icon for detail. The small gray node marks where "
+        "every selected modality's chain converges into one shared "
+        "pipeline."
+    )
 
     for name in selected_names:
         added = modalities_by_name[name]
@@ -1036,8 +1080,8 @@ if stage >= STAGE_CONVERGENCE:
 if stage >= STAGE_WEIGH_TRADEOFF:
     section_header(
         "5. Weigh the Tradeoff",
-        "An illustrative synthesis built on the ratings from Step 3, not "
-        "on any single study's measurements.",
+        "An illustrative synthesis built on the ratings from Step 3, "
+        "grounded where a real measured result is available.",
     )
 
     all_modalities = _load_modalities()
@@ -1070,6 +1114,26 @@ if stage >= STAGE_WEIGH_TRADEOFF:
             "as adding more independent interpretive value on its own. "
             "Nothing here yet says anything about what it costs."
         )
+
+        if any(m.category in ("Autonomic", "Muscular") for m in current_modalities):
+            st.info(
+                "A real, measured result behind these Autonomic/Muscular "
+                "ratings: on DEAP's own single-trial emotion classifiers, "
+                "EEG alone scored 0.563 F1 and its bundled peripheral "
+                "channels (ECG, EMG, GSR, respiration, skin temperature, "
+                "eye movement, not separable into this page's Autonomic "
+                "and Muscular categories individually) scored 0.608 F1 on "
+                "valence - not significantly different from each other "
+                "(p=0.41). Fusing peripheral with a third modality this "
+                "page does not model (multimedia content analysis) "
+                "reached 0.652 F1, the only fusion result in the paper "
+                "that reached significance (p=0.025); fusing all three "
+                "available modalities together did not improve on that "
+                "two-modality result. The paper's own conclusion: fusion "
+                "generally helped, but only slightly, and rarely enough "
+                "to call significant."
+            )
+            st.caption(KOELSTRA_CITATION)
 
         if tradeoff_step < TRADEOFF_ADD_PRIVACY:
             if st.button("Now add privacy cost", type="primary"):

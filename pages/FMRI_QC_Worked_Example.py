@@ -511,11 +511,11 @@ def _advance_to(stage: int) -> None:
 # ---------------------------------------------------------------------
 
 st.set_page_config(
-    page_title="OpenMeasure - fMRI QC Worked Example",
+    page_title="OpenMeasure - pyfMRIqc Case Study",
     layout="centered",
 )
 
-st.title("fMRI QC Worked Example")
+st.title("pyfMRIqc Case Study")
 
 render_data_handling_summary(disclosure_for("pages/FMRI_QC_Worked_Example.py"))
 
