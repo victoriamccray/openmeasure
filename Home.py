@@ -1,8 +1,9 @@
 """
 OpenMeasure entrypoint and navigation.
 
-This file declares the navigation and nothing else, other than the
-sidebar loop described below. The landing page itself is pages/Overview.py.
+This file declares the navigation and nothing else. It renders no content,
+because anything drawn before nav.run() would appear on top of every page.
+The landing page itself is pages/Overview.py.
 
 The sidebar is built from shared/catalog.py, grouped by validation category.
 That makes the catalog the single source for the sidebar, the overview
@@ -16,35 +17,29 @@ stage, no validation category, and record nothing to shared/handoff.py,
 so folding any of them into workflows_by_category() would imply a status
 it can never have.
 
-Research Journeys does not get one sidebar entry per journey, or one
-section per domain: both read as repetitive once there are six of them
-across three domains. Instead there is a single visible "Research
-Journeys" entry, pages/Research_Journeys.py, which is a landing page
-listing every journey grouped by domain (shared/research_journeys.py's
-journeys_by_domain()) for a reader to pick one from. Individual journey
-pages are still declared in `sections` below (each still resolves for
-st.page_link and its existing direct URL, e.g. /HealthRing_Worked_Example
-keeps working), but are excluded from the sidebar loop by name, not by
-Streamlit's own visibility="hidden".
+Research Journeys is meant to have a single visible "Research Journeys"
+entry, pages/Research_Journeys.py, which is a landing page listing every
+journey grouped by domain (shared/research_journeys.py's
+journeys_by_domain()) for a reader to pick one from, with each individual
+journey page (visibility="hidden" below) reachable from there or by
+direct URL rather than getting its own sidebar entry.
 
-visibility="hidden" is Streamlit's documented mechanism for exactly this
-(hide a page from the automatic nav widget, keep it routable), and it was
-used here originally. It turned out to be unreliable once this app's real
-page set was registered: verified, by bisecting a from-scratch copy of
-this app down to a placeholder-content app of the same shape, that a
-same-shaped app with placeholder pages hides correctly while this app's
-real pages do not, regardless of dict insertion order, port, launching
-shell, or Python bytecode cache. The specific real page responsible was
-not isolated. Rather than depend on a mechanism that silently fails for
-reasons still unknown, st.navigation is called with position="hidden" to
-turn off its automatic widget entirely, and the sidebar below is built by
-hand from the same `sections` data, skipping HIDDEN_SECTION explicitly.
-This makes what appears in the sidebar a direct, inspectable consequence
-of this loop rather than of an internal filter that may or may not apply.
-One visible tradeoff: Streamlit's automatic widget bolds the current
-page automatically, and st.page_link has no equivalent "current page"
-styling hook, so the current page is only marked by disabling its link
-rather than bolding it.
+KNOWN ISSUE, deliberately left as-is: visibility="hidden" does not
+currently suppress these pages from the sidebar's automatic widget in
+this app once its real page set is registered (every journey still shows
+its own sidebar entry) -- confirmed locally, cause not isolated. A first
+attempt to work around it (calling st.navigation with position="hidden"
+and rendering the sidebar by hand instead) caused a hard
+StreamlitPageNotFoundError in production: on the deployed Streamlit
+version, position="hidden" broke string-path st.page_link resolution for
+every hidden page, including from pages/Research_Journeys.py and
+pages/3_Fairness.py, which is worse than the cosmetic issue it was meant
+to fix. That attempt is reverted. Local testing environment and the
+deployed Streamlit Cloud version are not confirmed to match
+(requirements.txt pins streamlit>=1.49 with no upper bound), which is
+likely why a locally-verified fix broke in production -- any further
+attempt at this should be verified against the exact deployed version, or
+behind a change small enough to revert instantly if it isn't.
 
 Two other consequences of declaring navigation explicitly, both intended:
 
@@ -118,14 +113,16 @@ for category, workflows in workflows_by_category().items():
         for workflow in workflows
     ]
 
-# Excluded from the sidebar loop below by this key (each journey would
-# otherwise be its own entry, or its own domain section -- both read as
-# repetitive). Still part of the navigation graph, so st.page_link and
-# each existing direct URL keep resolving; pages/Research_Journeys.py and
-# pages/Overview.py's "Research Question" card are what links to them.
-HIDDEN_SECTION = "Research Journeys (hidden)"
-
-sections[HIDDEN_SECTION] = [
+# Hidden from the sidebar (each journey would otherwise be its own entry,
+# or its own domain section -- both read as repetitive). Still part of the
+# navigation graph, so st.page_link and each existing direct URL keep
+# resolving; pages/Research_Journeys.py and pages/Overview.py's "Research
+# Question" card are what links to them. See the module docstring's
+# KNOWN ISSUE note: this visibility="hidden" does not currently suppress
+# the sidebar entry either, but unlike the position="hidden" alternative,
+# it does not break st.page_link, so it is the safer of the two known-bad
+# options until this is properly fixed.
+sections["Research Journeys (hidden)"] = [
     st.Page(
         journey.page,
         title=journey.title,
@@ -135,28 +132,4 @@ sections[HIDDEN_SECTION] = [
     for journey in JOURNEYS
 ]
 
-# position="hidden" is documented to turn off Streamlit's automatic
-# sidebar widget entirely, but does not reliably do so in this app (see
-# module docstring), so its automatic widget is force-hidden with CSS as
-# well; the loop below is the actual sidebar.
-current_page = st.navigation(sections, position="hidden")
-
-st.html("<style>[data-testid='stSidebarNav'] {display: none;}</style>")
-
-with st.sidebar:
-    for section_name, pages in sections.items():
-        if section_name == HIDDEN_SECTION:
-            continue
-
-        if section_name:
-            st.caption(section_name.upper())
-
-        for page in pages:
-            st.page_link(
-                page,
-                label=page.title,
-                icon=page.icon or None,
-                disabled=(page.url_path == current_page.url_path),
-            )
-
-current_page.run()
+st.navigation(sections).run()
