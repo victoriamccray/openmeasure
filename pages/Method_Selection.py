@@ -116,14 +116,15 @@ MODE_DESIGN = "design"
 MODE_ANALYSIS = "analysis"
 
 mode = st.radio(
-    "What do you want to do?",
-    # "Choose an analysis" first/default: it was this page's sole
-    # purpose before Design mode existed, so a bare page load keeps
+    "Method Selection is the entry point whether you're before or after "
+    "data collection:",
+    # Analyze Existing Data first/default: it was this page's sole
+    # purpose before Plan a Study existed, so a bare page load keeps
     # behaving the way every existing link to this page already expects.
     options=(MODE_ANALYSIS, MODE_DESIGN),
     format_func=lambda key: {
-        MODE_DESIGN: "Design a study (before data exists)",
-        MODE_ANALYSIS: "Choose an analysis (I have a question or dataset)",
+        MODE_DESIGN: "Plan a Study",
+        MODE_ANALYSIS: "Analyze Existing Data",
     }[key],
     horizontal=True,
 )
@@ -321,36 +322,30 @@ if mode == MODE_ANALYSIS:
     )
 
 # =======================================================================
-# Mode: Design a study
+# Mode: Plan a Study
 # =======================================================================
 
 else:
     st.caption(
         "Build a study and explore how design choices shape the "
-        "evidence, before any data exists. v0.1 walks one built-in "
-        "case: a naturalistic pain study. It does not build a design "
-        "for an arbitrary question yet, and it never scores a design "
-        "as good or bad - only what it does and does not support."
+        "evidence, before any data exists. v0.1's simulation always "
+        "models one built-in scenario, a naturalistic pain study, "
+        "regardless of what you enter below. It never scores a design "
+        "as good or bad, only what it does and does not support."
     )
 
     STAGE_QUESTION = 0
     STAGE_STRUCTURE = 1
     STAGE_MEASUREMENT = 2
-    STAGE_ASSUMPTIONS = 3
-    STAGE_SIMULATION = 4
-    STAGE_EXPLORATION = 5
-    STAGE_IMPLICATIONS = 6
-    STAGE_RECORD = 7
+    STAGE_SIMULATE = 3
+    STAGE_IMPLICATIONS = 4
 
     DESIGN_STAGE_LABELS = (
         "Research question",
         "Study design",
         "Measurement plan",
-        "Design assumptions",
-        "Simulation",
-        "Interactive exploration",
-        "Implications",
-        "Design record",
+        "Simulate the design",
+        "Implications & methods",
     )
 
     design_tracker = StageTracker(
@@ -366,31 +361,44 @@ else:
     # 0. Research question
     # -------------------------------------------------------------
 
-    section_header("Research Question")
+    section_header("Research Question", "Enter your own, or load the built-in example")
 
-    st.markdown(
-        "### Does the coupling between pain and physiology change with "
-        "how pain is spatially distributed?"
-    )
+    PAIN_EXAMPLE = {
+        "rq_hypothesis": (
+            "The coupling between subjective pain and physiological "
+            "signals (electrodermal activity and heart rate/heart-rate "
+            "variability) changes when chronic pain is localized versus "
+            "spatially distributed, referred, or radiating."
+        ),
+        "rq_population": "Adults with chronic pain, observed in daily life.",
+        "rq_exposure": "Spatial pain state: localized vs. distributed/referred/radiating.",
+        "rq_outcomes": "Within-person coupling between pain rating and a wearable physiological signal.",
+        "rq_setting": "Naturalistic: participants' everyday environments, not a lab visit.",
+    }
 
-    st.write(
-        "**Hypothesis**: the coupling between subjective pain and "
-        "physiological signals (electrodermal activity and heart "
-        "rate/heart-rate variability) changes when chronic pain is "
-        "localized versus spatially distributed, referred, or radiating."
+    if st.button("Load pain example"):
+        for key, value in PAIN_EXAMPLE.items():
+            st.session_state[key] = value
+        st.rerun()
+
+    hypothesis = st.text_area(
+        "Research question / hypothesis", key="rq_hypothesis", height=100
     )
 
     question_cols = st.columns(2)
     with question_cols[0]:
-        st.markdown("**Population**")
-        st.caption("Adults with chronic pain, naturalistically observed in daily life.")
-        st.markdown("**Exposure**")
-        st.caption("Spatial pain state: localized vs. distributed/referred/radiating.")
+        population = st.text_input("Population", key="rq_population")
+        exposure = st.text_input("Exposure / intervention", key="rq_exposure")
     with question_cols[1]:
-        st.markdown("**Outcomes**")
-        st.caption("Within-person coupling between pain rating and a wearable physiological signal.")
-        st.markdown("**Setting**")
-        st.caption("Naturalistic: participants' everyday environments, not a lab visit.")
+        outcomes = st.text_input("Outcomes", key="rq_outcomes")
+        setting = st.text_input("Setting", key="rq_setting")
+
+    caveat(
+        "These fields describe your question and go into the Design "
+        "Record below, but v0.1's simulation is not wired to change "
+        "based on them: it always models the pain scenario in Study "
+        "Design onward, whatever you enter here."
+    )
 
     if design_stage < STAGE_STRUCTURE:
         if st.button("Continue to study design", type="primary"):
@@ -400,24 +408,66 @@ else:
     # 1. Study design
     # -------------------------------------------------------------
 
+    n_participants = observations_per_day = duration_days = None
+
     if design_stage >= STAGE_STRUCTURE:
         section_header(
             "Study Design",
-            "Observational, within-person, repeated-measures",
+            "Structural choices: what kind of study, how big, how often, how long",
         )
+
+        type_cols = st.columns(3)
+        with type_cols[0]:
+            design_type = st.selectbox(
+                "Observational or experimental?", ("Observational", "Experimental")
+            )
+        with type_cols[1]:
+            comparison_structure = st.selectbox(
+                "Comparison structure", ("Within-person", "Between-person")
+            )
+        with type_cols[2]:
+            time_structure = st.selectbox(
+                "Time structure",
+                ("Cross-sectional", "Longitudinal, repeated-measures"),
+                index=1,
+            )
+
+        v01_supported = (
+            design_type == "Observational"
+            and comparison_structure == "Within-person"
+            and time_structure == "Longitudinal, repeated-measures"
+        )
+        if not v01_supported:
+            st.info(
+                "v0.1 only simulates the observational, within-person, "
+                "repeated-measures combination below. Your selection is "
+                "recorded in the Design Record, but Simulate the Design "
+                "still runs that one built-in combination."
+            )
+
+        sample_cols = st.columns(3)
+        with sample_cols[0]:
+            n_participants = st.slider("Number of participants", 5, 100, 30)
+        with sample_cols[1]:
+            observations_per_day = st.slider("Measurement frequency (per day)", 1, 10, 4)
+        with sample_cols[2]:
+            duration_days = st.slider("Study duration (days)", 3, 30, 7)
 
         st.write(
-            "This design is **observational**, not experimental: no one "
-            "assigns a participant's pain state. It is "
-            "**repeated-measures**: the same participants are observed "
-            "many times, over roughly a week, so the planned comparison "
-            "is **within-person** - each participant compared against "
-            "themselves across their own localized and distributed "
-            "episodes - rather than between two separately recruited "
-            "groups."
+            "This design is **observational**: no one assigns a "
+            "participant's pain state. It is **repeated-measures**: the "
+            "same participants are observed many times, so the planned "
+            "comparison is **within-person**, each participant compared "
+            "against themselves across their own localized and "
+            "distributed episodes, rather than between two separately "
+            "recruited groups."
         )
 
-        flow_cols = st.columns(6)
+        # Icon inline with the heading, not inside st.badge: a badge does
+        # not wrap, so labels like "Within-person analysis" silently
+        # truncated there (same fix as the Fairness page's domain cards).
+        # Three columns, not six: six left too little width per label,
+        # causing awkward mid-word line breaks even once wrapping worked.
         flow_steps = (
             (":material/person:", "Participant", "One of the enrolled adults"),
             (
@@ -430,10 +480,12 @@ else:
             (":material/insights:", "Within-person analysis", "Coupling estimated separately per participant"),
             (":material/compare_arrows:", "Comparison", "Coupling compared across pain states"),
         )
-        for column, (icon, label, note) in zip(flow_cols, flow_steps):
-            with column:
-                st.badge(label, icon=icon, color="blue")
-                st.caption(note)
+        for row_start in (0, 3):
+            flow_cols = st.columns(3)
+            for column, (icon, label, note) in zip(flow_cols, flow_steps[row_start : row_start + 3]):
+                with column:
+                    st.markdown(f"{icon} **{label}**")
+                    st.caption(note)
 
         caveat(
             "An observational, within-person design can describe "
@@ -467,8 +519,8 @@ else:
                 },
                 {
                     "Construct": "Physiological arousal",
-                    "Measure": "Wearable signal (illustrative single channel standing in "
-                    "for EDA/HR/HRV - see Design Assumptions)",
+                    "Measure": "Wearable signal (a single simulated channel standing in "
+                    "for EDA/HR/HRV, adjustable next)",
                     "Column": "physio_signal",
                 },
                 {
@@ -482,71 +534,60 @@ else:
 
         inspect_note(
             "The gap between when a pain rating is logged and when the "
-            "wearable actually reads - temporal alignment - is a "
-            "measurement-plan decision here, and an adjustable "
+            "wearable actually reads, called temporal alignment here, "
+            "is a measurement-plan decision now, and an adjustable "
             "assumption in the next stage."
         )
 
-        if design_stage < STAGE_ASSUMPTIONS:
-            if st.button("Continue to design assumptions", type="primary"):
-                design_tracker.advance_to(STAGE_ASSUMPTIONS)
+        if design_stage < STAGE_SIMULATE:
+            if st.button("Continue to simulate the design", type="primary"):
+                design_tracker.advance_to(STAGE_SIMULATE)
 
     # -------------------------------------------------------------
-    # 3. Design assumptions
+    # 3. Simulate the design
     # -------------------------------------------------------------
 
     assumptions: DesignAssumptions | None = None
+    study = None
+    estimate = None
 
-    if design_stage >= STAGE_ASSUMPTIONS:
+    if design_stage >= STAGE_SIMULATE and n_participants is not None:
         section_header(
-            "Design Assumptions",
-            "Every slider here is also live in Interactive Exploration below",
+            "Simulate the Design",
+            "These are assumptions about the world, not design choices - change one and watch the data and estimate below move",
         )
 
         st.write(
-            "These are choices, not facts about the real world - a real "
-            "version of this study would need pilot data or published "
-            "estimates to set them credibly. Moving any slider changes "
-            "the simulated data and the estimate further down this page."
+            "These are choices about what is *true*, not facts a real "
+            "version of this study would already know: it would need "
+            "pilot data or published estimates to set them credibly."
         )
 
-        sample_cols = st.columns(2)
-        with sample_cols[0]:
-            n_participants = st.slider("Number of participants", 5, 100, 30)
-            observations_per_day = st.slider("Observations per day", 1, 10, 4)
-        with sample_cols[1]:
-            duration_days = st.slider("Study duration (days)", 3, 30, 7)
+        noise_cols = st.columns(2)
+        with noise_cols[0]:
             adherence_rate = st.slider(
                 "Adherence rate (fraction of planned observations actually captured)",
                 0.1, 1.0, 0.8, step=0.05,
             )
-
-        noise_cols = st.columns(2)
-        with noise_cols[0]:
             sensor_noise_sd = st.slider("Wearable measurement noise (SD)", 0.0, 2.0, 0.5, step=0.1)
             within_person_sd = st.slider(
                 "Within-person physiological variability (SD)", 0.0, 2.0, 0.3, step=0.1
             )
-        with noise_cols[1]:
             between_person_sd = st.slider(
                 "Between-person variability in baseline coupling (SD)", 0.0, 2.0, 0.3, step=0.1
             )
-            temporal_misalignment_minutes = st.slider(
-                "Temporal misalignment between rating and wearable (minutes)", 0, 60, 10
-            )
-
-        effect_cols = st.columns(2)
-        with effect_cols[0]:
+        with noise_cols[1]:
             effect_magnitude = st.slider(
                 "True effect: coupling difference, distributed minus localized",
                 -1.0, 1.0, 0.4, step=0.05,
             )
-        with effect_cols[1]:
             pain_state_prevalence = st.slider(
                 "Share of observations in the distributed pain state", 0.05, 0.95, 0.35, step=0.05
             )
-
-        seed = st.number_input("Random seed (for reproducibility)", value=42, step=1)
+            temporal_misalignment_minutes = st.slider(
+                "Temporal misalignment between rating and wearable (minutes)", 0, 60, 10
+            )
+            seed = st.number_input("Random seed (for reproducibility)", value=42, step=1)
 
         assumptions = DesignAssumptions(
             n_participants=n_participants,
@@ -562,24 +603,8 @@ else:
             seed=int(seed),
         )
 
-        if design_stage < STAGE_SIMULATION:
-            if st.button("Continue to simulation", type="primary"):
-                design_tracker.advance_to(STAGE_SIMULATION)
-
-    # -------------------------------------------------------------
-    # 4. Simulation
-    # -------------------------------------------------------------
-
-    study = None
-
-    if design_stage >= STAGE_SIMULATION and assumptions is not None:
-        section_header(
-            "Simulation",
-            "A synthetic dataset generated from the assumptions above",
-        )
-
         st.warning(
-            "**Illustrative simulation, not study participant data.** "
+            "**Synthetic data, not study participant data.** "
             "modules/research_design/core/simulate.py documents the "
             "exact generative model and which real-world confounders "
             "(medication, activity, sleep, stress) v0.1 does not model."
@@ -597,22 +622,6 @@ else:
 
         st.dataframe(study.data.head(10), width="stretch", hide_index=True)
         st.caption("First 10 simulated rows, out of the retained total above.")
-
-        if design_stage < STAGE_EXPLORATION:
-            if st.button("Continue to interactive exploration", type="primary"):
-                design_tracker.advance_to(STAGE_EXPLORATION)
-
-    # -------------------------------------------------------------
-    # 5. Interactive exploration
-    # -------------------------------------------------------------
-
-    estimate = None
-
-    if design_stage >= STAGE_EXPLORATION and study is not None:
-        section_header(
-            "Interactive Exploration",
-            "Scroll back up, change an assumption, and these numbers move",
-        )
 
         estimate = estimate_coupling_difference(study)
 
@@ -638,34 +647,25 @@ else:
         )
 
         interpretation_note(
-            "This is one illustrative analysis aligned to this "
-            "simulated design (a within-person correlation difference), "
-            "not a general measure of the design's quality and not a "
-            "recommended analysis for a real version of this study."
+            "This is one analysis aligned to this simulated design (a "
+            "within-person correlation difference), not a general "
+            "measure of the design's quality and not a recommended "
+            "analysis for a real version of this study."
         )
-
-        st.write("**Simulated data structure -> Method Selection**")
-        st.caption(
-            "The measurement plan above, on its own, implies a column "
-            "shape. Matching that shape to OpenMeasure's own workflows "
-            "is the same suggest_workflows() the upload branch of "
-            "Choose an analysis uses - here, run on a shape derived "
-            "from the design instead of an uploaded file."
-        )
-
-        profile = measurement_plan_profile(assumptions)
-        _render_workflow_suggestions(suggest_workflows(profile))
 
         if design_stage < STAGE_IMPLICATIONS:
-            if st.button("Continue to implications", type="primary"):
+            if st.button("Continue to implications & methods", type="primary"):
                 design_tracker.advance_to(STAGE_IMPLICATIONS)
 
     # -------------------------------------------------------------
-    # 6. Implications
+    # 4. Implications & methods
     # -------------------------------------------------------------
 
     if design_stage >= STAGE_IMPLICATIONS and study is not None and estimate is not None:
-        section_header("Implications", "What this design does and does not support")
+        section_header(
+            "Implications & Methods",
+            "What this design supports, what fits it, and a record to carry forward",
+        )
 
         st.write(
             "A within-person, observational, repeated-measures design "
@@ -681,12 +681,12 @@ else:
 
         implications(
             "Adherence and temporal misalignment mainly affect how much "
-            "usable data survives to be analyzed; between-person "
+            "usable data survives to be analyzed, between-person "
             "variability and sensor noise mainly affect how uncertain "
-            "the estimate is; pain-state imbalance affects how many "
+            "the estimate is, and pain-state imbalance affects how many "
             "participants have enough of the rarer state to contribute "
             "at all. Changing one does not just move the headline "
-            "number - it changes which of these limits binds."
+            "number, it changes which of these limits binds."
         )
 
         caveat(
@@ -696,14 +696,21 @@ else:
             "settings closely, would actually perform."
         )
 
+        st.write("**Relevant OpenMeasure methods**")
+        st.caption(
+            "The measurement plan above, on its own, implies a column "
+            "shape. Matching that shape to OpenMeasure's own workflows "
+            "is the same suggest_workflows() the Analyze Existing Data "
+            "mode's upload branch uses, run here on a shape derived "
+            "from the design instead of an uploaded file."
+        )
+
+        profile = measurement_plan_profile(assumptions)
+        _render_workflow_suggestions(suggest_workflows(profile))
+
         with st.expander("How this connects to other OpenMeasure modules"):
             st.markdown(
                 """
-- **Time-Series QA** and **Impact Evaluation** are the two workflows
-  this measurement plan's shape actually matches (see above) - a real
-  version of this study would use Time-Series QA to check the
-  timestamp column's completeness and regularity, then Impact
-  Evaluation to compare the physiological signal across pain states.
 - **Reliability** would matter if the wearable reported more than one
   derived channel meant to represent the same construct.
 - **Fairness** would matter if coupling were compared across a
@@ -718,15 +725,6 @@ not an integration.
 """
             )
 
-        if design_stage < STAGE_RECORD:
-            if st.button("Continue to the design record", type="primary"):
-                design_tracker.advance_to(STAGE_RECORD)
-
-    # -------------------------------------------------------------
-    # 7. Design record
-    # -------------------------------------------------------------
-
-    if design_stage >= STAGE_RECORD and assumptions is not None and study is not None and estimate is not None:
         section_header("Design Record", "A summary of this design, to carry forward")
 
         record_text = f"""OpenMeasure Research Design Record
@@ -734,13 +732,17 @@ not an integration.
 
 Research question
 ------------------
-Does the coupling between subjective pain and a wearable physiological
-signal change when chronic pain is localized versus spatially
-distributed, referred, or radiating?
+{hypothesis or PAIN_EXAMPLE["rq_hypothesis"]}
+
+Population: {population or PAIN_EXAMPLE["rq_population"]}
+Exposure: {exposure or PAIN_EXAMPLE["rq_exposure"]}
+Outcomes: {outcomes or PAIN_EXAMPLE["rq_outcomes"]}
+Setting: {setting or PAIN_EXAMPLE["rq_setting"]}
 
 Study design
 ------------
-Observational, within-person, repeated-measures, naturalistic setting.
+{design_type}, {comparison_structure}, {time_structure}.
+{"" if v01_supported else "(Not the combination v0.1 simulates below.)"}
 
 Measurement plan
 -----------------
@@ -748,7 +750,7 @@ Measurement plan
 - Wearable physiological signal -> physio_signal
 - Timestamp per observation -> timestamp
 
-Design assumptions
+Simulation assumptions
 --------------------
 - Participants: {assumptions.n_participants}
 - Observations per day: {assumptions.observations_per_day}
@@ -757,13 +759,13 @@ Design assumptions
 - Sensor noise SD: {assumptions.sensor_noise_sd}
 - Within-person SD: {assumptions.within_person_sd}
 - Between-person SD: {assumptions.between_person_sd}
-- True effect (distributed - localized): {assumptions.effect_magnitude:+.2f}
+- True effect (distributed minus localized): {assumptions.effect_magnitude:+.2f}
 - Distributed-state prevalence: {assumptions.pain_state_prevalence:.0%}
 - Temporal misalignment: {assumptions.temporal_misalignment_minutes:.0f} minutes
 - Random seed: {assumptions.seed}
 
-Simulated outcome (illustrative)
------------------------------------
+Simulated outcome
+-----------------
 - Observations retained: {study.n_observations_retained} of {study.n_observations_planned} ({study.pct_missing:.0%} missing)
 - Participants used in the estimate: {estimate.n_participants_used} of {assumptions.n_participants}
 - Estimated coupling difference: {estimate.estimated_difference if estimate.estimated_difference is not None else "n/a"}
@@ -778,8 +780,8 @@ Limitations
 -----------
 Observational, not experimental: cannot establish causation. Does not
 model medication, activity, sleep, or stress. Simulated precision does
-not guarantee real-world performance. Illustrative simulation, not
-study participant data.
+not guarantee real-world performance. Synthetic data, not study
+participant data.
 """
 
         st.text_area("Design record", record_text, height=400)

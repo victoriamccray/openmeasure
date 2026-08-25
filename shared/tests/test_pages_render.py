@@ -808,12 +808,24 @@ class TestMethodSelectionPage(unittest.TestCase):
         self.assertFalse(app.exception)
         rendered = " ".join(str(item.value) for item in app.markdown)
         rendered += " ".join(str(item.value) for item in app.caption)
-        self.assertIn("Hypothesis", rendered)
-        self.assertIn("naturalistic", rendered.lower())
+        self.assertIn("Enter your own, or load the built-in example", rendered)
+
+        # The hypothesis field starts empty (user-editable, per Design
+        # mode's actual purpose); "Load pain example" populates it.
+        load_example_buttons = [b for b in app.button if b.label == "Load pain example"]
+        self.assertEqual(len(load_example_buttons), 1)
+        load_example_buttons[0].click()
+        app.run()
+
+        self.assertFalse(app.exception)
+        hypothesis_field = next(
+            ta for ta in app.text_area if ta.key == "rq_hypothesis"
+        )
+        self.assertIn("coupling", hypothesis_field.value.lower())
 
     def test_design_mode_reaches_the_method_selection_handoff(self):
-        # Walks Research question -> ... -> Interactive exploration,
-        # where the simulated measurement plan is handed to the same
+        # Walks Research question -> ... -> Simulate the design, where
+        # the simulated measurement plan is handed to the same
         # suggest_workflows() the upload branch above uses.
         app = self._run_method_selection_page()
 
@@ -823,9 +835,8 @@ class TestMethodSelectionPage(unittest.TestCase):
         continue_labels = (
             "Continue to study design",
             "Continue to the measurement plan",
-            "Continue to design assumptions",
-            "Continue to simulation",
-            "Continue to interactive exploration",
+            "Continue to simulate the design",
+            "Continue to implications & methods",
         )
         for label in continue_labels:
             matches = [b for b in app.button if b.label == label]
