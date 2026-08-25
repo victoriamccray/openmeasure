@@ -46,6 +46,7 @@ from modules.signal_pipeline.core import modality as modality_core
 from modules.signal_pipeline.core import pipeline as pipeline_core
 from modules.signal_pipeline.core import tradeoff as tradeoff_core
 from shared.data_handling import disclosure_for, render_data_handling_summary
+from shared.journey_stages import StageTracker
 from shared.report import caveat, flagged_item_note, section_header
 
 SAMPLE_DIR = ROOT / "modules" / "signal_pipeline" / "sample_data"
@@ -298,14 +299,16 @@ JOURNEY_STAGES = (
     "Research decision",
 )
 
+TRACKER = StageTracker(session_key=STAGE_KEY, stage_labels=JOURNEY_STAGES)
 
-def _current_stage() -> int:
-    return st.session_state.get(STAGE_KEY, STAGE_RESEARCH_QUESTION)
-
-
-def _advance_to(stage: int) -> None:
-    st.session_state[STAGE_KEY] = max(_current_stage(), stage)
-    st.rerun()
+# A second, nested StageTracker: the "Weigh the tradeoff" stage above
+# unlocks its own cost dimensions one at a time (gain alone, then
+# privacy, then security, then agency), which is a gated sequence in its
+# own right rather than part of the top-level journey breadcrumb.
+TRADEOFF_TRACKER = StageTracker(
+    session_key=TRADEOFF_STEP_KEY,
+    stage_labels=("Gain only", "+ Privacy", "+ Security", "+ Agency"),
+)
 
 
 def _to_bool(value) -> bool:
@@ -784,29 +787,18 @@ st.caption(
 
 render_data_handling_summary(disclosure_for("pages/Multimodal_Signal_Convergence.py"))
 
-stage = _current_stage()
+stage = TRACKER.render_breadcrumb()
 
-_stage_parts = [
-    f"**{label}**" if index == stage else label
-    for index, label in enumerate(JOURNEY_STAGES)
-]
-
-with st.container(border=True):
-    st.markdown(" → ".join(_stage_parts))
-
-if stage > STAGE_RESEARCH_QUESTION:
-    if st.button("Restart study", icon=":material/restart_alt:"):
-        for key in (
-            STAGE_KEY,
-            SELECTED_MODALITIES_KEY,
-            PRIVACY_WEIGHT_KEY,
-            SECURITY_WEIGHT_KEY,
-            AGENCY_WEIGHT_KEY,
-            PERSPECTIVE_KEY,
-            TRADEOFF_STEP_KEY,
-        ):
-            st.session_state.pop(key, None)
-        st.rerun()
+TRACKER.render_restart_button(
+    extra_session_keys=(
+        SELECTED_MODALITIES_KEY,
+        PRIVACY_WEIGHT_KEY,
+        SECURITY_WEIGHT_KEY,
+        AGENCY_WEIGHT_KEY,
+        PERSPECTIVE_KEY,
+        TRADEOFF_STEP_KEY,
+    )
+)
 
 st.divider()
 
@@ -867,7 +859,7 @@ with st.expander("Validation Question"):
 
 if stage < STAGE_BUILD_PIPELINE:
     if st.button("Begin study", type="primary"):
-        _advance_to(STAGE_BUILD_PIPELINE)
+        TRACKER.advance_to(STAGE_BUILD_PIPELINE)
 
 # -----------------------------------------------------------------
 # 2. Build the pipeline
@@ -928,7 +920,7 @@ if stage >= STAGE_BUILD_PIPELINE:
 
     if stage < STAGE_ADD_MODALITIES:
         if st.button("Continue to add modalities", type="primary"):
-            _advance_to(STAGE_ADD_MODALITIES)
+            TRACKER.advance_to(STAGE_ADD_MODALITIES)
 
 # -----------------------------------------------------------------
 # 3. Add modalities
@@ -1038,7 +1030,7 @@ if stage >= STAGE_ADD_MODALITIES:
 
     if stage < STAGE_CONVERGENCE:
         if st.button("Continue to examine convergence", type="primary"):
-            _advance_to(STAGE_CONVERGENCE)
+            TRACKER.advance_to(STAGE_CONVERGENCE)
 
 # -----------------------------------------------------------------
 # 4. Examine convergence
@@ -1096,7 +1088,7 @@ if stage >= STAGE_CONVERGENCE:
 
     if stage < STAGE_WEIGH_TRADEOFF:
         if st.button("Continue to weigh the tradeoff", type="primary"):
-            _advance_to(STAGE_WEIGH_TRADEOFF)
+            TRACKER.advance_to(STAGE_WEIGH_TRADEOFF)
 
 # -----------------------------------------------------------------
 # 5. Weigh the tradeoff
@@ -1124,9 +1116,9 @@ if stage >= STAGE_WEIGH_TRADEOFF:
         )
         if stage < STAGE_RESEARCH_DECISION:
             if st.button("Continue to the research decision", type="primary"):
-                _advance_to(STAGE_RESEARCH_DECISION)
+                TRACKER.advance_to(STAGE_RESEARCH_DECISION)
     else:
-        tradeoff_step = st.session_state.get(TRADEOFF_STEP_KEY, TRADEOFF_GAIN_ONLY)
+        tradeoff_step = TRADEOFF_TRACKER.current()
 
         st.caption(
             "Introduced gradually: gain alone, then each cost dimension "
@@ -1162,8 +1154,7 @@ if stage >= STAGE_WEIGH_TRADEOFF:
 
         if tradeoff_step < TRADEOFF_ADD_PRIVACY:
             if st.button("Now add privacy cost", type="primary"):
-                st.session_state[TRADEOFF_STEP_KEY] = TRADEOFF_ADD_PRIVACY
-                st.rerun()
+                TRADEOFF_TRACKER.advance_to(TRADEOFF_ADD_PRIVACY)
 
         if tradeoff_step >= TRADEOFF_ADD_PRIVACY:
             st.divider()
@@ -1189,8 +1180,7 @@ if stage >= STAGE_WEIGH_TRADEOFF:
 
             if tradeoff_step < TRADEOFF_ADD_SECURITY:
                 if st.button("Now add security cost", type="primary"):
-                    st.session_state[TRADEOFF_STEP_KEY] = TRADEOFF_ADD_SECURITY
-                    st.rerun()
+                    TRADEOFF_TRACKER.advance_to(TRADEOFF_ADD_SECURITY)
 
         if tradeoff_step >= TRADEOFF_ADD_SECURITY:
             st.divider()
@@ -1235,8 +1225,7 @@ if stage >= STAGE_WEIGH_TRADEOFF:
 
             if tradeoff_step < TRADEOFF_ADD_AGENCY:
                 if st.button("Now add agency cost, and set your own weights", type="primary"):
-                    st.session_state[TRADEOFF_STEP_KEY] = TRADEOFF_ADD_AGENCY
-                    st.rerun()
+                    TRADEOFF_TRACKER.advance_to(TRADEOFF_ADD_AGENCY)
 
         if tradeoff_step >= TRADEOFF_ADD_AGENCY:
             st.divider()
@@ -1305,7 +1294,7 @@ if stage >= STAGE_WEIGH_TRADEOFF:
 
             if stage < STAGE_RESEARCH_DECISION:
                 if st.button("Continue to the research decision", type="primary"):
-                    _advance_to(STAGE_RESEARCH_DECISION)
+                    TRACKER.advance_to(STAGE_RESEARCH_DECISION)
 
 # -----------------------------------------------------------------
 # 6. Research decision

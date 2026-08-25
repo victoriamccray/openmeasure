@@ -47,6 +47,7 @@ from modules.model_efficiency.core import frontier as frontier_core
 from modules.model_efficiency.core import models as models_core
 from modules.model_efficiency.core import preference as preference_core
 from shared.data_handling import disclosure_for, render_data_handling_summary
+from shared.journey_stages import StageTracker
 from shared.report import caveat, flagged_item_note, section_header
 
 SAMPLE_DIR = ROOT / "modules" / "model_efficiency" / "sample_data"
@@ -355,14 +356,7 @@ JOURNEY_STAGES = (
 PREDICT_KEY = "gaia_predict_light_vs_student"
 REVEAL_KEY = "gaia_reveal_light_vs_student"
 
-
-def _current_stage() -> int:
-    return st.session_state.get(STAGE_KEY, STAGE_RESEARCH_QUESTION)
-
-
-def _advance_to(stage: int) -> None:
-    st.session_state[STAGE_KEY] = max(_current_stage(), stage)
-    st.rerun()
+TRACKER = StageTracker(session_key=STAGE_KEY, stage_labels=JOURNEY_STAGES)
 
 
 def _to_bool(value) -> bool:
@@ -407,21 +401,9 @@ st.caption(
 
 render_data_handling_summary(disclosure_for("pages/GAIA_Worked_Example.py"))
 
-stage = _current_stage()
+stage = TRACKER.render_breadcrumb()
 
-_stage_parts = [
-    f"**{label}**" if index == stage else label
-    for index, label in enumerate(JOURNEY_STAGES)
-]
-
-with st.container(border=True):
-    st.markdown(" → ".join(_stage_parts))
-
-if stage > STAGE_RESEARCH_QUESTION:
-    if st.button("Restart study", icon=":material/restart_alt:"):
-        for key in (STAGE_KEY, PREDICT_KEY, REVEAL_KEY):
-            st.session_state.pop(key, None)
-        st.rerun()
+TRACKER.render_restart_button(extra_session_keys=(PREDICT_KEY, REVEAL_KEY))
 
 st.divider()
 
@@ -464,7 +446,7 @@ with st.expander("Context: energy use in AI-based MRI"):
 
 if stage < STAGE_UNDERSTAND_TASK:
     if st.button("Begin study", type="primary"):
-        _advance_to(STAGE_UNDERSTAND_TASK)
+        TRACKER.advance_to(STAGE_UNDERSTAND_TASK)
 
 # -----------------------------------------------------------------
 # 2. Understand the task
@@ -716,7 +698,7 @@ if stage >= STAGE_UNDERSTAND_TASK:
 
     if stage < STAGE_COMPARE_PERFORMANCE:
         if st.button("Continue to compare performance", type="primary"):
-            _advance_to(STAGE_COMPARE_PERFORMANCE)
+            TRACKER.advance_to(STAGE_COMPARE_PERFORMANCE)
 
 # -----------------------------------------------------------------
 # 3. Compare performance (primary evidence - exact quotes lead)
@@ -767,7 +749,7 @@ if stage >= STAGE_COMPARE_PERFORMANCE:
 
     if stage < STAGE_COMPARE_EFFICIENCY:
         if st.button("Continue to compare efficiency", type="primary"):
-            _advance_to(STAGE_COMPARE_EFFICIENCY)
+            TRACKER.advance_to(STAGE_COMPARE_EFFICIENCY)
 
 # -----------------------------------------------------------------
 # 4. Compare efficiency (primary evidence - exact quotes lead)
@@ -813,7 +795,7 @@ if stage >= STAGE_COMPARE_EFFICIENCY:
 
     if stage < STAGE_EVALUATE_TRADEOFF:
         if st.button("Continue to evaluate tradeoff", type="primary"):
-            _advance_to(STAGE_EVALUATE_TRADEOFF)
+            TRACKER.advance_to(STAGE_EVALUATE_TRADEOFF)
 
 # -----------------------------------------------------------------
 # 5. Evaluate tradeoff (illustrative synthesis, secondary to 3-4)
@@ -986,7 +968,7 @@ if stage >= STAGE_EVALUATE_TRADEOFF:
 
     if stage < STAGE_GENERALIZABILITY:
         if st.button("Continue to examine generalizability", type="primary"):
-            _advance_to(STAGE_GENERALIZABILITY)
+            TRACKER.advance_to(STAGE_GENERALIZABILITY)
 
 # -----------------------------------------------------------------
 # 6. Examine generalizability
@@ -1044,7 +1026,7 @@ if stage >= STAGE_GENERALIZABILITY:
 
     if stage < STAGE_RESEARCH_DECISION:
         if st.button("Continue to the research decision", type="primary"):
-            _advance_to(STAGE_RESEARCH_DECISION)
+            TRACKER.advance_to(STAGE_RESEARCH_DECISION)
 
 # -----------------------------------------------------------------
 # 7. Research decision

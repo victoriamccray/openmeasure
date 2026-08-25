@@ -34,6 +34,7 @@ from modules.evidence_to_claim.core import record as record_core
 from modules.evidence_to_claim.core import strength as strength_core
 from modules.evidence_to_claim.core import validate as validate_core
 from shared.data_handling import disclosure_for, render_data_handling_summary
+from shared.journey_stages import StageTracker
 from shared.report import (
     Band,
     caveat,
@@ -150,14 +151,7 @@ SESSION_KEYS = (
     "pia_portfolio_context",
 )
 
-
-def _current_stage() -> int:
-    return st.session_state.get(STAGE_KEY, STAGE_DEFINE_CLAIM)
-
-
-def _advance_to(stage: int) -> None:
-    st.session_state[STAGE_KEY] = max(_current_stage(), stage)
-    st.rerun()
+TRACKER = StageTracker(session_key=STAGE_KEY, stage_labels=JOURNEY_STAGES)
 
 
 def _none_if_nan(value) -> str | None:
@@ -424,6 +418,10 @@ st.caption(
     "sample size, comparison group, method, age) and a portfolio CSV "
     "(grantee, indicator, value, unit) can replace the sample data below."
 )
+st.caption(
+    "A guided review: each stage unlocks after you make a decision or "
+    "inspect its consequence."
+)
 
 render_data_handling_summary(disclosure_for("pages/Portfolio_Impact_Analysis.py"))
 
@@ -472,21 +470,9 @@ INDICATOR_NAMES = (
     _label_source.drop_duplicates("indicator_id").set_index("indicator_id")["indicator_name"].to_dict()
 )
 
-stage = _current_stage()
+stage = TRACKER.render_breadcrumb()
 
-_stage_parts = [
-    f"**{label}**" if index == stage else label
-    for index, label in enumerate(JOURNEY_STAGES)
-]
-
-with st.container(border=True):
-    st.markdown(" → ".join(_stage_parts))
-
-if stage > STAGE_DEFINE_CLAIM:
-    if st.button("Restart", icon=":material/restart_alt:"):
-        for key in SESSION_KEYS:
-            st.session_state.pop(key, None)
-        st.rerun()
+TRACKER.render_restart_button(extra_session_keys=SESSION_KEYS[1:])
 
 st.divider()
 
@@ -580,7 +566,7 @@ else:
 
 if "pia_claim" in st.session_state and stage < STAGE_DESCRIBE_EVIDENCE:
     if st.button("Continue to describe evidence", type="primary"):
-        _advance_to(STAGE_DESCRIBE_EVIDENCE)
+        TRACKER.advance_to(STAGE_DESCRIBE_EVIDENCE)
 
 # ---------------------------------------------------------------------
 # 2. Describe evidence (evidence)
@@ -662,7 +648,7 @@ if stage >= STAGE_DESCRIBE_EVIDENCE and "pia_claim" in st.session_state:
 
         if stage < STAGE_VALIDATE:
             if st.button("Continue to validate", type="primary"):
-                _advance_to(STAGE_VALIDATE)
+                TRACKER.advance_to(STAGE_VALIDATE)
 
 # ---------------------------------------------------------------------
 # 3. Validate (evidence -> interpretation)
@@ -752,7 +738,7 @@ if stage >= STAGE_VALIDATE and "pia_bundle" in st.session_state:
 
         if stage < STAGE_DETERMINE_SUPPORTED_CLAIM:
             if st.button("Continue to determine supported claim", type="primary"):
-                _advance_to(STAGE_DETERMINE_SUPPORTED_CLAIM)
+                TRACKER.advance_to(STAGE_DETERMINE_SUPPORTED_CLAIM)
 
 # ---------------------------------------------------------------------
 # 4. Determine supported claim (interpretation)
@@ -804,7 +790,7 @@ if stage >= STAGE_DETERMINE_SUPPORTED_CLAIM and "pia_validation" in st.session_s
 
     if stage < STAGE_EXAMINE_LIMITATIONS:
         if st.button("Continue to examine limitations", type="primary"):
-            _advance_to(STAGE_EXAMINE_LIMITATIONS)
+            TRACKER.advance_to(STAGE_EXAMINE_LIMITATIONS)
 
 # ---------------------------------------------------------------------
 # 5. Examine limitations (interpretation)
@@ -827,7 +813,7 @@ if stage >= STAGE_EXAMINE_LIMITATIONS and "pia_supported" in st.session_state:
 
     if stage < STAGE_PORTFOLIO_CONTEXT:
         if st.button("Continue to portfolio context", type="primary"):
-            _advance_to(STAGE_PORTFOLIO_CONTEXT)
+            TRACKER.advance_to(STAGE_PORTFOLIO_CONTEXT)
 
 # ---------------------------------------------------------------------
 # 6. Portfolio context (interpretation, across grantees)
@@ -1008,7 +994,7 @@ if stage >= STAGE_PORTFOLIO_CONTEXT and "pia_limitations" in st.session_state:
 
     if stage < STAGE_EVIDENCE_RECORD:
         if st.button("Continue to evidence record", type="primary"):
-            _advance_to(STAGE_EVIDENCE_RECORD)
+            TRACKER.advance_to(STAGE_EVIDENCE_RECORD)
 
 # ---------------------------------------------------------------------
 # 7. Evidence record (claim)

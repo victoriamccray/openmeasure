@@ -112,6 +112,7 @@ from modules.signal_pipeline.core import feature_selection as feature_selection_
 from modules.signal_pipeline.core import modality as modality_core
 from modules.signal_pipeline.core import pipeline as pipeline_core
 from shared.data_handling import disclosure_for, render_data_handling_summary
+from shared.journey_stages import StageTracker
 from shared.report import caveat, flagged_item_note, section_header
 
 SAMPLE_DIR = ROOT / "modules" / "signal_pipeline" / "sample_data"
@@ -1334,14 +1335,7 @@ JOURNEY_STAGES = (
     "Interpret",
 )
 
-
-def _current_stage() -> int:
-    return st.session_state.get(STAGE_KEY, STAGE_RESEARCH_QUESTION)
-
-
-def _advance_to(stage: int) -> None:
-    st.session_state[STAGE_KEY] = max(_current_stage(), stage)
-    st.rerun()
+TRACKER = StageTracker(session_key=STAGE_KEY, stage_labels=JOURNEY_STAGES)
 
 
 def _current_modalities() -> tuple[modality_core.Modality, ...]:
@@ -1373,18 +1367,9 @@ st.caption(
 
 render_data_handling_summary(disclosure_for("pages/GRAND_Worked_Example.py"))
 
-stage = _current_stage()
-_stage_parts = [
-    f"**{label}**" if index == stage else label for index, label in enumerate(JOURNEY_STAGES)
-]
-with st.container(border=True):
-    st.markdown(" → ".join(_stage_parts))
+stage = TRACKER.render_breadcrumb()
 
-if stage > STAGE_RESEARCH_QUESTION:
-    if st.button("Restart study", icon=":material/restart_alt:"):
-        st.session_state.pop(STAGE_KEY, None)
-        st.session_state.pop(SELECTED_MODALITIES_KEY, None)
-        st.rerun()
+TRACKER.render_restart_button(extra_session_keys=(SELECTED_MODALITIES_KEY,))
 
 st.divider()
 
@@ -1454,7 +1439,7 @@ with st.expander("About GRAND"):
 
 if stage < STAGE_ACQUIRE:
     if st.button("Begin study", type="primary"):
-        _advance_to(STAGE_ACQUIRE)
+        TRACKER.advance_to(STAGE_ACQUIRE)
 
 # -----------------------------------------------------------------
 # 2. Acquire modalities
@@ -1630,7 +1615,7 @@ if stage >= STAGE_ACQUIRE:
 
     if stage < STAGE_QC:
         if st.button("Continue to QC each modality", type="primary"):
-            _advance_to(STAGE_QC)
+            TRACKER.advance_to(STAGE_QC)
 
 # -----------------------------------------------------------------
 # 3. QC each modality
@@ -1683,7 +1668,7 @@ if stage >= STAGE_QC:
 
     if stage < STAGE_PROCESS:
         if st.button("Continue to process separately", type="primary"):
-            _advance_to(STAGE_PROCESS)
+            TRACKER.advance_to(STAGE_PROCESS)
 
 # -----------------------------------------------------------------
 # 4. Process separately
@@ -1742,7 +1727,7 @@ if stage >= STAGE_PROCESS:
 
     if stage < STAGE_ALIGN:
         if st.button("Continue to align & derive features", type="primary"):
-            _advance_to(STAGE_ALIGN)
+            TRACKER.advance_to(STAGE_ALIGN)
 
 # -----------------------------------------------------------------
 # 5. Align & derive features
@@ -1773,7 +1758,7 @@ if stage >= STAGE_ALIGN:
 
     if stage < STAGE_INTEGRATE:
         if st.button("Continue to integrate evidence", type="primary"):
-            _advance_to(STAGE_INTEGRATE)
+            TRACKER.advance_to(STAGE_INTEGRATE)
 
 # -----------------------------------------------------------------
 # 6. Integrate evidence
@@ -1804,7 +1789,7 @@ if stage >= STAGE_INTEGRATE:
 
     if stage < STAGE_EVALUATE:
         if st.button("Continue to evaluate added value", type="primary"):
-            _advance_to(STAGE_EVALUATE)
+            TRACKER.advance_to(STAGE_EVALUATE)
 
 # -----------------------------------------------------------------
 # 7. Evaluate added value
@@ -1934,7 +1919,7 @@ if stage >= STAGE_EVALUATE:
 
     if stage < STAGE_INTERPRET:
         if st.button("Continue to interpret", type="primary"):
-            _advance_to(STAGE_INTERPRET)
+            TRACKER.advance_to(STAGE_INTERPRET)
 
 # -----------------------------------------------------------------
 # 8. Interpret

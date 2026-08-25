@@ -68,6 +68,7 @@ from modules.healthring.core import acquisition_robustness as ar
 from shared.charts import multiline_time_series_chart
 from shared.datasets import DATASETS
 from shared.data_handling import disclosure_for, render_data_handling_summary
+from shared.journey_stages import StageTracker
 from shared.report import caveat, flagged_item_note, section_header
 
 # ---------------------------------------------------------------------
@@ -109,6 +110,8 @@ JOURNEY_STAGES = (
     "Defend conclusion",
     "Finish study",
 )
+
+TRACKER = StageTracker(session_key=STAGE_KEY, stage_labels=JOURNEY_STAGES)
 
 SPLIT_PARTICIPANT = "participant"
 SPLIT_WINDOW = "window"
@@ -673,24 +676,6 @@ def _error_distribution_chart(data: pd.DataFrame, error_col: str, group_col: str
 # ---------------------------------------------------------------------
 
 
-def _current_stage() -> int:
-    return st.session_state.get(STAGE_KEY, STAGE_RESEARCH_QUESTION)
-
-
-def _advance_to(stage: int) -> None:
-    """Unlock through `stage` and force an immediate rerun.
-
-    A rerun is needed, not just the session_state write, because the
-    button click that calls this is already mid-script: without
-    rerunning, the rest of this same pass would still read the stale
-    frontier and the newly unlocked section would not appear until some
-    later, unrelated interaction triggered a rerun on its own.
-    """
-
-    st.session_state[STAGE_KEY] = max(_current_stage(), stage)
-    st.rerun()
-
-
 def _fit_and_evaluate(
     split: ar.SplitResult,
 ) -> tuple[ar.RecalibrationModel, ar.AgreementResult, pd.DataFrame]:
@@ -848,25 +833,15 @@ st.caption(
 
 render_data_handling_summary(disclosure_for("pages/HealthRing_Worked_Example.py"))
 
-stage = _current_stage()
+stage = TRACKER.render_breadcrumb()
 
-# A single wrapped line, not a fixed grid of narrow columns: ten short
-# labels do not all fit side by side at "centered" page width, and a
-# rigid st.columns() split forced text to overflow its column instead of
-# wrapping. Plain text wraps naturally at any width.
-_stage_parts = [
-    f"**{label}**" if index == stage else label
-    for index, label in enumerate(JOURNEY_STAGES)
-]
-
-with st.container(border=True):
-    st.markdown(" → ".join(_stage_parts))
-
-if stage > STAGE_RESEARCH_QUESTION:
-    if st.button("Restart study", icon=":material/restart_alt:"):
-        for key in (STAGE_KEY, "healthring_windows", "healthring_n_subjects", "hr_reveal_breakdown"):
-            st.session_state.pop(key, None)
-        st.rerun()
+TRACKER.render_restart_button(
+    extra_session_keys=(
+        "healthring_windows",
+        "healthring_n_subjects",
+        "hr_reveal_breakdown",
+    )
+)
 
 st.divider()
 
@@ -957,7 +932,7 @@ with st.expander("What was found by HealthRing researchers"):
 
 if stage < STAGE_UNDERSTAND_MEASUREMENT:
     if st.button("Begin study", type="primary"):
-        _advance_to(STAGE_UNDERSTAND_MEASUREMENT)
+        TRACKER.advance_to(STAGE_UNDERSTAND_MEASUREMENT)
 
 # -----------------------------------------------------------------
 # 1. Understand measurement
@@ -1243,7 +1218,7 @@ Each measurement window in this dataset carries:
 
     if windows is not None and stage < STAGE_SIGNAL_INSPECTION:
         if st.button("Continue to signal inspection", type="primary"):
-            _advance_to(STAGE_SIGNAL_INSPECTION)
+            TRACKER.advance_to(STAGE_SIGNAL_INSPECTION)
 
 # -----------------------------------------------------------------
 # 2. Signal inspection
@@ -1330,7 +1305,7 @@ if stage >= STAGE_SIGNAL_INSPECTION and windows is not None:
 
     if stage < STAGE_DESIGN_EVALUATION:
         if st.button("Continue to evaluation design", type="primary"):
-            _advance_to(STAGE_DESIGN_EVALUATION)
+            TRACKER.advance_to(STAGE_DESIGN_EVALUATION)
 
 # -----------------------------------------------------------------
 # 3. Design the evaluation
@@ -1483,7 +1458,7 @@ participant-level split does. This is called **leakage**.
         if st.button(
             "Continue with this split", type="primary", disabled=chosen_split is None
         ):
-            _advance_to(STAGE_BASELINE)
+            TRACKER.advance_to(STAGE_BASELINE)
 
 # -----------------------------------------------------------------
 # 3. Establish baseline
@@ -1531,7 +1506,7 @@ if stage >= STAGE_BASELINE and chosen_split is not None:
 
     if stage < STAGE_MODEL:
         if st.button("Continue to model", type="primary"):
-            _advance_to(STAGE_MODEL)
+            TRACKER.advance_to(STAGE_MODEL)
 
 # -----------------------------------------------------------------
 # 4. Build model
@@ -1626,7 +1601,7 @@ application, and does the modeling choice reflect that?**
 
     if stage < STAGE_EVALUATE:
         if st.button("Continue to evaluation", type="primary"):
-            _advance_to(STAGE_EVALUATE)
+            TRACKER.advance_to(STAGE_EVALUATE)
 
 # -----------------------------------------------------------------
 # 5. Evaluate
@@ -1713,7 +1688,7 @@ if stage >= STAGE_EVALUATE and evaluation is not None and baseline is not None:
 
     if stage < STAGE_RETENTION:
         if st.button("Continue to the research decision", type="primary"):
-            _advance_to(STAGE_RETENTION)
+            TRACKER.advance_to(STAGE_RETENTION)
 
 # -----------------------------------------------------------------
 # 6. Make a research decision (retention)
@@ -1812,7 +1787,7 @@ if stage >= STAGE_RETENTION and evaluation is not None and test_data is not None
 
     if stage < STAGE_CONDITIONS_CHECK:
         if st.button("Continue to the conditions check", type="primary"):
-            _advance_to(STAGE_CONDITIONS_CHECK)
+            TRACKER.advance_to(STAGE_CONDITIONS_CHECK)
 
 # -----------------------------------------------------------------
 # 7. Does it hold across conditions?
@@ -1903,7 +1878,7 @@ if stage >= STAGE_CONDITIONS_CHECK and evaluation is not None and test_data is n
 
     if stage < STAGE_CONCLUSION:
         if st.button("Continue to your conclusion", type="primary"):
-            _advance_to(STAGE_CONCLUSION)
+            TRACKER.advance_to(STAGE_CONCLUSION)
 
 # -----------------------------------------------------------------
 # 8. Defend your conclusion
@@ -1982,7 +1957,7 @@ if stage >= STAGE_CONCLUSION and evaluation is not None and baseline is not None
 
     if stage < STAGE_FINISH:
         if st.button("Finish study", type="primary"):
-            _advance_to(STAGE_FINISH)
+            TRACKER.advance_to(STAGE_FINISH)
 
 # -----------------------------------------------------------------
 # 9. Finish study

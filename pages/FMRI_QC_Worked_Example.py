@@ -63,6 +63,7 @@ import streamlit.components.v1 as components
 from modules.reliability.core import interrater as ir
 from shared.charts import multiline_time_series_chart
 from shared.data_handling import disclosure_for, render_data_handling_summary
+from shared.journey_stages import StageTracker
 from shared.report import caveat, section_header
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -87,6 +88,8 @@ JOURNEY_STAGES = (
     "Signal inspection",
     "Compare simulated events",
 )
+
+TRACKER = StageTracker(session_key=STAGE_KEY, stage_labels=JOURNEY_STAGES)
 
 INK_PRIMARY = "#0b0b0b"
 INK_SECONDARY = "#52514e"
@@ -493,20 +496,6 @@ def _read_rater_table(uploaded) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------
-# Stage-gating helpers
-# ---------------------------------------------------------------------
-
-
-def _current_stage() -> int:
-    return st.session_state.get(STAGE_KEY, STAGE_RESEARCH_QUESTION)
-
-
-def _advance_to(stage: int) -> None:
-    st.session_state[STAGE_KEY] = max(_current_stage(), stage)
-    st.rerun()
-
-
-# ---------------------------------------------------------------------
 # Page
 # ---------------------------------------------------------------------
 
@@ -516,23 +505,16 @@ st.set_page_config(
 )
 
 st.title("pyfMRIqc Case Study")
+st.caption(
+    "A guided case study: each stage unlocks after you make a decision "
+    "or inspect its consequence."
+)
 
 render_data_handling_summary(disclosure_for("pages/FMRI_QC_Worked_Example.py"))
 
-stage = _current_stage()
+stage = TRACKER.render_breadcrumb()
 
-_stage_parts = [
-    f"**{label}**" if index == stage else label
-    for index, label in enumerate(JOURNEY_STAGES)
-]
-
-with st.container(border=True):
-    st.markdown(" → ".join(_stage_parts))
-
-if stage > STAGE_RESEARCH_QUESTION:
-    if st.button("Restart study", icon=":material/restart_alt:"):
-        st.session_state.pop(STAGE_KEY, None)
-        st.rerun()
+TRACKER.render_restart_button()
 
 st.divider()
 
@@ -599,7 +581,7 @@ with st.expander("Data sources and citations"):
 
 if stage < STAGE_UNDERSTAND_MEASUREMENT:
     if st.button("Begin study", type="primary"):
-        _advance_to(STAGE_UNDERSTAND_MEASUREMENT)
+        TRACKER.advance_to(STAGE_UNDERSTAND_MEASUREMENT)
 
 # -----------------------------------------------------------------
 # 1. Understand measurement
@@ -696,7 +678,7 @@ decision, and measured how much they agreed with each other.
 
     if stage < STAGE_SIGNAL_INSPECTION:
         if st.button("Continue to signal inspection", type="primary"):
-            _advance_to(STAGE_SIGNAL_INSPECTION)
+            TRACKER.advance_to(STAGE_SIGNAL_INSPECTION)
 
 # -----------------------------------------------------------------
 # 2. Signal inspection
@@ -1063,6 +1045,10 @@ if stage >= STAGE_SIGNAL_INSPECTION:
                             )
     elif search_attempted:
         st.warning("No subject QC output was found for this source.")
+
+    if stage < STAGE_SIMULATED_COMPARISON:
+        if st.button("Continue to compare simulated events", type="primary"):
+            TRACKER.advance_to(STAGE_SIMULATED_COMPARISON)
 
 # -----------------------------------------------------------------
 # 3. Compare simulated events
