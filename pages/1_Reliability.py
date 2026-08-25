@@ -9,7 +9,15 @@ presentation only, built on the shared reporting helpers in shared/.
 import sys
 from pathlib import Path
 from shared.data_handling import disclosure_for, render_data_handling_summary
-from shared.report import section_header, flagged_item_note, caveat, show_case_studies, render_lifecycle_tracker
+from shared.report import (
+    section_header,
+    flagged_item_note,
+    caveat,
+    inspect_note,
+    interpretation_note,
+    show_case_studies,
+    render_lifecycle_tracker,
+)
 
 import pandas as pd
 import streamlit as st
@@ -334,9 +342,66 @@ if analyze_clicked:
             "This item should be reviewed rather than automatically removed."
         )
 
-    section_header("Item-Total Correlation Chart")
-    chart_df = pd.DataFrame(
-        {d.item: [d.item_total_corr] for d in result.item_diagnostics}
-    ).T
-    chart_df.columns = ["Item-total correlation"]
-    st.bar_chart(chart_df)
+    section_header(
+        "Item-Total Correlation Chart",
+        "The same item-total correlations as the table above, against the review threshold",
+    )
+
+    threshold = rel.ITEM_TOTAL_FLAG_THRESHOLD
+    chart_rows = [
+        {
+            "Item": d.item,
+            "correlation": d.item_total_corr,
+            "status": "Below threshold, review" if d.flagged else "At or above threshold",
+        }
+        for d in result.item_diagnostics
+    ]
+    chart_spec = {
+        "layer": [
+            {
+                "data": {"values": chart_rows},
+                "mark": {"type": "bar"},
+                "encoding": {
+                    "y": {"field": "Item", "type": "nominal", "title": None},
+                    "x": {
+                        "field": "correlation",
+                        "type": "quantitative",
+                        "title": "Item-total correlation",
+                        "scale": {"domain": [-1, 1]},
+                    },
+                    "color": {
+                        "field": "status",
+                        "type": "nominal",
+                        "scale": {
+                            "domain": ["At or above threshold", "Below threshold, review"],
+                            "range": ["#2a78d6", "#c0392b"],
+                        },
+                        "legend": {"title": None, "orient": "top"},
+                    },
+                    "tooltip": [
+                        {"field": "Item", "type": "nominal"},
+                        {"field": "correlation", "type": "quantitative", "format": ".3f"},
+                    ],
+                },
+            },
+            {
+                "data": {"values": [{"threshold": threshold}]},
+                "mark": {"type": "rule", "strokeDash": [4, 4], "color": "#898781"},
+                "encoding": {"x": {"field": "threshold", "type": "quantitative"}},
+            },
+        ],
+        "width": "container",
+        "height": 30 * len(chart_rows) + 40,
+    }
+    st.vega_lite_chart(chart_spec, theme=None, use_container_width=True)
+
+    inspect_note(
+        f"Bars crossing the dashed line at {threshold:.2f} are the items already "
+        "flagged for review in the table above."
+    )
+    interpretation_note(
+        f"An item-total correlation below {threshold:.2f} means that item tracks "
+        "poorly with the rest of the scale (Nunnally's convention, cited in "
+        "\"What is Cronbach's alpha?\" above). It does not by itself say the item "
+        "should be removed."
+    )

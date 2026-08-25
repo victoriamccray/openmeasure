@@ -267,6 +267,28 @@ DISCLOSURES: tuple[DataHandlingDisclosure, ...] = (
         ),
     ),
     DataHandlingDisclosure(
+        page="pages/Pulse_Oximeter_Worked_Example.py",
+        data_access=(DATA_ACCESS_BUNDLED_EXAMPLE,),
+        processing=(PROCESSING_IN_MEMORY,),
+        persistent_storage=PERSISTENT_STORAGE_NONE,
+        data_accessed=(
+            "No dataset file of any kind, real or bundled. The evidence "
+            "stage shows only published aggregate rates, hardcoded from "
+            "Sjoding et al. (2020); the interactive threshold stage "
+            "generates a synthetic patient-level cohort in memory at "
+            "runtime, calibrated to those rates - never real patient data."
+        ),
+        redistribution=REDISTRIBUTION_NOT_APPLICABLE,
+        notes=(
+            "modules/fairness/core/pulse_oximeter_demo.py documents which "
+            "parts of the synthetic cohort are calibrated to the cited "
+            "study (each group's sample size and occult-hypoxemia rate) "
+            "and which are an illustrative modeling assumption (the shape "
+            "of each group's reading distribution within the reading "
+            "band)."
+        ),
+    ),
+    DataHandlingDisclosure(
         page="pages/Multimodal_Signal_Convergence.py",
         data_access=(DATA_ACCESS_BUNDLED_EXAMPLE,),
         processing=(PROCESSING_IN_MEMORY,),

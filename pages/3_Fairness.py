@@ -948,3 +948,13 @@ else:
 # ---------------------------------------------------------------------
 
 show_case_studies("model_validation")
+
+st.page_link(
+    "pages/Pulse_Oximeter_Worked_Example.py",
+    label=(
+        "Try the interactive version of the pulse oximeter case study "
+        "(Research Journey): adjust the alarm threshold and watch the "
+        "detection gap respond"
+    ),
+    icon=":material/arrow_forward:",
+)

@@ -172,6 +172,17 @@ JOURNEYS: tuple[ResearchJourney, ...] = (
         ),
         page="pages/Multimodal_Signal_Convergence.py",
     ),
+    ResearchJourney(
+        title="Pulse Oximeter Racial Bias",
+        domain="Responsible AI",
+        subdomain="Device & Measurement Bias",
+        summary=(
+            "How a device's optical measurement error, not a downstream "
+            "model, produced a racial detection gap, and why moving a "
+            "single alarm threshold cannot fully close it."
+        ),
+        page="pages/Pulse_Oximeter_Worked_Example.py",
+    ),
 )
 
 
