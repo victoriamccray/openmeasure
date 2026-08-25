@@ -58,5 +58,11 @@ jobs:
       - name: Run evidence review tests
         run: pytest modules/evidence_review/tests/ -v
 
+      - name: Run evidence to claim tests
+        run: pytest modules/evidence_to_claim/tests/ -v
+
+      - name: Run model efficiency tests
+        run: pytest modules/model_efficiency/tests/ -v
+
       - name: Run shared tests
         run: pytest shared/tests/ -v
