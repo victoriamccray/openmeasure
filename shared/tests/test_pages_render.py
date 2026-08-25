@@ -518,8 +518,9 @@ class TestExploreRealDataPage(unittest.TestCase):
 
 class TestMethodSelectionPage(unittest.TestCase):
     """
-    The Method Selection Decision Tree: one guided question, five branches,
-    each with its own Try/Why/You'll learn/Limitations content.
+    The Method Selection Decision Tree: one guided question, six branches
+    (five to workflows, one to a research journey), each with its own
+    Try/Why/You'll learn/Limitations content.
     """
 
     def _run_method_selection_page(self) -> AppTest:
@@ -545,16 +546,16 @@ class TestMethodSelectionPage(unittest.TestCase):
             [str(item.value) for item in app.title],
         )
 
-    def test_every_situation_is_offered(self):
+    def test_every_question_is_offered(self):
         from shared.method_guide import BRANCHES
 
         app = self._run_method_selection_page()
 
         self.assertEqual(len(app.radio), 1)
         # .options reflects the formatted display label (format_func), the
-        # plain-language situation text, not the underlying branch id.
+        # plain-language question text, not the underlying branch id.
         self.assertEqual(
-            set(app.radio[0].options), {b.situation for b in BRANCHES}
+            set(app.radio[0].options), {b.question for b in BRANCHES}
         )
 
     def test_each_branch_renders_its_own_try_why_and_learn(self):
@@ -570,7 +571,7 @@ class TestMethodSelectionPage(unittest.TestCase):
                 self.assertFalse(app.exception)
 
                 rendered = " ".join(str(item.value) for item in app.markdown)
-                self.assertIn(f"Try: {branch.workflow}", rendered)
+                self.assertIn(f"Try: {branch.destination}", rendered)
 
                 # branch.why is rendered via st.write, which emits Markdown
                 # for a plain string.
@@ -585,6 +586,24 @@ class TestMethodSelectionPage(unittest.TestCase):
         app = self._run_method_selection_page()
 
         self.assertNotIn(STORE_KEY, app.session_state)
+
+    def test_the_pictograph_has_one_icon_card_per_destination(self):
+        # The pictograph is a decorative supplement (see
+        # pages/Method_Selection.py's docstring on why it is static, not
+        # animated), so this only pins that every destination still gets
+        # a card and none silently drops out of the srcdoc, not the SVG
+        # markup itself.
+        from shared.method_guide import BRANCHES
+
+        app = self._run_method_selection_page()
+
+        iframes = app.get("iframe")
+        self.assertEqual(len(iframes), 1)
+
+        srcdoc = iframes[0].proto.srcdoc
+        for branch in BRANCHES:
+            with self.subTest(branch=branch.id):
+                self.assertIn(branch.destination, srcdoc)
 
 
 class TestResourcesPage(unittest.TestCase):
