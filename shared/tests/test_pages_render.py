@@ -684,16 +684,32 @@ class TestMethodSelectionPage(unittest.TestCase):
             [str(item.value) for item in app.title],
         )
 
+    def _branch_radio(self, app: AppTest):
+        """
+        The branch-selector radio, found by its options rather than by
+        position: this page also has a top-level "Choose an analysis" /
+        "Design a study" mode radio, so the branch radio is not
+        reliably app.radio[0].
+        """
+
+        from shared.method_guide import BRANCHES
+
+        branch_questions = {b.question for b in BRANCHES}
+        for radio in app.radio:
+            if set(radio.options) == branch_questions:
+                return radio
+
+        raise AssertionError("No radio widget offered exactly the branch questions.")
+
     def test_every_question_is_offered(self):
         from shared.method_guide import BRANCHES
 
         app = self._run_method_selection_page()
 
-        self.assertEqual(len(app.radio), 1)
         # .options reflects the formatted display label (format_func), the
         # plain-language question text, not the underlying branch id.
         self.assertEqual(
-            set(app.radio[0].options), {b.question for b in BRANCHES}
+            set(self._branch_radio(app).options), {b.question for b in BRANCHES}
         )
 
     def test_each_branch_renders_its_own_try_why_and_learn(self):
@@ -703,7 +719,7 @@ class TestMethodSelectionPage(unittest.TestCase):
 
         for branch in BRANCHES:
             with self.subTest(branch=branch.id):
-                app.radio[0].set_value(branch.id)
+                self._branch_radio(app).set_value(branch.id)
                 app.run()
 
                 self.assertFalse(app.exception)
@@ -780,6 +796,47 @@ class TestMethodSelectionPage(unittest.TestCase):
         app.run()
 
         self.assertNotIn(STORE_KEY, app.session_state)
+
+    def test_switching_to_design_mode_shows_the_research_question(self):
+        # The mode selector is always the first radio on the page,
+        # rendered unconditionally before either mode's own content.
+        app = self._run_method_selection_page()
+
+        app.radio[0].set_value("design")
+        app.run()
+
+        self.assertFalse(app.exception)
+        rendered = " ".join(str(item.value) for item in app.markdown)
+        rendered += " ".join(str(item.value) for item in app.caption)
+        self.assertIn("Hypothesis", rendered)
+        self.assertIn("naturalistic", rendered.lower())
+
+    def test_design_mode_reaches_the_method_selection_handoff(self):
+        # Walks Research question -> ... -> Interactive exploration,
+        # where the simulated measurement plan is handed to the same
+        # suggest_workflows() the upload branch above uses.
+        app = self._run_method_selection_page()
+
+        app.radio[0].set_value("design")
+        app.run()
+
+        continue_labels = (
+            "Continue to study design",
+            "Continue to the measurement plan",
+            "Continue to design assumptions",
+            "Continue to simulation",
+            "Continue to interactive exploration",
+        )
+        for label in continue_labels:
+            matches = [b for b in app.button if b.label == label]
+            self.assertEqual(len(matches), 1, f"Expected exactly one '{label}' button.")
+            matches[0].click()
+            app.run()
+            self.assertFalse(app.exception)
+
+        rendered = " ".join(str(item.value) for item in app.markdown)
+        self.assertIn("Time-Series QA", rendered)
+        self.assertIn("Impact Evaluation", rendered)
 
 
 class TestDataProfileWiredIntoUploadPages(unittest.TestCase):

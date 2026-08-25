@@ -64,5 +64,8 @@ jobs:
       - name: Run model efficiency tests
         run: pytest modules/model_efficiency/tests/ -v
 
+      - name: Run research design tests
+        run: pytest modules/research_design/tests/ -v
+
       - name: Run shared tests
         run: pytest shared/tests/ -v
