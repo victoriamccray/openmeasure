@@ -77,6 +77,28 @@ for item in DISCLOSURES:
 
 st.divider()
 
+st.subheader("OpenMeasure's Code vs. Its Hosting Platform")
+st.write(
+    "Everything above describes what OpenMeasure's own code does. It is "
+    "not a claim about the platform that runs the app underneath it."
+)
+st.markdown(
+    """
+- **OpenMeasure application telemetry** - none. No page in this app sends usage events, click tracking, or any other application-level analytics anywhere.
+- **Hosting/platform processing** - this app runs on Streamlit Community Cloud. An uploaded file is copied from your browser to that platform's backend and held in an in-memory buffer there (RAM, not disk) - server-side processing, not processing that happens solely on your own device. Per Streamlit's own documentation, an uploaded file is removed from that memory when it is replaced, the uploader is cleared, or the browser tab is closed. Streamlit Community Cloud also runs its own separate viewer analytics for a hosted app (a total and a recent-unique viewer count) independent of anything OpenMeasure's own code does; for a public app, Streamlit's documentation states that viewers outside the app owner's workspace are shown to the owner as anonymous pseudonyms.
+- **Research-data persistence by OpenMeasure** - none, beyond the exceptions already disclosed below under Known Limitations.
+"""
+)
+st.caption(
+    "The file-uploader and app-analytics behavior described above is "
+    "Streamlit's, not OpenMeasure's, and is summarized from Streamlit's "
+    "own current documentation (docs.streamlit.io) rather than "
+    "guaranteed to stay accurate as that platform changes; consult it "
+    "directly for what applies today."
+)
+
+st.divider()
+
 st.subheader("Known Limitations")
 st.write(
     "Stated as plainly as the rest of the app states its statistical "

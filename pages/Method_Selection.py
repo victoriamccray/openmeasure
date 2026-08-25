@@ -29,12 +29,15 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
+from modules.data_profile.core.suggest import suggest_workflows
 from shared.catalog import WORKFLOWS
 from shared.method_guide import BRANCHES
 from shared.research_journeys import JOURNEYS
+from shared.upload import render_data_profile
 
 st.set_page_config(
     page_title="OpenMeasure - Method Selection",
@@ -207,6 +210,52 @@ st.caption(
     "own sequence of stages. This page only points you to where to "
     "start."
 )
+
+st.divider()
+
+st.subheader("Or, Upload a File Instead")
+st.caption(
+    "Don't know what to ask yet? Upload a file and OpenMeasure names "
+    "which workflows may be relevant based on its column structure. "
+    "Structure can't establish that a workflow is the methodologically "
+    "appropriate choice, only that its shape is worth a look. The "
+    "question above (and each destination's own Why) is what actually "
+    "states a case for one."
+)
+
+uploaded = st.file_uploader(
+    "CSV file", type="csv", label_visibility="collapsed", key="method_selection_upload"
+)
+
+if uploaded is not None:
+    upload_df = pd.read_csv(uploaded)
+    upload_profile = render_data_profile(upload_df)
+    suggestions = suggest_workflows(upload_profile)
+
+    if not suggestions:
+        st.info(
+            "This file's column shape didn't clearly match a pattern this "
+            "suggester recognizes. Use the question above instead, or "
+            "browse Research Journeys below."
+        )
+    else:
+        st.caption(
+            "These are structural matches, not a determination of "
+            "methodological appropriateness: dataset structure alone "
+            "can't establish your actual research question or intent. "
+            "If more than one workflow is shown, that reflects a real "
+            "ambiguity structure can't resolve on its own, not an error."
+        )
+
+        for suggestion in suggestions:
+            with st.container(border=True):
+                st.markdown(f"**{suggestion.workflow}** may be relevant")
+                st.write(suggestion.reasoning)
+                st.page_link(
+                    _PAGE_BY_DESTINATION[suggestion.workflow],
+                    label=f"Open {suggestion.workflow}",
+                    icon=":material/arrow_forward:",
+                )
 
 st.page_link(
     "pages/Research_Journeys.py",

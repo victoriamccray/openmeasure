@@ -608,6 +608,44 @@ class TestMethodSelectionPage(unittest.TestCase):
             with self.subTest(branch=branch.id):
                 self.assertIn(branch.destination, srcdoc)
 
+    def test_uploading_a_time_series_shaped_file_suggests_time_series_qa(self):
+        app = self._run_method_selection_page()
+
+        csv_bytes = (
+            b"recorded_at,visits\n"
+            b"2024-01-01,10\n2024-01-02,12\n2024-01-03,9\n"
+            b"2024-01-04,14\n2024-01-05,11\n"
+        )
+        app.file_uploader[0].upload("visits.csv", csv_bytes, "text/csv")
+        app.run()
+
+        self.assertFalse(app.exception)
+
+        rendered = " ".join(str(item.value) for item in app.markdown)
+        self.assertIn("Time-Series QA", rendered)
+        self.assertIn("timestamp column", rendered)
+
+    def test_uploading_an_unrecognizable_shape_says_so_plainly(self):
+        app = self._run_method_selection_page()
+
+        csv_bytes = b"a\n1\n2\n3\n4\n5\n"
+        app.file_uploader[0].upload("plain.csv", csv_bytes, "text/csv")
+        app.run()
+
+        self.assertFalse(app.exception)
+
+        info_messages = " ".join(str(item.value) for item in app.info)
+        self.assertIn("didn't clearly match", info_messages)
+
+    def test_the_upload_path_records_nothing_to_the_handoff_store(self):
+        app = self._run_method_selection_page()
+
+        csv_bytes = b"recorded_at,visits\n2024-01-01,10\n2024-01-02,12\n"
+        app.file_uploader[0].upload("visits.csv", csv_bytes, "text/csv")
+        app.run()
+
+        self.assertNotIn(STORE_KEY, app.session_state)
+
 
 class TestDataProfileWiredIntoUploadPages(unittest.TestCase):
     """
