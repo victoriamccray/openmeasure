@@ -113,7 +113,14 @@ from modules.signal_pipeline.core import modality as modality_core
 from modules.signal_pipeline.core import pipeline as pipeline_core
 from shared.data_handling import disclosure_for, render_data_handling_summary
 from shared.journey_stages import StageTracker
-from shared.report import caveat, flagged_item_note, section_header
+from shared.report import (
+    caveat,
+    flagged_item_note,
+    implications,
+    inspect_note,
+    interpretation_note,
+    section_header,
+)
 
 SAMPLE_DIR = ROOT / "modules" / "signal_pipeline" / "sample_data"
 
@@ -1653,17 +1660,16 @@ if stage >= STAGE_QC:
         if qc is None:
             continue
         with st.expander(m.name):
-            st.write(f"**What to inspect**: {qc['what_to_inspect']}")
+            inspect_note(qc["what_to_inspect"])
             visual_row = _qc_visual_row_html(m.name, CATEGORY_COLORS[m.category])
             if visual_row:
                 components.html(visual_row, height=90)
-            st.write(f"**Interpretation**: {qc['interpretation']}")
+            interpretation_note(qc["interpretation"])
 
-    st.write(
-        "**Implications**: a modality that fails its own quality check "
-        "should not proceed to the same processing and integration steps "
-        "as one that passes; QC is a gate on the pipeline, not a summary "
-        "written after the fact."
+    implications(
+        "A modality that fails its own quality check should not proceed "
+        "to the same processing and integration steps as one that "
+        "passes. QC is a gate on the pipeline."
     )
 
     if stage < STAGE_PROCESS:

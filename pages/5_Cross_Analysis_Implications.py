@@ -33,7 +33,15 @@ from shared.handoff import (
     HandoffStore,
     group_by_dataset,
 )
-from shared.report import caveat, render_lifecycle_tracker, section_header, show_case_studies
+from shared.report import (
+    caveat,
+    implications,
+    inspect_note,
+    interpretation_note,
+    render_lifecycle_tracker,
+    section_header,
+    show_case_studies,
+)
 
 
 st.set_page_config(
@@ -196,6 +204,7 @@ for dataset in summary.datasets:
                 ]
             ).set_index("Analysis")
         )
+        inspect_note("Whether Used differs across analyses of the same dataset.")
 
     # Every cell is rendered as text. Some columns legitimately hold either
     # a count or "not applicable", and a mixed-type column makes Streamlit
@@ -274,14 +283,12 @@ for dataset in summary.datasets:
 
 section_header("What This Means")
 
-st.markdown("**Observation**")
-st.write(
+interpretation_note(
     "The retention table(s) above show that analyses of the same file did "
     "not necessarily keep the same rows, or the same number of them."
 )
 
-st.markdown("**Why it matters**")
-st.write(summary.shared_implication)
+implications(summary.shared_implication)
 
 st.markdown("**Real-world takeaway**")
 st.info(summary.real_world_takeaway)

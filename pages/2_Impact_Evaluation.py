@@ -28,7 +28,15 @@ from shared.handoff import (
     fingerprint_dataframe,
 )
 from shared.data_handling import disclosure_for, render_data_handling_summary
-from shared.report import section_header, caveat, flagged_item_note, show_case_studies, render_lifecycle_tracker
+from shared.report import (
+    section_header,
+    caveat,
+    flagged_item_note,
+    implications,
+    inspect_note,
+    show_case_studies,
+    render_lifecycle_tracker,
+)
 
 
 def record_comparison(frame, upload, analysis_context, recommendation, result) -> None:
@@ -274,6 +282,13 @@ if "pe_recommendation" in st.session_state:
                     f"(95% CI: {result.ci_95_low:.2f} to {result.ci_95_high:.2f}), "
                     f"df = {result.degrees_of_freedom:.1f}"
                 )
+                inspect_note("The p-value against your significance threshold, and Cohen's d for effect size.")
+                implications(
+                    "A p-value below threshold supports attributing the "
+                    "difference to what distinguishes the groups, subject "
+                    "to Welch's t-test assumptions. Above threshold, no "
+                    "difference was detected at this sample size."
+                )
 
             elif method == "compare_multiple_groups_welch":
                 try:
@@ -315,6 +330,8 @@ if "pe_recommendation" in st.session_state:
                 ])
                 st.dataframe(pairwise_df, width="stretch", hide_index=True)
                 st.caption("\"Significant\" means the adjusted p-value fell below the conventional threshold α = 0.05.")
+                inspect_note("Which pairs are flagged Significant.")
+                implications("Only flagged pairs support a claim of a group difference.")
 
             elif method == "compare_multiple_groups":
                 result = comp.compare_multiple_groups(df, context["group_col"], context["outcome_col"])
@@ -352,6 +369,8 @@ if "pe_recommendation" in st.session_state:
                 ])
                 st.dataframe(pairwise_df, width="stretch", hide_index=True)
                 st.caption("\"Significant\" means the adjusted p-value fell below the conventional threshold α = 0.05.")
+                inspect_note("Which pairs are flagged Significant.")
+                implications("Only flagged pairs support a claim of a group difference.")
 
             elif method == "compare_categorical":
                 result = comp.compare_categorical(df, context["group_col"], context["outcome_col"])
@@ -373,6 +392,9 @@ if "pe_recommendation" in st.session_state:
                         "in OpenMeasure)."
                     )
 
+                inspect_note("The contingency table's cell counts.")
+                implications("An association does not establish that the group caused the outcome.")
+
             elif method == "compare_pre_post":
                 result = comp.compare_pre_post(df[context["pre_col"]], df[context["post_col"]])
 
@@ -386,6 +408,12 @@ if "pe_recommendation" in st.session_state:
                 m2.metric("p-value", f"{result.p_value:.4f}")
                 m3.metric("Cohen's d", f"{result.cohens_d:.2f}")
                 st.caption(f"n = {result.n}, df = {result.degrees_of_freedom}, mean change = {result.mean_difference:.2f}")
+                inspect_note("The p-value and Cohen's d, computed on the same participants' change over time.")
+                implications(
+                    "A significant change supports that something changed "
+                    "for this group. A pre/post design alone does not rule "
+                    "out other explanations, such as regression to the mean."
+                )
 
             elif method == "sensitivity_analysis":
                 result = comp.sensitivity_analysis(
@@ -401,6 +429,7 @@ if "pe_recommendation" in st.session_state:
                     for name, p in result.p_values_by_coding.items()
                 ])
                 st.dataframe(p_df, width="stretch", hide_index=True)
+                inspect_note("Whether every row's p-value falls on the same side of α.")
 
                 if result.consistent_conclusion:
                     st.success(

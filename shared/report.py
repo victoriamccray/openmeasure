@@ -94,6 +94,50 @@ def caveat(text: str) -> None:
     st.caption(text)
 
 
+def inspect_note(text: str) -> None:
+    """
+    Consistent styling for "what to look at first" guidance, shown before
+    or alongside a chart, table, or metric so a reader knows which part
+    of it carries the meaning before they start interpreting it.
+
+    Distinct from caveat(): a caveat qualifies a result after the fact
+    (a limitation); this orients a reader toward a result before they
+    read it. Wording ("**Label**: Sentence.", not "**Label:** sentence")
+    matches the convention already established, before this shared
+    version existed, in GRAND_Worked_Example.py's own ad hoc "What to
+    inspect" / "Interpretation" / "Implications" headings (see that
+    page's "Register" docstring note) -- extracted here rather than left
+    as page-local prose once a second page needed the same three labels.
+    """
+    st.write(f"**What to inspect**: {text}")
+
+
+def interpretation_note(text: str) -> None:
+    """
+    Consistent styling for a free-text interpretation of a result.
+
+    Distinct from render_verdict(): that renders a value classified into
+    a threshold Band; this is for a page with no banding scheme, stating
+    in prose what a result shows without collapsing it into a labeled
+    tier. Use whichever fits the result -- not both for the same result.
+    """
+    st.write(f"**Interpretation**: {text}")
+
+
+def implications(text: str) -> None:
+    """
+    Consistent styling for what a result means for the reader's next
+    step, shown after a result (and its caveat(s)/interpretation, if
+    any) rather than before it.
+
+    Deliberately not a recommendation to act ("do X"): it states what
+    the result does and does not support, leaving the decision itself to
+    the reader, consistent with the toolkit's validation-over-automation
+    stance.
+    """
+    st.write(f"**Implications**: {text}")
+
+
 def show_case_studies(module: str) -> None:
     """
     Display research case studies relevant to a module, most relevant first.

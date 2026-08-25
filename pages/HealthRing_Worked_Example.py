@@ -69,7 +69,7 @@ from shared.charts import multiline_time_series_chart
 from shared.datasets import DATASETS
 from shared.data_handling import disclosure_for, render_data_handling_summary
 from shared.journey_stages import StageTracker
-from shared.report import caveat, flagged_item_note, section_header
+from shared.report import caveat, flagged_item_note, implications, inspect_note, section_header
 
 # ---------------------------------------------------------------------
 # Constants
@@ -1477,6 +1477,8 @@ if stage >= STAGE_BASELINE and chosen_split is not None:
         chosen_split.test_data["bvp_hr"], chosen_split.test_data["hr"]
     )
 
+    inspect_note("MAE for typical error, and limits of agreement for its spread.")
+
     b1, b2, b3 = st.columns(3)
     b1.metric("Baseline MAE", f"{baseline.mae:.2f} bpm")
     b2.metric("Baseline bias", f"{baseline.bias:+.2f} bpm")
@@ -1489,11 +1491,11 @@ if stage >= STAGE_BASELINE and chosen_split is not None:
         f"{_loa_sentence(baseline.lower_loa, baseline.upper_loa)}"
     )
 
-    st.write(
+    implications(
         "This treats the ring's own `bvp_hr` estimate as the prediction, "
         "with no fitting at all, measured on the same held-out test data "
         "the model will be evaluated on next. It is the number a model "
-        "has to beat, not a null result to dismiss."
+        "has to beat."
     )
 
     model_prediction = st.radio(
@@ -1685,6 +1687,12 @@ if stage >= STAGE_EVALUATE and evaluation is not None and baseline is not None:
         "come from the same participant and are not independent of each "
         "other, so treat these limits as approximate rather than exact."
     )
+    implications(
+        "Test MAE, the error distribution's shape, and the Bland-Altman "
+        "spread together describe how much to trust this model's output "
+        "on a new participant, before checking whether that holds across "
+        "conditions in the next stage."
+    )
 
     if stage < STAGE_RETENTION:
         if st.button("Continue to the research decision", type="primary"):
@@ -1711,6 +1719,8 @@ if stage >= STAGE_RETENTION and evaluation is not None and test_data is not None
         "earlier, which reshapes a signal without deleting observations: "
         "here, an excluded window is gone from the analysis."
     )
+
+    inspect_note("Whether retention rate and MAE move together as you raise the threshold.")
 
     left, mid, right = st.columns([1, 3, 1])
     with left:

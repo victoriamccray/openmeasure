@@ -410,10 +410,13 @@ class TestValidationPageLifecycleTracker(unittest.TestCase):
 
 class TestCrossAnalysisWhatThisMeans(unittest.TestCase):
     """
-    The "What this means" section was restructured into Observation -> Why
-    it matters -> Real-world takeaway. This covers that the three labels and
-    the underlying content actually render, since shared/tests/
-    test_retention.py only covers that the core summary carries the text.
+    The "What this means" section is Interpretation -> Implications ->
+    Real-world takeaway (Interpretation/Implications via shared/report.py's
+    interpretation_note()/implications(), consistent with every other
+    page's guidance labels, rather than this page's own former "Observation"
+    / "Why it matters" headings). This covers that the labels and the
+    underlying content actually render, since shared/tests/test_retention.py
+    only covers that the core summary carries the text.
     """
 
     @staticmethod
@@ -455,8 +458,8 @@ class TestCrossAnalysisWhatThisMeans(unittest.TestCase):
         self.assertFalse(app.exception)
 
         rendered = " ".join(str(item.value) for item in app.markdown)
-        self.assertIn("Observation", rendered)
-        self.assertIn("Why it matters", rendered)
+        self.assertIn("Interpretation", rendered)
+        self.assertIn("Implications", rendered)
         self.assertIn("Real-world takeaway", rendered)
 
         infos = " ".join(str(item.value) for item in app.info)

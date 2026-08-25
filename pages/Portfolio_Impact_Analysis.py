@@ -40,6 +40,8 @@ from shared.report import (
     caveat,
     classify,
     flagged_item_note,
+    implications,
+    inspect_note,
     render_verdict,
     section_header,
 )
@@ -882,6 +884,8 @@ if stage >= STAGE_PORTFOLIO_CONTEXT and "pia_limitations" in st.session_state:
             help="How many grantees, including this one, reported this indicator.",
         )
 
+        inspect_note("This grantee's result against the portfolio median, in the same unit.")
+
         message = PORTFOLIO_POSITION_MESSAGES[indicator_summary.position]
         if indicator_summary.position == portfolio_core.POSITION_WITHIN_RANGE:
             st.info(message)
@@ -974,10 +978,15 @@ if stage >= STAGE_PORTFOLIO_CONTEXT and "pia_limitations" in st.session_state:
                 "height": 260,
                 "config": _VEGA_CHART_CONFIG,
             }
+            inspect_note("The diamond's position on both axes: reported result and evidence strength together.")
             st.vega_lite_chart(map_spec, width="stretch")
             st.caption(
                 "Diamond marks the claim you are currently reviewing. "
                 "Hover a point for the grantee and exact values."
+            )
+            implications(
+                "A large reported result paired with a low Nesta level is "
+                "a claim with weaker support than its size suggests."
             )
 
             if not excluded.empty:

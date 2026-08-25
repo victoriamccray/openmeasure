@@ -64,7 +64,7 @@ from modules.reliability.core import interrater as ir
 from shared.charts import multiline_time_series_chart
 from shared.data_handling import disclosure_for, render_data_handling_summary
 from shared.journey_stages import StageTracker
-from shared.report import caveat, section_header
+from shared.report import caveat, implications, inspect_note, interpretation_note, section_header
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -851,6 +851,7 @@ if stage >= STAGE_SIGNAL_INSPECTION:
                 "SD (masked)",
                 f"{summary.sd_masked:.1f}" if summary.sd_masked else "n/a",
             )
+            inspect_note("Mean voxel SNR relative to other subjects, rather than as a standalone value.")
 
             if summary.slice_snr:
                 st.caption("Per-slice SNR:")
@@ -889,11 +890,23 @@ if stage >= STAGE_SIGNAL_INSPECTION:
                     f"Timepoints > {MOTION_THRESHOLD_CONCERNING_MM}mm",
                     str(summary.n_rel_movement_over_concerning),
                 )
+                interpretation_note(
+                    f"pyfMRIqc's own guidance: relative movement above "
+                    f"{MOTION_THRESHOLD_FINE_MM}mm may need closer checking, "
+                    f"and above {MOTION_THRESHOLD_CONCERNING_MM}mm is flagged "
+                    "as not good (Lindner & Williams)."
+                )
             else:
                 st.caption(
                     "No motion parameters were supplied for this scan, "
                     "so pyfMRIqc reports no movement statistics."
                 )
+
+            implications(
+                "These metrics describe this one scan's signal quality. "
+                "Excluding a subject from an analysis is a separate "
+                "judgment, made in context with the images below."
+            )
 
             st.markdown("**pyfMRIqc's own generated images for this scan:**")
             st.caption(
@@ -1016,6 +1029,11 @@ if stage >= STAGE_SIGNAL_INSPECTION:
                                     "raters, subjects, or both may "
                                     "differ."
                                 )
+                                inspect_note(
+                                    "How this α compares to the Williams "
+                                    "et al. reference value above, and how "
+                                    "many subjects it was computed over."
+                                )
                             except ValueError as error:
                                 st.warning(str(error))
 
@@ -1042,6 +1060,13 @@ if stage >= STAGE_SIGNAL_INSPECTION:
                                 "kappa (shown for comparison) only uses "
                                 "the subset every rater rated, and "
                                 "assumes a fixed rater panel per item."
+                            )
+                            implications(
+                                "Low agreement here means raters often "
+                                "reached different Include/Uncertain/"
+                                "Exclude decisions on the same subject, "
+                                "which weakens confidence in decisions "
+                                "made by any single rater alone."
                             )
     elif search_attempted:
         st.warning("No subject QC output was found for this source.")
