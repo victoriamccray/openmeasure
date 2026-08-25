@@ -60,3 +60,11 @@ for domain, journeys in journeys_by_domain().items():
                 label=f"Open {journey.title}",
                 icon=":material/arrow_forward:",
             )
+
+st.divider()
+
+st.page_link(
+    "pages/Method_Selection.py",
+    label="None of these fit: answer one question and get routed to a workflow instead",
+    icon=":material/alt_route:",
+)

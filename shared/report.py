@@ -250,7 +250,10 @@ def render_lifecycle_tracker(
     current_workflow marks "you are here" by matching a Workflow.workflow
     name from shared/catalog.py, so a rename there fails loudly instead of
     silently leaving the marker on the wrong stage. None on Home, where no
-    single stage applies.
+    single stage applies. Whenever it is set, a link back to Method
+    Selection is also shown below the tracker, for a reader who landed on
+    this page directly (a bookmark, a search result) and is not sure it is
+    the workflow their question actually needs.
 
     show_status additionally shows each stage's existing Recorded / Not
     assessed / Partly recorded / Reads records / No module yet caption
@@ -324,3 +327,10 @@ def render_lifecycle_tracker(
 
                 if show_status:
                     st.caption(stage_state_by_name[stage])
+
+    if current_workflow is not None:
+        st.page_link(
+            "pages/Method_Selection.py",
+            label="Not sure this is the right workflow? Open Method Selection",
+            icon=":material/alt_route:",
+        )

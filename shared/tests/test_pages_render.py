@@ -412,6 +412,62 @@ class TestValidationPageLifecycleTracker(unittest.TestCase):
                 self.assertNotIn(state, captions)
 
 
+METHOD_SELECTION_BACK_LINK = "Not sure this is the right workflow? Open Method Selection"
+
+
+class TestFrontDoorReverseLinks(unittest.TestCase):
+    """
+    A reader can land on a workflow page or Research Journeys directly (a
+    bookmark, a search result) without having gone through Method
+    Selection first. Every numbered workflow page links back to it via
+    render_lifecycle_tracker(current_workflow=...), and Research Journeys
+    links back to it directly, so that reader is never stuck with no way
+    back to the research-question-first entry point.
+    """
+
+    def test_every_workflow_page_links_back_to_method_selection(self):
+        app = AppTest.from_file(
+            str(ENTRYPOINT), default_timeout=LOAD_TIMEOUT_SECONDS
+        )
+        app.run()
+
+        for workflow in WORKFLOWS:
+            with self.subTest(workflow=workflow.workflow):
+                app.switch_page(workflow.page)
+                app.run()
+
+                self.assertFalse(app.exception)
+
+                labels = [link.label for link in app.get("page_link")]
+                self.assertIn(METHOD_SELECTION_BACK_LINK, labels)
+
+    def test_overview_does_not_show_the_workflow_back_link(self):
+        # Overview's tracker has no current_workflow, and already has its
+        # own, differently-worded Method Selection link (see
+        # pages/Overview.py's Getting Started section), so the generic
+        # per-workflow link must not also appear there.
+        app = AppTest.from_file(
+            str(ENTRYPOINT), default_timeout=LOAD_TIMEOUT_SECONDS
+        )
+        app.run()
+
+        labels = [link.label for link in app.get("page_link")]
+        self.assertNotIn(METHOD_SELECTION_BACK_LINK, labels)
+
+    def test_research_journeys_links_back_to_method_selection(self):
+        app = AppTest.from_file(
+            str(ENTRYPOINT), default_timeout=LOAD_TIMEOUT_SECONDS
+        )
+        app.run()
+        app.switch_page("pages/Research_Journeys.py")
+        app.run()
+
+        self.assertFalse(app.exception)
+
+        links = [link for link in app.get("page_link") if link.page == "Method_Selection"]
+        self.assertEqual(len(links), 1)
+
+
 class TestCrossAnalysisWhatThisMeans(unittest.TestCase):
     """
     The "What this means" section is Interpretation -> Implications ->
