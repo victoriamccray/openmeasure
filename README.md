@@ -238,6 +238,7 @@ pytest modules/time_series_qa/tests/ -v
 pytest modules/validation_chain/tests/ -v
 pytest modules/healthring/tests/ -v
 pytest modules/signal_pipeline/tests/ -v
+pytest modules/data_profile/tests/ -v
 pytest shared/tests/ -v
 ```
 

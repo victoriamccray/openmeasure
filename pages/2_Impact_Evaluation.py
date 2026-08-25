@@ -37,6 +37,7 @@ from shared.report import (
     show_case_studies,
     render_lifecycle_tracker,
 )
+from shared.upload import render_data_profile
 
 
 def record_comparison(frame, upload, analysis_context, recommendation, result) -> None:
@@ -162,6 +163,7 @@ if uploaded is None:
     st.stop()
 
 df = pd.read_csv(uploaded)
+render_data_profile(df)
 
 # Discard a recommendation carried over from a different upload. Without
 # this, uploading a second file whose column names happen to match the first

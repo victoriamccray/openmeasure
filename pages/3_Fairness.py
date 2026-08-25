@@ -42,6 +42,7 @@ from shared.report import (
     section_header,
     show_case_studies,
 )
+from shared.upload import render_data_profile
 
 
 def record_fairness(frame, upload, label_column, group_column, result) -> None:
@@ -317,6 +318,8 @@ else:
         df = None
 
     if df is not None:
+        render_data_profile(df)
+
         st.write(
             f"Loaded **{df.shape[0]} rows** and "
             f"**{df.shape[1]} columns**."

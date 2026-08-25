@@ -609,6 +609,67 @@ class TestMethodSelectionPage(unittest.TestCase):
                 self.assertIn(branch.destination, srcdoc)
 
 
+class TestDataProfileWiredIntoUploadPages(unittest.TestCase):
+    """
+    shared/upload.py's render_data_profile() is called on every page that
+    accepts a file upload. This drives an actual upload through two of
+    them end to end (not just a unit test of render_data_profile in
+    isolation) to confirm the wiring holds up inside each page's own
+    session-state and import context.
+    """
+
+    def test_reliability_shows_the_data_profile_after_upload(self):
+        sample_path = (
+            ROOT / "modules" / "reliability" / "sample_data" / "survey_example.csv"
+        )
+
+        app = AppTest.from_file(
+            str(ENTRYPOINT), default_timeout=LOAD_TIMEOUT_SECONDS
+        )
+        app.run()
+        app.switch_page("pages/1_Reliability.py")
+        app.run()
+
+        app.file_uploader[0].upload(
+            "survey_example.csv", sample_path.read_bytes(), "text/csv"
+        )
+        app.run()
+
+        self.assertFalse(app.exception)
+        profile_expanders = [e for e in app.expander if "Data profile" in e.label]
+        self.assertEqual(len(profile_expanders), 1)
+
+    def test_time_series_qa_defaults_the_timestamp_selectbox_to_a_datetime_column(self):
+        sample_path = (
+            ROOT
+            / "modules"
+            / "time_series_qa"
+            / "sample_data"
+            / "time_series_example.csv"
+        )
+
+        app = AppTest.from_file(
+            str(ENTRYPOINT), default_timeout=LOAD_TIMEOUT_SECONDS
+        )
+        app.run()
+        app.switch_page("pages/4_Time_Series_QA.py")
+        app.run()
+
+        app.file_uploader[0].upload(
+            "time_series_example.csv", sample_path.read_bytes(), "text/csv"
+        )
+        app.run()
+
+        self.assertFalse(app.exception)
+        profile_expanders = [e for e in app.expander if "Data profile" in e.label]
+        self.assertEqual(len(profile_expanders), 1)
+
+        timestamp_selectbox = next(
+            sb for sb in app.selectbox if sb.label == "Timestamp column"
+        )
+        self.assertEqual(timestamp_selectbox.value, "recorded_at")
+
+
 class TestResourcesPage(unittest.TestCase):
     """Resources: every entry's name renders, and nothing is recorded."""
 

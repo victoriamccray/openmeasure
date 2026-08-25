@@ -49,6 +49,8 @@ from shared.report import (
     section_header,
     show_case_studies,
 )
+from shared.upload import render_data_profile
+from modules.data_profile.core.profile import ROLE_DATETIME
 
 
 st.set_page_config(
@@ -319,6 +321,7 @@ if frame.empty or len(frame.columns) < 2:
     )
     st.stop()
 
+profile = render_data_profile(frame)
 
 # ---------------------------------------------------------------------
 # Configure
@@ -328,9 +331,15 @@ section_header("2. Select Columns")
 
 columns = list(frame.columns)
 
+# Defaults to the first datetime-like column found, if any -- a hint from
+# the profile above, not a decision: every column stays selectable.
+datetime_columns = profile.columns_with_role(ROLE_DATETIME)
+default_timestamp_index = columns.index(datetime_columns[0]) if datetime_columns else 0
+
 timestamp_col = st.selectbox(
     "Timestamp column",
     options=columns,
+    index=default_timestamp_index,
     help=(
         "The column holding the observation time. Numeric epoch columns are "
         "rejected; convert them to datetime strings first, so the unit is "

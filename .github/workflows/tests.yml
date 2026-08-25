@@ -52,5 +52,8 @@ jobs:
       - name: Run signal pipeline tests
         run: pytest modules/signal_pipeline/tests/ -v
 
+      - name: Run data profile tests
+        run: pytest modules/data_profile/tests/ -v
+
       - name: Run shared tests
         run: pytest shared/tests/ -v

@@ -152,14 +152,15 @@ def _destination_pictograph_html(branches: tuple, selected: str) -> str:
 
         cards.append(
             f'<div style="display:flex; flex-direction:column; align-items:center; '
-            f'width:104px; gap:4px; padding:8px 6px; border-radius:8px; '
-            f'border:1.4px solid {border}; background:{background};">'
-            f'<svg width="32" height="32" viewBox="0 0 32 32">'
+            f'width:116px; min-width:0; box-sizing:border-box; gap:4px; padding:8px 6px; '
+            f'border-radius:8px; border:1.4px solid {border}; background:{background};">'
+            f'<svg width="32" height="32" viewBox="0 0 32 32" style="flex-shrink:0;">'
             f"{_icon_svg(_DESTINATION_ICON_PATHS[item.id], color)}"
             f"<title>{item.destination}</title>"
             f"</svg>"
             f'<span style="font-size:11px; font-weight:{weight}; color:{color}; '
-            f'text-align:center; line-height:1.25;">{item.destination}</span>'
+            f'text-align:center; line-height:1.25; min-width:0; '
+            f'word-break:break-word;">{item.destination}</span>'
             f"</div>"
         )
 
@@ -171,7 +172,7 @@ def _destination_pictograph_html(branches: tuple, selected: str) -> str:
     """
 
 
-components.html(_destination_pictograph_html(BRANCHES, selected_id), height=160)
+components.html(_destination_pictograph_html(BRANCHES, selected_id), height=190)
 st.caption("The highlighted card is where your answer points.")
 
 st.markdown(f"**Try: {branch.destination}**")

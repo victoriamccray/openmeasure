@@ -16,7 +16,9 @@ import streamlit as st
 
 from modules.reliability.core import reliability as rel
 from modules.reliability.core import interpret as interp
+from modules.data_profile.core.profile import ROLE_IDENTIFIER
 from shared.catalog import MODULE_RELIABILITY
+from shared.upload import render_data_profile
 from shared.handoff import (
     KIND_CELLS_EMPTY,
     KIND_ROWS_DROPPED,
@@ -181,14 +183,23 @@ if uploaded is None:
     st.stop()
 
 df = pd.read_csv(uploaded)
+profile = render_data_profile(df)
 st.write(f"Loaded **{df.shape[0]} rows** and **{df.shape[1]} columns**.")
 st.dataframe(df.head(), width="stretch")
 
 section_header("2. Select Columns")
 
+# Defaults to the first identifier-like column found, if any -- a hint
+# from the profile above, not a decision: the reader can still pick any
+# column, or "(none)", regardless of this default.
+id_options = ["(none)"] + list(df.columns)
+identifier_columns = profile.columns_with_role(ROLE_IDENTIFIER)
+default_id_index = id_options.index(identifier_columns[0]) if identifier_columns else 0
+
 id_col = st.selectbox(
     "Participant ID column (optional, excluded from analysis)",
-    options=["(none)"] + list(df.columns),
+    options=id_options,
+    index=default_id_index,
 )
 
 candidate_cols = [c for c in df.columns if c != id_col]

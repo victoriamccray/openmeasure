@@ -45,6 +45,7 @@ from shared.report import (
     render_verdict,
     section_header,
 )
+from shared.upload import render_data_profile
 
 SAMPLE_DIR = ROOT / "modules" / "evidence_to_claim" / "sample_data"
 
@@ -598,6 +599,7 @@ if stage >= STAGE_DESCRIBE_EVIDENCE and "pia_claim" in st.session_state:
     if uploaded_evidence is not None:
         evidence_frame = pd.read_csv(uploaded_evidence)
         evidence_filename = uploaded_evidence.name
+        render_data_profile(evidence_frame)
     elif not matching_sample.empty:
         evidence_frame = matching_sample
         evidence_filename = "evidence_items.csv (sample)"
@@ -840,6 +842,7 @@ if stage >= STAGE_PORTFOLIO_CONTEXT and "pia_limitations" in st.session_state:
 
     if uploaded_portfolio is not None:
         portfolio_df = pd.read_csv(uploaded_portfolio)
+        render_data_profile(portfolio_df)
     else:
         portfolio_df = pd.read_csv(SAMPLE_DIR / "portfolio_indicators.csv")
 
