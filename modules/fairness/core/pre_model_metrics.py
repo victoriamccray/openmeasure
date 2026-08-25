@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from shared.validation import validate_is_dataframe
+from shared.validation import format_value_sample, validate_is_dataframe
 
 
 MIN_GROUP_SIZE = 5
@@ -166,13 +166,14 @@ def _validate_binary_label(
         raise ValueError(
             f"Label column '{label_col}' must contain exactly two "
             f"nonmissing values; found {len(label_values)}: "
-            f"{label_values}."
+            f"{format_value_sample(label_values)}."
         )
 
     if favorable_label not in label_values:
         raise ValueError(
             f"Favorable label '{favorable_label}' was not found in "
-            f"column '{label_col}'. Available values: {label_values}."
+            f"column '{label_col}'. Available values: "
+            f"{format_value_sample(label_values)}."
         )
 
     return label_values
@@ -195,7 +196,7 @@ def _validate_group_exists(
         raise ValueError(
             f"{role.capitalize()} group '{group_value}' was not found "
             f"in column '{group_col}'. Available groups: "
-            f"{available_groups}."
+            f"{format_value_sample(available_groups)}."
         )
 
 
