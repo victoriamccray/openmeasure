@@ -230,9 +230,16 @@ st.divider()
 st.subheader("Getting Started")
 st.markdown(
     "New to a dataset or question? Start with Research Journeys or "
-    "Explore Real Data to build validation judgment on real examples. "
-    "Already know which check you need? Jump straight to a module from "
-    "the sidebar, or use Method Selection to get routed to one."
+    "Explore Real Data to build validation judgment on real examples."
+)
+st.page_link(
+    "pages/Method_Selection.py",
+    label="Not sure which check fits your question? Open Method Selection",
+    icon=":material/alt_route:",
+)
+st.caption(
+    "Already know which module you need? Jump straight to it from the "
+    "sidebar."
 )
 
 st.subheader("Best-Suited Workflows")
