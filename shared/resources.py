@@ -62,6 +62,7 @@ class Resource:
 KIND_ORDER: tuple[str, ...] = (
     "Method Selection Tool",
     "Statistical Toolkit",
+    "Literature Search Tool",
     "Dataset Directory",
     "Measures Repository",
     "Research Platform",
@@ -90,6 +91,16 @@ RESOURCES: tuple[Resource, ...] = (
             "calculations."
         ),
         url="https://www.openepi.com/Menu/OE_Menu.htm",
+    ),
+    Resource(
+        name="OpenAlex",
+        kind="Literature Search Tool",
+        description=(
+            "A fully open, keyless index of scholarly works, authors, "
+            "venues, and institutions, with a free public Works API. "
+            "OpenMeasure's Evidence Review workflow searches it directly."
+        ),
+        url="https://openalex.org/",
     ),
     Resource(
         name="Neuro2.ai Neuroscience Datasets",

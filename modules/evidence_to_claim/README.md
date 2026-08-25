@@ -38,8 +38,12 @@ Program validation (Impact Evaluation) asks whether an observed change is attrib
 
 Two CSVs can be uploaded in place of the bundled sample data (see `sample_data/` for worked examples):
 
-- **Evidence file** - one row per piece of evidence behind a claim: `source, finding_text, indicator_id, sample_size, has_comparison_group, collection_method, time_lag_days`.
+- **Evidence file** - one row per piece of evidence behind a claim: `source, finding_text, indicator_id, sample_size, has_comparison_group, collection_method, time_lag_days`. `collection_method` includes `published_literature` alongside the four primary-data-collection methods, for evidence sourced from a published work rather than data collected directly (see the Evidence Review page's illustrative preview below).
 - **Portfolio file** - one row per grantee's reported result for an indicator: `grantee_id, grantee_name, indicator_id, indicator_name, result_value, unit` (extra columns are ignored). Units must match across grantees to be compared; a grantee reporting a different unit is set aside automatically rather than plotted.
+
+## Relationship to Evidence Review
+
+`pages/6_Evidence_Review.py` can preview this module's Nesta grading directly on its own screened-in literature, once at least one result is marked Include. That preview builds a `ClaimDraft` and `EvidenceItem`(s) using this module's own `core/` functions, but `indicator_id`, `program_id`, and `level` are arbitrary stand-in values, stated as such on the page, because Evidence Review has no portfolio or indicator taxonomy of its own. It is a preview of what the grading would show, not a substitute for assembling real evidence here with a real indicator and program.
 
 ## Non-goals for v0.1
 

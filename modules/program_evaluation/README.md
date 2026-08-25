@@ -17,16 +17,18 @@ This is a **program validation** question. Reliability asks whether a measure is
 ## Scope for v0.1 (MVP)
 
 - **Design 1: Pre/post, single group**
-  - Paired t-test. (Wilcoxon signed-rank test planned but not yet
-    implemented; the current recommender does not check normality.)
-  - Effect size
+  - Paired t-test, shown alongside a Wilcoxon signed-rank test. The
+    recommender does not check normality, so both are always computed
+    and shown together, with a note on whether they agree at α=0.05.
+  - Effect size (Cohen's d and matched-pairs rank-biserial correlation)
   - Design-specific limitations
 
 - **Design 2: Treatment vs. comparison group**
-  - Independent-samples (Welch's) t-test. (Mann-Whitney U test planned
-    but not yet implemented; the current recommender does not check
-    normality.)
-  - Effect size
+  - Independent-samples (Welch's) t-test, shown alongside a
+    Mann-Whitney U test. The recommender does not check normality, so
+    both are always computed and shown together, with a note on
+    whether they agree at α=0.05.
+  - Effect size (Cohen's d and rank-biserial correlation)
   - Baseline comparison
 
 - Plain-language interpretation
@@ -73,3 +75,5 @@ modules/
 - McCray, V. P., Dukes, A. J., & Pittman, N. (in press, 2026). *Community-driven programming to strengthen scientific conference experiences: A first look at Black In Neuro and Black In Micro event outcomes.* *Oxford Open Neuroscience.*
 - Shadish, W. R., Cook, T. D., & Campbell, D. T. (2002). *Experimental and Quasi-Experimental Designs for Generalized Causal Inference.*
 - Cohen, J. (1988). *Statistical Power Analysis for the Behavioral Sciences* (2nd ed.).
+- Mann, H. B., & Whitney, D. R. (1947). On a test of whether one of two random variables is stochastically larger than the other. *Annals of Mathematical Statistics, 18*(1), 50-60.
+- Wilcoxon, F. (1945). Individual comparisons by ranking methods. *Biometrics Bulletin, 1*(6), 80-83.

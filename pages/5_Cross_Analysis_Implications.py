@@ -276,6 +276,33 @@ for dataset in summary.datasets:
             "arrive are different problems with different causes."
         )
 
+    dataset_entries = grouped.get(dataset.fingerprint.digest, ())
+    stat_rows = [
+        {
+            "Module": entry.module,
+            "Analysis": entry.exclusion.analysis_label,
+            "Statistic": key,
+            "Value": value,
+        }
+        for entry in dataset_entries
+        for key, value in entry.primary_statistics.items()
+    ]
+
+    if stat_rows:
+        st.markdown("**Other recorded signals on this dataset**")
+        st.dataframe(pd.DataFrame(stat_rows), width="stretch", hide_index=True)
+        inspect_note(
+            "Whether a signal here (e.g. a fairness disparity measure) "
+            "co-occurs with heavy exclusion above, on the same dataset."
+        )
+        caveat(
+            "Each analysis's own recorded number, shown as-is: not "
+            "compared, combined, or flagged against a threshold. A "
+            "Reliability alpha and a Fairness disparity measure different "
+            "things and have no shared scale, and co-occurring with "
+            "exclusion does not establish that one caused the other."
+        )
+
 
 # ---------------------------------------------------------------------
 # Implication

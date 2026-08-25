@@ -292,6 +292,55 @@ if "pe_recommendation" in st.session_state:
                     "difference was detected at this sample size."
                 )
 
+                nonparametric = comp.compare_two_groups_nonparametric(
+                    df, context["group_col"], context["outcome_col"]
+                )
+                with st.expander("Compare with a rank-based test (Mann-Whitney U)"):
+                    st.markdown(
+                        "Welch's t-test above compares means and assumes the "
+                        "outcome is roughly normally distributed within each "
+                        "group. Mann-Whitney U compares ranks instead, and "
+                        "makes no distributional assumption. Choosing between "
+                        "them is a choice, not a formality: it can change the "
+                        "conclusion."
+                    )
+                    nc1, nc2 = st.columns(2)
+                    nc1.metric(
+                        f"{nonparametric.group_a_label} median",
+                        f"{nonparametric.median_a:.2f}",
+                    )
+                    nc2.metric(
+                        f"{nonparametric.group_b_label} median",
+                        f"{nonparametric.median_b:.2f}",
+                    )
+                    nm1, nm2, nm3 = st.columns(3)
+                    nm1.metric("U statistic", f"{nonparametric.u_statistic:.1f}")
+                    nm2.metric("p-value", f"{nonparametric.p_value:.4f}")
+                    nm3.metric(
+                        "Rank-biserial r",
+                        f"{nonparametric.rank_biserial_correlation:.2f}",
+                    )
+
+                    if (result.p_value < 0.05) == (nonparametric.p_value < 0.05):
+                        st.success(
+                            "Welch's t-test and Mann-Whitney U fall on the "
+                            "same side of α=0.05 here."
+                        )
+                    else:
+                        st.warning(
+                            "Welch's t-test and Mann-Whitney U fall on "
+                            "opposite sides of α=0.05 here. The two tests "
+                            "compare different quantities (means versus "
+                            "ranks) and can disagree, particularly with "
+                            "skewed data or outliers. Treat the choice of "
+                            "test as consequential for this result, not a "
+                            "formality."
+                        )
+                    inspect_note(
+                        "Whether the two tests land on the same side of "
+                        "α=0.05."
+                    )
+
             elif method == "compare_multiple_groups_welch":
                 try:
                     result = comp.compare_multiple_groups_welch(df, context["group_col"], context["outcome_col"])
@@ -416,6 +465,57 @@ if "pe_recommendation" in st.session_state:
                     "for this group. A pre/post design alone does not rule "
                     "out other explanations, such as regression to the mean."
                 )
+
+                nonparametric = comp.compare_pre_post_nonparametric(
+                    df[context["pre_col"]], df[context["post_col"]]
+                )
+                with st.expander("Compare with a rank-based test (Wilcoxon signed-rank)"):
+                    st.markdown(
+                        "The paired t-test above compares the mean change "
+                        "and assumes those changes are roughly normally "
+                        "distributed. The Wilcoxon signed-rank test compares "
+                        "ranks of the changes instead, and makes no "
+                        "distributional assumption. Choosing between them is "
+                        "a choice, not a formality: it can change the "
+                        "conclusion."
+                    )
+                    nc1, nc2 = st.columns(2)
+                    nc1.metric("Pre median", f"{nonparametric.median_pre:.2f}")
+                    nc2.metric("Post median", f"{nonparametric.median_post:.2f}")
+                    nm1, nm2, nm3 = st.columns(3)
+                    nm1.metric("W statistic", f"{nonparametric.w_statistic:.1f}")
+                    nm2.metric("p-value", f"{nonparametric.p_value:.4f}")
+                    nm3.metric(
+                        "Matched-pairs r",
+                        f"{nonparametric.matched_pairs_rank_biserial_correlation:.2f}",
+                    )
+                    if nonparametric.n_zero_differences_dropped:
+                        st.caption(
+                            f"{nonparametric.n_zero_differences_dropped} "
+                            "participant(s) with no change are excluded from "
+                            "ranking, per the Wilcoxon test's convention, "
+                            "but are not treated as missing data."
+                        )
+
+                    if (result.p_value < 0.05) == (nonparametric.p_value < 0.05):
+                        st.success(
+                            "The paired t-test and Wilcoxon signed-rank test "
+                            "fall on the same side of α=0.05 here."
+                        )
+                    else:
+                        st.warning(
+                            "The paired t-test and Wilcoxon signed-rank test "
+                            "fall on opposite sides of α=0.05 here. The two "
+                            "tests compare different quantities (mean versus "
+                            "ranked change) and can disagree, particularly "
+                            "with skewed data or outliers. Treat the choice "
+                            "of test as consequential for this result, not a "
+                            "formality."
+                        )
+                    inspect_note(
+                        "Whether the two tests land on the same side of "
+                        "α=0.05."
+                    )
 
             elif method == "sensitivity_analysis":
                 result = comp.sensitivity_analysis(

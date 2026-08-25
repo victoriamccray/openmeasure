@@ -532,6 +532,81 @@ class TestCrossAnalysisWhatThisMeans(unittest.TestCase):
         self.assertIn("usually matters more than the rate", captions)
 
 
+class TestCrossAnalysisOtherRecordedSignals(unittest.TestCase):
+    """
+    Cross-Analysis Implications surfaces whatever each analysis recorded
+    in HandoffEntry.primary_statistics (e.g. a Fairness disparity measure)
+    alongside retention, as raw numbers with no combined verdict --
+    per validation_chain's own stated aspiration to connect further
+    findings across modules.
+    """
+
+    @staticmethod
+    def _run_cross_analysis_page(store: dict) -> AppTest:
+        app = AppTest.from_file(
+            str(ENTRYPOINT), default_timeout=LOAD_TIMEOUT_SECONDS
+        )
+        app.session_state[STORE_KEY] = store[STORE_KEY]
+        app.run()
+        app.switch_page("pages/5_Cross_Analysis_Implications.py")
+        app.run()
+        return app
+
+    def test_a_recorded_primary_statistic_is_surfaced(self):
+        data = pd.DataFrame({"a": [1, 2, 3], "b": [1, 0, 1]})
+        mapping: dict = {}
+        HandoffStore(mapping).record(
+            module="fairness",
+            fingerprint=fingerprint_dataframe(data, "applicants.csv"),
+            exclusion=ExclusionAccount(
+                module="fairness",
+                analysis_label="Fairness (pre-model)",
+                columns_considered=("a", "b"),
+                n_input_rows=3,
+                n_retained_rows=3,
+            ),
+            primary_statistics={"disparate_impact": 0.62},
+        )
+
+        app = self._run_cross_analysis_page(mapping)
+
+        self.assertFalse(app.exception)
+
+        rendered = " ".join(str(item.value) for item in app.markdown)
+        self.assertIn("Other recorded signals", rendered)
+
+        dataframe_values = [
+            str(cell)
+            for df in app.dataframe
+            for row in df.value.to_dict("records")
+            for cell in row.values()
+        ]
+        self.assertIn("disparate_impact", dataframe_values)
+        self.assertIn("0.62", dataframe_values)
+
+    def test_no_section_when_nothing_recorded_a_primary_statistic(self):
+        data = pd.DataFrame({"q1": [1, 2, 3], "q2": [2, 3, 4]})
+        mapping: dict = {}
+        HandoffStore(mapping).record(
+            module=MODULE_RELIABILITY,
+            fingerprint=fingerprint_dataframe(data, "survey.csv"),
+            exclusion=ExclusionAccount(
+                module=MODULE_RELIABILITY,
+                analysis_label="Reliability",
+                columns_considered=("q1", "q2"),
+                n_input_rows=3,
+                n_retained_rows=3,
+            ),
+        )
+
+        app = self._run_cross_analysis_page(mapping)
+
+        self.assertFalse(app.exception)
+
+        rendered = " ".join(str(item.value) for item in app.markdown)
+        self.assertNotIn("Other recorded signals", rendered)
+
+
 class TestExploreRealDataPage(unittest.TestCase):
     """
     Explore Real Data calls st.page_link and so needs navigation context,

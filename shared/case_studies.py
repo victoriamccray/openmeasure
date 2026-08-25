@@ -406,7 +406,7 @@ CASE_STUDIES = {
             "(2009), and published in the Journal of Serendipitous and "
             "Unexpected Results, 1(1), 1-5 (2010)."
         ),
-        modules=("model_validation", "program_validation"),
+        modules=("program_validation",),
     ),
     # ------------------------------------------------------------------
     # Interpretation
@@ -494,7 +494,6 @@ PAGE_ORDER: dict[str, tuple[str, ...]] = {
         "fairness_impossibility",
         "confounding_video_games",
         "pulse_oximeter_bias",
-        "dead_salmon",
     ),
     "program_validation": (
         "head_start_impact_study",

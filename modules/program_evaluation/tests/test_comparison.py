@@ -54,6 +54,65 @@ class TestCompareTwoGroups(unittest.TestCase):
         self.assertGreater(result.cohens_d, 0)  # A > B
 
 
+class TestCompareTwoGroupsNonparametric(unittest.TestCase):
+    def test_matches_scipy_mannwhitneyu(self):
+        rng = np.random.RandomState(4)
+        group_a = rng.normal(50, 10, 30)
+        group_b = rng.normal(55, 12, 25)
+        data = pd.DataFrame({
+            "group": ["A"] * 30 + ["B"] * 25,
+            "score": list(group_a) + list(group_b),
+        })
+
+        result = pe.compare_two_groups_nonparametric(data, "group", "score")
+        u_expected, p_expected = scipy_stats.mannwhitneyu(
+            group_a, group_b, alternative="two-sided"
+        )
+
+        self.assertAlmostEqual(result.u_statistic, u_expected, places=9)
+        self.assertAlmostEqual(result.p_value, p_expected, places=9)
+
+    def test_rank_biserial_sign_reflects_direction(self):
+        # Group A entirely below group B: U is 0 (every A value ranks
+        # below every B value), so r = 2*0/(3*3) - 1 = -1.
+        data = pd.DataFrame({
+            "group": ["A", "A", "A", "B", "B", "B"],
+            "score": [1, 2, 3, 4, 5, 6],
+        })
+        result = pe.compare_two_groups_nonparametric(data, "group", "score")
+        self.assertEqual(result.u_statistic, 0.0)
+        self.assertAlmostEqual(result.rank_biserial_correlation, -1.0, places=9)
+
+        # Reversed: group A entirely above group B.
+        data_reversed = pd.DataFrame({
+            "group": ["A", "A", "A", "B", "B", "B"],
+            "score": [4, 5, 6, 1, 2, 3],
+        })
+        result_reversed = pe.compare_two_groups_nonparametric(
+            data_reversed, "group", "score"
+        )
+        self.assertEqual(result_reversed.u_statistic, 9.0)
+        self.assertAlmostEqual(
+            result_reversed.rank_biserial_correlation, 1.0, places=9
+        )
+
+    def test_raises_on_more_than_two_groups(self):
+        data = pd.DataFrame({
+            "group": ["A", "B", "C", "A", "B", "C"],
+            "score": [1, 2, 3, 4, 5, 6],
+        })
+        with self.assertRaises(ValueError):
+            pe.compare_two_groups_nonparametric(data, "group", "score")
+
+    def test_raises_on_too_few_observations(self):
+        data = pd.DataFrame({
+            "group": ["A", "B", "B"],
+            "score": [1, 2, 3],
+        })
+        with self.assertRaises(ValueError):
+            pe.compare_two_groups_nonparametric(data, "group", "score")
+
+
 class TestCompareMultipleGroups(unittest.TestCase):
     def test_f_statistic_matches_scipy(self):
         rng = np.random.RandomState(1)
@@ -144,6 +203,50 @@ class TestComparePrePost(unittest.TestCase):
         post = pd.Series([3, 3, 3, 3])
         with self.assertRaises(ValueError):
             pe.compare_pre_post(pre, post)
+
+
+class TestComparePrePostNonparametric(unittest.TestCase):
+    def test_matches_scipy_wilcoxon(self):
+        rng = np.random.RandomState(5)
+        pre = pd.Series(rng.normal(3.5, 0.8, 40))
+        post = pre + pd.Series(rng.normal(0.4, 0.5, 40))
+
+        result = pe.compare_pre_post_nonparametric(pre, post)
+        w_expected, p_expected = scipy_stats.wilcoxon(
+            post - pre, alternative="two-sided"
+        )
+
+        self.assertAlmostEqual(result.w_statistic, w_expected, places=9)
+        self.assertAlmostEqual(result.p_value, p_expected, places=9)
+
+    def test_rank_biserial_all_positive_differences(self):
+        pre = pd.Series([1, 2, 3])
+        post = pd.Series([2, 4, 6])
+        result = pe.compare_pre_post_nonparametric(pre, post)
+        self.assertEqual(result.w_statistic, 0.0)
+        self.assertAlmostEqual(
+            result.matched_pairs_rank_biserial_correlation, 1.0, places=9
+        )
+
+    def test_zero_differences_are_reported_not_excluded(self):
+        pre = pd.Series([1, 2, 3, 4])
+        post = pd.Series([1, 4, 6, 8])  # first pair ties at zero difference
+        result = pe.compare_pre_post_nonparametric(pre, post)
+        self.assertEqual(result.n_zero_differences_dropped, 1)
+        self.assertEqual(result.n_excluded_rows, 0)
+        self.assertEqual(result.n_rows_used, 4)
+
+    def test_raises_on_mismatched_lengths(self):
+        pre = pd.Series([1, 2, 3])
+        post = pd.Series([1, 2])
+        with self.assertRaises(ValueError):
+            pe.compare_pre_post_nonparametric(pre, post)
+
+    def test_raises_on_all_zero_differences(self):
+        pre = pd.Series([3, 3, 3, 3])
+        post = pd.Series([3, 3, 3, 3])
+        with self.assertRaises(ValueError):
+            pe.compare_pre_post_nonparametric(pre, post)
 
 
 class TestMultiselectCoding(unittest.TestCase):

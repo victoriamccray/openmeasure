@@ -15,6 +15,7 @@ COLLECTION_METHODS: tuple[str, ...] = (
     "administrative_record",
     "observation",
     "interview",
+    "published_literature",
 )
 
 # Why an item was dropped, recorded on every result per

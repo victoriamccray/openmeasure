@@ -24,6 +24,7 @@ if str(ROOT) not in sys.path:
 import pandas as pd
 import streamlit as st
 
+from modules.fairness.core import post_model_metrics as pmm
 from modules.fairness.core import pre_model_metrics as pm
 from modules.fairness.core.recommend import recommend_fairness_metric
 from shared.catalog import MODULE_FAIRNESS
@@ -75,6 +76,53 @@ def record_fairness(frame, upload, label_column, group_column, result) -> None:
             "disparate_impact": float(result.disparate_impact),
             "statistical_parity_difference": float(
                 result.statistical_parity_difference
+            ),
+        },
+    )
+
+
+def record_post_model_fairness(
+    frame, upload, true_label_column, predicted_label_column, group_column, result
+) -> None:
+    """
+    Record this analysis for the Cross-Analysis Implications page.
+
+    Replaces any pre-model record for this module, per HandoffStore's one
+    record per module rule: running the post-model analysis after the
+    pre-model analysis means only the post-model numbers appear there
+    until pre-model is run again.
+    """
+    HandoffStore(st.session_state).record(
+        module=MODULE_FAIRNESS,
+        fingerprint=fingerprint_dataframe(frame, upload.name),
+        exclusion=ExclusionAccount(
+            module=MODULE_FAIRNESS,
+            analysis_label="Fairness (post-model)",
+            columns_considered=(
+                str(true_label_column),
+                str(predicted_label_column),
+                str(group_column),
+            ),
+            n_input_rows=result.n_input_rows,
+            n_retained_rows=result.n_rows_used,
+            items=(
+                RetentionItem(
+                    label="Rows excluded",
+                    count=result.n_excluded_rows,
+                    kind=KIND_ROWS_DROPPED,
+                    mechanism=result.exclusion_reason,
+                ),
+            ),
+        ),
+        primary_statistics={
+            "equal_opportunity_difference": float(
+                result.equal_opportunity_difference
+            ),
+            "predictive_equality_difference": float(
+                result.predictive_equality_difference
+            ),
+            "calibration_within_groups_difference": float(
+                result.calibration_within_groups_difference
             ),
         },
     )
@@ -138,9 +186,9 @@ with st.expander("Current scope and limitations"):
         """
 ### Current scope
 
-The current module performs **pre-model label-distribution analysis**.
-It evaluates how frequently a favorable observed label occurs within
-different groups.
+The current module performs **pre-model label-distribution analysis**
+and, when a predicted-label column is available, **post-model
+prediction analysis**.
 
 Available pre-model metrics include:
 
@@ -149,10 +197,20 @@ Available pre-model metrics include:
 - Statistical parity difference
 - Small-group warnings
 
+Available post-model metrics include:
+
+- Equal opportunity (true-positive-rate parity)
+- Predictive equality (false-positive-rate parity)
+- Equalized odds (both of the above, reported together rather than
+  combined into one number)
+- Calibration within groups, approximated with positive predictive
+  value rather than a full calibration curve over predicted
+  probabilities
+
 ### Important limitation
 
-A difference in favorable-label rates does not, by itself, establish
-that the data or decision process is unfair.
+A difference in favorable-label rates, or in prediction rates, does not,
+by itself, establish that the data or decision process is unfair.
 
 Observed disparities may reflect:
 
@@ -163,9 +221,10 @@ Observed disparities may reflect:
 - meaningful differences in the target population; or
 - data-quality problems.
 
-Equal opportunity, predictive equality, equalized odds, and calibration
-require model predictions, and for most metrics they also require observed
-ground-truth outcomes. Those analyses belong to a later post-model stage.
+Equal opportunity, predictive equality, and equalized odds require both
+model predictions and observed ground-truth outcomes. They can move in
+different directions on the same dataset, so satisfying one does not
+imply satisfying another.
 """
     )
 
@@ -232,10 +291,10 @@ with st.expander("Applicable domains or contexts", icon=":material/category:"):
 
 if recommendation.metric != "demographic_parity":
     st.info(
-        f"{recommendation.display_name} requires model predictions and is "
-        "not calculated by the current pre-model analysis. The analysis "
-        "below can still examine favorable-label rates already present "
-        "in the data."
+        f"{recommendation.display_name} requires model predictions. "
+        "Step 3 below examines favorable-label rates already present in "
+        "the data; step 4 adds this and other post-model metrics if a "
+        "predicted-label column is available."
     )
 
 
@@ -282,9 +341,12 @@ These columns can support several fairness analyses:
 - **Calibration within groups** evaluates whether predicted probabilities
   have the same meaning across groups.
 
-The current OpenMeasure analysis focuses on favorable-label rates.
-Later versions can use the prediction and probability columns for
-post-model fairness and calibration analyses.
+Step 3 below uses `true_label` and `sex` for the pre-model analysis.
+Step 4 adds `predicted_label` for equal opportunity, predictive
+equality, and equalized odds, and approximates calibration within
+groups with positive predictive value rather than using
+`predicted_probability` directly; a full calibration curve over that
+column is a planned feature.
 """
         )
 
@@ -613,6 +675,272 @@ else:
   decision without considering the application and affected communities.
 """
                 )
+
+        # -------------------------------------------------------------
+        # Post-model analysis
+        # -------------------------------------------------------------
+
+        section_header(
+            "4. Configure The Post-Model Analysis",
+            "Optional: add a predicted-label column to compare "
+            "true-positive and false-positive rates across groups",
+        )
+
+        st.caption(
+            "Uses the observed label, group, reference group, and "
+            "comparison group selected in step 3 above, plus one "
+            "additional column: the model's predicted label."
+        )
+
+        remaining_columns = [
+            column
+            for column in df.columns
+            if column not in (label_col, group_col)
+        ]
+
+        if not remaining_columns:
+            st.info(
+                "No columns remain to serve as a predicted-label column. "
+                "Post-model metrics require the observed label, the "
+                "group, and a separate model prediction."
+            )
+        else:
+            predicted_label_col = st.selectbox(
+                "Predicted label column (the model's decision, not a "
+                "continuous probability or risk score)",
+                options=remaining_columns,
+                help=(
+                    "Should use the same two values as the observed label "
+                    "column above, one of which is the favorable label "
+                    "selected in step 3."
+                ),
+            )
+
+            analyze_post_clicked = st.button(
+                "Analyze post-model prediction differences",
+                disabled=(
+                    len(label_values) != 2
+                    or len(group_values) < 2
+                ),
+            )
+
+            if analyze_post_clicked:
+                try:
+                    post_result = pmm.compare_post_model_bias(
+                        df,
+                        label_col,
+                        predicted_label_col,
+                        group_col,
+                        positive_label=favorable_label,
+                        privileged_group=privileged_group,
+                        unprivileged_group=unprivileged_group,
+                    )
+
+                    confusion_rates = pmm.compute_group_confusion_rates(
+                        df,
+                        label_col,
+                        predicted_label_col,
+                        group_col,
+                        positive_label=favorable_label,
+                    )
+
+                except (ValueError, TypeError) as error:
+                    st.error(str(error))
+
+                else:
+                    record_post_model_fairness(
+                        df,
+                        uploaded,
+                        label_col,
+                        predicted_label_col,
+                        group_col,
+                        post_result,
+                    )
+                    st.caption(
+                        "Recorded for the Cross-Analysis Implications page, "
+                        "replacing any pre-model record for this module."
+                    )
+
+                    section_header("Result: Equal Opportunity")
+
+                    eo1, eo2, eo3 = st.columns(3)
+                    eo1.metric(
+                        f"{privileged_group} true-positive rate",
+                        f"{post_result.privileged_true_positive_rate:.1%}",
+                    )
+                    eo2.metric(
+                        f"{unprivileged_group} true-positive rate",
+                        f"{post_result.unprivileged_true_positive_rate:.1%}",
+                    )
+                    eo3.metric(
+                        "Equal opportunity difference",
+                        f"{post_result.equal_opportunity_difference:+.3f}",
+                    )
+                    st.caption(
+                        "True-positive rate: of those with a favorable "
+                        "observed outcome, the share the model also "
+                        "predicted favorable."
+                    )
+
+                    section_header("Result: Predictive Equality")
+
+                    pe1, pe2, pe3 = st.columns(3)
+                    pe1.metric(
+                        f"{privileged_group} false-positive rate",
+                        f"{post_result.privileged_false_positive_rate:.1%}",
+                    )
+                    pe2.metric(
+                        f"{unprivileged_group} false-positive rate",
+                        f"{post_result.unprivileged_false_positive_rate:.1%}",
+                    )
+                    pe3.metric(
+                        "Predictive equality difference",
+                        f"{post_result.predictive_equality_difference:+.3f}",
+                    )
+                    st.caption(
+                        "False-positive rate: of those with an "
+                        "unfavorable observed outcome, the share the "
+                        "model predicted favorable anyway."
+                    )
+
+                    section_header("Result: Calibration Within Groups (Proxy)")
+
+                    cw1, cw2, cw3 = st.columns(3)
+                    cw1.metric(
+                        f"{privileged_group} positive predictive value",
+                        f"{post_result.privileged_positive_predictive_value:.1%}",
+                    )
+                    cw2.metric(
+                        f"{unprivileged_group} positive predictive value",
+                        f"{post_result.unprivileged_positive_predictive_value:.1%}",
+                    )
+                    cw3.metric(
+                        "Calibration-within-groups difference",
+                        f"{post_result.calibration_within_groups_difference:+.3f}",
+                    )
+                    caveat(
+                        "Positive predictive value is a binary proxy for "
+                        "calibration, not a calibration curve. A full "
+                        "calibration check compares predicted "
+                        "probabilities to observed outcome frequency "
+                        "across score bins, which requires a probability "
+                        "column this module does not yet collect."
+                    )
+
+                    # -------------------------------------------------
+                    # Teach through consequences: metric tension
+                    # -------------------------------------------------
+
+                    section_header(
+                        "What Changes If You Pick a Different Metric",
+                        "The same predictions score differently depending "
+                        "on which fairness definition is applied",
+                    )
+
+                    gaps = {
+                        "Equal opportunity": post_result.equal_opportunity_difference,
+                        "Predictive equality": post_result.predictive_equality_difference,
+                        "Calibration within groups (proxy)": (
+                            post_result.calibration_within_groups_difference
+                        ),
+                    }
+
+                    gaps_df = pd.DataFrame(
+                        [
+                            {"Metric": name, "Gap (unprivileged - privileged)": round(value, 3)}
+                            for name, value in gaps.items()
+                        ]
+                    )
+                    st.dataframe(gaps_df, width="stretch", hide_index=True)
+
+                    smallest = min(gaps, key=lambda name: abs(gaps[name]))
+                    largest = max(gaps, key=lambda name: abs(gaps[name]))
+
+                    if smallest == largest:
+                        st.info(
+                            "All three gaps are the same size on this "
+                            "dataset, so no single metric stands out as "
+                            "more favorable here."
+                        )
+                    else:
+                        st.warning(
+                            f"On this dataset, choosing **{smallest}** as "
+                            f"the fairness goal shows the smallest gap "
+                            f"({gaps[smallest]:+.3f}) between the two "
+                            f"groups, while **{largest}** shows the "
+                            f"largest ({gaps[largest]:+.3f}). The same "
+                            "predictions look more or less equitable "
+                            "depending on which definition is applied, "
+                            "and this module does not resolve that choice."
+                        )
+
+                    caveat(
+                        "Hardt, Price, & Srebro (2016) define equal "
+                        "opportunity and equalized odds using these "
+                        "true-positive and false-positive rates. "
+                        "Chouldechova (2017) and Kleinberg, Mullainathan, "
+                        "& Raghavan (2017) show that when outcome base "
+                        "rates differ across groups and the model is "
+                        "imperfect, equalized odds and calibration cannot "
+                        "both hold exactly. A small gap in one metric "
+                        "does not imply a small gap in another."
+                    )
+
+                    section_header(
+                        "Post-Model Rates By Group",
+                        "Review all groups rather than only one selected pair",
+                    )
+
+                    def _rate_text(value: float | None) -> str:
+                        return "not applicable" if value is None else f"{value:.1%}"
+
+                    confusion_rows = [
+                        {
+                            "Group": rate.group,
+                            "n": rate.n,
+                            "True-positive rate": _rate_text(
+                                rate.true_positive_rate
+                            ),
+                            "False-positive rate": _rate_text(
+                                rate.false_positive_rate
+                            ),
+                            "Positive predictive value": _rate_text(
+                                rate.positive_predictive_value
+                            ),
+                            "Small sample": "Yes" if rate.small_sample else "No",
+                        }
+                        for rate in confusion_rates
+                    ]
+
+                    st.dataframe(
+                        pd.DataFrame(confusion_rows),
+                        width="stretch",
+                        hide_index=True,
+                    )
+
+                    for rate in confusion_rates:
+                        if rate.small_sample:
+                            flagged_item_note(
+                                str(rate.group),
+                                (
+                                    "This group has a small sample. Its "
+                                    "rates may be unstable."
+                                ),
+                            )
+
+                    section_header("What This Result Does Not Establish")
+
+                    st.markdown(
+                        """
+- It does not determine why the rates differ across groups.
+- It does not establish that the model is discriminatory or fair.
+- It does not evaluate the underlying labels for bias.
+- It does not perform a full calibration analysis over predicted
+  probabilities.
+- It does not rank the three metrics above by importance; that depends
+  on the harm the application is most concerned with.
+"""
+                    )
 
 
 # ---------------------------------------------------------------------

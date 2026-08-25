@@ -72,6 +72,26 @@ class TwoGroupResult:
 
 
 @dataclass(frozen=True)
+class TwoGroupNonparametricResult:
+    """Mann-Whitney U test comparing two groups on an ordinal or non-normal outcome."""
+
+    group_a_label: str
+    group_b_label: str
+    n_a: int
+    n_b: int
+    median_a: float
+    median_b: float
+    u_statistic: float
+    p_value: float
+    rank_biserial_correlation: float
+
+    n_input_rows: int
+    n_rows_used: int
+    n_excluded_rows: int
+    exclusion_reason: str
+
+
+@dataclass(frozen=True)
 class PairwiseComparison:
     """One pairwise post-hoc comparison from Tukey HSD."""
 
@@ -163,6 +183,30 @@ class PairedResult:
     n_rows_used: int
     n_excluded_rows: int
     exclusion_reason: str
+
+
+@dataclass(frozen=True)
+class PairedNonparametricResult:
+    """Wilcoxon signed-rank test for a single-group pre/post comparison."""
+
+    n: int
+    median_pre: float
+    median_post: float
+    median_difference: float
+    w_statistic: float
+    p_value: float
+    matched_pairs_rank_biserial_correlation: float
+
+    n_input_rows: int
+    n_rows_used: int
+    n_excluded_rows: int
+    exclusion_reason: str
+
+    # Real, observed pairs with no change. Reported separately rather than
+    # folded into n_excluded_rows: a zero difference is complete data, not
+    # a missing value, and scipy's Wilcoxon convention drops it from
+    # ranking (Wilcoxon, 1945), so it must still be accounted for somewhere.
+    n_zero_differences_dropped: int
 
 
 @dataclass(frozen=True)
@@ -290,6 +334,77 @@ def compare_two_groups(
         mean_difference=mean_diff,
         ci_95_low=float(ci_low),
         ci_95_high=float(ci_high),
+        n_input_rows=int(len(data)),
+        n_rows_used=int(len(clean)),
+        n_excluded_rows=int(len(data) - len(clean)),
+        exclusion_reason=MISSING_GROUP_OR_OUTCOME,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Two-group comparison, nonparametric: Mann-Whitney U
+# ---------------------------------------------------------------------------
+
+def compare_two_groups_nonparametric(
+    data: pd.DataFrame,
+    group_col: str,
+    outcome_col: str,
+) -> TwoGroupNonparametricResult:
+    """
+    Compare an outcome between exactly two groups using the Mann-Whitney
+    U test, a rank-based alternative to compare_two_groups' Welch's
+    t-test that does not assume the outcome is normally distributed
+    within each group.
+
+    Effect size is a rank-biserial correlation, r = 2U/(n_a * n_b) - 1,
+    where U is scipy's mannwhitneyu statistic computed for group A
+    against group B. U ranges from 0 (every group-A value below every
+    group-B value) to n_a*n_b (every group-A value above every group-B
+    value), so this rescales U onto [-1, 1] with the same sign
+    convention as Cohen's d: positive means group A tends higher. This
+    specific formula and sign convention were verified by hand against
+    scipy's own U statistic (see modules/program_evaluation/tests/
+    test_comparison.py), since different sources define "U" for
+    opposite samples and a borrowed formula can silently flip sign.
+
+    References:
+        Mann, H. B., & Whitney, D. R. (1947). On a test of whether one
+        of two random variables is stochastically larger than the
+        other. Annals of Mathematical Statistics, 18(1), 50-60.
+    """
+    _validate_two_columns(data, group_col, outcome_col)
+
+    clean = data[[group_col, outcome_col]].dropna()
+    labels = clean[group_col].unique().tolist()
+
+    if len(labels) != 2:
+        raise ValueError(
+            f"compare_two_groups_nonparametric requires exactly 2 groups, "
+            f"found {len(labels)}: {labels}. Use compare_multiple_groups "
+            "for 3 or more groups."
+        )
+
+    group_a_label, group_b_label = sorted(labels, key=str)
+    a = clean.loc[clean[group_col] == group_a_label, outcome_col].to_numpy(dtype=float)
+    b = clean.loc[clean[group_col] == group_b_label, outcome_col].to_numpy(dtype=float)
+
+    if len(a) < 2 or len(b) < 2:
+        raise ValueError("Each group needs at least 2 observations.")
+
+    u_stat, p_value = stats.mannwhitneyu(a, b, alternative="two-sided")
+    n_a, n_b = len(a), len(b)
+    r = (2.0 * float(u_stat)) / (n_a * n_b) - 1.0
+
+    return TwoGroupNonparametricResult(
+        group_a_label=str(group_a_label),
+        group_b_label=str(group_b_label),
+        n_a=n_a,
+        n_b=n_b,
+        median_a=float(np.median(a)),
+        median_b=float(np.median(b)),
+        u_statistic=float(u_stat),
+        p_value=float(p_value),
+        rank_biserial_correlation=r,
         n_input_rows=int(len(data)),
         n_rows_used=int(len(clean)),
         n_excluded_rows=int(len(data) - len(clean)),
@@ -606,6 +721,85 @@ def compare_pre_post(pre: pd.Series, post: pd.Series) -> PairedResult:
         n_rows_used=int(len(combined)),
         n_excluded_rows=int(len(pre) - len(combined)),
         exclusion_reason=INCOMPLETE_PAIR,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Paired comparison, nonparametric: Wilcoxon signed-rank
+# ---------------------------------------------------------------------------
+
+def compare_pre_post_nonparametric(pre: pd.Series, post: pd.Series) -> PairedNonparametricResult:
+    """
+    Wilcoxon signed-rank test comparing pre- and post-program scores for
+    the same participants, a rank-based alternative to compare_pre_post's
+    paired t-test that does not assume the differences are normally
+    distributed.
+
+    Ties at exactly zero (no change) are dropped before ranking, scipy's
+    default convention (Wilcoxon's own original treatment); the count
+    dropped is reported on n_zero_differences_dropped rather than folded
+    into n_excluded_rows, since a zero difference is real, observed data,
+    not a missing value.
+
+    Effect size is the matched-pairs rank-biserial correlation,
+    r = (W+ - W-) / (W+ + W-), where W+ and W- are the summed ranks of
+    the positive and negative differences (ranked by absolute value).
+    Ranges from -1 to 1, positive meaning post tended to exceed pre. This
+    formula was verified by hand against scipy's own W statistic (see
+    modules/program_evaluation/tests/test_comparison.py): scipy reports
+    min(W+, W-) as its statistic, so this is computed independently
+    rather than derived from it, to keep the sign information scipy's
+    own statistic discards.
+
+    References:
+        Wilcoxon, F. (1945). Individual comparisons by ranking methods.
+        Biometrics Bulletin, 1(6), 80-83.
+
+        King, B. M., & Minium, E. W. (2003). Statistical Reasoning in
+        Psychology and Education (4th ed.). Wiley. (Matched-pairs
+        rank-biserial correlation.)
+    """
+    if len(pre) != len(post):
+        raise ValueError("pre and post must have the same number of observations.")
+
+    combined = pd.DataFrame({"pre": pre.to_numpy(), "post": post.to_numpy()}).dropna()
+
+    if combined.shape[0] < 2:
+        raise ValueError("At least 2 complete paired observations are required.")
+
+    pre_clean = combined["pre"].to_numpy(dtype=float)
+    post_clean = combined["post"].to_numpy(dtype=float)
+    differences = post_clean - pre_clean
+
+    nonzero = differences[differences != 0]
+    n_zero = int(len(differences) - len(nonzero))
+
+    if len(nonzero) < 1:
+        raise ValueError(
+            "Every paired difference is zero; the Wilcoxon signed-rank "
+            "test is undefined."
+        )
+
+    w_stat, p_value = stats.wilcoxon(nonzero, alternative="two-sided")
+
+    ranks = stats.rankdata(np.abs(nonzero))
+    w_pos = float(ranks[nonzero > 0].sum())
+    w_neg = float(ranks[nonzero < 0].sum())
+    r = (w_pos - w_neg) / (w_pos + w_neg)
+
+    return PairedNonparametricResult(
+        n=len(differences),
+        median_pre=float(np.median(pre_clean)),
+        median_post=float(np.median(post_clean)),
+        median_difference=float(np.median(differences)),
+        w_statistic=float(w_stat),
+        p_value=float(p_value),
+        matched_pairs_rank_biserial_correlation=r,
+        n_input_rows=int(len(pre)),
+        n_rows_used=int(len(combined)),
+        n_excluded_rows=int(len(pre) - len(combined)),
+        exclusion_reason=INCOMPLETE_PAIR,
+        n_zero_differences_dropped=n_zero,
     )
 
 

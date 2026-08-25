@@ -41,7 +41,9 @@ Cross-analysis implications contribute to the broader OpenMeasure workflow:
 
 **Research Question → Data → Measurement → Analysis → Interpretation**
 
-Future versions may connect additional findings across these stages, including measurement quality, statistical assumptions, fairness, robustness, and evidence synthesis.
+Beyond retention, this page also surfaces whatever a module already recorded in `HandoffEntry.primary_statistics` (e.g. Fairness's disparate impact and statistical parity difference), grouped alongside retention per dataset. These are shown as each analysis's own raw recorded numbers, never combined, ranked, or checked against a threshold this module does not itself define: a Reliability alpha and a Fairness disparity measure different things and have no shared scale, and a signal co-occurring with heavy exclusion on the same dataset does not establish that one caused the other.
+
+Future versions may go further -- e.g. surfacing measurement-quality or evidence-synthesis findings the same way, once a module records them.
 
 ## Non-goals
 
