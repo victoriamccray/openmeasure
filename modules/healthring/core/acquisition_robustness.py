@@ -367,6 +367,36 @@ def apply_recalibration(
     return model.intercept + model.slope * feature
 
 
+def evaluate_on_test_data(
+    model: RecalibrationModel,
+    test_data: pd.DataFrame,
+    *,
+    feature_col: str = "bvp_hr",
+    target_col: str = "hr",
+) -> tuple[pd.DataFrame, AgreementResult]:
+    """
+    Apply a fitted model to test_data, derive per-window prediction and
+    error columns (predicted_hr, pred_abs_error, pred_diff, pred_mean_hr),
+    and summarize agreement over them in one call.
+
+    Reused for the chosen split, the "what if" comparison split, and (with
+    a different split) nowhere else -- exists once here rather than as a
+    page-level helper recomputing the same three derived columns.
+    """
+
+    validate_is_dataframe(test_data)
+
+    enriched = test_data.copy()
+    enriched["predicted_hr"] = apply_recalibration(model, enriched[feature_col])
+    enriched["pred_abs_error"] = (enriched["predicted_hr"] - enriched[target_col]).abs()
+    enriched["pred_diff"] = enriched["predicted_hr"] - enriched[target_col]
+    enriched["pred_mean_hr"] = (enriched["predicted_hr"] + enriched[target_col]) / 2
+
+    evaluation = agreement_summary(enriched["predicted_hr"], enriched[target_col])
+
+    return enriched, evaluation
+
+
 @dataclass(frozen=True)
 class RetentionResult:
     """

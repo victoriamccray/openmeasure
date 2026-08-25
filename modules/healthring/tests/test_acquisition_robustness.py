@@ -250,6 +250,40 @@ class TestFitAndApplyRecalibration(unittest.TestCase):
         self.assertIn("At least 2 training windows", str(ctx.exception))
 
 
+class TestEvaluateOnTestData(unittest.TestCase):
+    def setUp(self):
+        # Same exact-recovery fixture as TestFitAndApplyRecalibration:
+        # bvp_hr = hr + 2, so the fitted model recovers hr exactly and
+        # every derived error column is hand-calculable as zero.
+        hr = [60.0, 70.0, 80.0, 90.0]
+        bvp_hr = [value + 2.0 for value in hr]
+        train_data = pd.DataFrame({"hr": hr, "bvp_hr": bvp_hr})
+        self.model = ar.fit_recalibration(train_data)
+        self.test_data = pd.DataFrame({"hr": [65.0, 85.0], "bvp_hr": [67.0, 87.0]})
+
+    def test_derived_columns_and_agreement_for_a_perfect_fit(self):
+        enriched, evaluation = ar.evaluate_on_test_data(self.model, self.test_data)
+
+        pd.testing.assert_series_equal(
+            enriched["predicted_hr"].reset_index(drop=True),
+            enriched["hr"].reset_index(drop=True),
+            check_names=False,
+        )
+        self.assertTrue((enriched["pred_abs_error"] < 1e-9).all())
+        self.assertTrue((enriched["pred_diff"].abs() < 1e-9).all())
+        pd.testing.assert_series_equal(
+            enriched["pred_mean_hr"].reset_index(drop=True),
+            enriched["hr"].reset_index(drop=True),
+            check_names=False,
+        )
+        self.assertAlmostEqual(evaluation.mae, 0.0, places=6)
+        self.assertAlmostEqual(evaluation.bias, 0.0, places=6)
+
+    def test_non_dataframe_input_raises_typeerror(self):
+        with self.assertRaises(TypeError):
+            ar.evaluate_on_test_data(self.model, [1, 2, 3])
+
+
 class TestFilterByQuality(unittest.TestCase):
     def setUp(self):
         windows = ar.prepare_windows(_make_df(_ROWS))

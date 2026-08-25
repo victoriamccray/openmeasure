@@ -65,6 +65,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from modules.healthring.core import acquisition_robustness as ar
+from modules.healthring.core import interpret as hr_interpret
 from shared.charts import multiline_time_series_chart
 from shared.datasets import DATASETS
 from shared.data_handling import disclosure_for, render_data_handling_summary
@@ -679,68 +680,12 @@ def _error_distribution_chart(data: pd.DataFrame, error_col: str, group_col: str
 def _fit_and_evaluate(
     split: ar.SplitResult,
 ) -> tuple[ar.RecalibrationModel, ar.AgreementResult, pd.DataFrame]:
-    """
-    Fit on split.train_data, predict on split.test_data, and summarize
-    agreement -- the same three core calls, reused for the chosen split,
-    the "what if" comparison split, and (with a different split) nowhere
-    else, so this exists once rather than being copied three times.
-    """
+    """Fit on split.train_data, then evaluate on split.test_data."""
 
     model = ar.fit_recalibration(split.train_data)
-
-    test_data = split.test_data.copy()
-    test_data["predicted_hr"] = ar.apply_recalibration(model, test_data["bvp_hr"])
-    test_data["pred_abs_error"] = (test_data["predicted_hr"] - test_data["hr"]).abs()
-    test_data["pred_diff"] = test_data["predicted_hr"] - test_data["hr"]
-    test_data["pred_mean_hr"] = (test_data["predicted_hr"] + test_data["hr"]) / 2
-
-    evaluation = ar.agreement_summary(test_data["predicted_hr"], test_data["hr"])
+    test_data, evaluation = ar.evaluate_on_test_data(model, split.test_data)
 
     return model, evaluation, test_data
-
-
-# Every MAE, bias, and limits-of-agreement metric on this page is followed
-# by one of these sentences, so a number never appears without a plain-
-# language reading. Written once here rather than at each of the three
-# call sites (baseline, evaluate, retention) that need the same reading.
-
-
-def _mae_sentence(value: float) -> str:
-    return f"Predictions differed from the reference by about {value:.1f} bpm on average."
-
-
-def _bias_sentence(value: float) -> str:
-    if abs(value) < 0.05:
-        return (
-            "Predictions were about equal to the reference on average, "
-            "with no consistent over- or under-estimate."
-        )
-
-    direction = "higher" if value > 0 else "lower"
-    return f"Predictions were about {abs(value):.1f} bpm {direction} than the reference on average."
-
-
-def _loa_sentence(lower: float, upper: float) -> str:
-    return (
-        f"For about 95% of windows, the error is expected to fall between "
-        f"{lower:+.1f} and {upper:+.1f} bpm, following the Bland-Altman "
-        "convention (bias plus or minus 1.96 standard deviations)."
-    )
-
-
-def _quality_sentence(value: float) -> str:
-    if value >= 0.7:
-        level = "high"
-    elif value >= 0.4:
-        level = "middling"
-    else:
-        level = "low"
-
-    return (
-        f"The ring scored this window's own reading as {level} usability "
-        f"({value:.2f} on its 0-1 scale). That score does not, by itself, "
-        "say what made it that way."
-    )
 
 
 def _render_signal_window(row: pd.Series, slot_key: str) -> None:
@@ -786,7 +731,7 @@ def _render_signal_window(row: pd.Series, slot_key: str) -> None:
     )
 
     quality = (row["ir-quality"] + row["red-quality"]) / 2
-    st.caption(_quality_sentence(quality))
+    st.caption(hr_interpret.quality_sentence(quality))
 
     hr_col1, hr_col2 = st.columns(2)
     hr_col1.metric("Ring estimate (bvp_hr)", f"{row['bvp_hr']:.1f} bpm")
@@ -812,7 +757,7 @@ def _render_signal_window(row: pd.Series, slot_key: str) -> None:
         abs_error = abs(row["bvp_hr"] - row["hr"])
         prediction = st.session_state.get(predict_key, "Not sure")
         st.metric("Absolute error", f"{abs_error:.1f} bpm")
-        st.caption(f"You predicted: {prediction}. {_mae_sentence(abs_error)}")
+        st.caption(f"You predicted: {prediction}. {hr_interpret.mae_sentence(abs_error)}")
 
 
 # ---------------------------------------------------------------------
@@ -1484,11 +1429,11 @@ if stage >= STAGE_BASELINE and chosen_split is not None:
     b2.metric("Baseline bias", f"{baseline.bias:+.2f} bpm")
     b3.metric("Limits of agreement", f"±{1.96 * baseline.sd:.2f} bpm")
 
-    st.caption(f"**MAE {baseline.mae:.2f} bpm:** {_mae_sentence(baseline.mae)}")
-    st.caption(f"**Bias {baseline.bias:+.2f} bpm:** {_bias_sentence(baseline.bias)}")
+    st.caption(f"**MAE {baseline.mae:.2f} bpm:** {hr_interpret.mae_sentence(baseline.mae)}")
+    st.caption(f"**Bias {baseline.bias:+.2f} bpm:** {hr_interpret.bias_sentence(baseline.bias)}")
     st.caption(
         f"**Limits of agreement ±{1.96 * baseline.sd:.2f} bpm:** "
-        f"{_loa_sentence(baseline.lower_loa, baseline.upper_loa)}"
+        f"{hr_interpret.loa_sentence(baseline.lower_loa, baseline.upper_loa)}"
     )
 
     implications(
@@ -1624,11 +1569,11 @@ if stage >= STAGE_EVALUATE and evaluation is not None and baseline is not None:
     e2.metric("Test bias", f"{evaluation.bias:+.2f} bpm")
     e3.metric("Limits of agreement", f"±{1.96 * evaluation.sd:.2f} bpm")
 
-    st.caption(f"**MAE {evaluation.mae:.2f} bpm:** {_mae_sentence(evaluation.mae)}")
-    st.caption(f"**Bias {evaluation.bias:+.2f} bpm:** {_bias_sentence(evaluation.bias)}")
+    st.caption(f"**MAE {evaluation.mae:.2f} bpm:** {hr_interpret.mae_sentence(evaluation.mae)}")
+    st.caption(f"**Bias {evaluation.bias:+.2f} bpm:** {hr_interpret.bias_sentence(evaluation.bias)}")
     st.caption(
         f"**Limits of agreement ±{1.96 * evaluation.sd:.2f} bpm:** "
-        f"{_loa_sentence(evaluation.lower_loa, evaluation.upper_loa)}"
+        f"{hr_interpret.loa_sentence(evaluation.lower_loa, evaluation.upper_loa)}"
     )
 
     if evaluation.mae >= baseline.mae:
@@ -1763,11 +1708,11 @@ if stage >= STAGE_RETENTION and evaluation is not None and test_data is not None
 
         st.caption(
             f"**MAE {retention.agreement.mae:.2f} bpm:** "
-            f"{_mae_sentence(retention.agreement.mae)}"
+            f"{hr_interpret.mae_sentence(retention.agreement.mae)}"
         )
         st.caption(
             f"**Bias {retention.agreement.bias:+.2f} bpm:** "
-            f"{_bias_sentence(retention.agreement.bias)}"
+            f"{hr_interpret.bias_sentence(retention.agreement.bias)}"
         )
 
         if retention.n_excluded_windows == 0:

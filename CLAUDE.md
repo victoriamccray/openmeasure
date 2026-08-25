@@ -4,7 +4,7 @@ OpenMeasure is a Streamlit toolkit for validating research measurements, data, m
 
 ## Architecture
 
-- `modules/<name>/core/`: pure functions only. No `streamlit` import, no I/O. Every public function returns a frozen `@dataclass`, never a raw dict or tuple.
+- `modules/<name>/core/`: pure functions only. No `streamlit` import, no I/O. Every public function returns a frozen `@dataclass`, never a raw dict or tuple. This protects a later migration away from Streamlit: if `core/` never depends on it, replacing the presentation layer never touches the analytical logic underneath it. The no-`streamlit`-import half is enforced by `shared/tests/test_core_framework_independence.py`; interpretive logic (thresholds, plain-language readings of a statistic) belongs in a module's `core/interpret.py` alongside the statistic it explains, not written page-locally in `pages/`.
 - `pages/N_Name.py`: presentation only. Imports only from `modules/<name>/core` and `shared/`. Never contains statistical logic.
 - `shared/`: cross-cutting helpers used by more than one module (`report.py` for UI reporting primitives, `case_studies.py` for case-study content, `validation.py` for structural checks literally duplicated across modules, `handoff.py` for recording analysis results so they can be compared across modules). Only extract code here once it is actually duplicated; do not build ahead of need. The one exception is infrastructure that is cross-module by definition, such as `handoff.py`, which every module page writes to and which has no single-module version.
 - Full layout, result-object, and reporting conventions are documented in `docs/design-standards.md`.
