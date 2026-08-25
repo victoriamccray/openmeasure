@@ -106,7 +106,7 @@ JOURNEY_STAGES = (
     "Establish baseline",
     "Build model",
     "Evaluate",
-    "Research decision",
+    "Retention tradeoff",
     "Across conditions?",
     "Defend conclusion",
     "Finish study",
@@ -1640,11 +1640,11 @@ if stage >= STAGE_EVALUATE and evaluation is not None and baseline is not None:
     )
 
     if stage < STAGE_RETENTION:
-        if st.button("Continue to the research decision", type="primary"):
+        if st.button("Continue to the retention tradeoff", type="primary"):
             TRACKER.advance_to(STAGE_RETENTION)
 
 # -----------------------------------------------------------------
-# 6. Make a research decision (retention)
+# 6. Weigh the retention tradeoff
 # -----------------------------------------------------------------
 
 retention: ar.RetentionResult | None = None
@@ -1652,7 +1652,7 @@ quality_threshold = 0.5
 
 if stage >= STAGE_RETENTION and evaluation is not None and test_data is not None:
     section_header(
-        "Make a Research Decision",
+        "Weigh the Retention Tradeoff",
         "Cleaner signal keeps less data: watch retention and error move together",
     )
 

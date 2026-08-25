@@ -1330,6 +1330,7 @@ STAGE_ALIGN = 4
 STAGE_INTEGRATE = 5
 STAGE_EVALUATE = 6
 STAGE_INTERPRET = 7
+STAGE_RESEARCH_DECISION = 8
 
 JOURNEY_STAGES = (
     "Research question",
@@ -1340,6 +1341,7 @@ JOURNEY_STAGES = (
     "Integrate evidence",
     "Evaluate added value",
     "Interpret",
+    "Research decision",
 )
 
 TRACKER = StageTracker(session_key=STAGE_KEY, stage_labels=JOURNEY_STAGES)
@@ -2005,3 +2007,85 @@ if stage >= STAGE_INTERPRET:
     st.divider()
     st.caption(GRAND_DATASET_CITATION)
     st.caption(GRAND_PREPRINT_CITATION)
+
+    if stage < STAGE_RESEARCH_DECISION:
+        if st.button("Continue to the research decision", type="primary"):
+            TRACKER.advance_to(STAGE_RESEARCH_DECISION)
+
+# -----------------------------------------------------------------
+# 9. Research decision
+# -----------------------------------------------------------------
+
+if stage >= STAGE_RESEARCH_DECISION:
+    section_header(
+        "9. Research Decision",
+        "Given this reduced analysis, what would you conclude?",
+    )
+
+    current_modalities = _current_modalities()
+
+    decision_options = (
+        "Yes, combine them: the added complexity is worth it",
+        "No, this comparison shows no added benefit from combining",
+        "It depends on the specific outcome and modalities, not this one reduced comparison",
+        "Not enough evidence from this reduced analysis to decide",
+    )
+
+    decision = st.radio(
+        "Based on Step 7's real comparison and Step 8's interpretation, "
+        "would you recommend combining these modalities for a study like "
+        "this one?",
+        options=decision_options,
+        index=3,
+    )
+
+    if decision == decision_options[0]:
+        st.write(
+            "Step 7's real, computed comparison does not support this for "
+            "the two coarse global summaries tested here: adding the "
+            "functional feature made the cross-validated estimate worse, "
+            "not better. That does not rule out combining modalities "
+            "helping in general, only that this specific pairing, at "
+            "this level of coarseness, did not show it."
+        )
+    elif decision == decision_options[1]:
+        st.write(
+            "This matches what Step 7's real comparison showed for these "
+            "two coarse global summaries. It is a narrower claim than "
+            "\"combining modalities doesn't help\": a richer, per-region "
+            "feature set, like Konopkina et al.'s stacked-modality model "
+            "above, could plausibly show a different pattern."
+        )
+    elif decision == decision_options[2]:
+        st.write(
+            "Defensible. This page tested one reduced comparison (two "
+            "coarse global summaries predicting age), not every way to "
+            "combine these modalities or every outcome BUILD and ReadMap "
+            "actually care about (e.g. aphasia recovery trajectories). A "
+            "different outcome or a richer feature set could reasonably "
+            "support a different conclusion."
+        )
+    else:
+        st.write(
+            "Also defensible. A single reduced comparison, on two "
+            "modalities, predicting one variable (age), is thin evidence "
+            "either way. Step 7's caveat says as much: this shows "
+            "what a fast, coarse first pass looks like, not the final "
+            "word on whether integration matters for this dataset."
+        )
+
+    with st.container(border=True):
+        st.markdown("**Implications**")
+        st.write(
+            "This journey combined "
+            + ", ".join(_md(m.name) for m in current_modalities)
+            + " to predict age from two coarse global summaries, and "
+            "found no improvement from adding the functional feature to "
+            "the connectome feature in this specific, reduced comparison. "
+            "What this supports: a documented example of how to test "
+            "whether integration helps, and one real result for one "
+            "reduced comparison. What it does not support: a general "
+            "claim about whether combining structural, functional, "
+            "diffusion, and behavioral data helps understand reading and "
+            "language after stroke."
+        )
