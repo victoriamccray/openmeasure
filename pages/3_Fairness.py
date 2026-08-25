@@ -39,11 +39,46 @@ from shared.data_handling import disclosure_for, render_data_handling_summary
 from shared.report import (
     caveat,
     flagged_item_note,
+    inspect_note,
     render_lifecycle_tracker,
     section_header,
     show_case_studies,
 )
 from shared.upload import render_data_profile
+
+FAIRNESS_ACCENT = "#2a78d6"
+
+
+def _two_group_rate_chart_spec(
+    privileged_group: str, privileged_rate: float, unprivileged_group: str, unprivileged_rate: float
+) -> dict:
+    """One bar per selected group's favorable rate, axis labeled and expressed as a percentage."""
+
+    rows = [
+        {"Group": str(privileged_group), "rate": privileged_rate},
+        {"Group": str(unprivileged_group), "rate": unprivileged_rate},
+    ]
+
+    return {
+        "data": {"values": rows},
+        "mark": {"type": "bar", "color": FAIRNESS_ACCENT},
+        "encoding": {
+            "y": {"field": "Group", "type": "nominal", "title": None, "sort": None},
+            "x": {
+                "field": "rate",
+                "type": "quantitative",
+                "title": "Favorable rate (%)",
+                "axis": {"format": ".0%"},
+                "scale": {"domain": [0, 1]},
+            },
+            "tooltip": [
+                {"field": "Group", "type": "nominal"},
+                {"field": "rate", "type": "quantitative", "format": ".1%"},
+            ],
+        },
+        "width": "container",
+        "height": 90,
+    }
 
 
 def record_fairness(frame, upload, label_column, group_column, result) -> None:
@@ -238,6 +273,31 @@ section_header(
     "Start with the harm or protection that matters in the application",
 )
 
+# Icons purely for visual scanning of the domain cards below; the domain
+# name and relevance text (from modules/fairness/core/recommend.py) carry
+# the actual content, so a missing icon (the .get(..., default) fallback)
+# never leaves a domain undescribed.
+DOMAIN_ICONS = {
+    "Employment": ":material/work:",
+    "Public-resource allocation": ":material/account_balance:",
+    "Credit/economics": ":material/payments:",
+    "Healthcare": ":material/local_hospital:",
+    "Education": ":material/school:",
+    "Law enforcement": ":material/gavel:",
+}
+DEFAULT_DOMAIN_ICON = ":material/category:"
+
+# A worked example already in this toolkit for a domain, shown alongside
+# its card rather than left as an abstract description. Only domains with
+# a genuinely on-point match are listed here; a weak or stretched match
+# would overstate what the linked page actually demonstrates.
+DOMAIN_JOURNEY_LINKS = {
+    "Healthcare": (
+        "pages/Pulse_Oximeter_Worked_Example.py",
+        "Worked example in this toolkit: Pulse Oximeter Racial Bias",
+    ),
+}
+
 GOAL_LABELS = {
     "opportunity_access": (
         "No group should be excluded from favorable opportunities"
@@ -287,7 +347,19 @@ with st.expander("Applicable domains or contexts", icon=":material/category:"):
         "depends on the decision being evaluated."
     )
     for context in recommendation.applicable_domains:
-        st.markdown(f"**{context.domain}**: {context.relevance}")
+        icon = DOMAIN_ICONS.get(context.domain, DEFAULT_DOMAIN_ICON)
+        # Icon inline with the heading, not inside st.badge: a badge does
+        # not wrap, so a longer domain name (e.g. "Public-resource
+        # allocation") silently truncated there.
+        st.markdown(f"{icon} **{context.domain}**")
+        st.write(context.relevance)
+
+        journey_link = DOMAIN_JOURNEY_LINKS.get(context.domain)
+        if journey_link:
+            page, label = journey_link
+            st.page_link(page, label=label, icon=":material/arrow_forward:")
+
+        st.write("")
 
 if recommendation.metric != "demographic_parity":
     st.info(
@@ -540,6 +612,17 @@ else:
                     f"{bias_result.unprivileged_rate:.1%}",
                 )
 
+                st.vega_lite_chart(
+                    _two_group_rate_chart_spec(
+                        privileged_group,
+                        bias_result.privileged_rate,
+                        unprivileged_group,
+                        bias_result.unprivileged_rate,
+                    ),
+                    theme=None,
+                    use_container_width=True,
+                )
+
                 metric_3, metric_4 = st.columns(2)
 
                 metric_3.metric(
@@ -553,13 +636,13 @@ else:
                 )
 
                 st.caption(
-                    "Disparate impact = comparison-group favorable rate ÷ "
-                    "reference-group favorable rate."
+                    f"Disparate impact = {unprivileged_group} favorable rate "
+                    f"÷ {privileged_group} favorable rate."
                 )
 
                 st.caption(
-                    "Statistical parity difference = comparison-group "
-                    "favorable rate − reference-group favorable rate."
+                    f"Statistical parity difference = {unprivileged_group} "
+                    f"favorable rate − {privileged_group} favorable rate."
                 )
 
                 # -----------------------------------------------------
@@ -646,16 +729,50 @@ else:
                 # -------------------------------------------------------------
 
                 if not rates_df.empty:
-                    section_header("Group-Rate Chart")
-
-                    chart_df = (
-                        rates_df[
-                            ["Group", "Favorable rate"]
-                        ]
-                        .set_index("Group")
+                    section_header(
+                        "Group-Rate Chart",
+                        "Every group's favorable rate, side by side",
                     )
 
-                    st.bar_chart(chart_df)
+                    chart_rows = [
+                        {"Group": str(row["Group"]), "rate": row["Favorable rate"]}
+                        for row in rate_rows
+                    ]
+
+                    st.vega_lite_chart(
+                        {
+                            "data": {"values": chart_rows},
+                            "mark": {"type": "bar", "color": FAIRNESS_ACCENT},
+                            "encoding": {
+                                "y": {"field": "Group", "type": "nominal", "title": None},
+                                "x": {
+                                    "field": "rate",
+                                    "type": "quantitative",
+                                    "title": "Favorable rate (%)",
+                                    "axis": {"format": ".0%"},
+                                    "scale": {"domain": [0, 1]},
+                                },
+                                "tooltip": [
+                                    {"field": "Group", "type": "nominal"},
+                                    {"field": "rate", "type": "quantitative", "format": ".1%"},
+                                ],
+                            },
+                            "width": "container",
+                            "height": 30 * len(chart_rows) + 40,
+                        },
+                        theme=None,
+                        use_container_width=True,
+                    )
+
+                    inspect_note(
+                        "Each bar is one group's favorable-label rate (the "
+                        "same numbers as the table above, in one column). "
+                        "It exists to compare every group in the data at "
+                        "once, not just the two selected in Result above - "
+                        "a real dataset can have more than two groups, and "
+                        "a pairwise comparison alone can miss a group with "
+                        "a strikingly different rate."
+                    )
 
                 # -----------------------------------------------------
                 # Limitations
@@ -951,10 +1068,10 @@ show_case_studies("model_validation")
 
 st.page_link(
     "pages/Pulse_Oximeter_Worked_Example.py",
-    label=(
-        "Try the interactive version of the pulse oximeter case study "
-        "(Research Journey): adjust the alarm threshold and watch the "
-        "detection gap respond"
+    label="Try the interactive version: Pulse Oximeter Racial Bias (Research Journey)",
+    help=(
+        "Adjust the device's alarm threshold and watch the detection gap "
+        "between groups respond, using this module's own metrics."
     ),
     icon=":material/arrow_forward:",
 )
