@@ -315,8 +315,12 @@ class TestOverviewProgressStatus(unittest.TestCase):
         self.assertIn(STAGE_RECORDED, captions)
         # Research Question has no module, and must not read as a failing.
         self.assertIn(STAGE_NO_MODULE, captions)
-        # Interpretation has a module that reads rather than records.
-        self.assertIn(STAGE_READS_RECORDS, captions)
+        # Interpretation holds Cross-Analysis Implications (reads other
+        # workflows' records, module_key=None) and Evidence Review (records
+        # its own, module_key set). Only Evidence Review counts toward the
+        # stage's state, and this fixture never records it, so the stage
+        # reads Not assessed rather than Reads records.
+        self.assertIn(STATE_NOT_ASSESSED, captions)
 
     def test_the_stage_strip_hides_states_before_anything_is_recorded(self):
         app = self._run_entrypoint()

@@ -248,6 +248,25 @@ DISCLOSURES: tuple[DataHandlingDisclosure, ...] = (
         ),
     ),
     DataHandlingDisclosure(
+        page="pages/6_Evidence_Review.py",
+        data_access=(DATA_ACCESS_PUBLIC_REMOTE,),
+        processing=(PROCESSING_IN_MEMORY,),
+        persistent_storage=PERSISTENT_STORAGE_NONE,
+        data_accessed=(
+            "Search terms typed by the user, and OpenAlex's public metadata "
+            "for matching works (title, authors, year, venue, DOI, abstract, "
+            "citation count)."
+        ),
+        redistribution=REDISTRIBUTION_NOT_BUNDLED,
+        notes=(
+            "OpenAlex results are fetched live at runtime and never bundled "
+            "in this repository. Records a hash of the search-results table "
+            "returned (not the reviewer's typed finding description) plus "
+            "screening-decision counts to session state, for the "
+            "Cross-Analysis Implications page (shared/handoff.py)."
+        ),
+    ),
+    DataHandlingDisclosure(
         page="pages/Multimodal_Signal_Convergence.py",
         data_access=(DATA_ACCESS_BUNDLED_EXAMPLE,),
         processing=(PROCESSING_IN_MEMORY,),

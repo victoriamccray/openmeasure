@@ -55,5 +55,8 @@ jobs:
       - name: Run data profile tests
         run: pytest modules/data_profile/tests/ -v
 
+      - name: Run evidence review tests
+        run: pytest modules/evidence_review/tests/ -v
+
       - name: Run shared tests
         run: pytest shared/tests/ -v

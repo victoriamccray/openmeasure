@@ -39,9 +39,9 @@ Supports evaluation of interventions using research designs and statistical meth
 
 ### Cross-Cutting Validation
 
-Connects findings across the other modules rather than producing a validation result of its own.
+Looks across or beyond the other modules. Cross-Analysis Implications connects findings across them without producing a validation result of its own; Evidence Review compares one finding against external published literature and does produce its own record.
 
-**Available:** Cross-Analysis Implications v0.1
+**Available:** Cross-Analysis Implications v0.1, Evidence Review v0.1
 
 ## Guides and worked examples
 
@@ -194,6 +194,17 @@ See `modules/time_series_qa/README.md` for methodology, non-goals, and reference
 
 See `modules/validation_chain/README.md` for scope and non-goals.
 
+### Evidence Review v0.1 (MVP)
+
+A transparent literature discovery and screening aid, not yet a systematic-review tool.
+
+- Searches OpenAlex's public Works API for literature related to a typed finding, with no generative-AI call anywhere in the search or ranking
+- Scores relevance by deterministic keyword overlap between the finding and each result's title/abstract, always naming the matched words
+- Screens results with Include/Exclude/Uncertain decisions, structured for compatibility with PRISMA 2020 reporting (Page et al., 2021) -- PRISMA is a reporting guideline and does not itself define this label set
+- Produces an exportable, auditable record of the exact query, every result, every screening decision, and any stated exclusion reason
+
+See `modules/evidence_review/README.md` for methodology, non-goals (including the predefined-eligibility-criteria step this version does not yet have), and references.
+
 ### Wearables Research Journey v0.1 (prototype)
 
 A guided, gated worked example, not a versioned validation module: see
@@ -239,6 +250,7 @@ pytest modules/validation_chain/tests/ -v
 pytest modules/healthring/tests/ -v
 pytest modules/signal_pipeline/tests/ -v
 pytest modules/data_profile/tests/ -v
+pytest modules/evidence_review/tests/ -v
 pytest shared/tests/ -v
 ```
 

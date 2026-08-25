@@ -81,12 +81,14 @@ MODULE_RELIABILITY = "reliability"
 MODULE_PROGRAM_EVALUATION = "program_evaluation"
 MODULE_FAIRNESS = "fairness"
 MODULE_TIME_SERIES_QA = "time_series_qa"
+MODULE_EVIDENCE_REVIEW = "evidence_review"
 
 MODULE_KEYS: tuple[str, ...] = (
     MODULE_RELIABILITY,
     MODULE_PROGRAM_EVALUATION,
     MODULE_FAIRNESS,
     MODULE_TIME_SERIES_QA,
+    MODULE_EVIDENCE_REVIEW,
 )
 
 
@@ -233,6 +235,19 @@ WORKFLOWS: tuple[Workflow, ...] = (
         taxonomy_key="data_validation",
         # No module_key: this page reads the other workflows' records rather
         # than producing one of its own.
+    ),
+    Workflow(
+        workflow="Evidence Review",
+        category="Cross-Cutting Validation",
+        stage="Interpretation",
+        version="0.1",
+        summary=(
+            "Searches public literature for a finding, screens results with "
+            "transparent criteria, and records what was found and decided."
+        ),
+        page="pages/6_Evidence_Review.py",
+        taxonomy_key="program_validation",
+        module_key=MODULE_EVIDENCE_REVIEW,
     ),
 )
 
