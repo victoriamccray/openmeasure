@@ -822,13 +822,7 @@ else:
         outcomes = st.text_input("Outcomes", key="rq_outcomes")
         setting = st.text_input("Setting", key="rq_setting")
 
-    caveat(
-        "These fields describe your question and go into the Design "
-        "Record below. What comes next is a fixed, hands-on worked "
-        "example (the chronic-pain scenario) regardless of what you "
-        "enter here: v0.1 has no generic simulator for an arbitrary "
-        "study yet."
-    )
+    caveat("These fields describe your question and go into the Design Record below.")
 
     if design_stage < STAGE_MEASURES:
         if st.button("Continue to explore measures", type="primary"):
@@ -1082,15 +1076,10 @@ else:
         )
 
         st.write(
-            "This stage always models the same built-in scenario "
-            "(observational, within-person, repeated-measures chronic "
-            "pain) regardless of the research question or study "
-            "structure you entered: v0.1 has no generic simulator for "
-            "an arbitrary study yet. The sliders below are assumptions "
-            "about what is *true* in that fixed scenario, not facts a "
-            "real version of it would already know, and not new design "
-            "choices: it would need pilot data or published estimates "
-            "to set them credibly."
+            "The sliders below are assumptions about what is *true* in "
+            "this fixed scenario, not facts a real version of it would "
+            "already know: a real study would need pilot data or "
+            "published estimates to set them credibly."
         )
 
         noise_cols = st.columns(2)
@@ -1107,13 +1096,6 @@ else:
             st.caption(
                 ":material/sensors: Higher values blur the wearable "
                 "signal's relationship to pain state in the retained rows."
-            )
-            within_person_sd = st.slider(
-                "Within-person physiological variability (SD)", 0.0, 2.0, 0.3, step=0.1
-            )
-            st.caption(
-                "How much one person's own readings bounce around, "
-                "observation to observation."
             )
             between_person_sd = st.slider(
                 "Between-person variability in baseline coupling (SD)", 0.0, 2.0, 0.3, step=0.1
@@ -1137,6 +1119,15 @@ else:
             st.caption(
                 ":material/scatter_plot: Shifts the localized/distributed "
                 "color mix in the timeline below."
+            )
+
+        with st.expander("Advanced simulation assumptions"):
+            within_person_sd = st.slider(
+                "Within-person physiological variability (SD)", 0.0, 2.0, 0.3, step=0.1
+            )
+            st.caption(
+                "How much one person's own readings bounce around, "
+                "observation to observation."
             )
             seed = st.number_input("Random seed (for reproducibility)", value=42, step=1)
             st.caption(
@@ -1197,50 +1188,54 @@ else:
         )
         timeline["participant_label"] = "Participant " + (timeline["participant_id"] + 1).astype(str)
 
-        st.vega_lite_chart(
-            {
-                "data": {"values": timeline.to_dict("records")},
-                "mark": {"type": "point", "filled": True, "size": 90},
-                "encoding": {
-                    "x": {
-                        "field": "slot",
-                        "type": "ordinal",
-                        "title": "Observation slot, across the study",
-                        "axis": {"labels": False, "ticks": False},
-                    },
-                    "y": {
-                        "field": "participant_label",
-                        "type": "nominal",
-                        "title": None,
-                        "sort": None,
-                        "axis": {"labelOverlap": False},
-                    },
-                    "color": {
-                        "field": "status",
-                        "type": "nominal",
-                        "scale": {
-                            "domain": ["localized", "distributed", "missing"],
-                            "range": [ACCENT, ACCENT_2, MISSING_COLOR],
+        with st.expander("Participant-level detail"):
+            st.vega_lite_chart(
+                {
+                    "data": {"values": timeline.to_dict("records")},
+                    "mark": {"type": "point", "filled": True, "size": 90},
+                    "encoding": {
+                        "x": {
+                            "field": "slot",
+                            "type": "ordinal",
+                            "title": "Observation slot, across the study",
+                            "axis": {"labels": False, "ticks": False},
                         },
-                        "legend": {"title": None, "orient": "top"},
+                        "y": {
+                            "field": "participant_label",
+                            "type": "nominal",
+                            "title": None,
+                            "sort": None,
+                            "axis": {"labelOverlap": False},
+                        },
+                        "color": {
+                            "field": "status",
+                            "type": "nominal",
+                            "scale": {
+                                "domain": ["localized", "distributed", "missing"],
+                                "range": [ACCENT, ACCENT_2, MISSING_COLOR],
+                            },
+                            "legend": {"title": None, "orient": "top"},
+                        },
+                        "tooltip": [
+                            {"field": "participant_label", "type": "nominal", "title": "Participant"},
+                            {"field": "day", "type": "ordinal"},
+                            {"field": "status", "type": "nominal"},
+                        ],
                     },
-                    "tooltip": [
-                        {"field": "participant_label", "type": "nominal", "title": "Participant"},
-                        {"field": "day", "type": "ordinal"},
-                        {"field": "status", "type": "nominal"},
-                    ],
+                    "width": "container",
+                    "height": 30 * len(example_ids) + 40,
                 },
-                "width": "container",
-                "height": 30 * len(example_ids) + 40,
-            },
-            use_container_width=True,
-        )
-        st.caption(
-            f"First {len(example_ids)} of {assumptions.n_participants} participants, one "
-            "row of dots per person across the study. Gray means that "
-            "observation was planned but not captured, given the "
-            "adherence rate above."
-        )
+                use_container_width=True,
+            )
+            st.caption(
+                f"First {len(example_ids)} of {assumptions.n_participants} participants, one "
+                "row of dots per person across the study. Gray means that "
+                "observation was planned but not captured, given the "
+                "adherence rate above."
+            )
+
+            st.dataframe(study.data.head(10), width="stretch", hide_index=True)
+            st.caption("First 10 simulated rows, out of the retained total above.")
 
         st.markdown("**One participant's pain rating and physio signal, together**")
         coupling_participant = st.selectbox(
@@ -1292,9 +1287,6 @@ else:
             "quantifies across everyone rather than one person's chart."
         )
 
-        st.dataframe(study.data.head(10), width="stretch", hide_index=True)
-        st.caption("First 10 simulated rows, out of the retained total above.")
-
         estimate = estimate_coupling_difference(study)
 
         metric_cols = st.columns(3)
@@ -1334,54 +1326,54 @@ else:
     # -------------------------------------------------------------
 
     if design_stage >= STAGE_IMPLICATIONS and study is not None and estimate is not None:
-        section_header(
-            "Reveal Terminology & Implications",
-            "What you built, named, and what it does and does not support",
-        )
+        section_header("Interpretation", "What you built, named, and what it does and does not support")
 
-        st.markdown(
-            "**The study you've built is a naturalistic, observational, "
-            "within-person, repeated-measures design with multimodal "
-            "measurements.**"
+        interpretation_note(
+            "This is an observational, within-person, repeated-measures "
+            "design with multimodal measurements. It can estimate how "
+            "pain and physiology vary together within participants, and "
+            "whether that association differs by pain state, but it "
+            "cannot establish that pain state causes a change in "
+            "physiology: confounders such as medication, activity, and "
+            "sleep are not controlled for or modeled here."
         )
-        st.caption(
-            "These terms describe the fixed chronic-pain scenario "
-            "Explore With a Worked Simulation just ran, not something "
-            "picked from a list: observational (no one assigns pain "
-            "state), repeated-measures and longitudinal (the same "
-            "participants observed many times), within-person "
-            "(each participant compared against their own localized "
-            "and distributed episodes), and multimodal (more than one "
-            "kind of measure assembled together)."
-        )
-
-        recap_steps = (
-            (":material/person:", "Participant", "One of the enrolled adults"),
-            (
-                ":material/sensors:",
-                "Assembled measures",
-                "The measures you chose in Explore & Assemble Measures",
-            ),
-            (":material/sync:", "Synchronization", "Aligning the two measurement streams in time"),
-            (":material/functions:", "Derived measures", "Per-observation pain state and signal values"),
-            (":material/insights:", "Within-person analysis", "Coupling estimated separately per participant"),
-            (":material/compare_arrows:", "Comparison", "Coupling compared across pain states"),
-        )
-        for row_start in (0, 3):
-            recap_cols = st.columns(3)
-            for column, (icon, label, note) in zip(recap_cols, recap_steps[row_start : row_start + 3]):
-                with column:
-                    st.markdown(f"{icon} **{label}**")
-                    st.caption(note)
-
         caveat(
-            "An observational, within-person design can describe "
-            "association within a person over time. It cannot, on its "
-            "own, establish that pain state causes a change in "
-            "physiology, since anything else that also varies with pain "
-            "state (activity, medication timing, sleep) is not "
-            "controlled for here."
+            "Simulated precision and uncertainty describe this "
+            "simulation under these assumptions. They are not a "
+            "guarantee about how a real study, even one matching these "
+            "settings closely, would actually perform."
         )
+
+        with st.expander("What these terms mean, and how this was built"):
+            st.caption(
+                "These terms describe the fixed chronic-pain scenario "
+                "Explore With a Worked Simulation just ran, not something "
+                "picked from a list: observational (no one assigns pain "
+                "state), repeated-measures and longitudinal (the same "
+                "participants observed many times), within-person "
+                "(each participant compared against their own localized "
+                "and distributed episodes), and multimodal (more than one "
+                "kind of measure assembled together)."
+            )
+
+            recap_steps = (
+                (":material/person:", "Participant", "One of the enrolled adults"),
+                (
+                    ":material/sensors:",
+                    "Assembled measures",
+                    "The measures you chose in Explore & Assemble Measures",
+                ),
+                (":material/sync:", "Synchronization", "Aligning the two measurement streams in time"),
+                (":material/functions:", "Derived measures", "Per-observation pain state and signal values"),
+                (":material/insights:", "Within-person analysis", "Coupling estimated separately per participant"),
+                (":material/compare_arrows:", "Comparison", "Coupling compared across pain states"),
+            )
+            for row_start in (0, 3):
+                recap_cols = st.columns(3)
+                for column, (icon, label, note) in zip(recap_cols, recap_steps[row_start : row_start + 3]):
+                    with column:
+                        st.markdown(f"{icon} **{label}**")
+                        st.caption(note)
 
         section_header(
             "Design Implications",
@@ -1401,18 +1393,6 @@ else:
         inspections = inspect_study_structure(structure)
         _render_inspections(inspections)
 
-        st.write(
-            "A within-person, observational, repeated-measures design "
-            "like this one can describe how strongly pain and "
-            "physiology move together, and whether that association "
-            "differs by pain state, within the participants observed. "
-            "It cannot, by itself, establish that spatial pain pattern "
-            "*causes* a change in that coupling, rule out confounders "
-            "this v0.1 does not model (medication, activity, sleep, "
-            "stress), or guarantee that a result here would replicate "
-            "in a real study run under these same nominal settings."
-        )
-
         implications(
             "Adherence and temporal misalignment mainly affect how much "
             "usable data survives to be analyzed, between-person "
@@ -1423,21 +1403,7 @@ else:
             "number, it changes which of these limits binds."
         )
 
-        caveat(
-            "Simulated precision and uncertainty describe this "
-            "simulation under these assumptions. They are not a "
-            "guarantee about how a real study, even one matching these "
-            "settings closely, would actually perform."
-        )
-
         st.write("**Relevant OpenMeasure methods**")
-        st.caption(
-            "The measurement plan above, on its own, implies a column "
-            "shape. Matching that shape to OpenMeasure's own workflows "
-            "is the same suggest_workflows() the Analyze Existing Data "
-            "mode's upload branch uses, run here on a shape derived "
-            "from the design instead of an uploaded file."
-        )
 
         profile = measurement_plan_profile(assumptions)
         _render_workflow_suggestions(suggest_workflows(profile))
@@ -1521,10 +1487,11 @@ not guarantee real-world performance. Synthetic data, not study
 participant data.
 """
 
-        st.text_area("Design record", record_text, height=400)
-        st.download_button(
-            "Download design record (.txt)",
-            data=record_text,
-            file_name="openmeasure_research_design_record.txt",
-            mime="text/plain",
-        )
+        with st.expander("Show design record", expanded=False):
+            st.text_area("Design record", record_text, height=400)
+            st.download_button(
+                "Download design record (.txt)",
+                data=record_text,
+                file_name="openmeasure_research_design_record.txt",
+                mime="text/plain",
+            )
