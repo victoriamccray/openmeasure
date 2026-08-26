@@ -58,6 +58,9 @@ st.set_page_config(
     layout="centered",
 )
 
+ACCENT = "#2a78d6"
+ACCENT_2 = "#c0392b"
+
 st.title("Time-Series QA")
 st.subheader("Data Validation")
 st.caption(
@@ -516,6 +519,22 @@ caveat(
     "they cannot be placed on the time axis. No other row is removed."
 )
 
+_ROWS_PER_TIMESTAMP_FLAG = 1.5
+
+if temporal.n_distinct_timestamps:
+    avg_rows_per_timestamp = result.n_rows_used / temporal.n_distinct_timestamps
+    if avg_rows_per_timestamp > _ROWS_PER_TIMESTAMP_FLAG:
+        st.warning(
+            f"**{temporal.n_distinct_timestamps} distinct timestamps hold "
+            f"{result.n_rows_used:,} rows, averaging "
+            f"{avg_rows_per_timestamp:.0f} rows per timestamp.** Before "
+            "treating this as one series sampled at the interval below, "
+            "check whether another column identifies separate "
+            "participants, devices, locations, or groups: if so, each "
+            "group is its own series and should be checked separately, "
+            "rather than as one series with many duplicate timestamps."
+        )
+
 
 # ---------------------------------------------------------------------
 # Sampling frequency
@@ -723,6 +742,45 @@ if temporal.gaps:
 
 if temporal.duplicates:
     st.markdown("**Duplicate timestamps**")
+
+    timestamp_counts = (
+        pd.Series(result.prepared.timestamps)
+        .value_counts()
+        .rename_axis("timestamp")
+        .reset_index(name="rows")
+    )
+    timestamp_counts["status"] = timestamp_counts["rows"].apply(
+        lambda n: "Duplicate" if n > 1 else "Single"
+    )
+    st.vega_lite_chart(
+        {
+            "data": {"values": timestamp_counts.to_dict("records")},
+            "mark": {"type": "bar"},
+            "encoding": {
+                "x": {"field": "timestamp", "type": "temporal", "title": None},
+                "y": {"field": "rows", "type": "quantitative", "title": "Rows at this timestamp"},
+                "color": {
+                    "field": "status",
+                    "type": "nominal",
+                    "scale": {"domain": ["Single", "Duplicate"], "range": [ACCENT, ACCENT_2]},
+                    "legend": {"title": None},
+                },
+                "tooltip": [
+                    {"field": "timestamp", "type": "temporal", "title": "Timestamp"},
+                    {"field": "rows", "type": "quantitative", "title": "Rows"},
+                    {"field": "status", "type": "nominal"},
+                ],
+            },
+            "width": "container",
+            "height": 220,
+        },
+        use_container_width=True,
+    )
+    st.caption(
+        "One bar per distinct timestamp present in the data. Absent "
+        "expected observations (gaps) are not shown here; see Gaps above."
+    )
+
     st.dataframe(
         pd.DataFrame(
             [
@@ -738,10 +796,9 @@ if temporal.duplicates:
         width="stretch",
         hide_index=True,
     )
-    caveat(
-        "Duplicate timestamps are reported but never merged or removed. "
-        "Choosing which of two conflicting values is correct requires "
-        "knowledge this tool does not have."
+    st.caption(
+        "Duplicates are reported but never merged or removed; see Which "
+        "Checks Are Defensible below for why."
     )
 
 if completeness.per_period:
@@ -769,9 +826,15 @@ if completeness.per_period:
         "excluded from the headline figure."
     )
 
-    st.bar_chart(
-        coverage_frame.set_index("Period")[["Coverage"]],
-    )
+    if len(coverage_frame) > 1:
+        st.bar_chart(
+            coverage_frame.set_index("Period")[["Coverage"]],
+        )
+    else:
+        st.caption(
+            "Only one period was assessed, so no chart is shown for it; "
+            "see the table above."
+        )
 
 if result.n_rows_used:
     st.markdown("**Series**")
