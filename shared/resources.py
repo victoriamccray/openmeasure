@@ -112,6 +112,17 @@ RESOURCES: tuple[Resource, ...] = (
         url="https://datasets.neuro2.ai/",
     ),
     Resource(
+        name="OpenNeuro",
+        kind="Dataset Directory",
+        description=(
+            "A free, open platform for sharing and downloading BIDS-"
+            "organized MRI, MEG, EEG, iEEG, ECoG, ASL, and PET datasets, "
+            "with no data-access application required for its public "
+            "datasets."
+        ),
+        url="https://openneuro.org/",
+    ),
+    Resource(
         name="HEALthy Brain and Child Development (HBCD) Study - Release 2.1",
         kind="Dataset Directory",
         description=(

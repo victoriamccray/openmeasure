@@ -343,11 +343,46 @@ def _eda_trace_spec(pain_state: str) -> dict:
 
 
 def _hr_trace_spec(beats: tuple[float, ...], title: str) -> dict:
-    """A drawn heartbeat pulse train at the given beat times, not computed from any data."""
+    """
+    A drawn heartbeat pulse train at the given beat times, not computed
+    from any data. Overlapping narrow pulses alone make regular and
+    irregular spacing hard to tell apart at a glance, so a row of tick
+    marks at the actual beat times is layered underneath as an explicit
+    timing rug.
+    """
 
     ts = [i * 0.02 for i in range(401)]
     rows = [{"t": t, "y": sum(_pulse(t, beat) for beat in beats)} for t in ts]
-    return _single_trace_spec(rows, title)
+    tick_rows = [{"t": beat, "y": -0.2} for beat in beats]
+    return {
+        "layer": [
+            {
+                "data": {"values": rows},
+                "mark": {"type": "line", "color": ACCENT, "strokeWidth": 2},
+                "encoding": {
+                    "x": {"field": "t", "type": "quantitative", "axis": None},
+                    "y": {
+                        "field": "y",
+                        "type": "quantitative",
+                        "axis": None,
+                        "scale": {"domain": [-0.3, 1.1]},
+                    },
+                },
+            },
+            {
+                "data": {"values": tick_rows},
+                "mark": {"type": "tick", "color": INK_MUTED, "thickness": 2, "size": 12},
+                "encoding": {
+                    "x": {"field": "t", "type": "quantitative", "axis": None},
+                    "y": {"field": "y", "type": "quantitative", "axis": None},
+                },
+            },
+        ],
+        "title": {"text": title, "fontSize": 10, "color": INK_MUTED, "fontWeight": "normal"},
+        "width": "container",
+        "height": 90,
+        "config": {"view": {"stroke": None}},
+    }
 
 
 # The measure gallery for "Explore & Assemble Measures": each entry's
@@ -919,7 +954,10 @@ else:
                     "beats as the regular one, but the interval "
                     "between each beat differs."
                 )
-            st.caption("A drawn, normative shape, not a measured signal.")
+            st.caption(
+                "A drawn, normative shape of the signal. The tick marks "
+                "below the curve mark each beat's actual timing."
+            )
 
         st.divider()
         st.markdown("**Assemble Your Measurement System**")
