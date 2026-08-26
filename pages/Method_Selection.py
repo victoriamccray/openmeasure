@@ -127,15 +127,15 @@ _BODY_ZONES = (
     {"zone": "Left shoulder", "x": 38, "y": 42},
     {"zone": "Right shoulder", "x": 82, "y": 42},
     {"zone": "Chest", "x": 60, "y": 55},
-    {"zone": "Abdomen", "x": 60, "y": 90},
-    {"zone": "Left arm", "x": 22, "y": 90},
-    {"zone": "Right arm", "x": 98, "y": 90},
-    {"zone": "Left hip", "x": 48, "y": 110},
-    {"zone": "Right hip", "x": 72, "y": 110},
-    {"zone": "Left leg", "x": 38, "y": 160},
-    {"zone": "Right leg", "x": 82, "y": 160},
-    {"zone": "Left foot", "x": 34, "y": 205},
-    {"zone": "Right foot", "x": 86, "y": 205},
+    {"zone": "Abdomen", "x": 60, "y": 85},
+    {"zone": "Left arm", "x": 24, "y": 80},
+    {"zone": "Right arm", "x": 96, "y": 80},
+    {"zone": "Left hip", "x": 48, "y": 100},
+    {"zone": "Right hip", "x": 72, "y": 100},
+    {"zone": "Left leg", "x": 43, "y": 150},
+    {"zone": "Right leg", "x": 77, "y": 150},
+    {"zone": "Left foot", "x": 38, "y": 200},
+    {"zone": "Right foot", "x": 82, "y": 200},
 )
 _BODY_ZONE_BY_NAME = {z["zone"]: z for z in _BODY_ZONES}
 
@@ -159,17 +159,26 @@ _ZONE_ADJACENCY = {
 }
 
 _HEAD_OUTLINE = [
-    (60 + 14 * math.cos(2 * math.pi * i / 24), 20 + 14 * math.sin(2 * math.pi * i / 24))
+    (60 + 13 * math.cos(2 * math.pi * i / 24), 16 + 15 * math.sin(2 * math.pi * i / 24))
     for i in range(25)
 ]
 
+# Articulated at the joints (shoulder/elbow/wrist, hip/knee/ankle) and a
+# tapered torso outline, rather than a rectangle-and-straight-lines stick
+# figure, so it reads as a body rather than a diagram symbol; still an
+# abstract line drawing, not an anatomically precise or measured shape.
 _SILHOUETTE_PARTS = (
     ("head", _HEAD_OUTLINE),
-    ("torso", [(40, 36), (80, 36), (80, 106), (40, 106), (40, 36)]),
-    ("left_arm", [(40, 45), (18, 108)]),
-    ("right_arm", [(80, 45), (102, 108)]),
-    ("left_leg", [(48, 106), (35, 200)]),
-    ("right_leg", [(72, 106), (85, 200)]),
+    ("neck", [(60, 30), (60, 38)]),
+    ("torso", [(40, 40), (80, 40), (74, 96), (46, 96), (40, 40)]),
+    ("left_arm", [(40, 44), (26, 72), (19, 100)]),
+    ("right_arm", [(80, 44), (94, 72), (101, 100)]),
+    ("left_hand", [(14, 98), (24, 103)]),
+    ("right_hand", [(96, 98), (106, 103)]),
+    ("left_leg", [(52, 96), (46, 146), (40, 196)]),
+    ("right_leg", [(68, 96), (74, 146), (80, 196)]),
+    ("left_foot", [(32, 200), (48, 200)]),
+    ("right_foot", [(72, 200), (88, 200)]),
 )
 
 
@@ -257,8 +266,8 @@ def _body_map_chart_spec(selected_zone: str, pain_state: str) -> dict:
                 },
             },
         ],
-        "width": 220,
-        "height": 220,
+        "width": 150,
+        "height": 275,
         "config": {"view": {"stroke": None}},
     }
 
@@ -347,6 +356,10 @@ def _acquisition_pictograph_svg(kind: str) -> str:
             f'<line x1="35" y1="18" x2="25" y2="80" stroke="{INK_MUTED}" stroke-width="1.5" stroke-linecap="round"/>'
             f'<line x1="85" y1="18" x2="95" y2="80" stroke="{INK_MUTED}" stroke-width="1.5" stroke-linecap="round"/>'
             f'<rect x="42" y="34" width="36" height="30" rx="6" fill="none" stroke="{ACCENT}" stroke-width="1.5"/>'
+            f'<path d="M47,49 L54,49 L57,41 L61,57 L65,49 L73,49" fill="none" '
+            f'stroke="{ACCENT}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>'
+            f'<path d="M83,31 A6,6 0 0 1 89,25" fill="none" stroke="{INK_MUTED}" stroke-width="1.2"/>'
+            f'<path d="M79,35 A12,12 0 0 1 91,19" fill="none" stroke="{INK_MUTED}" stroke-width="1.2"/>'
         )
     else:
         body = (
@@ -677,10 +690,17 @@ else:
         "rq_setting": "Naturalistic: participants' everyday environments, not a lab visit.",
     }
 
-    if st.button("Load pain example"):
-        for key, value in PAIN_EXAMPLE.items():
-            st.session_state[key] = value
-        st.rerun()
+    rq_button_cols = st.columns([1, 1, 4])
+    with rq_button_cols[0]:
+        if st.button("Load pain example"):
+            for key, value in PAIN_EXAMPLE.items():
+                st.session_state[key] = value
+            st.rerun()
+    with rq_button_cols[1]:
+        if st.button("Clear"):
+            for key in PAIN_EXAMPLE:
+                st.session_state[key] = ""
+            st.rerun()
 
     hypothesis = st.text_area(
         "Research question / hypothesis", key="rq_hypothesis", height=100
@@ -858,7 +878,7 @@ else:
             st.caption("Pain rating: a 0-10 scale, tapped by the participant.")
         with pictograph_cols[1]:
             st.markdown(_acquisition_pictograph_svg("wearable"), unsafe_allow_html=True)
-            st.caption("Physiological signal: read continuously by a worn sensor, not self-reported.")
+            st.caption("Physiological signal: read continuously by a worn sensor.")
         with pictograph_cols[2]:
             st.markdown(_acquisition_pictograph_svg("timestamp"), unsafe_allow_html=True)
             st.caption("Timing: logged automatically with each observation.")
@@ -890,7 +910,7 @@ else:
             )
             click_event = st.vega_lite_chart(
                 _body_map_chart_spec(st.session_state["body_map_zone"], body_map_state),
-                use_container_width=True,
+                use_container_width=False,
                 on_select="rerun",
                 key="body_map_zone_click",
             )
