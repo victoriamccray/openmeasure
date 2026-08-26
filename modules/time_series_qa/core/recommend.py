@@ -318,9 +318,8 @@ def _coverage_recommendation(
             "or last period is not a defect.",
         ),
         limitations=(
-            "A coverage threshold is a convention, not a statistical test. "
-            "Whether a period is usable depends on what will be computed "
-            "from it.",
+            "A coverage threshold is a practical convention. Whether a "
+            "period is usable depends on what will be computed from it.",
             _NEVER_ESTABLISHES_CAUSE,
         ),
     )

@@ -40,6 +40,7 @@ between destinations, one level up from that, and stops there.
 
 from __future__ import annotations
 
+import math
 import sys
 from pathlib import Path
 
@@ -76,6 +77,290 @@ _PAGE_BY_WORKFLOW = {item.workflow: item.page for item in WORKFLOWS}
 _PAGE_BY_JOURNEY = {item.title: item.page for item in JOURNEYS}
 _PAGE_BY_DESTINATION = {**_PAGE_BY_WORKFLOW, **_PAGE_BY_JOURNEY}
 
+INK_MUTED = "#898781"
+GRIDLINE = "#e1e0d9"
+ACCENT = "#2a78d6"
+ACCENT_2 = "#c0392b"
+
+MISSING_COLOR = "#d8d6cd"
+
+
+def _synchronization_svg(misalignment_minutes: float) -> str:
+    """
+    Two horizontal timelines, redrawn on each slider change rather
+    than animated continuously: the wearable line's tick marks shift
+    right of the pain-report line's by an amount proportional to the
+    slider, making "these two streams drift apart" visible directly
+    rather than only as a number of minutes.
+    """
+
+    offset = (misalignment_minutes / 60.0) * 70.0
+    pain_x = (70, 220)
+    wearable_x = tuple(x + offset for x in pain_x)
+
+    pain_ticks = "".join(
+        f'<line x1="{x}" y1="24" x2="{x}" y2="36" stroke="{ACCENT_2}" stroke-width="2.5"/>'
+        for x in pain_x
+    )
+    wearable_ticks = "".join(
+        f'<line x1="{x:.0f}" y1="74" x2="{x:.0f}" y2="86" stroke="{ACCENT}" stroke-width="2.5"/>'
+        for x in wearable_x
+    )
+
+    return f"""
+    <svg width="100%" height="100" viewBox="0 0 320 100" preserveAspectRatio="xMidYMid meet">
+      <text x="8" y="14" font-size="10" fill="{ACCENT_2}">Pain report</text>
+      <line x1="8" y1="30" x2="312" y2="30" stroke="{GRIDLINE}" stroke-width="1.5"/>
+      {pain_ticks}
+      <text x="8" y="64" font-size="10" fill="{ACCENT}">Wearable signal</text>
+      <line x1="8" y1="80" x2="312" y2="80" stroke="{GRIDLINE}" stroke-width="1.5"/>
+      {wearable_ticks}
+      <line x1="{pain_x[0]}" y1="36" x2="{wearable_x[0]:.0f}" y2="74" stroke="{INK_MUTED}" stroke-width="1" stroke-dasharray="3,2"/>
+      <text x="{(pain_x[0] + wearable_x[0]) / 2:.0f}" y="55" font-size="9" fill="{INK_MUTED}" text-anchor="middle">{misalignment_minutes:.0f} min</text>
+    </svg>
+    """
+
+_DEFAULT_BODY_ZONE = "Abdomen"
+
+_BODY_ZONES = (
+    {"zone": "Head", "x": 60, "y": 14},
+    {"zone": "Left shoulder", "x": 38, "y": 42},
+    {"zone": "Right shoulder", "x": 82, "y": 42},
+    {"zone": "Chest", "x": 60, "y": 55},
+    {"zone": "Abdomen", "x": 60, "y": 90},
+    {"zone": "Left arm", "x": 22, "y": 90},
+    {"zone": "Right arm", "x": 98, "y": 90},
+    {"zone": "Left hip", "x": 48, "y": 110},
+    {"zone": "Right hip", "x": 72, "y": 110},
+    {"zone": "Left leg", "x": 38, "y": 160},
+    {"zone": "Right leg", "x": 82, "y": 160},
+    {"zone": "Left foot", "x": 34, "y": 205},
+    {"zone": "Right foot", "x": 86, "y": 205},
+)
+_BODY_ZONE_BY_NAME = {z["zone"]: z for z in _BODY_ZONES}
+
+# Which zones a marker "radiates" into next door, used only for the
+# distributed/radiating pain pattern; not a claim about how real
+# referred pain spreads, just a plausible neighbor to fan out toward.
+_ZONE_ADJACENCY = {
+    "Head": ("Left shoulder", "Right shoulder"),
+    "Left shoulder": ("Head", "Chest", "Left arm"),
+    "Right shoulder": ("Head", "Chest", "Right arm"),
+    "Chest": ("Left shoulder", "Right shoulder", "Abdomen"),
+    "Abdomen": ("Chest", "Left hip", "Right hip"),
+    "Left arm": ("Left shoulder",),
+    "Right arm": ("Right shoulder",),
+    "Left hip": ("Abdomen", "Left leg"),
+    "Right hip": ("Abdomen", "Right leg"),
+    "Left leg": ("Left hip", "Left foot"),
+    "Right leg": ("Right hip", "Right foot"),
+    "Left foot": ("Left leg",),
+    "Right foot": ("Right leg",),
+}
+
+_HEAD_OUTLINE = [
+    (60 + 14 * math.cos(2 * math.pi * i / 24), 20 + 14 * math.sin(2 * math.pi * i / 24))
+    for i in range(25)
+]
+
+_SILHOUETTE_PARTS = (
+    ("head", _HEAD_OUTLINE),
+    ("torso", [(40, 36), (80, 36), (80, 106), (40, 106), (40, 36)]),
+    ("left_arm", [(40, 45), (18, 108)]),
+    ("right_arm", [(80, 45), (102, 108)]),
+    ("left_leg", [(48, 106), (35, 200)]),
+    ("right_leg", [(72, 106), (85, 200)]),
+)
+
+
+def _body_map_chart_spec(selected_zone: str, pain_state: str) -> dict:
+    """
+    A tap-to-place digital body map, drawn as Vega-Lite marks (not a
+    static image) so Streamlit's chart click selection can report
+    which zone was tapped: the silhouette and the faint zone dots are
+    fixed, and only the colored pain marker layer depends on
+    selected_zone and pain_state, redrawing on each click or radio
+    toggle rather than animating.
+
+    Zone placement, adjacency, and marker position are drawn for
+    legibility, not measured or derived from real referred-pain
+    patterns.
+    """
+
+    silhouette_rows = [
+        {"part": part, "order": i, "x": x, "y": y}
+        for part, points in _SILHOUETTE_PARTS
+        for i, (x, y) in enumerate(points)
+    ]
+
+    marker_zones = [selected_zone] if selected_zone in _BODY_ZONE_BY_NAME else [_DEFAULT_BODY_ZONE]
+    if pain_state == "distributed":
+        marker_zones += list(_ZONE_ADJACENCY.get(marker_zones[0], ()))
+
+    marker_rows = [
+        {
+            "zone": zone,
+            "x": _BODY_ZONE_BY_NAME[zone]["x"],
+            "y": _BODY_ZONE_BY_NAME[zone]["y"],
+            "opacity": 0.85 if i == 0 else max(0.25, 0.6 - 0.15 * i),
+            "rank": i,
+        }
+        for i, zone in enumerate(marker_zones)
+    ]
+
+    shared_encoding = {
+        "x": {
+            "field": "x",
+            "type": "quantitative",
+            "axis": None,
+            "scale": {"domain": [0, 120]},
+        },
+        "y": {
+            "field": "y",
+            "type": "quantitative",
+            "axis": None,
+            "scale": {"domain": [0, 220], "reverse": True},
+        },
+    }
+
+    return {
+        "encoding": shared_encoding,
+        "layer": [
+            {
+                "data": {"values": silhouette_rows},
+                "mark": {"type": "line", "color": INK_MUTED, "strokeWidth": 1.5},
+                "encoding": {
+                    "detail": {"field": "part", "type": "nominal"},
+                    "order": {"field": "order", "type": "quantitative"},
+                },
+            },
+            {
+                "data": {"values": [dict(z) for z in _BODY_ZONES]},
+                "mark": {"type": "circle", "color": INK_MUTED, "opacity": 0.14, "size": 260},
+                "encoding": {"tooltip": [{"field": "zone", "type": "nominal", "title": "Tap to place pain here"}]},
+                "params": [
+                    {"name": "zone_click", "select": {"type": "point", "fields": ["zone"], "on": "click"}}
+                ],
+            },
+            {
+                "data": {"values": marker_rows},
+                "mark": {"type": "circle", "color": ACCENT_2},
+                "encoding": {
+                    "size": {
+                        "field": "rank",
+                        "type": "ordinal",
+                        "legend": None,
+                        "scale": {"range": [260, 90]},
+                    },
+                    "opacity": {"field": "opacity", "type": "quantitative", "legend": None},
+                    "tooltip": [{"field": "zone", "type": "nominal"}],
+                },
+            },
+        ],
+        "width": 220,
+        "height": 220,
+        "config": {"view": {"stroke": None}},
+    }
+
+
+def _scr_bump(t: float, onset: float, rise: float = 0.35, decay: float = 1.6, amplitude: float = 1.0) -> float:
+    """One phasic skin-conductance-response bump: a fast rise and a slower exponential decay, the textbook EDA shape."""
+
+    if t < onset:
+        return 0.0
+    dt = t - onset
+    return amplitude * (1 - math.exp(-dt / rise)) * math.exp(-dt / decay)
+
+
+def _pulse(t: float, beat: float, width: float = 0.05) -> float:
+    """One narrow heartbeat-like pulse centered at `beat`."""
+
+    return math.exp(-((t - beat) ** 2) / (2 * width * width))
+
+
+def _physio_traces_spec(pain_state: str) -> dict:
+    """
+    Two small drawn traces in normative shapes for the two named
+    signals: an EDA skin-conductance-response curve (fast rise, slow
+    decay) and an HR/HRV pulse train (regular versus irregular beat
+    spacing). Neither is computed from the simulation below; only the
+    number and spacing of bumps/beats changes with pain_state, to make
+    "coupling can differ by state" visible before any statistics are
+    introduced.
+    """
+
+    eda_onsets = (
+        [(1.0, 1.0), (3.1, 0.75), (5.3, 0.9)] if pain_state == "distributed" else [(2.6, 1.0)]
+    )
+    eda_ts = [i * 0.08 for i in range(101)]
+    eda_rows = [
+        {"t": t, "y": 0.15 + sum(_scr_bump(t, onset, amplitude=amp) for onset, amp in eda_onsets)}
+        for t in eda_ts
+    ]
+
+    hr_beats = (
+        [0.4, 1.1, 1.5, 2.4, 2.7, 3.7, 4.0, 5.1, 5.4, 6.6, 6.9, 7.9]
+        if pain_state == "distributed"
+        else [0.5 + 0.8 * i for i in range(10)]
+    )
+    hr_ts = [i * 0.02 for i in range(401)]
+    hr_rows = [{"t": t, "y": sum(_pulse(t, beat) for beat in hr_beats)} for t in hr_ts]
+
+    def _trace(rows: list[dict], title: str) -> dict:
+        return {
+            "data": {"values": rows},
+            "mark": {"type": "line", "color": ACCENT, "strokeWidth": 2},
+            "encoding": {
+                "x": {"field": "t", "type": "quantitative", "axis": None},
+                "y": {"field": "y", "type": "quantitative", "axis": None},
+            },
+            "title": {"text": title, "fontSize": 10, "color": INK_MUTED, "fontWeight": "normal"},
+            "width": "container",
+            "height": 75,
+        }
+
+    return {
+        "vconcat": [
+            _trace(eda_rows, "EDA, skin conductance (normative shape)"),
+            _trace(hr_rows, "HR / HRV pulse pattern (normative shape)"),
+        ],
+        "config": {"view": {"stroke": None}},
+    }
+
+
+def _acquisition_pictograph_svg(kind: str) -> str:
+    """A small hand-drawn icon for one acquisition method, matching this page's static line-and-marker pictograph style."""
+
+    if kind == "rating":
+        ticks = "".join(
+            f'<line x1="{10 + i * 10}" y1="45" x2="{10 + i * 10}" y2="55" '
+            f'stroke="{INK_MUTED}" stroke-width="1"/>'
+            for i in range(11)
+        )
+        body = (
+            f'<line x1="10" y1="50" x2="110" y2="50" stroke="{INK_MUTED}" stroke-width="1.5"/>'
+            f"{ticks}"
+            f'<circle cx="67" cy="50" r="6" fill="{ACCENT_2}"/>'
+        )
+    elif kind == "wearable":
+        body = (
+            f'<line x1="35" y1="18" x2="25" y2="80" stroke="{INK_MUTED}" stroke-width="1.5" stroke-linecap="round"/>'
+            f'<line x1="85" y1="18" x2="95" y2="80" stroke="{INK_MUTED}" stroke-width="1.5" stroke-linecap="round"/>'
+            f'<rect x="42" y="34" width="36" height="30" rx="6" fill="none" stroke="{ACCENT}" stroke-width="1.5"/>'
+        )
+    else:
+        body = (
+            f'<circle cx="60" cy="45" r="26" fill="none" stroke="{INK_MUTED}" stroke-width="1.5"/>'
+            f'<line x1="60" y1="45" x2="60" y2="28" stroke="{INK_MUTED}" stroke-width="1.5" stroke-linecap="round"/>'
+            f'<line x1="60" y1="45" x2="74" y2="52" stroke="{INK_MUTED}" stroke-width="1.5" stroke-linecap="round"/>'
+        )
+
+    return f"""
+    <svg width="100%" height="70" viewBox="0 0 120 70" preserveAspectRatio="xMidYMid meet">
+      {body}
+    </svg>
+    """
+
 
 def _render_workflow_suggestions(suggestions: tuple[WorkflowSuggestion, ...]) -> None:
     """
@@ -110,6 +395,12 @@ def _render_workflow_suggestions(suggestions: tuple[WorkflowSuggestion, ...]) ->
                 label=f"Open {suggestion.workflow}",
                 icon=":material/arrow_forward:",
             )
+
+    st.page_link(
+        "pages/Explore_Real_Data.py",
+        label="Browse real datasets shaped like these workflows",
+        icon=":material/dataset:",
+    )
 
 
 MODE_DESIGN = "design"
@@ -168,10 +459,9 @@ if mode == MODE_ANALYSIS:
     # -------------------------------------------------------------
 
     INK_SECONDARY = "#52514e"
-    INK_MUTED = "#898781"
-    GRIDLINE = "#e1e0d9"
     SURFACE = "#fcfcfb"
-    ACCENT = "#2a78d6"
+    # INK_MUTED, GRIDLINE, and ACCENT are module-level (shared with the
+    # Plan a Study mode's body-map and synchronization diagrams).
 
     _DESTINATION_ICON_PATHS: dict[str, str] = {
         "reliability": (
@@ -333,6 +623,17 @@ else:
         "regardless of what you enter below. It never scores a design "
         "as good or bad, only what it does and does not support."
     )
+    st.caption(
+        "This walkthrough is OpenMeasure's own structural logic, not "
+        "drawn from a published design-selection framework. For a "
+        "broader existing method-selection tool, see the Co-Creation "
+        "Methods Navigator on the Resources page."
+    )
+    st.page_link(
+        "pages/Resources.py",
+        label="Open Resources",
+        icon=":material/collections_bookmark:",
+    )
 
     STAGE_QUESTION = 0
     STAGE_STRUCTURE = 1
@@ -453,6 +754,24 @@ else:
         with sample_cols[2]:
             duration_days = st.slider("Study duration (days)", 3, 30, 7)
 
+        # The living study diagram: a single reactive summary line, not a
+        # static description - every value in it comes from the sliders
+        # directly above, so moving one changes what this line says
+        # without waiting for a later stage.
+        st.markdown(
+            f":material/group: **{n_participants} participants** &rarr; "
+            f":material/calendar_month: **{duration_days} days** &rarr; "
+            f":material/repeat: **{observations_per_day}x/day** &rarr; "
+            ":material/sensors: **pain + body map + wearable** &rarr; "
+            ":material/sync: **synchronized** &rarr; "
+            ":material/compare_arrows: **within-person comparison**"
+        )
+        st.caption(
+            f"{n_participants * observations_per_day * duration_days:,} "
+            "observations planned in total, before adherence is applied "
+            "in Simulate the Design."
+        )
+
         st.write(
             "This design is **observational**: no one assigns a "
             "participant's pain state. It is **repeated-measures**: the "
@@ -532,6 +851,73 @@ else:
         )
         st.dataframe(measurement_rows, width="stretch", hide_index=True)
 
+        st.caption("How each row above is actually captured:")
+        pictograph_cols = st.columns(3)
+        with pictograph_cols[0]:
+            st.markdown(_acquisition_pictograph_svg("rating"), unsafe_allow_html=True)
+            st.caption("Pain rating: a 0-10 scale, tapped by the participant.")
+        with pictograph_cols[1]:
+            st.markdown(_acquisition_pictograph_svg("wearable"), unsafe_allow_html=True)
+            st.caption("Physiological signal: read continuously by a worn sensor, not self-reported.")
+        with pictograph_cols[2]:
+            st.markdown(_acquisition_pictograph_svg("timestamp"), unsafe_allow_html=True)
+            st.caption("Timing: logged automatically with each observation.")
+
+        st.caption(
+            "The body map and wearable are two different measurement "
+            "moments for the same event. Toggle the state below to see "
+            "what each one is meant to capture."
+        )
+        body_map_state = st.radio(
+            "Pain pattern to show",
+            options=("localized", "distributed"),
+            format_func=lambda key: {
+                "localized": "Localized",
+                "distributed": "Distributed / radiating",
+            }[key],
+            horizontal=True,
+            key="measurement_plan_body_map_state",
+        )
+
+        if "body_map_zone" not in st.session_state:
+            st.session_state["body_map_zone"] = _DEFAULT_BODY_ZONE
+
+        map_col, trace_col = st.columns([3, 2])
+        with map_col:
+            st.caption(
+                f"Tap a body region to place the pain marker. Current: "
+                f"**{st.session_state['body_map_zone']}**."
+            )
+            click_event = st.vega_lite_chart(
+                _body_map_chart_spec(st.session_state["body_map_zone"], body_map_state),
+                use_container_width=True,
+                on_select="rerun",
+                key="body_map_zone_click",
+            )
+            selection = getattr(click_event, "selection", None)
+            clicked = selection.get("zone_click") if selection else None
+            clicked_zone = None
+            if isinstance(clicked, dict) and clicked.get("zone"):
+                zone_values = clicked["zone"]
+                clicked_zone = zone_values[0] if isinstance(zone_values, list) else zone_values
+            elif isinstance(clicked, list) and clicked:
+                clicked_zone = clicked[0].get("zone")
+            if clicked_zone and clicked_zone != st.session_state["body_map_zone"]:
+                st.session_state["body_map_zone"] = clicked_zone
+                st.rerun()
+        with trace_col:
+            st.vega_lite_chart(_physio_traces_spec(body_map_state), use_container_width=True)
+
+        st.caption(
+            "Abstract drawings, not a real body map or physiological "
+            "reading: marker placement is user-chosen and the trace "
+            "shapes follow textbook EDA/HR waveform conventions, but "
+            "neither is measured. The hypothesis is that the trace's "
+            "relationship to the pain rating, not its raw shape, "
+            "differs by state, which Simulate the Design tests with "
+            "numbers."
+        )
+
         inspect_note(
             "The gap between when a pain rating is logged and when the "
             "wearable actually reads, called temporal alignment here, "
@@ -554,7 +940,7 @@ else:
     if design_stage >= STAGE_SIMULATE and n_participants is not None:
         section_header(
             "Simulate the Design",
-            "These are assumptions about the world, not design choices - change one and watch the data and estimate below move",
+            "These are assumptions about the world, not design choices, so change one and watch the data and estimate below move",
         )
 
         st.write(
@@ -569,25 +955,58 @@ else:
                 "Adherence rate (fraction of planned observations actually captured)",
                 0.1, 1.0, 0.8, step=0.05,
             )
+            st.caption(
+                ":material/grid_on: Lower values mean more gray gaps in "
+                "the participant timeline below."
+            )
             sensor_noise_sd = st.slider("Wearable measurement noise (SD)", 0.0, 2.0, 0.5, step=0.1)
+            st.caption(
+                ":material/sensors: Higher values blur the wearable "
+                "signal's relationship to pain state in the retained rows."
+            )
             within_person_sd = st.slider(
                 "Within-person physiological variability (SD)", 0.0, 2.0, 0.3, step=0.1
             )
+            st.caption(
+                "How much one person's own readings bounce around, "
+                "observation to observation."
+            )
             between_person_sd = st.slider(
                 "Between-person variability in baseline coupling (SD)", 0.0, 2.0, 0.3, step=0.1
+            )
+            st.caption(
+                "How different people's typical coupling strength is "
+                "from each other's."
             )
         with noise_cols[1]:
             effect_magnitude = st.slider(
                 "True effect: coupling difference, distributed minus localized",
                 -1.0, 1.0, 0.4, step=0.05,
             )
+            st.caption(
+                ":material/target: The gap the estimate below is trying "
+                "to recover."
+            )
             pain_state_prevalence = st.slider(
                 "Share of observations in the distributed pain state", 0.05, 0.95, 0.35, step=0.05
+            )
+            st.caption(
+                ":material/scatter_plot: Shifts the localized/distributed "
+                "color mix in the timeline below."
             )
             temporal_misalignment_minutes = st.slider(
                 "Temporal misalignment between rating and wearable (minutes)", 0, 60, 10
             )
+            st.markdown(
+                _synchronization_svg(float(temporal_misalignment_minutes)),
+                unsafe_allow_html=True,
+            )
+            st.caption(":material/sync: The gap drawn above.")
             seed = st.number_input("Random seed (for reproducibility)", value=42, step=1)
+            st.caption(
+                ":material/replay: Same seed and assumptions reproduce "
+                "the same rows below, exactly."
+            )
 
         assumptions = DesignAssumptions(
             n_participants=n_participants,
@@ -618,6 +1037,123 @@ else:
             f"retained ({study.pct_missing:.0%} missing), "
             f"{study.n_localized_observations:,} localized and "
             f"{study.n_distributed_observations:,} distributed."
+        )
+
+        example_ids = sorted(study.data["participant_id"].unique())[:5]
+        planned_grid = pd.DataFrame(
+            [
+                {"participant_id": p, "day": d, "observation_index": o}
+                for p in example_ids
+                for d in range(assumptions.duration_days)
+                for o in range(assumptions.observations_per_day)
+            ]
+        )
+        timeline = planned_grid.merge(
+            study.data[study.data["participant_id"].isin(example_ids)][
+                ["participant_id", "day", "observation_index", "pain_state"]
+            ],
+            on=["participant_id", "day", "observation_index"],
+            how="left",
+        )
+        timeline["status"] = timeline["pain_state"].fillna("missing")
+        timeline["slot"] = (
+            timeline["day"] * assumptions.observations_per_day + timeline["observation_index"]
+        )
+        timeline["participant_label"] = "Participant " + (timeline["participant_id"] + 1).astype(str)
+
+        st.vega_lite_chart(
+            {
+                "data": {"values": timeline.to_dict("records")},
+                "mark": {"type": "point", "filled": True, "size": 90},
+                "encoding": {
+                    "x": {
+                        "field": "slot",
+                        "type": "ordinal",
+                        "title": "Observation slot, across the study",
+                        "axis": {"labels": False, "ticks": False},
+                    },
+                    "y": {
+                        "field": "participant_label",
+                        "type": "nominal",
+                        "title": None,
+                        "sort": None,
+                        "axis": {"labelOverlap": False},
+                    },
+                    "color": {
+                        "field": "status",
+                        "type": "nominal",
+                        "scale": {
+                            "domain": ["localized", "distributed", "missing"],
+                            "range": [ACCENT, ACCENT_2, MISSING_COLOR],
+                        },
+                        "legend": {"title": None, "orient": "top"},
+                    },
+                    "tooltip": [
+                        {"field": "participant_label", "type": "nominal", "title": "Participant"},
+                        {"field": "day", "type": "ordinal"},
+                        {"field": "status", "type": "nominal"},
+                    ],
+                },
+                "width": "container",
+                "height": 30 * len(example_ids) + 40,
+            },
+            use_container_width=True,
+        )
+        st.caption(
+            f"First {len(example_ids)} of {assumptions.n_participants} participants, one "
+            "row of dots per person across the study. Gray means that "
+            "observation was planned but not captured, given the "
+            "adherence rate above."
+        )
+
+        st.markdown("**One participant's pain rating and physio signal, together**")
+        coupling_participant = st.selectbox(
+            "Participant to inspect",
+            options=example_ids,
+            format_func=lambda p: f"Participant {p + 1}",
+            key="coupling_participant_select",
+        )
+        participant_rows = (
+            study.data[study.data["participant_id"] == coupling_participant]
+            .sort_values(["day", "observation_index"])
+            .assign(slot=lambda d: d["day"] * assumptions.observations_per_day + d["observation_index"])
+        )
+        coupling_long = pd.concat(
+            [
+                participant_rows[["slot", "pain_rating"]]
+                .rename(columns={"pain_rating": "value"})
+                .assign(signal="Pain rating"),
+                participant_rows[["slot", "physio_signal"]]
+                .rename(columns={"physio_signal": "value"})
+                .assign(signal="Physio signal"),
+            ]
+        )
+        st.vega_lite_chart(
+            {
+                "data": {"values": coupling_long.to_dict("records")},
+                "mark": {"type": "line", "point": True, "strokeWidth": 2},
+                "encoding": {
+                    "x": {"field": "slot", "type": "ordinal", "title": "Observation slot, across the study"},
+                    "y": {"field": "value", "type": "quantitative", "title": "Rating / signal value"},
+                    "color": {
+                        "field": "signal",
+                        "type": "nominal",
+                        "scale": {"domain": ["Pain rating", "Physio signal"], "range": [ACCENT_2, ACCENT]},
+                        "legend": {"title": None, "orient": "top"},
+                    },
+                },
+                "width": "container",
+                "height": 180,
+            },
+            use_container_width=True,
+        )
+        st.caption(
+            "This participant's own retained observations, connected in "
+            "order. Gaps from missing observations are skipped, not "
+            "interpolated. When the two lines move together, coupling "
+            "is strong for this participant, in this mix of states; "
+            "when they diverge, it is weak, which the estimate below "
+            "quantifies across everyone rather than one person's chart."
         )
 
         st.dataframe(study.data.head(10), width="stretch", hide_index=True)

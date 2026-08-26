@@ -847,8 +847,8 @@ st.markdown(
   because conditions were unusual, and no completeness figure can detect
   that.
 - It does not tell you whether the series is **fit for your purpose**. A
-  coverage threshold is a convention, not a statistical test; what counts
-  as enough depends on what you intend to compute.
+  coverage threshold is a practical convention; what counts as enough
+  depends on what you intend to compute.
 """
 )
 
