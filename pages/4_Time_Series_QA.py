@@ -545,10 +545,45 @@ section_header(
     "Every gap and coverage figure below depends on this",
 )
 
+# pandas' own DateOffset objects have no friendly __str__: str(Day())
+# is literally "<Day>". alias is documented as "for display only," so
+# it is the right field to turn into a readable label; anything not in
+# this table still falls back to the alias or offset itself, never a
+# hardcoded guess.
+_FREQUENCY_ALIAS_LABELS = {
+    "D": "1 day",
+    "B": "1 business day",
+    "H": "1 hour",
+    "T": "1 minute",
+    "min": "1 minute",
+    "S": "1 second",
+    "W": "1 week",
+    "M": "1 month",
+    "MS": "1 month",
+    "Q": "1 quarter",
+    "QS": "1 quarter",
+    "A": "1 year",
+    "Y": "1 year",
+    "AS": "1 year",
+    "YS": "1 year",
+}
+
+
+def _friendly_interval(frequency) -> str:
+    """A readable label for the expected sampling interval, never a raw offset repr like '<Day>'."""
+
+    if frequency.alias:
+        base_alias = frequency.alias.split("-")[0]
+        return _FREQUENCY_ALIAS_LABELS.get(base_alias, frequency.alias)
+    if frequency.modal_interval is not None:
+        return str(frequency.modal_interval)
+    return str(frequency.offset)
+
+
 if frequency.offset is None:
     st.warning("No expected sampling frequency could be established.")
 else:
-    st.success(f"**Expected interval: {frequency.offset}**")
+    st.success(f"**Expected interval: {_friendly_interval(frequency)}**")
 
 st.caption(frequency.reason)
 
