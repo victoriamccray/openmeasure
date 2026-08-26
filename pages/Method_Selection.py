@@ -7,15 +7,20 @@ Two modes on one page, chosen at the top:
   guided question routing to the workflow or research journey that
   fits, with Try, Why, You'll learn, and Limitations for the chosen
   branch. This mode assumes a question or dataset already exists.
-- "Design a study": for a question upstream of that, before any data
-  exists. Walks Research question -> Study design -> Measurement plan
-  -> Design assumptions -> Simulation -> Interactive exploration ->
-  Implications -> Design Record, using
-  modules/research_design/core/ to simulate a naturalistic pain study
-  under whatever assumptions a reader sets, then hands the resulting
-  measurement plan's shape to the same suggest_workflows() the upload
-  branch below already uses, landing in "Choose an analysis" territory
-  from the design side rather than the data side.
+- "Plan a Study": for a question upstream of that, before any data
+  exists. Measure-first, not vocabulary-first: Research question ->
+  Explore & Assemble Measures (click a measure for a mini-lesson, then
+  choose which to include) -> Timing & Synchronization -> Simulate the
+  Design (a fixed chronic-pain worked example) -> Reveal Terminology &
+  Implications, where formal design vocabulary (observational,
+  within-person, repeated-measures) is named only after it has already
+  been experienced, and modules/research_design/core/inspect_rules.py's
+  deterministic rules run against what was actually assembled. Uses
+  modules/research_design/core/ to simulate the fixed scenario, then
+  hands the resulting measurement plan's shape to the same
+  suggest_workflows() the upload branch below already uses, landing in
+  "Choose an analysis" territory from the design side rather than the
+  data side.
 
 This is a guidance page, not an analysis: it records nothing to
 shared/handoff.py, carries no module_key, and is deliberately not a
@@ -56,6 +61,15 @@ import streamlit.components.v1 as components
 from modules.data_profile.core.suggest import WorkflowSuggestion, suggest_workflows
 from modules.research_design.core.design import DesignAssumptions
 from modules.research_design.core.estimate import estimate_coupling_difference
+from modules.research_design.core.inspect_rules import (
+    MEASUREMENT_TYPE_BODY_MAP,
+    MEASUREMENT_TYPE_SURVEY_SCALE,
+    MEASUREMENT_TYPE_WEARABLE_SENSOR,
+    TIME_STRUCTURE_LONGITUDINAL,
+    Inspection,
+    StudyStructure,
+    inspect_study_structure,
+)
 from modules.research_design.core.schema import measurement_plan_profile
 from modules.research_design.core.simulate import generate_naturalistic_pain_study
 from shared.catalog import WORKFLOWS
@@ -287,54 +301,81 @@ def _pulse(t: float, beat: float, width: float = 0.05) -> float:
     return math.exp(-((t - beat) ** 2) / (2 * width * width))
 
 
-def _physio_traces_spec(pain_state: str) -> dict:
+def _single_trace_spec(rows: list[dict], title: str) -> dict:
+    """One small drawn line trace, shared shape for every measure mini-lesson's chart."""
+
+    return {
+        "data": {"values": rows},
+        "mark": {"type": "line", "color": ACCENT, "strokeWidth": 2},
+        "encoding": {
+            "x": {"field": "t", "type": "quantitative", "axis": None},
+            "y": {"field": "y", "type": "quantitative", "axis": None},
+        },
+        "title": {"text": title, "fontSize": 10, "color": INK_MUTED, "fontWeight": "normal"},
+        "width": "container",
+        "height": 90,
+        "config": {"view": {"stroke": None}},
+    }
+
+
+_HR_REGULAR_BEATS = tuple(0.5 + 0.8 * i for i in range(10))
+_HR_IRREGULAR_BEATS = (0.4, 1.1, 1.5, 2.4, 2.7, 3.7, 4.0, 5.1, 5.4, 6.6, 6.9, 7.9)
+
+
+def _eda_trace_spec(pain_state: str) -> dict:
     """
-    Two small drawn traces in normative shapes for the two named
-    signals: an EDA skin-conductance-response curve (fast rise, slow
-    decay) and an HR/HRV pulse train (regular versus irregular beat
-    spacing). Neither is computed from the simulation below; only the
-    number and spacing of bumps/beats changes with pain_state, to make
-    "coupling can differ by state" visible before any statistics are
-    introduced.
+    A drawn, normative EDA (skin-conductance-response) shape: a fast
+    rise and slower exponential decay, the textbook electrodermal
+    signature. Only the number of bumps changes with pain_state, to
+    make "coupling can differ by state" visible before any statistics
+    are introduced; the shape itself is not computed from data.
     """
 
     eda_onsets = (
         [(1.0, 1.0), (3.1, 0.75), (5.3, 0.9)] if pain_state == "distributed" else [(2.6, 1.0)]
     )
-    eda_ts = [i * 0.08 for i in range(101)]
-    eda_rows = [
+    ts = [i * 0.08 for i in range(101)]
+    rows = [
         {"t": t, "y": 0.15 + sum(_scr_bump(t, onset, amplitude=amp) for onset, amp in eda_onsets)}
-        for t in eda_ts
+        for t in ts
     ]
+    return _single_trace_spec(rows, "EDA, skin conductance (normative shape)")
 
-    hr_beats = (
-        [0.4, 1.1, 1.5, 2.4, 2.7, 3.7, 4.0, 5.1, 5.4, 6.6, 6.9, 7.9]
-        if pain_state == "distributed"
-        else [0.5 + 0.8 * i for i in range(10)]
-    )
-    hr_ts = [i * 0.02 for i in range(401)]
-    hr_rows = [{"t": t, "y": sum(_pulse(t, beat) for beat in hr_beats)} for t in hr_ts]
 
-    def _trace(rows: list[dict], title: str) -> dict:
-        return {
-            "data": {"values": rows},
-            "mark": {"type": "line", "color": ACCENT, "strokeWidth": 2},
-            "encoding": {
-                "x": {"field": "t", "type": "quantitative", "axis": None},
-                "y": {"field": "y", "type": "quantitative", "axis": None},
-            },
-            "title": {"text": title, "fontSize": 10, "color": INK_MUTED, "fontWeight": "normal"},
-            "width": "container",
-            "height": 75,
-        }
+def _hr_trace_spec(beats: tuple[float, ...], title: str) -> dict:
+    """A drawn heartbeat pulse train at the given beat times, not computed from any data."""
 
-    return {
-        "vconcat": [
-            _trace(eda_rows, "EDA, skin conductance (normative shape)"),
-            _trace(hr_rows, "HR / HRV pulse pattern (normative shape)"),
-        ],
-        "config": {"view": {"stroke": None}},
-    }
+    ts = [i * 0.02 for i in range(401)]
+    rows = [{"t": t, "y": sum(_pulse(t, beat) for beat in beats)} for t in ts]
+    return _single_trace_spec(rows, title)
+
+
+# The measure gallery for "Explore & Assemble Measures": each entry's
+# generic_type maps a pain-case-specific measure onto one of
+# inspect_rules.py's MEASUREMENT_TYPE_OPTIONS labels, so the same
+# deterministic rule engine built for "Enter your own" studies still
+# runs unmodified here. eda, heart_rate, and hrv all map to the same
+# generic type deliberately: simulate.py's v0.1 model collapses all
+# three into one combined physio_signal channel (see its module
+# docstring), so the measurement-plan table built from this mapping
+# should show that collapse rather than implying three separate columns.
+_MEASURE_GALLERY = (
+    {"key": "pain_rating", "label": "Pain rating", "generic_type": MEASUREMENT_TYPE_SURVEY_SCALE},
+    {"key": "body_map", "label": "Body map", "generic_type": MEASUREMENT_TYPE_BODY_MAP},
+    {"key": "eda", "label": "EDA", "generic_type": MEASUREMENT_TYPE_WEARABLE_SENSOR},
+    {"key": "heart_rate", "label": "Heart rate", "generic_type": MEASUREMENT_TYPE_WEARABLE_SENSOR},
+    {"key": "hrv", "label": "HRV", "generic_type": MEASUREMENT_TYPE_WEARABLE_SENSOR},
+)
+_MEASURE_LABEL_BY_KEY = {m["key"]: m["label"] for m in _MEASURE_GALLERY}
+_ALL_MEASURE_KEYS = [m["key"] for m in _MEASURE_GALLERY]
+
+_MEASURE_COLUMN_INFO = {
+    "pain_rating": ("Pain intensity", "pain_rating"),
+    "body_map": ("Spatial pain pattern", "pain_state"),
+    "eda": ("Physiological arousal (combined wearable channel)", "physio_signal"),
+    "heart_rate": ("Physiological arousal (combined wearable channel)", "physio_signal"),
+    "hrv": ("Physiological arousal (combined wearable channel)", "physio_signal"),
+}
 
 
 def _acquisition_pictograph_svg(kind: str) -> str:
@@ -414,6 +455,36 @@ def _render_workflow_suggestions(suggestions: tuple[WorkflowSuggestion, ...]) ->
         label="Browse real datasets shaped like these workflows",
         icon=":material/dataset:",
     )
+
+
+def _render_inspections(inspections: tuple[Inspection, ...]) -> None:
+    """
+    Render deterministic structure-only inspection points for
+    "Enter your own", the same "things to inspect, not a
+    determination" framing as _render_workflow_suggestions above, but
+    driven by fixed if/then rules on study structure
+    (modules/research_design/core/inspect_rules.py) rather than a
+    DataProfile's shape.
+    """
+
+    if not inspections:
+        st.caption(
+            "No structural triggers fire for the current selections: "
+            "try Experimental + Between-person, Longitudinal, a "
+            "measurement type, or the subgroup checkbox above."
+        )
+        return
+
+    for inspection in inspections:
+        with st.container(border=True):
+            st.markdown(f"**{inspection.trigger}**")
+            st.write(inspection.note)
+            if inspection.suggested_module:
+                st.page_link(
+                    _PAGE_BY_DESTINATION[inspection.suggested_module],
+                    label=f"Open {inspection.suggested_module}",
+                    icon=":material/arrow_forward:",
+                )
 
 
 MODE_DESIGN = "design"
@@ -649,17 +720,17 @@ else:
     )
 
     STAGE_QUESTION = 0
-    STAGE_STRUCTURE = 1
-    STAGE_MEASUREMENT = 2
+    STAGE_MEASURES = 1
+    STAGE_TIMING = 2
     STAGE_SIMULATE = 3
     STAGE_IMPLICATIONS = 4
 
     DESIGN_STAGE_LABELS = (
         "Research question",
-        "Study design",
-        "Measurement plan",
+        "Explore & assemble measures",
+        "Timing & synchronization",
         "Simulate the design",
-        "Implications & methods",
+        "Reveal terminology & implications",
     )
 
     design_tracker = StageTracker(
@@ -688,6 +759,8 @@ else:
         "rq_exposure": "Spatial pain state: localized vs. distributed/referred/radiating.",
         "rq_outcomes": "Within-person coupling between pain rating and a wearable physiological signal.",
         "rq_setting": "Naturalistic: participants' everyday environments, not a lab visit.",
+        "assembled_measures": list(_ALL_MEASURE_KEYS),
+        "study_compares_subgroups": False,
     }
 
     rq_button_cols = st.columns([1, 1, 4])
@@ -699,7 +772,7 @@ else:
     with rq_button_cols[1]:
         if st.button("Clear"):
             for key in PAIN_EXAMPLE:
-                st.session_state[key] = ""
+                st.session_state.pop(key, None)
             st.rerun()
 
     hypothesis = st.text_area(
@@ -716,194 +789,59 @@ else:
 
     caveat(
         "These fields describe your question and go into the Design "
-        "Record below, but v0.1's simulation is not wired to change "
-        "based on them: it always models the pain scenario in Study "
-        "Design onward, whatever you enter here."
+        "Record below. What comes next is a fixed, hands-on worked "
+        "example (the chronic-pain scenario) regardless of what you "
+        "enter here: v0.1 has no generic simulator for an arbitrary "
+        "study yet."
     )
 
-    if design_stage < STAGE_STRUCTURE:
-        if st.button("Continue to study design", type="primary"):
-            design_tracker.advance_to(STAGE_STRUCTURE)
+    if design_stage < STAGE_MEASURES:
+        if st.button("Continue to explore measures", type="primary"):
+            design_tracker.advance_to(STAGE_MEASURES)
 
     # -------------------------------------------------------------
-    # 1. Study design
+    # 1. Explore & assemble measures
     # -------------------------------------------------------------
 
     n_participants = observations_per_day = duration_days = None
 
-    if design_stage >= STAGE_STRUCTURE:
+    if design_stage >= STAGE_MEASURES:
         section_header(
-            "Study Design",
-            "Structural choices: what kind of study, how big, how often, how long",
+            "Explore & Assemble Measures",
+            "How could we observe pain in everyday life? Tap a measure to see what it captures.",
         )
 
-        type_cols = st.columns(3)
-        with type_cols[0]:
-            design_type = st.selectbox(
-                "Observational or experimental?", ("Observational", "Experimental")
-            )
-        with type_cols[1]:
-            comparison_structure = st.selectbox(
-                "Comparison structure", ("Within-person", "Between-person")
-            )
-        with type_cols[2]:
-            time_structure = st.selectbox(
-                "Time structure",
-                ("Cross-sectional", "Longitudinal, repeated-measures"),
-                index=1,
-            )
-
-        v01_supported = (
-            design_type == "Observational"
-            and comparison_structure == "Within-person"
-            and time_structure == "Longitudinal, repeated-measures"
-        )
-        if not v01_supported:
-            st.info(
-                "v0.1 only simulates the observational, within-person, "
-                "repeated-measures combination below. Your selection is "
-                "recorded in the Design Record, but Simulate the Design "
-                "still runs that one built-in combination."
-            )
-
-        sample_cols = st.columns(3)
-        with sample_cols[0]:
-            n_participants = st.slider("Number of participants", 5, 100, 30)
-        with sample_cols[1]:
-            observations_per_day = st.slider("Measurement frequency (per day)", 1, 10, 4)
-        with sample_cols[2]:
-            duration_days = st.slider("Study duration (days)", 3, 30, 7)
-
-        # The living study diagram: a single reactive summary line, not a
-        # static description - every value in it comes from the sliders
-        # directly above, so moving one changes what this line says
-        # without waiting for a later stage.
-        st.markdown(
-            f":material/group: **{n_participants} participants** &rarr; "
-            f":material/calendar_month: **{duration_days} days** &rarr; "
-            f":material/repeat: **{observations_per_day}x/day** &rarr; "
-            ":material/sensors: **pain + body map + wearable** &rarr; "
-            ":material/sync: **synchronized** &rarr; "
-            ":material/compare_arrows: **within-person comparison**"
-        )
-        st.caption(
-            f"{n_participants * observations_per_day * duration_days:,} "
-            "observations planned in total, before adherence is applied "
-            "in Simulate the Design."
-        )
-
-        st.write(
-            "This design is **observational**: no one assigns a "
-            "participant's pain state. It is **repeated-measures**: the "
-            "same participants are observed many times, so the planned "
-            "comparison is **within-person**, each participant compared "
-            "against themselves across their own localized and "
-            "distributed episodes, rather than between two separately "
-            "recruited groups."
-        )
-
-        # Icon inline with the heading, not inside st.badge: a badge does
-        # not wrap, so labels like "Within-person analysis" silently
-        # truncated there (same fix as the Fairness page's domain cards).
-        # Three columns, not six: six left too little width per label,
-        # causing awkward mid-word line breaks even once wrapping worked.
-        flow_steps = (
-            (":material/person:", "Participant", "One of the enrolled adults"),
-            (
-                ":material/sensors:",
-                "Rating + wearable",
-                "Pain rating, body map, and physiological reading",
-            ),
-            (":material/sync:", "Synchronization", "Aligning the two measurement streams in time"),
-            (":material/functions:", "Derived measures", "Per-observation pain state and signal values"),
-            (":material/insights:", "Within-person analysis", "Coupling estimated separately per participant"),
-            (":material/compare_arrows:", "Comparison", "Coupling compared across pain states"),
-        )
-        for row_start in (0, 3):
-            flow_cols = st.columns(3)
-            for column, (icon, label, note) in zip(flow_cols, flow_steps[row_start : row_start + 3]):
-                with column:
-                    st.markdown(f"{icon} **{label}**")
-                    st.caption(note)
-
-        caveat(
-            "An observational, within-person design can describe "
-            "association within a person over time. It cannot, on its "
-            "own, establish that pain state causes a change in "
-            "physiology, since anything else that also varies with pain "
-            "state (activity, medication timing, sleep) is not "
-            "controlled for here."
-        )
-
-        if design_stage < STAGE_MEASUREMENT:
-            if st.button("Continue to the measurement plan", type="primary"):
-                design_tracker.advance_to(STAGE_MEASUREMENT)
-
-    # -------------------------------------------------------------
-    # 2. Measurement plan
-    # -------------------------------------------------------------
-
-    if design_stage >= STAGE_MEASUREMENT:
-        section_header(
-            "Measurement Plan",
-            "What gets measured, how often, and how it will be aligned",
-        )
-
-        measurement_rows = pd.DataFrame(
-            [
-                {
-                    "Construct": "Pain intensity and spatial pattern",
-                    "Measure": "Numeric pain rating (0-10) + digital body map",
-                    "Column": "pain_rating, pain_state",
-                },
-                {
-                    "Construct": "Physiological arousal",
-                    "Measure": "Wearable signal (a single simulated channel standing in "
-                    "for EDA/HR/HRV, adjustable next)",
-                    "Column": "physio_signal",
-                },
-                {
-                    "Construct": "Timing",
-                    "Measure": "Timestamp per observation, several times a day",
-                    "Column": "timestamp",
-                },
-            ]
-        )
-        st.dataframe(measurement_rows, width="stretch", hide_index=True)
-
-        st.caption("How each row above is actually captured:")
-        pictograph_cols = st.columns(3)
-        with pictograph_cols[0]:
-            st.markdown(_acquisition_pictograph_svg("rating"), unsafe_allow_html=True)
-            st.caption("Pain rating: a 0-10 scale, tapped by the participant.")
-        with pictograph_cols[1]:
-            st.markdown(_acquisition_pictograph_svg("wearable"), unsafe_allow_html=True)
-            st.caption("Physiological signal: read continuously by a worn sensor.")
-        with pictograph_cols[2]:
-            st.markdown(_acquisition_pictograph_svg("timestamp"), unsafe_allow_html=True)
-            st.caption("Timing: logged automatically with each observation.")
-
-        st.caption(
-            "The body map and wearable are two different measurement "
-            "moments for the same event. Toggle the state below to see "
-            "what each one is meant to capture."
-        )
-        body_map_state = st.radio(
-            "Pain pattern to show",
-            options=("localized", "distributed"),
-            format_func=lambda key: {
-                "localized": "Localized",
-                "distributed": "Distributed / radiating",
-            }[key],
+        lesson_choice = st.radio(
+            "Measure to explore",
+            options=_ALL_MEASURE_KEYS,
+            format_func=lambda k: _MEASURE_LABEL_BY_KEY[k],
             horizontal=True,
-            key="measurement_plan_body_map_state",
+            key="measure_lesson_choice",
         )
 
-        if "body_map_zone" not in st.session_state:
-            st.session_state["body_map_zone"] = _DEFAULT_BODY_ZONE
+        if lesson_choice == "pain_rating":
+            st.markdown(_acquisition_pictograph_svg("rating"), unsafe_allow_html=True)
+            st.write(
+                "A pain rating is subjective and self-reported: the "
+                "participant taps a number from 0 to 10. The same "
+                "person's own ratings changing over time, not one "
+                "rating compared across different people, is what this "
+                "study's within-person comparison relies on."
+            )
 
-        map_col, trace_col = st.columns([3, 2])
-        with map_col:
+        elif lesson_choice == "body_map":
+            body_map_state = st.radio(
+                "Pain pattern to show",
+                options=("localized", "distributed"),
+                format_func=lambda key: {
+                    "localized": "Localized",
+                    "distributed": "Distributed / radiating",
+                }[key],
+                horizontal=True,
+                key="measurement_plan_body_map_state",
+            )
+            if "body_map_zone" not in st.session_state:
+                st.session_state["body_map_zone"] = _DEFAULT_BODY_ZONE
             st.caption(
                 f"Tap a body region to place the pain marker. Current: "
                 f"**{st.session_state['body_map_zone']}**."
@@ -925,24 +863,166 @@ else:
             if clicked_zone and clicked_zone != st.session_state["body_map_zone"]:
                 st.session_state["body_map_zone"] = clicked_zone
                 st.rerun()
-        with trace_col:
-            st.vega_lite_chart(_physio_traces_spec(body_map_state), use_container_width=True)
+            st.write(
+                "Marking one point captures a **localized** pattern; "
+                "marking a spreading pattern captures **distributed / "
+                "referred / radiating** pain. That single tap becomes "
+                "the pain_state column: a category derived from where "
+                "the marker was placed, not a continuous number."
+            )
+            st.caption(
+                "An abstract drawing, not a real body map: marker "
+                "placement is user-chosen, drawn for legibility, not "
+                "measured."
+            )
 
+        elif lesson_choice == "eda":
+            eda_cols = st.columns([2, 1])
+            with eda_cols[0]:
+                st.vega_lite_chart(_eda_trace_spec("localized"), use_container_width=True)
+            with eda_cols[1]:
+                st.markdown(_acquisition_pictograph_svg("wearable"), unsafe_allow_html=True)
+            st.write(
+                "Skin conductance rises sharply when the sympathetic "
+                "nervous system activates, then decays slowly over "
+                "several seconds. One sharp rise-and-fall is one "
+                "phasic response: this shape, not its raw amplitude, "
+                "is the textbook electrodermal signature this study "
+                "looks for."
+            )
+            st.caption("A drawn, normative shape, not a measured signal, read continuously by a worn sensor.")
+
+        else:
+            rhythm = st.radio(
+                "Rhythm to show",
+                options=("regular", "irregular"),
+                format_func=lambda k: {
+                    "regular": "Regular spacing",
+                    "irregular": "Irregular spacing",
+                }[k],
+                horizontal=True,
+                key="hr_rhythm_choice",
+            )
+            beats = _HR_REGULAR_BEATS if rhythm == "regular" else _HR_IRREGULAR_BEATS
+            st.vega_lite_chart(_hr_trace_spec(beats, "Heartbeat pulses"), use_container_width=True)
+            if lesson_choice == "heart_rate":
+                st.write(
+                    "Heart rate is simply how many beats happen per "
+                    "unit time, regardless of whether the spacing "
+                    "between them is even or uneven."
+                )
+            else:
+                st.write(
+                    "Heart rate variability is about the *spacing* "
+                    "between beats, not the count: the irregular "
+                    "pattern above has roughly the same number of "
+                    "beats as the regular one, but the interval "
+                    "between each beat differs."
+                )
+            st.caption("A drawn, normative shape, not a measured signal.")
+
+        st.divider()
+        st.markdown("**Assemble Your Measurement System**")
+        st.caption("Choose which of the measures above to include in this study.")
+
+        assembled_measures = st.multiselect(
+            "Measures included in this study",
+            options=_ALL_MEASURE_KEYS,
+            format_func=lambda k: _MEASURE_LABEL_BY_KEY[k],
+            default=st.session_state.get("assembled_measures", list(_ALL_MEASURE_KEYS)),
+            key="assembled_measures",
+        )
+
+        if assembled_measures:
+            measurement_rows = pd.DataFrame(
+                [
+                    {
+                        "Measure": _MEASURE_LABEL_BY_KEY[key],
+                        "Construct": _MEASURE_COLUMN_INFO[key][0],
+                        "Column": _MEASURE_COLUMN_INFO[key][1],
+                    }
+                    for key in assembled_measures
+                ]
+            )
+            st.dataframe(measurement_rows, width="stretch", hide_index=True)
+            wearable_keys = {"eda", "heart_rate", "hrv"}
+            if len(wearable_keys & set(assembled_measures)) > 1:
+                st.caption(
+                    "EDA, heart rate, and HRV all map to the same "
+                    "physio_signal column here: v0.1's simulation "
+                    "models one combined wearable channel standing in "
+                    "for all three, not three separate ones."
+                )
+        else:
+            st.info("Add at least one measure above to continue.")
+
+        measurement_types = tuple(
+            sorted({
+                m["generic_type"] for m in _MEASURE_GALLERY if m["key"] in assembled_measures
+            })
+        )
+
+        if design_stage < STAGE_TIMING and assembled_measures:
+            if st.button("Continue to timing & synchronization", type="primary"):
+                design_tracker.advance_to(STAGE_TIMING)
+
+    # -------------------------------------------------------------
+    # 2. Timing & synchronization
+    # -------------------------------------------------------------
+
+    if design_stage >= STAGE_TIMING:
+        section_header(
+            "Timing & Synchronization",
+            "When are measures collected, and how closely aligned are they?",
+        )
+
+        sample_cols = st.columns(3)
+        with sample_cols[0]:
+            n_participants = st.slider("Number of participants", 5, 100, 30)
+        with sample_cols[1]:
+            observations_per_day = st.slider("Measurement frequency (per day)", 1, 10, 4)
+        with sample_cols[2]:
+            duration_days = st.slider("Study duration (days)", 3, 30, 7)
+
+        # The living study diagram: a single reactive summary line, not a
+        # static description - every value in it comes from the choices
+        # directly above and from the measures assembled in the previous
+        # stage, so moving one changes what this line says without
+        # waiting for a later stage.
+        measurement_label = (
+            " + ".join(_MEASURE_LABEL_BY_KEY[k] for k in assembled_measures)
+            if assembled_measures
+            else "no measures chosen yet"
+        )
+        st.markdown(
+            f":material/group: **{n_participants} participants** &rarr; "
+            f":material/calendar_month: **{duration_days} days** &rarr; "
+            f":material/repeat: **{observations_per_day}x/day** &rarr; "
+            f":material/sensors: **{measurement_label}**"
+        )
         st.caption(
-            "Abstract drawings, not a real body map or physiological "
-            "reading: marker placement is user-chosen and the trace "
-            "shapes follow textbook EDA/HR waveform conventions, but "
-            "neither is measured. The hypothesis is that the trace's "
-            "relationship to the pain rating, not its raw shape, "
-            "differs by state, which Simulate the Design tests with "
-            "numbers."
+            f"{n_participants * observations_per_day * duration_days:,} "
+            "observations planned in total, before adherence or missingness."
+        )
+
+        st.markdown("**How Are the Two Streams Aligned?**")
+        temporal_misalignment_minutes = st.slider(
+            "Temporal misalignment between rating and wearable (minutes)", 0, 60, 10
+        )
+        st.markdown(
+            _synchronization_svg(float(temporal_misalignment_minutes)),
+            unsafe_allow_html=True,
+        )
+        st.caption(
+            "The gap between when a pain rating is logged and when the "
+            "wearable actually reads. Larger values make the recorded "
+            "rating a noisier stand-in for what was actually happening "
+            "physiologically at that moment."
         )
 
         inspect_note(
-            "The gap between when a pain rating is logged and when the "
-            "wearable actually reads, called temporal alignment here, "
-            "is a measurement-plan decision now, and an adjustable "
-            "assumption in the next stage."
+            "Temporal alignment is a timing decision here, and an "
+            "adjustable assumption in the next stage."
         )
 
         if design_stage < STAGE_SIMULATE:
@@ -959,14 +1039,20 @@ else:
 
     if design_stage >= STAGE_SIMULATE and n_participants is not None:
         section_header(
-            "Simulate the Design",
-            "These are assumptions about the world, not design choices, so change one and watch the data and estimate below move",
+            "Explore With a Worked Simulation",
+            "A fixed chronic-pain scenario, not a simulation of your own study above",
         )
 
         st.write(
-            "These are choices about what is *true*, not facts a real "
-            "version of this study would already know: it would need "
-            "pilot data or published estimates to set them credibly."
+            "This stage always models the same built-in scenario "
+            "(observational, within-person, repeated-measures chronic "
+            "pain) regardless of the research question or study "
+            "structure you entered: v0.1 has no generic simulator for "
+            "an arbitrary study yet. The sliders below are assumptions "
+            "about what is *true* in that fixed scenario, not facts a "
+            "real version of it would already know, and not new design "
+            "choices: it would need pilot data or published estimates "
+            "to set them credibly."
         )
 
         noise_cols = st.columns(2)
@@ -1014,14 +1100,6 @@ else:
                 ":material/scatter_plot: Shifts the localized/distributed "
                 "color mix in the timeline below."
             )
-            temporal_misalignment_minutes = st.slider(
-                "Temporal misalignment between rating and wearable (minutes)", 0, 60, 10
-            )
-            st.markdown(
-                _synchronization_svg(float(temporal_misalignment_minutes)),
-                unsafe_allow_html=True,
-            )
-            st.caption(":material/sync: The gap drawn above.")
             seed = st.number_input("Random seed (for reproducibility)", value=42, step=1)
             st.caption(
                 ":material/replay: Same seed and assumptions reproduce "
@@ -1210,18 +1288,80 @@ else:
         )
 
         if design_stage < STAGE_IMPLICATIONS:
-            if st.button("Continue to implications & methods", type="primary"):
+            if st.button("Continue to reveal terminology & implications", type="primary"):
                 design_tracker.advance_to(STAGE_IMPLICATIONS)
 
     # -------------------------------------------------------------
-    # 4. Implications & methods
+    # 4. Reveal terminology & implications
     # -------------------------------------------------------------
 
     if design_stage >= STAGE_IMPLICATIONS and study is not None and estimate is not None:
         section_header(
-            "Implications & Methods",
-            "What this design supports, what fits it, and a record to carry forward",
+            "Reveal Terminology & Implications",
+            "What you built, named, and what it does and does not support",
         )
+
+        st.markdown(
+            "**The study you've built is a naturalistic, observational, "
+            "within-person, repeated-measures design with multimodal "
+            "measurements.**"
+        )
+        st.caption(
+            "These terms describe the fixed chronic-pain scenario "
+            "Explore With a Worked Simulation just ran, not something "
+            "picked from a list: observational (no one assigns pain "
+            "state), repeated-measures and longitudinal (the same "
+            "participants observed many times), within-person "
+            "(each participant compared against their own localized "
+            "and distributed episodes), and multimodal (more than one "
+            "kind of measure assembled together)."
+        )
+
+        recap_steps = (
+            (":material/person:", "Participant", "One of the enrolled adults"),
+            (
+                ":material/sensors:",
+                "Assembled measures",
+                "The measures you chose in Explore & Assemble Measures",
+            ),
+            (":material/sync:", "Synchronization", "Aligning the two measurement streams in time"),
+            (":material/functions:", "Derived measures", "Per-observation pain state and signal values"),
+            (":material/insights:", "Within-person analysis", "Coupling estimated separately per participant"),
+            (":material/compare_arrows:", "Comparison", "Coupling compared across pain states"),
+        )
+        for row_start in (0, 3):
+            recap_cols = st.columns(3)
+            for column, (icon, label, note) in zip(recap_cols, recap_steps[row_start : row_start + 3]):
+                with column:
+                    st.markdown(f"{icon} **{label}**")
+                    st.caption(note)
+
+        caveat(
+            "An observational, within-person design can describe "
+            "association within a person over time. It cannot, on its "
+            "own, establish that pain state causes a change in "
+            "physiology, since anything else that also varies with pain "
+            "state (activity, medication timing, sleep) is not "
+            "controlled for here."
+        )
+
+        section_header(
+            "Design Implications",
+            "Deterministic, structure-only triggers: things to inspect, not recommendations",
+        )
+        compares_subgroups = st.checkbox(
+            "This design compares demographic subgroups (e.g. age, gender, race)",
+            key="study_compares_subgroups",
+        )
+        structure = StudyStructure(
+            design_type="Observational",
+            comparison_structure="Within-person",
+            time_structure=TIME_STRUCTURE_LONGITUDINAL,
+            measurement_types=measurement_types,
+            compares_subgroups=compares_subgroups,
+        )
+        inspections = inspect_study_structure(structure)
+        _render_inspections(inspections)
 
         st.write(
             "A within-person, observational, repeated-measures design "
@@ -1295,19 +1435,22 @@ Exposure: {exposure or PAIN_EXAMPLE["rq_exposure"]}
 Outcomes: {outcomes or PAIN_EXAMPLE["rq_outcomes"]}
 Setting: {setting or PAIN_EXAMPLE["rq_setting"]}
 
-Study design
-------------
-{design_type}, {comparison_structure}, {time_structure}.
-{"" if v01_supported else "(Not the combination v0.1 simulates below.)"}
+Study design (revealed from what you assembled and ran)
+--------------------------------------------------------
+Observational, Within-person, Longitudinal, repeated-measures.
+Assembled measures: {", ".join(_MEASURE_LABEL_BY_KEY[k] for k in assembled_measures) if assembled_measures else "none chosen"}
+Compares demographic subgroups: {"yes" if compares_subgroups else "no"}
+
+Design implications (deterministic, structure-only; things to inspect, not recommendations)
+---------------------------------------------------------------------------------------------
+{chr(10).join(f"- {i.trigger}: {i.note}" for i in inspections) if inspections else "- No structural triggers fired for the choices above."}
 
 Measurement plan
 -----------------
-- Pain rating (0-10) + digital body map -> pain_rating, pain_state
-- Wearable physiological signal -> physio_signal
-- Timestamp per observation -> timestamp
+{chr(10).join(f"- {_MEASURE_LABEL_BY_KEY[k]} -> {_MEASURE_COLUMN_INFO[k][1]}" for k in assembled_measures) if assembled_measures else "- None chosen."}
 
-Simulation assumptions
---------------------
+Simulation assumptions (chronic-pain worked example)
+-----------------------------------------------------
 - Participants: {assumptions.n_participants}
 - Observations per day: {assumptions.observations_per_day}
 - Duration: {assumptions.duration_days} days

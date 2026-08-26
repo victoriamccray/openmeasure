@@ -833,10 +833,10 @@ class TestMethodSelectionPage(unittest.TestCase):
         app.run()
 
         continue_labels = (
-            "Continue to study design",
-            "Continue to the measurement plan",
+            "Continue to explore measures",
+            "Continue to timing & synchronization",
             "Continue to simulate the design",
-            "Continue to implications & methods",
+            "Continue to reveal terminology & implications",
         )
         for label in continue_labels:
             matches = [b for b in app.button if b.label == label]
