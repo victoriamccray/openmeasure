@@ -32,7 +32,8 @@ own title when it does not (Portfolio Impact Analysis has no single named
 dataset; Multimodal Signal Convergence is explicitly illustrative rather
 than anchored to one real study -- see its own docstring). subdomain is
 the short, plain-language
-field name a domain expert would use (e.g. "fMRI QC", "Neurosecurity"):
+field name a domain expert would use (e.g. "fMRI QC", "Privacy &
+Neurosecurity"):
 narrower than domain, but not tied to one dataset the way title is. The
 sidebar and Overview's cards render title only; pages/Research_Journeys.py
 renders both.
@@ -163,7 +164,7 @@ JOURNEYS: tuple[ResearchJourney, ...] = (
     ResearchJourney(
         title="Multimodal Signal Convergence",
         domain="Responsible AI",
-        subdomain="Neurosecurity",
+        subdomain="Privacy & Neurosecurity",
         summary=(
             "Whether the added interpretive value of combining more than "
             "one neurotech signal about a person justifies the added "

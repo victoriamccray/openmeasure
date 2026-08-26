@@ -38,10 +38,12 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+import numpy as np
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
+from modules.signal_pipeline.core import intervention as intervention_core
 from modules.signal_pipeline.core import modality as modality_core
 from modules.signal_pipeline.core import pipeline as pipeline_core
 from modules.signal_pipeline.core import tradeoff as tradeoff_core
@@ -274,6 +276,33 @@ BAGLEY_ET_AL_CITATION = (
     "in neurotechnology. arXiv:2607.10451. "
     "https://arxiv.org/abs/2607.10451"
 )
+ARMENGOL_URPI_ET_AL_CITATION = (
+    "Armengol-Urpi, A., Kovacs, R., & Sarma, S. E. (2023). Brain-Hack: "
+    "Remotely injecting false brain-waves with RF to take control of a "
+    "brain-computer interface. Proceedings of the 5th Workshop on "
+    "CPS&IoT Security and Privacy (CPSIoTSec). "
+    "https://doi.org/10.1145/3605758.3623497 (the primary study behind "
+    "the RF-injection finding below; Bagley et al., 2026 relays it as "
+    "part of its survey)"
+)
+DENNING_ET_AL_CITATION = (
+    "Denning, T., Matsuoka, Y., & Kohno, T. (2009). Neurosecurity: "
+    "security and privacy for neural devices. Neurosurgical Focus, "
+    "27(1), E7. https://doi.org/10.3171/2009.4.FOCUS0985"
+)
+SANCHEZ_GAMA_ET_AL_CITATION = (
+    "Sánchez Gama, M. de J., Barradas Chacón, L. A., Chacón Gutiérrez, "
+    "L., Fernández Harmony, T., Novo Olivas, C. A., & De La Roca "
+    "Chiapas, J. M. (2024). Resting state EEG with closed eyes and open "
+    "eyes in females from 60 to 80 years old [Data set]. OpenNeuro. "
+    "https://doi.org/10.18112/openneuro.ds005420.v1.0.0 (CC0)"
+)
+BARRY_ET_AL_CITATION = (
+    "Barry, R. J., Clarke, A. R., Johnstone, S. J., Magee, C. A., & "
+    "Rushby, J. A. (2007). EEG differences between eyes-closed and "
+    "eyes-open resting conditions. Clinical Neurophysiology, 118(12), "
+    "2765-2773. https://doi.org/10.1016/j.clinph.2007.07.028"
+)
 
 BASELINE_MODALITY_NAME = "Neural (EEG)"
 
@@ -288,7 +317,8 @@ STAGE_BUILD_PIPELINE = 1
 STAGE_ADD_MODALITIES = 2
 STAGE_CONVERGENCE = 3
 STAGE_WEIGH_TRADEOFF = 4
-STAGE_RESEARCH_DECISION = 5
+STAGE_REAL_SIGNAL = 5
+STAGE_RESEARCH_DECISION = 6
 
 JOURNEY_STAGES = (
     "Research question",
@@ -296,6 +326,7 @@ JOURNEY_STAGES = (
     "Add modalities",
     "Examine convergence",
     "Weigh the tradeoff",
+    "Protect a real signal",
     "Research decision",
 )
 
@@ -768,6 +799,98 @@ def _gain_bar_spec(modalities: tuple[modality_core.Modality, ...]) -> dict:
     }
 
 
+_CONDITION_COLORS = {"Eyes closed": CATEGORY_COLORS["Neural"], "Eyes open": MUTED}
+_CONDITION_LABEL = {"eyes_closed": "Eyes closed", "eyes_open": "Eyes open"}
+
+
+def _load_eeg_snippet() -> dict[str, np.ndarray]:
+    """
+    Real bundled excerpt: one subject (sub-5), one channel (O1), 15
+    seconds per condition from OpenNeuro ds005420 (CC0). See
+    modules/signal_pipeline/README.md for the extraction details.
+    """
+
+    frame = pd.read_csv(SAMPLE_DIR / "ds005420_sub-5_O1_eyes_snippet.csv")
+    return {
+        condition: frame.loc[frame["condition"] == condition, "voltage_uv"].to_numpy()
+        for condition in ("eyes_closed", "eyes_open")
+    }
+
+
+def _signal_segment_spec(
+    eyes_closed: np.ndarray, eyes_open: np.ndarray, sampling_rate: float, title: str
+) -> dict:
+    """First 3 seconds of each condition, plotted by real elapsed time -
+    the actual retained/degraded waveform, not a stylized pictograph."""
+
+    seconds_shown = 3.0
+    n = max(int(sampling_rate * seconds_shown), 1)
+    rows = []
+    for key, segment in (("eyes_closed", eyes_closed), ("eyes_open", eyes_open)):
+        rows.extend(
+            {"t": i / sampling_rate, "voltage_uv": float(v), "condition": _CONDITION_LABEL[key]}
+            for i, v in enumerate(segment[:n])
+        )
+
+    return {
+        "data": {"values": rows},
+        "mark": {"type": "line", "strokeWidth": 1},
+        "encoding": {
+            "x": {"field": "t", "type": "quantitative", "title": "Seconds"},
+            "y": {"field": "voltage_uv", "type": "quantitative", "title": "Microvolts"},
+            "color": {
+                "field": "condition",
+                "type": "nominal",
+                "scale": {
+                    "domain": list(_CONDITION_COLORS),
+                    "range": list(_CONDITION_COLORS.values()),
+                },
+                "legend": {"title": None, "orient": "top"},
+            },
+        },
+        "title": {"text": title, "fontSize": 11, "color": INK_SECONDARY, "fontWeight": "normal"},
+        "width": "container",
+        "height": 120,
+        "config": _VEGA_CHART_CONFIG,
+    }
+
+
+def _alpha_power_strip_spec(result: "intervention_core.ClassificationResult", title: str) -> dict:
+    """One dot per 1-second window's alpha power, split by condition -
+    how separated the two classes actually are, not just the accuracy
+    number that separation implies."""
+
+    rows = [
+        {"condition": "Eyes closed", "power": p} for p in result.alpha_power_eyes_closed
+    ] + [{"condition": "Eyes open", "power": p} for p in result.alpha_power_eyes_open]
+
+    return {
+        "data": {"values": rows},
+        "mark": {"type": "point", "filled": True, "size": 80, "opacity": 0.75},
+        "encoding": {
+            "y": {"field": "condition", "type": "nominal", "title": None},
+            "x": {
+                "field": "power",
+                "type": "quantitative",
+                "title": "Alpha-band (8-13 Hz) power per 1-second window",
+            },
+            "color": {
+                "field": "condition",
+                "type": "nominal",
+                "scale": {
+                    "domain": list(_CONDITION_COLORS),
+                    "range": list(_CONDITION_COLORS.values()),
+                },
+                "legend": None,
+            },
+        },
+        "title": {"text": title, "fontSize": 11, "color": INK_SECONDARY, "fontWeight": "normal"},
+        "width": "container",
+        "height": 90,
+        "config": _VEGA_CHART_CONFIG,
+    }
+
+
 st.set_page_config(
     page_title="OpenMeasure · Multimodal Signal Convergence",
     page_icon=":material/hub:",
@@ -776,7 +899,8 @@ st.set_page_config(
 
 st.title("Multimodal Signal Convergence")
 st.caption(
-    "This journey starts with one neurotech signal (EEG) and adds "
+    "This journey starts with one neurotech signal, EEG "
+    "(electroencephalography, a scalp-recorded brain signal), and adds "
     "modalities one at a time to a general Signals -> Sensors -> "
     "Processing -> Inference -> Decision -> Action -> Feedback pipeline."
 )
@@ -825,6 +949,7 @@ st.write(
     "is validated as worth its cost, rather than assuming more signal is "
     "automatically better."
 )
+st.caption(DE_MONTJOYE_CITATION)
 
 rq_col1, rq_col2 = st.columns(2)
 with rq_col1:
@@ -844,8 +969,9 @@ with st.expander("Validation Question"):
     )
     st.caption(IENCA_ANDORNO_CITATION)
     st.write(
-        "Security is a separate concern from privacy, and BCI research "
-        "surveys it across the full \"BCI cycle\": acquisition hardware, "
+        "Security is a separate concern from privacy, and "
+        "brain-computer interface (BCI) research surveys it across the "
+        "full \"BCI cycle\": acquisition hardware, "
         "on-device processing, transmission between devices, the machine "
         "learning models decoding the signal, and the applications or "
         "cloud services consuming the result. More traditional points of "
@@ -1022,6 +1148,12 @@ if stage >= STAGE_ADD_MODALITIES:
     )
 
     st.write(
+        "**Interpretation**: adding a modality here is visually free - "
+        "gain and cost are drawn as independent per-modality ratings, "
+        "with no link enforced between them."
+    )
+
+    st.write(
         "**Limitations**: each added node is easy to draw. What "
         "the diagram does not show on its own is whether the resulting "
         "pipeline's combined interpretive value is worth its combined "
@@ -1052,6 +1184,13 @@ if stage >= STAGE_CONVERGENCE:
     current_pipeline = pipeline_core.build_pipeline(current_modalities)
 
     convergence = pipeline_core.compute_convergence(current_pipeline, stage="Inference")
+
+    pictograph_height = 30 + max(len(current_modalities) - 1, 0) * 46 + 46
+    components.html(
+        _pipeline_pictograph_html(current_pipeline),
+        height=pictograph_height + 10,
+    )
+    st.caption("The same pipeline from Step 3, for reference while reading convergence below.")
 
     st.metric("Modalities converging at Inference", convergence.n_modalities)
     st.write(
@@ -1114,9 +1253,9 @@ if stage >= STAGE_WEIGH_TRADEOFF:
             "Add at least one modality in Step 3 to compare gain against "
             "cost across more than one signal."
         )
-        if stage < STAGE_RESEARCH_DECISION:
-            if st.button("Continue to the research decision", type="primary"):
-                TRACKER.advance_to(STAGE_RESEARCH_DECISION)
+        if stage < STAGE_REAL_SIGNAL:
+            if st.button("Continue to protect a real signal", type="primary"):
+                TRACKER.advance_to(STAGE_REAL_SIGNAL)
     else:
         tradeoff_step = TRADEOFF_TRACKER.current()
 
@@ -1137,18 +1276,21 @@ if stage >= STAGE_WEIGH_TRADEOFF:
                 "A real, measured result behind these Autonomic/Muscular "
                 "ratings: on DEAP's own single-trial emotion classifiers, "
                 "EEG alone scored 0.563 F1 and its bundled peripheral "
-                "channels (ECG, EMG, GSR, respiration, skin temperature, "
-                "eye movement, not separable into this page's Autonomic "
-                "and Muscular categories individually) scored 0.608 F1 on "
-                "valence - not significantly different from each other "
-                "(p=0.41). Fusing peripheral with a third modality this "
-                "page does not model (multimedia content analysis) "
-                "reached 0.652 F1, the only fusion result in the paper "
-                "that reached significance (p=0.025); fusing all three "
+                "channels (ECG - heart electrical activity, EMG - muscle "
+                "activity, GSR - skin conductance, plus respiration, "
+                "skin temperature, and eye movement, not separable into "
+                "this page's Autonomic and Muscular categories "
+                "individually) scored 0.608 F1 on valence - not a "
+                "statistically reliable difference (p=0.41). Fusing "
+                "peripheral with a third modality this page does not "
+                "model (multimedia content analysis) reached 0.652 F1, "
+                "the only fusion result in the paper that was a "
+                "statistically reliable improvement (p=0.025); fusing "
+                "all three "
                 "available modalities together did not improve on that "
                 "two-modality result. The paper's own conclusion: fusion "
                 "generally helped, but only slightly, and rarely enough "
-                "to call significant."
+                "to be a statistically reliable improvement."
             )
             st.caption(KOELSTRA_CITATION)
 
@@ -1221,6 +1363,7 @@ if stage >= STAGE_WEIGH_TRADEOFF:
                     "identifier as a byproduct - the same signal serves "
                     "both purposes at once."
                 )
+                st.caption(ARMENGOL_URPI_ET_AL_CITATION)
                 st.caption(BAGLEY_ET_AL_CITATION)
 
             if tradeoff_step < TRADEOFF_ADD_AGENCY:
@@ -1285,6 +1428,13 @@ if stage >= STAGE_WEIGH_TRADEOFF:
             )
 
             st.write(
+                "**Implications**: which modalities are efficient under "
+                "these ratings is weight-dependent, not fixed - a "
+                "modality dominated under one weighting can be on the "
+                "frontier under another."
+            )
+
+            st.write(
                 "**What to inspect**: try setting privacy weight to 1.0 "
                 "and the others to 0.0, then reverse it. Which modalities are "
                 "dominated changes with the weights - the frontier is a map "
@@ -1292,16 +1442,250 @@ if stage >= STAGE_WEIGH_TRADEOFF:
                 "single verdict on any modality."
             )
 
-            if stage < STAGE_RESEARCH_DECISION:
-                if st.button("Continue to the research decision", type="primary"):
-                    TRACKER.advance_to(STAGE_RESEARCH_DECISION)
+            if stage < STAGE_REAL_SIGNAL:
+                if st.button("Continue to protect a real signal", type="primary"):
+                    TRACKER.advance_to(STAGE_REAL_SIGNAL)
 
 # -----------------------------------------------------------------
-# 6. Research decision
+# 6. Protect a real signal
+# -----------------------------------------------------------------
+
+if stage >= STAGE_REAL_SIGNAL:
+    section_header(
+        "6. Protect a Real Signal",
+        "Apply one protective measure to a real EEG recording, then "
+        "re-run the same inference to see what that protection actually "
+        "costs it.",
+    )
+
+    st.markdown(
+        ":material/psychology: Neural source &rarr; "
+        ":material/sensors: Acquisition &rarr; "
+        "**:material/tune: Processing (intervene here)** &rarr; "
+        ":material/insights: Inference (re-run) &rarr; "
+        ":material/bolt: Action &rarr; "
+        ":material/cloud: Storage/Sharing"
+    )
+    st.caption(
+        "Where this stage sits in the Signals -> ... -> Feedback pipeline "
+        "above: each intervention below is applied before Processing, "
+        "then Inference is re-run on the changed signal."
+    )
+
+    st.caption(SANCHEZ_GAMA_ET_AL_CITATION)
+    st.write(
+        "This stage uses a real 15-second-per-condition excerpt of one "
+        "occipital channel (O1, a scalp position at the back of the "
+        "head) from one subject in a public dataset, licensed CC0 (no "
+        "restrictions on reuse), organized in BIDS (Brain Imaging Data "
+        "Structure, the standard file layout for neuroimaging datasets) "
+        "- alternating eyes-closed and eyes-open resting EEG. Unlike "
+        "every rating in this journey so far, the numbers below are "
+        "measured, not author-assigned."
+    )
+    st.caption(BARRY_ET_AL_CITATION)
+    st.write(
+        "Occipital alpha power (8-13 Hz) rises when the eyes close and "
+        "falls when they open, a long-established EEG finding: this is "
+        "the real signal the baseline below detects, not something "
+        "fitted to this specific excerpt."
+    )
+    st.caption(DENNING_ET_AL_CITATION)
+    st.write(
+        "Denning, Matsuoka, & Kohno (2009) coined *neurosecurity*: "
+        "protecting a neural device's confidentiality, integrity, and "
+        "availability to preserve a person's neural mechanisms, neural "
+        "computation, and free will. This stage applies that same "
+        "privacy/security/agency vocabulary to one real signal instead "
+        "of an illustrative rating."
+    )
+    with st.expander("Using data like this with other OpenMeasure tools"):
+        st.write(
+            "Single-subject resting-state EEG like this supports "
+            "within-person state-classification questions (does a "
+            "signal distinguish two conditions for one person), not "
+            "between-group or clinical claims, which need many subjects "
+            "and a different design. To reuse a channel like this "
+            "elsewhere in OpenMeasure, it needs the same shape "
+            "Time-Series QA expects: a timestamp or sample-index column "
+            "and one value column per channel, at a known, constant "
+            "sampling rate."
+        )
+
+    snippet = _load_eeg_snippet()
+    eyes_closed_raw = snippet["eyes_closed"]
+    eyes_open_raw = snippet["eyes_open"]
+
+    baseline_result = intervention_core.classify_eyes_state(
+        eyes_closed_raw, eyes_open_raw, intervention_core.SAMPLING_RATE_HZ
+    )
+
+    st.markdown("**Baseline: infer eyes-open/closed from alpha power alone**")
+    st.vega_lite_chart(
+        _signal_segment_spec(
+            eyes_closed_raw, eyes_open_raw, intervention_core.SAMPLING_RATE_HZ,
+            "First 3 seconds of the original recording, by condition",
+        ),
+        width="stretch",
+    )
+    st.vega_lite_chart(
+        _alpha_power_strip_spec(
+            baseline_result, "Alpha power per 1-second window, original signal"
+        ),
+        width="stretch",
+    )
+    st.metric("Baseline classification accuracy", f"{baseline_result.accuracy:.0%}")
+    st.caption(
+        f"{baseline_result.n_windows_eyes_closed} eyes-closed and "
+        f"{baseline_result.n_windows_eyes_open} eyes-open 1-second "
+        "windows, separated by a simple midpoint-of-class-means "
+        "threshold - not a fitted model."
+    )
+
+    st.divider()
+    st.markdown("**Choose one intervention to apply to the signal before it is retained or shared**")
+
+    intervention_choice = st.radio(
+        "Intervention",
+        options=("metadata_removal", "noise", "temporal_degradation"),
+        format_func=lambda k: {
+            "metadata_removal": "Metadata removal",
+            "noise": "Additive signal noise",
+            "temporal_degradation": "Temporal degradation (coarser sampling)",
+        }[k],
+        key="real_signal_intervention_choice",
+    )
+
+    if intervention_choice == "metadata_removal":
+        example_fields = {
+            "device_serial_number": "SN-48213",
+            "recording_timestamp": "2024-03-11T09:42:00Z",
+            "subject_session_code": "sub-5_ses-01",
+            "task": "eyes_closed",
+        }
+        stripped_fields = intervention_core.strip_metadata(example_fields)
+        field_cols = st.columns(2)
+        with field_cols[0]:
+            st.caption("Before")
+            st.json(example_fields)
+        with field_cols[1]:
+            st.caption("After")
+            st.json(dict(stripped_fields))
+        st.caption(
+            "Illustrative of the kind of fields a real recording/sharing "
+            "pipeline attaches - not fields present in the bundled CSV "
+            "itself, whose own BIDS sidecars are already mostly blank."
+        )
+
+        intervened_closed, intervened_open = eyes_closed_raw, eyes_open_raw
+        intervened_rate = intervention_core.SAMPLING_RATE_HZ
+        intervention_summary = (
+            "Metadata removal never touches the signal, so the "
+            "classification below is identical to the baseline by "
+            "construction."
+        )
+
+    elif intervention_choice == "noise":
+        noise_sd = st.slider(
+            "Noise standard deviation (microvolts)", 0.0, 300.0, 80.0, step=10.0
+        )
+        st.caption(
+            "Exploratory signal perturbation, not a differential-privacy "
+            "mechanism: this carries no formal privacy guarantee, only an "
+            "observed effect on this one inference."
+        )
+        intervened_closed = intervention_core.apply_noise(eyes_closed_raw, noise_sd, seed=0)
+        intervened_open = intervention_core.apply_noise(eyes_open_raw, noise_sd, seed=1)
+        intervened_rate = intervention_core.SAMPLING_RATE_HZ
+        intervention_summary = (
+            f"At SD={noise_sd:.0f} µV, noise degrades this inference "
+            "smoothly: rising noise moves accuracy toward chance rather "
+            "than failing at one sharp threshold."
+        )
+
+    else:
+        degradation_factor = st.select_slider(
+            "Downsampling factor", options=(1, 2, 5, 10, 20, 40), value=10
+        )
+        st.caption(
+            "A proper anti-aliased downsample, not simply holding each "
+            "sample longer - it actually removes information a lower "
+            "acquisition rate would never have captured."
+        )
+        intervened_closed, intervened_rate = intervention_core.apply_temporal_degradation(
+            eyes_closed_raw, intervention_core.SAMPLING_RATE_HZ, degradation_factor
+        )
+        intervened_open, _ = intervention_core.apply_temporal_degradation(
+            eyes_open_raw, intervention_core.SAMPLING_RATE_HZ, degradation_factor
+        )
+        intervention_summary = (
+            "Temporal degradation is a cliff, not a smooth cost: accuracy "
+            "should hold close to baseline until the effective sampling "
+            "rate can no longer resolve the 8-13 Hz alpha band at all, "
+            "then the inference fails outright."
+        )
+
+    st.divider()
+    st.markdown("**After the intervention**")
+    st.vega_lite_chart(
+        _signal_segment_spec(
+            intervened_closed, intervened_open, intervened_rate,
+            "First 3 seconds of the intervened signal, by condition",
+        ),
+        width="stretch",
+    )
+
+    try:
+        intervened_result = intervention_core.classify_eyes_state(
+            intervened_closed, intervened_open, intervened_rate
+        )
+    except ValueError as error:
+        st.error(
+            f"Classification failed on the intervened signal: {error} "
+            "Past this point, the intervention has removed the "
+            "information the inference needs, not just degraded it."
+        )
+    else:
+        st.vega_lite_chart(
+            _alpha_power_strip_spec(
+                intervened_result, "Alpha power per 1-second window, intervened signal"
+            ),
+            width="stretch",
+        )
+        before_after_cols = st.columns(2)
+        before_after_cols[0].metric(
+            "Accuracy before", f"{baseline_result.accuracy:.0%}"
+        )
+        before_after_cols[1].metric(
+            "Accuracy after",
+            f"{intervened_result.accuracy:.0%}",
+            delta=f"{(intervened_result.accuracy - baseline_result.accuracy):+.0%}",
+        )
+
+    st.write(f"**Implications**: {intervention_summary}")
+    caveat(
+        "One subject, one channel, one fixed inference task: this shows "
+        "a mechanism, not a population-level estimate of how costly any "
+        "of these interventions would be for a real deployment or a "
+        "different downstream use of the same signal."
+    )
+
+    if stage < STAGE_RESEARCH_DECISION:
+        if st.button("Continue to the research decision", type="primary"):
+            TRACKER.advance_to(STAGE_RESEARCH_DECISION)
+
+# -----------------------------------------------------------------
+# 7. Research decision
 # -----------------------------------------------------------------
 
 if stage >= STAGE_RESEARCH_DECISION:
-    section_header("6. Research Decision")
+    section_header("7. Research Decision")
+
+    st.caption(
+        "Step 6 showed one real, measured cost of protecting a signal; "
+        "the ratings below are the illustrative counterpart, extended to "
+        "the modalities you added in Step 3."
+    )
 
     all_modalities = _load_modalities()
     modalities_by_name = {m.name: m for m in all_modalities}
@@ -1389,4 +1773,3 @@ if stage >= STAGE_RESEARCH_DECISION:
             "revisitable question instead of a one-time architectural "
             "decision."
         )
-    st.caption(DE_MONTJOYE_CITATION)

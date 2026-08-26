@@ -294,15 +294,20 @@ DISCLOSURES: tuple[DataHandlingDisclosure, ...] = (
         processing=(PROCESSING_IN_MEMORY,),
         persistent_storage=PERSISTENT_STORAGE_NONE,
         data_accessed=(
-            "Bundled sample_data/modality_profiles.csv only; no user data, "
-            "and no real biosignal data of any kind."
+            "Bundled sample_data/modality_profiles.csv (illustrative "
+            "ratings, no real data) plus "
+            "sample_data/ds005420_sub-5_O1_eyes_snippet.csv, a real, "
+            "small, single-subject/single-channel EEG excerpt; no user "
+            "data of any kind."
         ),
-        redistribution=REDISTRIBUTION_NOT_APPLICABLE,
+        redistribution=REDISTRIBUTION_BUNDLED,
         notes=(
-            "Unlike this app's other worked examples, modality_profiles.csv "
-            "is not one real study's reported data - every rating in it is "
-            "an illustrative, author-assigned score informed by cited "
-            "literature, not a value that literature reports directly."
+            "Unlike modality_profiles.csv, whose ratings are illustrative "
+            "and author-assigned, ds005420_sub-5_O1_eyes_snippet.csv is a "
+            "real excerpt (15 seconds per condition, one subject, one "
+            "channel) of OpenNeuro ds005420 (Sánchez Gama et al., 2024), "
+            "CC0-licensed and redistributed here in full compliance with "
+            "that license."
         ),
     ),
 )

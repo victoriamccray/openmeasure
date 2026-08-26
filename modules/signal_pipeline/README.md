@@ -13,6 +13,8 @@ A multimodal sensing pipeline (a neurotech BCI, a wearable, a clinical monitorin
 
 GAIA, fMRI QC, and HealthRing are each anchored to one real, cited study or dataset, with `is_approximate` flags marking exactly which numbers are estimates. `pages/GRAND_Worked_Example.py` follows that same convention - it is anchored to one real, cited, CC0-licensed dataset (GRAND; Anderson et al., 2026; OpenNeuro ds007831) - but `pages/Multimodal_Signal_Convergence.py` does not: **`sample_data/modality_profiles.csv` contains no value any single cited source reports directly.** Every `interpretive_gain`, `privacy_cost`, `security_cost`, and `agency_cost` rating in that file is an illustrative, author-assigned score *informed by* the cited literature's directional findings (e.g. "location data is highly re-identifying" per de Montjoye et al., 2013), not a number *measured by* it. `sample_data/grand_modalities.csv` is different again: its five rows' ratings are illustrative too, but informed by GRAND's own real acquisition parameters (scan duration, direction counts, data volume) and by a real re-identification finding (Schwarz et al., 2019) specific to structural MRI, not by generic domain literature. GRAND's worked example also carries a second, separate citation-integrity flag its sibling does not: a handful of quality-control figures (motion thresholds, tSNR, behavioral reliability) that this page's author could not independently verify against the published manuscript before shipping - see the page's own docstring for exactly which figures and why. Each worked example page states its own citation-integrity standard once, prominently, rather than repeating a per-field approximate flag on every row.
 
+`Multimodal_Signal_Convergence.py`'s "Intervene on a Real Signal" stage (`core/intervention.py`) is different from all three of the above: `sample_data/ds005420_sub-5_O1_eyes_snippet.csv` is a real, unmodified excerpt of recorded voltage (15 seconds per condition, one subject, one channel) from OpenNeuro ds005420 (Sánchez Gama et al., 2024), CC0-licensed. Its baseline and intervened classification accuracies are genuinely *measured* from that excerpt, not illustrative ratings - the same standard GRAND's real acquisition parameters meet, one level more literal since the signal itself, not just a summary statistic about it, is bundled. One exception within that same stage: the example metadata fields shown for the "metadata removal" intervention (device serial, recording timestamp, session code) are illustrative of what a real recording/sharing pipeline typically attaches, not fields present in the bundled CSV or in ds005420's own sidecars, which are already mostly blank.
+
 ## Scope for v0.1 (MVP)
 
 - **`Modality`** - one signal category's interpretive-gain rating (higher is better) and three separate cost ratings: privacy, security, agency (each higher is worse), plus its supporting citation.
@@ -21,6 +23,7 @@ GAIA, fMRI QC, and HealthRing are each anchored to one real, cited study or data
 - **`combine_costs`** - a user-supplied privacy/security/agency weighting (normalized to sum to 1), applied to each modality's three cost ratings, following `modules/model_efficiency/core/preference.py`'s "favored by these weights" convention: the result is named after the weights, never presented as this module's own judgment. Used by `Multimodal_Signal_Convergence.py`; `GRAND_Worked_Example.py` does not use this function (see `feature_selection` below for the question it asks instead).
 - **`compute_gain_cost_frontier`** - which modalities are Pareto-efficient on gain versus weighted cost, using the same dominance rule as `model_efficiency`'s performance/resource frontier (`shared/pareto.py`).
 - **`feature_selection.select_necessary_feature_set`** - given a set of named feature sets each with a performance estimate and its standard error, which is best (highest performance) and which is necessary (fewest features within one standard error of best, per Hastie, Tibshirani, & Friedman's one-standard-error rule). Used by `GRAND_Worked_Example.py` to ask "does adding this modality's evidence justify collecting and integrating it," a better fit for that page's manuscript-style framing than a privacy/security/agency weighting.
+- **`intervention`** - `compute_alpha_power`, `classify_eyes_state`, `apply_noise`, `apply_temporal_degradation`, and `strip_metadata`: measures a real classification accuracy on a real EEG excerpt, before and after one exploratory protective intervention. Used only by `Multimodal_Signal_Convergence.py`'s "Intervene on a Real Signal" stage. `apply_noise` is exploratory signal perturbation - it carries no differential-privacy guarantee and must never be described as one. `apply_temporal_degradation` uses a proper anti-aliased downsample (`scipy.signal.decimate`); a naive hold-and-repeat was tried first and rejected because it barely changed classification accuracy even at extreme factors, since it does not remove the frequency content a real lower acquisition rate would never have captured.
 
 ## Non-goals for v0.1
 
@@ -48,16 +51,19 @@ modules/
     │   ├── modality.py
     │   ├── pipeline.py
     │   ├── tradeoff.py
-    │   └── feature_selection.py
+    │   ├── feature_selection.py
+    │   └── intervention.py
     ├── tests/
     │   ├── __init__.py
     │   ├── test_modality.py
     │   ├── test_pipeline.py
     │   ├── test_tradeoff.py
-    │   └── test_feature_selection.py
+    │   ├── test_feature_selection.py
+    │   └── test_intervention.py
     └── sample_data/
         ├── modality_profiles.csv
-        └── grand_modalities.csv
+        ├── grand_modalities.csv
+        └── ds005420_sub-5_O1_eyes_snippet.csv
 ```
 
 ## References
@@ -85,3 +91,9 @@ Cited by `sample_data/grand_modalities.csv`, per row:
 Cited by `core/feature_selection.py`'s one-standard-error rule:
 
 - Hastie, T., Tibshirani, R., & Friedman, J. (2009). *The Elements of Statistical Learning: Data Mining, Inference, and Prediction* (2nd ed.). Springer. Section 7.10.
+
+Cited by `core/intervention.py` and `Multimodal_Signal_Convergence.py`'s "Intervene on a Real Signal" stage:
+
+- Denning, T., Matsuoka, Y., & Kohno, T. (2009). Neurosecurity: security and privacy for neural devices. *Neurosurgical Focus, 27*(1), E7. https://doi.org/10.3171/2009.4.FOCUS0985
+- Sánchez Gama, M. de J., Barradas Chacón, L. A., Chacón Gutiérrez, L., Fernández Harmony, T., Novo Olivas, C. A., & De La Roca Chiapas, J. M. (2024). Resting state EEG with closed eyes and open eyes in females from 60 to 80 years old [Data set]. OpenNeuro. https://doi.org/10.18112/openneuro.ds005420.v1.0.0 (CC0)
+- Bagley, B. A., Rose, N., Kilbourn, Q., & Canham, M. (2026). Threat vectors and the state of the art in defense methods for security in neurotechnology. arXiv:2607.10451. https://arxiv.org/abs/2607.10451 (already cited elsewhere in this page; reused for its differential-privacy, neural-data-stewardship, and acquisition-layer-hardening discussion, sections 3.1.3/3.1.5/3.2.4)
