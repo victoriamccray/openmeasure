@@ -88,6 +88,11 @@ sections: dict[str, list[st.Page]] = {
             url_path="Privacy_and_Data_Access",
         ),
         st.Page(
+            "pages/Quality_and_Validation.py",
+            title="Quality & Validation",
+            url_path="Quality_and_Validation",
+        ),
+        st.Page(
             "pages/Resources.py",
             title="Resources",
             url_path="Resources",

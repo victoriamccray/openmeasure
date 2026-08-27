@@ -952,6 +952,52 @@ class TestResourcesPage(unittest.TestCase):
         self.assertNotIn(STORE_KEY, app.session_state)
 
 
+class TestQualityAndValidationPage(unittest.TestCase):
+    """Quality & Validation: the page loads, names Reliability's status,
+    and records nothing to the handoff store."""
+
+    def _run_quality_and_validation_page(self) -> AppTest:
+        app = AppTest.from_file(str(ENTRYPOINT), default_timeout=LOAD_TIMEOUT_SECONDS)
+        app.run()
+        app.switch_page("pages/Quality_and_Validation.py")
+        app.run()
+
+        self.assertFalse(
+            app.exception,
+            "Quality & Validation raised on load.",
+        )
+
+        return app
+
+    def test_the_page_is_reachable_from_the_entrypoint(self):
+        app = self._run_quality_and_validation_page()
+
+        self.assertIn(
+            "Quality & Validation",
+            [str(item.value) for item in app.title],
+        )
+
+    def test_reliability_status_is_shown(self):
+        app = self._run_quality_and_validation_page()
+
+        markdown = " ".join(str(item.value) for item in app.markdown)
+        self.assertIn("Reference validated", markdown)
+
+        dataframe_values = [
+            str(cell)
+            for df in app.dataframe
+            for row in df.value.to_dict("records")
+            for cell in row.values()
+        ]
+        self.assertIn("Reliability", dataframe_values)
+        self.assertIn("Match", dataframe_values)
+
+    def test_the_page_records_nothing_to_the_handoff_store(self):
+        app = self._run_quality_and_validation_page()
+
+        self.assertNotIn(STORE_KEY, app.session_state)
+
+
 class TestResearchJourneysPage(unittest.TestCase):
     """
     The landing page for Research Journeys: every journey's title renders,
