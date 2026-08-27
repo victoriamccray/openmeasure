@@ -19,6 +19,47 @@ import streamlit as st
 
 from shared.report import caveat, section_header
 
+# Matches the muted-ink / blue-accent palette already used for static
+# pictographs on pages/Method_Selection.py and pages/GRAND_Worked_Example.py
+# (each page keeps its own copy of these constants; see those pages'
+# INK_MUTED/INK_SECONDARY/SURFACE/ACCENT for the shared convention).
+_INK = "#52514e"
+_ACCENT = "#2a78d6"
+_SURFACE = "#fcfcfb"
+
+
+def _validation_triangle_svg() -> str:
+    """
+    Static (never animated - see feedback on decorative icons) diagram
+    of the three-way check every validated statistic passes: hand
+    calculation, OpenMeasure, and independent reference software are
+    expected to agree, each a check on the other two.
+    """
+    return f"""
+    <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;">
+      <svg width="100%" height="90" viewBox="0 0 640 90" preserveAspectRatio="xMidYMid meet">
+        <rect x="10" y="20" width="180" height="50" rx="6" fill="{_SURFACE}" stroke="{_ACCENT}" stroke-width="1.4"/>
+        <text x="100" y="49" text-anchor="middle" font-size="12" fill="{_INK}">Hand calculation</text>
+
+        <line x1="196" y1="45" x2="224" y2="45" stroke="{_INK}" stroke-width="1.4" opacity="0.7"/>
+        <polygon points="196,45 202,41 202,49" fill="{_INK}" opacity="0.8"/>
+        <polygon points="224,45 218,41 218,49" fill="{_INK}" opacity="0.8"/>
+
+        <rect x="230" y="20" width="180" height="50" rx="6" fill="{_SURFACE}" stroke="{_ACCENT}" stroke-width="1.4"/>
+        <text x="320" y="49" text-anchor="middle" font-size="12" fill="{_INK}">OpenMeasure</text>
+
+        <line x1="416" y1="45" x2="444" y2="45" stroke="{_INK}" stroke-width="1.4" opacity="0.7"/>
+        <polygon points="416,45 422,41 422,49" fill="{_INK}" opacity="0.8"/>
+        <polygon points="444,45 438,41 438,49" fill="{_INK}" opacity="0.8"/>
+
+        <rect x="450" y="20" width="180" height="50" rx="6" fill="{_SURFACE}" stroke="{_ACCENT}" stroke-width="1.4"/>
+        <text x="540" y="42" text-anchor="middle" font-size="11" fill="{_INK}">Independent reference</text>
+        <text x="540" y="58" text-anchor="middle" font-size="11" fill="{_INK}">software</text>
+      </svg>
+    </div>
+    """
+
+
 st.set_page_config(
     page_title="OpenMeasure · Quality & Validation",
     page_icon=":material/checklist:",
@@ -38,7 +79,7 @@ layer_columns = st.columns(3)
 
 with layer_columns[0]:
     with st.container(border=True):
-        st.markdown("**1. Calculation checks**")
+        st.markdown(":material/calculate: **1. Calculation checks**")
         st.write(
             "Small, hand-calculable examples verify that a statistical "
             "method produces the expected result."
@@ -46,7 +87,7 @@ with layer_columns[0]:
 
 with layer_columns[1]:
     with st.container(border=True):
-        st.markdown("**2. Edge cases**")
+        st.markdown(":material/rule: **2. Edge cases**")
         st.write(
             "Methods are tested under conditions such as missing data, "
             "very high or negative reliability, reverse-coded items, "
@@ -55,14 +96,14 @@ with layer_columns[1]:
 
 with layer_columns[2]:
     with st.container(border=True):
-        st.markdown("**3. Independent reference validation**")
+        st.markdown(":material/compare_arrows: **3. Independent reference validation**")
         st.write(
             "OpenMeasure's results are compared with established "
             "statistical software, using the same data and the same "
             "methodological assumptions."
         )
 
-st.info("Hand calculation ↔ OpenMeasure ↔ Independent reference software")
+st.markdown(_validation_triangle_svg(), unsafe_allow_html=True)
 
 section_header("Current Validation")
 
@@ -81,6 +122,11 @@ with st.container(border=True):
         "Checked against an independent hand-derived formula and R's "
         "psych package, on 7 small fixed datasets covering typical "
         "behavior and the edge cases described below."
+    )
+    st.page_link(
+        "pages/1_Reliability.py",
+        label="New to these terms? See \"What is Cronbach's alpha?\" on the Reliability page",
+        icon=":material/menu_book:",
     )
 
     comparison_table = pd.DataFrame(
@@ -157,6 +203,13 @@ with st.container(border=True):
         "(https://github.com/victoriamccray/openmeasure/blob/main/"
         "docs/validation/reference-validation.md)"
     )
+    st.caption(
+        "Cronbach, L. J. (1951). Coefficient alpha and the internal "
+        "structure of tests. Psychometrika, 16(3), 297-334. Revelle, "
+        "W. (2024). psych: Procedures for Psychological, Psychometric, "
+        "and Personality Research. Northwestern University, Evanston, "
+        "Illinois."
+    )
 
 section_header("Validation Status")
 
@@ -178,4 +231,8 @@ st.caption(
     "than computing a fixed statistic from fixed data, so this kind of "
     "numeric cross-implementation comparison does not apply to it in "
     "the same way; it will need its own evaluation approach."
+)
+st.caption(
+    "This page is updated as each module completes the process "
+    "described above."
 )
