@@ -6,8 +6,8 @@
 # once, to produce numbers that are then hardcoded into the validation
 # doc and into automated regression tests (which do not call R).
 #
-# Run from the repo root after reliability_reference.py has written
-# dataset_a.csv / dataset_b.csv:
+# Run from the repo root after reliability_reference.py has written the
+# dataset_*.csv files:
 #     Rscript scripts/validation/reliability_reference.R
 
 library(psych)
@@ -17,7 +17,10 @@ run_dataset <- function(name, path, split_half) {
   data <- read.csv(path)
   print(data)
 
-  result <- psych::alpha(data)
+  # check.keys = FALSE (also psych's own default) so items are never
+  # auto reverse-scored - OpenMeasure never reverse-codes either, so
+  # this keeps both sides comparing the same, un-recoded items.
+  result <- psych::alpha(data, check.keys = FALSE)
   cat("\nraw_alpha:", result$total$raw_alpha, "\n")
 
   cat("\nCorrected item-total correlation (r.drop):\n")
@@ -53,3 +56,44 @@ run_dataset(
   "scripts/validation/dataset_b.csv",
   split_half = TRUE
 )
+
+run_dataset(
+  "Dataset C - high reliability (5 items x 8 participants)",
+  "scripts/validation/dataset_c.csv",
+  split_half = TRUE
+)
+
+run_dataset(
+  "Dataset D - low/negative reliability (4 items x 8 participants)",
+  "scripts/validation/dataset_d.csv",
+  split_half = TRUE
+)
+
+run_dataset(
+  "Dataset E - problematic reverse item (5 items x 8 participants)",
+  "scripts/validation/dataset_e.csv",
+  split_half = TRUE
+)
+
+run_dataset(
+  "Dataset G - small edge case (2 items x 5 participants)",
+  "scripts/validation/dataset_g.csv",
+  split_half = FALSE
+)
+
+# Dataset F (missing data) is handled separately: psych::alpha()'s
+# default use = "pairwise" does NOT match OpenMeasure's listwise
+# deletion (analyze()'s documented missing-data handling). Both are
+# run and printed explicitly so the difference is visible rather than
+# silently picking whichever agrees.
+cat("\n=== Dataset F - missing data (4 items x 10 participants) ===\n")
+data_f <- read.csv("scripts/validation/dataset_f.csv")
+print(data_f)
+
+result_pairwise <- psych::alpha(data_f, check.keys = FALSE, use = "pairwise")
+cat("\nraw_alpha with use='pairwise' (psych's default, NOT matched to OpenMeasure):",
+    result_pairwise$total$raw_alpha, "\n")
+
+result_complete <- psych::alpha(data_f, check.keys = FALSE, use = "complete.obs")
+cat("raw_alpha with use='complete.obs' (matches OpenMeasure's listwise deletion):",
+    result_complete$total$raw_alpha, "\n")

@@ -94,6 +94,89 @@ Datasets (also defined in `scripts/validation/reliability_reference.py`):
   | p7 | 3 | 3 | 2 | 3 |
   | p8 | 4 | 4 | 5 | 4 |
 
+Datasets A and B are qualitatively unremarkable (moderate-to-high,
+well-behaved alpha). The next five are deliberately constructed to probe
+specific statistical behavior rather than to look like a plausible real
+scale, so that any discrepancy is interpretable against the property
+being tested:
+
+- **Dataset C - high reliability** - 5 items x 8 participants, constructed
+  to move together strongly (alpha expected near 0.9+).
+
+  | | item1 | item2 | item3 | item4 | item5 |
+  |---|---|---|---|---|---|
+  | p1 | 2 | 2 | 3 | 2 | 3 |
+  | p2 | 3 | 3 | 4 | 4 | 3 |
+  | p3 | 4 | 5 | 4 | 4 | 5 |
+  | p4 | 5 | 5 | 6 | 5 | 6 |
+  | p5 | 6 | 7 | 6 | 7 | 6 |
+  | p6 | 7 | 7 | 8 | 7 | 8 |
+  | p7 | 8 | 9 | 8 | 8 | 9 |
+  | p8 | 9 | 9 | 10 | 10 | 9 |
+
+- **Dataset D - low/negative reliability** - 4 items x 8 participants,
+  each independently shuffled so items do not move together (several
+  move in opposite directions). Tests that OpenMeasure computes and
+  reports a negative alpha correctly rather than clamping or erroring.
+
+  | | item1 | item2 | item3 | item4 |
+  |---|---|---|---|---|
+  | p1 | 5 | 1 | 8 | 4 |
+  | p2 | 3 | 7 | 2 | 8 |
+  | p3 | 6 | 2 | 5 | 1 |
+  | p4 | 2 | 8 | 3 | 7 |
+  | p5 | 7 | 3 | 6 | 2 |
+  | p6 | 1 | 6 | 1 | 5 |
+  | p7 | 4 | 5 | 7 | 3 |
+  | p8 | 8 | 4 | 4 | 6 |
+
+- **Dataset E - problematic/reverse item** - 5 items x 8 participants;
+  item1-item4 move together like Dataset C, item5 is the reverse pattern
+  of item1 and is *not* recoded before analysis. Tests item-total
+  correlation and alpha-if-dropped's ability to surface a single bad item.
+
+  | | item1 | item2 | item3 | item4 | item5 |
+  |---|---|---|---|---|---|
+  | p1 | 2 | 2 | 3 | 2 | 9 |
+  | p2 | 3 | 4 | 3 | 4 | 8 |
+  | p3 | 4 | 4 | 5 | 5 | 7 |
+  | p4 | 5 | 6 | 5 | 5 | 6 |
+  | p5 | 6 | 6 | 7 | 7 | 5 |
+  | p6 | 7 | 8 | 7 | 8 | 4 |
+  | p7 | 8 | 8 | 9 | 8 | 3 |
+  | p8 | 9 | 10 | 9 | 10 | 2 |
+
+- **Dataset F - missing data** - 4 items x 10 participants, otherwise the
+  same shape as Dataset B, with two participants each missing one item
+  (a different item each, so 2 of the 10 rows are incomplete). Tests
+  OpenMeasure's documented listwise-deletion handling.
+
+  | | q1 | q2 | q3 | q4 |
+  |---|---|---|---|---|
+  | p1 | 4 | 5 | 4 | 5 |
+  | p2 | 3 | 2 | 3 | 3 |
+  | p3 | 5 | 5 | 4 | 5 |
+  | p4 | 2 | 2 | 1 | 2 |
+  | p5 | 4 | 4 | 5 | 4 |
+  | p6 | 5 | 5 | 4 | 5 |
+  | p7 | 3 | 3 | 2 | 3 |
+  | p8 | 4 | 4 | *(missing)* | 4 |
+  | p9 | 6 | 6 | 6 | *(missing)* |
+  | p10 | 2 | 3 | 2 | 3 |
+
+- **Dataset G - small/edge case** - 2 items x 5 participants: the minimum
+  item count `_validate_dataframe` allows, with a small sample. Tests
+  behavior at OpenMeasure's own documented lower bound rather than a
+  realistic scale.
+
+  | | item1 | item2 |
+  |---|---|---|
+  | p1 | 1 | 2 |
+  | p2 | 2 | 3 |
+  | p3 | 3 | 3 |
+  | p4 | 4 | 5 |
+  | p5 | 5 | 4 |
+
 ### Definition notes
 
 - **Cronbach's alpha**: OpenMeasure computes raw (covariance-based) alpha,
@@ -121,6 +204,31 @@ Datasets (also defined in `scripts/validation/reliability_reference.py`):
 - **Spearman-Brown correction**: `(2r) / (1 + r)` applied to the same
   split-half correlation above, independently applied on the R side
   rather than taken from a package default.
+- **Reverse-coded/negatively-loading items (Datasets D, E)**: OpenMeasure
+  never auto-detects or reverse-scores items; a negatively-related item
+  simply pulls alpha down (or negative), which is the intended,
+  transparent behavior for a validation tool - the analyst decides
+  whether to recode, not the software. `psych::alpha()` defaults to
+  `check.keys = FALSE` (matching this), but will auto reverse-score
+  items if called with `check.keys = TRUE`. The R script explicitly
+  passes `check.keys = FALSE` so both sides compute the same, un-recoded
+  statistic; psych still prints an advisory warning ("some items...
+  probably should be reversed") on Datasets D and E, which does not
+  change its computed `raw_alpha` and is not a discrepancy.
+- **Missing data (Dataset F)**: OpenMeasure's `analyze()` documents
+  listwise deletion - rows with any missing item are dropped entirely
+  before every statistic is computed. `core/reliability.py`'s lower-level
+  functions (`cronbach_alpha`, `item_total_correlations`, etc.) do
+  **not** perform this deletion themselves; calling them directly on
+  data containing `NaN` relies on pandas' default `skipna` behavior,
+  which sums whatever items a row does have rather than excluding the
+  row - a materially different (and not clearly meaningful) number. See
+  "Requiring human review" below. `psych::alpha()` defaults to
+  `use = "pairwise"` (pairwise-complete correlations/covariances), which
+  does not match OpenMeasure's listwise deletion either. The R script
+  runs both `use = "pairwise"` and `use = "complete.obs"` explicitly;
+  only `complete.obs` (R's term for listwise deletion) is used as the
+  matched comparison point.
 
 ### Results
 
@@ -149,17 +257,78 @@ noise, i.e. agreement to at least 10 significant figures).
 | B | Alpha if item dropped | q4 | 0.910714285714 | 0.910714285714 | hand formula; R `psych::alpha()` `alpha.drop$raw_alpha` | 1e-9 | Pass | |
 | B | Split-half correlation (odd/even) | - | 0.872786048178 | 0.872786048178 | hand formula; independently computed in R | 1e-9 | Pass | Same positional split reproduced in R, not `psych::splitHalf()`'s random split |
 | B | Spearman-Brown correction | - | 0.932072351806 | 0.932072351806 | hand formula; independently computed in R | 1e-9 | Pass | |
+| C (high) | Cronbach's alpha | - | 0.991071428571 | 0.991071428571 | hand formula; R `psych::alpha()` | 1e-9 | Pass | Confirms alpha near 1 for a strongly correlated scale |
+| C (high) | Item-total correlation | item1-item5 | 1.0, 0.968688, 0.965289, 0.968688, 0.965289 | same | hand formula; R `psych::alpha()` `r.drop` | 1e-9 | Pass | |
+| C (high) | Alpha if item dropped | item1-item5 | 0.985119, 0.989613, 0.989976, 0.989613, 0.989976 | same | hand formula; R `psych::alpha()` `alpha.drop$raw_alpha` | 1e-9 | Pass | |
+| C (high) | Split-half / Spearman-Brown | - | 0.973795 / 0.986724 | same | hand formula; independently computed in R | 1e-9 | Pass | |
+| D (low/negative) | Cronbach's alpha | - | -2.060606060606 | -2.060606060606 | hand formula; R `psych::alpha()` | 1e-9 | Pass | Negative alpha computed and reported correctly, not clamped to 0 |
+| D (low/negative) | Item-total correlation | item1-item4 | -0.448435, -0.494159, -0.546966, -0.299572 | same | hand formula; R `psych::alpha()` `r.drop` | 1e-9 | Pass | |
+| D (low/negative) | Alpha if item dropped | item1-item4 | -1.054054, -0.804878, -0.554348, -2.134615 | same | hand formula; R `psych::alpha()` `alpha.drop$raw_alpha` | 1e-9 | Pass | |
+| D (low/negative) | Split-half / Spearman-Brown | - | -0.762151 / -6.408707 | same | hand formula; independently computed in R | 1e-9 | Pass | |
+| E (reverse item) | Cronbach's alpha | - | 0.546448087432 | 0.546448087432 | hand formula; R `psych::alpha()` | 1e-9 | Pass | Alpha suppressed by the one un-recoded reverse item |
+| E (reverse item) | Item-total correlation | item1-item5 | 0.994808, 0.955202, 0.936870, 0.980379, **-0.998671** | same | hand formula; R `psych::alpha()` `r.drop` | 1e-9 | Pass | item5's strongly negative correlation is the intended signal |
+| E (reverse item) | Alpha if item dropped | item1-item5 | -0.007581, -0.015791, 0.057079, -0.031746, **0.989490** | same | hand formula; R `psych::alpha()` `alpha.drop$raw_alpha` | 1e-9 | Pass | Dropping item5 recovers alpha from 0.546 to 0.989 - textbook reverse-item signature |
+| E (reverse item) | Split-half / Spearman-Brown | - | 0.936870 / 0.967406 | same | hand formula; independently computed in R | 1e-9 | Pass | |
+| F (missing data) | Cronbach's alpha (listwise-deleted) | - | 0.959915611814 | 0.959915611814 | hand formula on listwise-deleted rows; R `psych::alpha(use="complete.obs")` | 1e-9 | Pass | `analyze()`'s documented handling; 2 of 10 rows excluded |
+| F (missing data) | Cronbach's alpha, `psych` default (`use="pairwise"`) | - | n/a | 0.956679 | R `psych::alpha()` default | n/a | Informational | Documents the default-vs-matched difference; not compared against OpenMeasure since it is a different definition (pairwise vs. listwise) |
+| F (missing data) | Cronbach's alpha, raw functions called directly on data with `NaN` (bypassing `analyze()`) | - | 0.837837837838 | n/a | n/a | n/a | Flagged for review | Not listwise deletion - see "Requiring human review" |
+| G (small edge case) | Cronbach's alpha | - | 0.882352941176 | 0.882352941176 | hand formula; R `psych::alpha()` | 1e-9 | Pass | 2 items, 5 participants - OpenMeasure's documented minimum |
+| G (small edge case) | Item-total correlation | item1, item2 | 0.832050, 0.832050 | same | hand formula; R `psych::alpha()` `r.drop` | 1e-9 | Pass | |
+| G (small edge case) | Alpha if item dropped | item1, item2 | NaN, NaN | 1.153846, 0.600000 | R `psych::alpha()` `alpha.drop$raw_alpha` | n/a | **Discrepancy (investigated, no change)** | See "Requiring human review" |
 
-No discrepancies were found. All Reliability statistics in
-`core/reliability.py` agree with an independent hand derivation and with
-R's `psych::alpha()` (the standard reference implementation for this
-statistic) to full floating-point precision on both datasets.
+No discrepancies were found for Datasets A-F, or for Cronbach's alpha
+and item-total correlation on Dataset G: every value above agrees with
+an independent hand derivation and with R's `psych::alpha()` (the
+standard reference implementation) to full floating-point precision,
+including the deliberately negative (Dataset D) and reverse-item
+(Dataset E) cases, and including OpenMeasure's listwise-deletion handling
+of missing data (Dataset F) once compared against R's matching
+`use="complete.obs"` option rather than its differently-defined default.
+
+One discrepancy was found and investigated on Dataset G (see below); it
+did not lead to a code change.
 
 Interrater agreement statistics (`core/interrater.py`: Cohen's kappa,
 Fleiss' kappa, Krippendorff's alpha) are out of scope for this pass: they
 already wrap `statsmodels` and the `krippendorff` package directly rather
 than reimplementing the statistic, so there is no separate OpenMeasure
 implementation to validate against those same libraries.
+
+### Requiring human review
+
+- **Dataset G alpha-if-dropped discrepancy (investigated, no change
+  made).** Dropping either item from a 2-item scale leaves a single
+  item, for which raw alpha's `k/(k-1)` term is `1/0` - mathematically
+  undefined. OpenMeasure's `alpha_if_item_dropped` explicitly guards this
+  case and returns `NaN` (see `test_two_item_scale_returns_nan_after_dropping`
+  in `test_reliability.py`). R's `psych::alpha()` does not special-case
+  it: its `alpha.drop` table instead reports finite numbers (1.153846
+  and 0.6) that are internally inconsistent with a valid reliability
+  coefficient (raw alpha exceeding 1 is not a real possibility for a
+  proper 1-item "scale"). Calling `psych::alpha()` directly on a genuine
+  single-column dataset produces a recycling warning rather than a
+  usable result, confirming the top-level function is not designed for
+  k=1 input either - the `alpha.drop` table's numbers for this case
+  appear to be an artifact of a code path that skips that guard, not a
+  meaningful reference value. Conclusion: OpenMeasure's `NaN` is the
+  more defensible behavior; no change made. Flagged here in case a
+  methodologist wants to double-check this reasoning independently.
+- **Raw `core/reliability.py` functions accept `NaN` silently and do not
+  perform listwise deletion (Dataset F).** `cronbach_alpha`,
+  `item_total_correlations`, and `alpha_if_item_dropped` can all be
+  called directly (bypassing `analyze()`) on data containing missing
+  values without raising, because `_validate_dataframe` only rejects
+  non-numeric columns and infinities, not `NaN`. pandas' default
+  `skipna=True` then silently sums fewer items for an affected
+  participant's total score while other participants' totals include
+  every item, producing a number that mixes item counts across rows
+  (0.837837837838 above, versus 0.959915611814 with correct listwise
+  deletion - a large, silent difference). This is not a discrepancy
+  against R; it is an internal API-contract gap worth a human decision:
+  should these lower-level functions raise on `NaN` (forcing callers
+  through `analyze()`'s listwise deletion), rather than silently
+  producing a statistic that mixes item counts across participants? No
+  change was made without that decision, per this task's scope.
 
 ## Adding another module
 
