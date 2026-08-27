@@ -18,14 +18,19 @@ category, and record nothing to shared/handoff.py, so folding any of
 them into workflows_by_category() would imply a status it can never
 have.
 
-Home, Resources, Privacy & Data Access, and Quality & Validation are
-grouped together under an "About" section, since all four are reference
-pages about the toolkit itself rather than a step in a research
-workflow. Explore Real Data, Method Selection, and Research Journeys
-stay in the ungrouped top section: unlike the About pages, each of these
-three is an entry point into doing an analysis (browsing a dataset,
-picking a workflow, starting a journey), not background reading about
-one.
+Home, Privacy & Data Access, and Quality & Validation are grouped
+together under an "About" section, since all three are reference pages
+about the toolkit itself rather than a step in a research workflow or
+something a new user needs before starting one.
+
+Explore Real Data and Resources are grouped under a "Getting Started"
+section: both orient a reader before they run anything (browsing a real
+dataset, or a curated list of external material), rather than being a
+workflow, an about-the-toolkit reference, or a decision tool. Method
+Selection and Research Journeys stay in the ungrouped top section: each
+is an entry point into actually starting an analysis (picking a
+workflow, starting a journey) rather than orientation or reference
+reading.
 
 Research Journeys is meant to have a single visible "Research Journeys"
 entry, pages/Research_Journeys.py, which is a landing page listing every
@@ -73,15 +78,11 @@ st.set_page_config(
 )
 
 # An empty-string section header is how Streamlit renders an ungrouped
-# entry. These three are entry points into doing an analysis, not
-# reference reading, so they stay outside the "About" grouping below.
+# entry. These two are entry points into actually starting an analysis,
+# not orientation or reference reading, so they stay outside both the
+# "Getting Started" and "About" groupings.
 sections: dict[str, list[st.Page]] = {
     "": [
-        st.Page(
-            "pages/Explore_Real_Data.py",
-            title="Explore Real Data",
-            url_path="Explore_Real_Data",
-        ),
         st.Page(
             "pages/Method_Selection.py",
             title="Method Selection",
@@ -94,6 +95,23 @@ sections: dict[str, list[st.Page]] = {
         ),
     ],
 }
+
+# Orientation before running anything: a real dataset to browse, and a
+# curated list of external material. Placed right after the ungrouped
+# entry points and before the workflow categories, so a new reader meets
+# "get oriented" before "here are the workflows."
+sections["Getting Started"] = [
+    st.Page(
+        "pages/Explore_Real_Data.py",
+        title="Explore Real Data",
+        url_path="Explore_Real_Data",
+    ),
+    st.Page(
+        "pages/Resources.py",
+        title="Resources",
+        url_path="Resources",
+    ),
+]
 
 # Category headings come from the catalog verbatim. Inventing a shorter
 # sidebar-only label per category would mean a second name for the same
@@ -110,20 +128,15 @@ for category, workflows in workflows_by_category().items():
 
 # Reference pages about the toolkit itself, grouped at the end of the
 # sidebar (a common place for "About"-style sections) rather than mixed
-# in with the workflow categories above or the analysis entry points in
-# the ungrouped section. default=True still works on Home here: it is a
-# property of the st.Page itself, independent of which section holds it.
+# in with the workflow categories above or the entry points elsewhere.
+# default=True still works on Home here: it is a property of the
+# st.Page itself, independent of which section holds it.
 sections["About"] = [
     st.Page(
         "pages/Overview.py",
         title="Home",
         url_path="Overview",
         default=True,
-    ),
-    st.Page(
-        "pages/Resources.py",
-        title="Resources",
-        url_path="Resources",
     ),
     st.Page(
         "pages/Privacy_and_Data_Access.py",
