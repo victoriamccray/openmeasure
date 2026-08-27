@@ -18,10 +18,16 @@ validation category, and record nothing to shared/handoff.py, so
 folding any of them into workflows_by_category() would imply a status
 it can never have.
 
-Home, Privacy & Data Access, and Quality & Validation are grouped
-together under an "About" section, since all three are reference pages
-about the toolkit itself rather than a step in a research workflow or
-something a new user needs before starting one.
+Home (pages/Overview.py) is a standalone, ungrouped top-level entry, not
+folded into "About" or "Getting Started": it is the general entry point
+for both new and returning users, distinct from Getting Started's
+onboarding/research guidance and About's information about OpenMeasure
+itself.
+
+Privacy & Data Access and Quality & Validation are grouped together
+under an "About" section, since both are reference pages about the
+toolkit itself rather than a step in a research workflow or something a
+new user needs before starting one.
 
 Research Resources (pages/Resources.py - the file and url_path keep
 their original name; only the displayed title changed), Explore Real
@@ -81,35 +87,50 @@ st.set_page_config(
     layout="centered",
 )
 
-# Getting Started is the umbrella for every pre-analysis entry point:
-# discover external resources, browse a real dataset, pick an analysis,
-# or understand the broader research process. Placed first, before the
-# workflow categories, so a new reader meets "get oriented / get
-# started" before "here are the workflows."
+# An empty-string section header is how Streamlit renders an ungrouped
+# entry. Home stays standalone here rather than joining "About" or
+# "Getting Started": it is the general entry point for both new and
+# returning users, not onboarding guidance or toolkit information.
+# default=True is a property of the st.Page itself, independent of
+# which section (or no section) holds it.
 sections: dict[str, list[st.Page]] = {
-    "Getting Started": [
+    "": [
         st.Page(
-            "pages/Resources.py",
-            title="Research Resources",
-            url_path="Resources",
-        ),
-        st.Page(
-            "pages/Explore_Real_Data.py",
-            title="Explore Real Data",
-            url_path="Explore_Real_Data",
-        ),
-        st.Page(
-            "pages/Method_Selection.py",
-            title="Method Selection",
-            url_path="Method_Selection",
-        ),
-        st.Page(
-            "pages/Research_Journeys.py",
-            title="Research Journeys",
-            url_path="Research_Journeys",
+            "pages/Overview.py",
+            title="Home",
+            url_path="Overview",
+            default=True,
         ),
     ],
 }
+
+# Getting Started is the umbrella for every pre-analysis entry point:
+# discover external resources, browse a real dataset, pick an analysis,
+# or understand the broader research process. Placed right after Home
+# and before the workflow categories, so a new reader meets "get
+# oriented / get started" before "here are the workflows."
+sections["Getting Started"] = [
+    st.Page(
+        "pages/Resources.py",
+        title="Research Resources",
+        url_path="Resources",
+    ),
+    st.Page(
+        "pages/Explore_Real_Data.py",
+        title="Explore Real Data",
+        url_path="Explore_Real_Data",
+    ),
+    st.Page(
+        "pages/Method_Selection.py",
+        title="Method Selection",
+        url_path="Method_Selection",
+    ),
+    st.Page(
+        "pages/Research_Journeys.py",
+        title="Research Journeys",
+        url_path="Research_Journeys",
+    ),
+]
 
 # Category headings come from the catalog verbatim. Inventing a shorter
 # sidebar-only label per category would mean a second name for the same
@@ -127,15 +148,7 @@ for category, workflows in workflows_by_category().items():
 # Reference pages about the toolkit itself, grouped at the end of the
 # sidebar (a common place for "About"-style sections) rather than mixed
 # in with the workflow categories above or the entry points elsewhere.
-# default=True still works on Home here: it is a property of the
-# st.Page itself, independent of which section holds it.
 sections["About"] = [
-    st.Page(
-        "pages/Overview.py",
-        title="Home",
-        url_path="Overview",
-        default=True,
-    ),
     st.Page(
         "pages/Privacy_and_Data_Access.py",
         title="Privacy & Data Access",
