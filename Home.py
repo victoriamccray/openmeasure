@@ -10,12 +10,22 @@ That makes the catalog the single source for the sidebar, the overview
 cards, and the drift test in shared/tests/test_catalog.py, so a workflow
 cannot exist in one and be missing from another.
 
-Explore Real Data, Method Selection, Resources, and the Research
-Journeys are declared separately, below, rather than through the
-catalog. None of them is a validation workflow: they have no lifecycle
-stage, no validation category, and record nothing to shared/handoff.py,
-so folding any of them into workflows_by_category() would imply a status
-it can never have.
+Explore Real Data, Method Selection, Resources, Privacy & Data Access,
+Quality & Validation, Research Journeys, and Home itself are declared
+separately, below, rather than through the catalog. None of them is a
+validation workflow: they have no lifecycle stage, no validation
+category, and record nothing to shared/handoff.py, so folding any of
+them into workflows_by_category() would imply a status it can never
+have.
+
+Home, Resources, Privacy & Data Access, and Quality & Validation are
+grouped together under an "About" section, since all four are reference
+pages about the toolkit itself rather than a step in a research
+workflow. Explore Real Data, Method Selection, and Research Journeys
+stay in the ungrouped top section: unlike the About pages, each of these
+three is an entry point into doing an analysis (browsing a dataset,
+picking a workflow, starting a journey), not background reading about
+one.
 
 Research Journeys is meant to have a single visible "Research Journeys"
 entry, pages/Research_Journeys.py, which is a landing page listing every
@@ -62,16 +72,11 @@ st.set_page_config(
     layout="centered",
 )
 
-# The overview sits above the sections rather than inside one. An
-# empty-string section header is how Streamlit renders an ungrouped entry.
+# An empty-string section header is how Streamlit renders an ungrouped
+# entry. These three are entry points into doing an analysis, not
+# reference reading, so they stay outside the "About" grouping below.
 sections: dict[str, list[st.Page]] = {
     "": [
-        st.Page(
-            "pages/Overview.py",
-            title="Home",
-            url_path="Overview",
-            default=True,
-        ),
         st.Page(
             "pages/Explore_Real_Data.py",
             title="Explore Real Data",
@@ -81,21 +86,6 @@ sections: dict[str, list[st.Page]] = {
             "pages/Method_Selection.py",
             title="Method Selection",
             url_path="Method_Selection",
-        ),
-        st.Page(
-            "pages/Privacy_and_Data_Access.py",
-            title="Privacy & Data Access",
-            url_path="Privacy_and_Data_Access",
-        ),
-        st.Page(
-            "pages/Quality_and_Validation.py",
-            title="Quality & Validation",
-            url_path="Quality_and_Validation",
-        ),
-        st.Page(
-            "pages/Resources.py",
-            title="Resources",
-            url_path="Resources",
         ),
         st.Page(
             "pages/Research_Journeys.py",
@@ -117,6 +107,35 @@ for category, workflows in workflows_by_category().items():
         )
         for workflow in workflows
     ]
+
+# Reference pages about the toolkit itself, grouped at the end of the
+# sidebar (a common place for "About"-style sections) rather than mixed
+# in with the workflow categories above or the analysis entry points in
+# the ungrouped section. default=True still works on Home here: it is a
+# property of the st.Page itself, independent of which section holds it.
+sections["About"] = [
+    st.Page(
+        "pages/Overview.py",
+        title="Home",
+        url_path="Overview",
+        default=True,
+    ),
+    st.Page(
+        "pages/Resources.py",
+        title="Resources",
+        url_path="Resources",
+    ),
+    st.Page(
+        "pages/Privacy_and_Data_Access.py",
+        title="Privacy & Data Access",
+        url_path="Privacy_and_Data_Access",
+    ),
+    st.Page(
+        "pages/Quality_and_Validation.py",
+        title="Quality & Validation",
+        url_path="Quality_and_Validation",
+    ),
+]
 
 # Hidden from the sidebar (each journey would otherwise be its own entry,
 # or its own domain section -- both read as repetitive). Still part of the
