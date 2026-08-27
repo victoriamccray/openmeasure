@@ -40,6 +40,47 @@ from shared.report import (
 from shared.upload import render_data_profile
 
 
+def render_sensitivity_sub_result(sub_result) -> None:
+    """
+    Formatted display for one coding scheme's result inside the
+    sensitivity-analysis expander, instead of the raw dataclass repr
+    st.write() would otherwise show (every attribute name printed
+    verbatim). sub_result is comp.TwoGroupResult or comp.MultiGroupResult,
+    per comp.SensitivityResult.coding_results' own type hint.
+    """
+    if isinstance(sub_result, comp.TwoGroupResult):
+        c1, c2 = st.columns(2)
+        c1.metric(
+            f"{sub_result.group_a_label} mean",
+            f"{sub_result.mean_a:.2f}",
+            f"n={sub_result.n_a}",
+        )
+        c2.metric(
+            f"{sub_result.group_b_label} mean",
+            f"{sub_result.mean_b:.2f}",
+            f"n={sub_result.n_b}",
+        )
+        m1, m2, m3 = st.columns(3)
+        m1.metric("t-statistic", f"{sub_result.t_statistic:.2f}")
+        m2.metric("p-value", f"{sub_result.p_value:.4f}")
+        m3.metric("Cohen's d", f"{sub_result.cohens_d:.2f}")
+    else:
+        means_df = pd.DataFrame(
+            {
+                "Group": sub_result.group_labels,
+                "n": [sub_result.group_ns[g] for g in sub_result.group_labels],
+                "Mean": [
+                    round(sub_result.group_means[g], 3)
+                    for g in sub_result.group_labels
+                ],
+            }
+        )
+        st.dataframe(means_df, width="stretch", hide_index=True)
+        m1, m2 = st.columns(2)
+        m1.metric("F-statistic", f"{sub_result.f_statistic:.2f}")
+        m2.metric("p-value", f"{sub_result.p_value:.4f}")
+
+
 def record_comparison(frame, upload, analysis_context, recommendation, result) -> None:
     """
     Record this analysis for the Cross-Analysis Implications page.
@@ -547,10 +588,13 @@ if "pe_recommendation" in st.session_state:
 
                 for name, sub_result in result.coding_results.items():
                     with st.expander(f"Full result: {name} coding"):
-                        st.write(sub_result)
+                        render_sensitivity_sub_result(sub_result)
 
             else:
-                st.error(f"Unknown method '{method}'.")
+                st.error(
+                    "OpenMeasure could not run the recommended method. "
+                    "This is unexpected; please report it as a bug."
+                )
 
             if result is not None:
                 record_comparison(df, uploaded, context, recommendation, result)

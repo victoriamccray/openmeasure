@@ -1719,12 +1719,12 @@ if stage >= STAGE_PROCESS:
     st.caption(
         "Alt text: Each modality keeps its own Signals, Sensors, and "
         "Processing box; all four converge with an arrow only at "
-        "Inference, using modules/signal_pipeline/core's "
-        "convergence_stage parameter (the illustrative EEG/ECG/EMG "
-        "journey converges immediately after Sensors instead, both are "
-        "the same underlying engine). Decision, Action, and Feedback, "
-        "later stages this same engine supports, are left off the "
-        "diagram because this page's prose never discusses them."
+        "Inference here (the illustrative EEG/ECG/EMG journey converges "
+        "immediately after Sensors instead; both diagrams share the "
+        "same underlying pipeline, configured to converge at a "
+        "different stage). Decision, Action, and Feedback, later stages "
+        "this same engine supports, are left off the diagram because "
+        "this page's prose never discusses them."
     )
     st.caption(
         "Diagram style, not the pipeline itself, follows the same "

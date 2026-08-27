@@ -67,6 +67,24 @@ KIND_LABELS = {
     KIND_OBSERVATIONS_ABSENT: "Observations that never arrived",
 }
 
+# Every primary_statistics key any module currently records (see each
+# module's record_*() function: pages/1_Reliability.py, 3_Fairness.py,
+# 4_Time_Series_QA.py, 6_Evidence_Review.py). A key with no label here
+# falls back to itself, so a future module's new statistic still renders
+# rather than raising, just without a human-readable name until this
+# dict is extended.
+STATISTIC_LABELS = {
+    "cronbach_alpha": "Cronbach's alpha",
+    "disparate_impact": "Disparate impact",
+    "statistical_parity_difference": "Statistical parity difference",
+    "equal_opportunity_difference": "Equal opportunity difference",
+    "predictive_equality_difference": "Predictive equality difference",
+    "calibration_within_groups_difference": "Calibration within groups difference",
+    "value_completeness_ratio": "Value completeness ratio",
+    "n_found": "Records found",
+    "n_included": "Records included",
+}
+
 
 with st.expander("What this page does"):
     st.markdown(
@@ -281,7 +299,7 @@ for dataset in summary.datasets:
         {
             "Module": entry.module,
             "Analysis": entry.exclusion.analysis_label,
-            "Statistic": key,
+            "Statistic": STATISTIC_LABELS.get(key, key),
             "Value": value,
         }
         for entry in dataset_entries

@@ -581,7 +581,11 @@ class TestCrossAnalysisOtherRecordedSignals(unittest.TestCase):
             for row in df.value.to_dict("records")
             for cell in row.values()
         ]
-        self.assertIn("disparate_impact", dataframe_values)
+        # The raw snake_case key is translated to a human-readable label
+        # (STATISTIC_LABELS in pages/5_Cross_Analysis_Implications.py)
+        # rather than shown to the reader as-is.
+        self.assertIn("Disparate impact", dataframe_values)
+        self.assertNotIn("disparate_impact", dataframe_values)
         self.assertIn("0.62", dataframe_values)
 
     def test_no_section_when_nothing_recorded_a_primary_statistic(self):

@@ -453,9 +453,7 @@ if stage >= STAGE_EXPLORE_DECISION:
         "saw. That tradeoff is a mathematical property of any decision "
         "rule facing groups with different underlying rates, so the "
         "result holds regardless of whether the specific patients "
-        "demonstrating it are real. modules/fairness/core/"
-        "pulse_oximeter_demo.py documents exactly what is and is not "
-        "drawn from the cited study."
+        "demonstrating it are real."
     )
 
     with st.expander("Could this be run on real patient-level data instead?"):

@@ -334,11 +334,11 @@ with elig_note_col:
         )
 
 # ---------------------------------------------------------------------
-# 5. Screen each result
+# 4. Screen each result
 # ---------------------------------------------------------------------
 
 section_header(
-    "5. Screen Each Result",
+    "4. Screen Each Result",
     "Include / Exclude / Uncertain, structured for PRISMA 2020-compatible reporting",
 )
 
@@ -407,10 +407,10 @@ for index, (item, score, assessment) in enumerate(
 summary = screening_core.summarize_screening(len(results), tuple(decisions))
 
 # ---------------------------------------------------------------------
-# 6. Screening summary and record
+# 5. Screening summary and record
 # ---------------------------------------------------------------------
 
-section_header("6. Screening Summary")
+section_header("5. Screening Summary")
 
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Found", summary.n_found)
@@ -516,7 +516,7 @@ def _record_evidence_review(query_text: str, df: pd.DataFrame, summary_: screeni
 _record_evidence_review(active_query, records_df, summary)
 
 # ---------------------------------------------------------------------
-# 7. From included results to a claim (illustrative preview)
+# 6. From included results to a claim (illustrative preview)
 # ---------------------------------------------------------------------
 
 included_items = [
@@ -527,15 +527,16 @@ included_items = [
 
 if included_items:
     section_header(
-        "7. From Included Results to a Claim",
+        "6. From Included Results to a Claim",
         "Preview evidence_to_claim's Nesta grading on what you just screened in",
     )
 
     caveat(
-        "Illustrative only. indicator_id, program_id, and level below are "
-        "arbitrary stand-in values, because this page has no portfolio or "
-        "indicator taxonomy of its own. Assemble real evidence in "
-        "Portfolio Impact Analysis for a claim that is not a preview."
+        "Illustrative only. The indicator, program, and level identifiers "
+        "below are arbitrary stand-in values, because this page has no "
+        "portfolio or indicator taxonomy of its own. Assemble real "
+        "evidence in Portfolio Impact Analysis for a claim that is not a "
+        "preview."
     )
 
     claim_text = st.text_area(
