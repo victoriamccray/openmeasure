@@ -746,11 +746,11 @@ else:
         "This walkthrough is OpenMeasure's own structural logic, not "
         "drawn from a published design-selection framework. For a "
         "broader existing method-selection tool, see the Co-Creation "
-        "Methods Navigator on the Resources page."
+        "Methods Navigator on the Research Resources page."
     )
     st.page_link(
         "pages/Resources.py",
-        label="Open Resources",
+        label="Open Research Resources",
         icon=":material/collections_bookmark:",
     )
 

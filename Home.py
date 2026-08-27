@@ -10,27 +10,31 @@ That makes the catalog the single source for the sidebar, the overview
 cards, and the drift test in shared/tests/test_catalog.py, so a workflow
 cannot exist in one and be missing from another.
 
-Explore Real Data, Method Selection, Resources, Privacy & Data Access,
-Quality & Validation, Research Journeys, and Home itself are declared
-separately, below, rather than through the catalog. None of them is a
-validation workflow: they have no lifecycle stage, no validation
-category, and record nothing to shared/handoff.py, so folding any of
-them into workflows_by_category() would imply a status it can never
-have.
+Explore Real Data, Method Selection, Research Resources, Privacy & Data
+Access, Quality & Validation, Research Journeys, and Home itself are
+declared separately, below, rather than through the catalog. None of
+them is a validation workflow: they have no lifecycle stage, no
+validation category, and record nothing to shared/handoff.py, so
+folding any of them into workflows_by_category() would imply a status
+it can never have.
 
 Home, Privacy & Data Access, and Quality & Validation are grouped
 together under an "About" section, since all three are reference pages
 about the toolkit itself rather than a step in a research workflow or
 something a new user needs before starting one.
 
-Explore Real Data and Resources are grouped under a "Getting Started"
-section: both orient a reader before they run anything (browsing a real
-dataset, or a curated list of external material), rather than being a
-workflow, an about-the-toolkit reference, or a decision tool. Method
-Selection and Research Journeys stay in the ungrouped top section: each
-is an entry point into actually starting an analysis (picking a
-workflow, starting a journey) rather than orientation or reference
-reading.
+Research Resources (pages/Resources.py - the file and url_path keep
+their original name; only the displayed title changed), Explore Real
+Data, Method Selection, and Research Journeys are grouped together
+under a "Getting Started" section, each serving a distinct purpose a
+reader needs before or around running an analysis:
+
+- Research Resources: discover useful external research resources.
+- Explore Real Data: see methods applied to real datasets.
+- Method Selection: determine which analysis fits a research
+  question/data.
+- Research Journeys: understand the broader research process and
+  workflow.
 
 Research Journeys is meant to have a single visible "Research Journeys"
 entry, pages/Research_Journeys.py, which is a landing page listing every
@@ -77,12 +81,23 @@ st.set_page_config(
     layout="centered",
 )
 
-# An empty-string section header is how Streamlit renders an ungrouped
-# entry. These two are entry points into actually starting an analysis,
-# not orientation or reference reading, so they stay outside both the
-# "Getting Started" and "About" groupings.
+# Getting Started is the umbrella for every pre-analysis entry point:
+# discover external resources, browse a real dataset, pick an analysis,
+# or understand the broader research process. Placed first, before the
+# workflow categories, so a new reader meets "get oriented / get
+# started" before "here are the workflows."
 sections: dict[str, list[st.Page]] = {
-    "": [
+    "Getting Started": [
+        st.Page(
+            "pages/Resources.py",
+            title="Research Resources",
+            url_path="Resources",
+        ),
+        st.Page(
+            "pages/Explore_Real_Data.py",
+            title="Explore Real Data",
+            url_path="Explore_Real_Data",
+        ),
         st.Page(
             "pages/Method_Selection.py",
             title="Method Selection",
@@ -95,23 +110,6 @@ sections: dict[str, list[st.Page]] = {
         ),
     ],
 }
-
-# Orientation before running anything: a real dataset to browse, and a
-# curated list of external material. Placed right after the ungrouped
-# entry points and before the workflow categories, so a new reader meets
-# "get oriented" before "here are the workflows."
-sections["Getting Started"] = [
-    st.Page(
-        "pages/Explore_Real_Data.py",
-        title="Explore Real Data",
-        url_path="Explore_Real_Data",
-    ),
-    st.Page(
-        "pages/Resources.py",
-        title="Resources",
-        url_path="Resources",
-    ),
-]
 
 # Category headings come from the catalog verbatim. Inventing a shorter
 # sidebar-only label per category would mean a second name for the same

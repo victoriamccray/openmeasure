@@ -916,7 +916,10 @@ class TestDataProfileWiredIntoUploadPages(unittest.TestCase):
 
 
 class TestResourcesPage(unittest.TestCase):
-    """Resources: every entry's name renders, and nothing is recorded."""
+    """Research Resources: every entry's name renders, and nothing is
+    recorded. Class name kept as TestResourcesPage (matches the file's
+    unchanged name, pages/Resources.py) even though the displayed title
+    is now "Research Resources"."""
 
     def _run_resources_page(self) -> AppTest:
         app = AppTest.from_file(str(ENTRYPOINT), default_timeout=LOAD_TIMEOUT_SECONDS)
@@ -935,7 +938,7 @@ class TestResourcesPage(unittest.TestCase):
         app = self._run_resources_page()
 
         self.assertIn(
-            "Resources",
+            "Research Resources",
             [str(item.value) for item in app.title],
         )
 
