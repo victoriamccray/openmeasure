@@ -11,7 +11,7 @@ cards, and the drift test in shared/tests/test_catalog.py, so a workflow
 cannot exist in one and be missing from another.
 
 Explore Real Data, Method Selection, Research Resources, Privacy & Data
-Access, Quality & Validation, Research Journeys, and Home itself are
+Access, Meta-Validation, Research Journeys, and Home itself are
 declared separately, below, rather than through the catalog. None of
 them is a validation workflow: they have no lifecycle stage, no
 validation category, and record nothing to shared/handoff.py, so
@@ -24,10 +24,19 @@ for both new and returning users, distinct from Getting Started's
 onboarding/research guidance and About's information about OpenMeasure
 itself.
 
-Privacy & Data Access and Quality & Validation are grouped together
-under an "About" section, since both are reference pages about the
-toolkit itself rather than a step in a research workflow or something a
-new user needs before starting one.
+Privacy & Data Access and Meta-Validation are grouped together under an
+"About" section, since both are reference pages about the toolkit
+itself rather than a step in a research workflow or something a new
+user needs before starting one.
+
+Meta-Validation (pages/Quality_and_Validation.py - the file and
+url_path keep their original name; only the displayed title changed)
+is how OpenMeasure validates itself, distinct from a workflow page
+helping a user validate their own research. "Meta-" signals that
+distinction more precisely than the page's former "Quality &
+Validation" title, at the cost of being a more technical word; the
+page's own heading spells out what it means for a reader who has not
+seen the term before.
 
 Research Resources (pages/Resources.py - the file and url_path keep
 their original name; only the displayed title changed), Explore Real
@@ -156,7 +165,7 @@ sections["About"] = [
     ),
     st.Page(
         "pages/Quality_and_Validation.py",
-        title="Quality & Validation",
+        title="Meta-Validation",
         url_path="Quality_and_Validation",
     ),
 ]

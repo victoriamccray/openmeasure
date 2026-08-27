@@ -960,8 +960,10 @@ class TestResourcesPage(unittest.TestCase):
 
 
 class TestQualityAndValidationPage(unittest.TestCase):
-    """Quality & Validation: the page loads, names Reliability's status,
-    and records nothing to the handoff store."""
+    """Meta-Validation (file and url_path keep their original
+    pages/Quality_and_Validation.py name; only the displayed title
+    changed): the page loads, names Reliability's status, and records
+    nothing to the handoff store."""
 
     def _run_quality_and_validation_page(self) -> AppTest:
         app = AppTest.from_file(str(ENTRYPOINT), default_timeout=LOAD_TIMEOUT_SECONDS)
@@ -971,7 +973,7 @@ class TestQualityAndValidationPage(unittest.TestCase):
 
         self.assertFalse(
             app.exception,
-            "Quality & Validation raised on load.",
+            "Meta-Validation raised on load.",
         )
 
         return app
@@ -980,7 +982,7 @@ class TestQualityAndValidationPage(unittest.TestCase):
         app = self._run_quality_and_validation_page()
 
         self.assertIn(
-            "Quality & Validation",
+            "Meta-Validation",
             [str(item.value) for item in app.title],
         )
 

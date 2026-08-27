@@ -1,5 +1,14 @@
 """
-Quality & Validation - how OpenMeasure checks its own calculations.
+Meta-Validation - how OpenMeasure checks its own calculations.
+
+Titled "Meta-Validation" rather than "Validation" or the page's former
+"Quality & Validation", to avoid the ambiguity those leave open: this
+page is not about validating a user's own research or measures (that is
+what the workflow pages do), it is about how OpenMeasure's own
+statistical methods are checked. "Meta-" is more technical than the
+former title, so the page's own subtitle spells the distinction out for
+a reader who has not seen the term before, rather than relying on the
+nav label alone.
 
 Not a workflow: no catalog entry, no module_key, no lifecycle stage -
 matches pages/Privacy_and_Data_Access.py's precedent for a reference page
@@ -61,16 +70,20 @@ def _validation_triangle_svg() -> str:
 
 
 st.set_page_config(
-    page_title="OpenMeasure · Quality & Validation",
+    page_title="OpenMeasure · Meta-Validation",
     page_icon=":material/checklist:",
     layout="centered",
 )
 
-st.title("Quality & Validation")
-st.write("**How does OpenMeasure check its calculations?**")
+st.title("Meta-Validation")
+st.write("**How OpenMeasure validates itself**")
 st.caption(
-    "A plain-language summary. The full technical record is linked at "
-    "the bottom of this page."
+    "Meta-validation means checking OpenMeasure's own calculations "
+    "against independent references, not using OpenMeasure to validate "
+    "your own research or measures (that is what the workflow pages, "
+    "such as Reliability or Fairness, are for). A plain-language "
+    "summary; the full technical record is linked at the bottom of "
+    "this page."
 )
 
 section_header("Three Layers Of Validation")
