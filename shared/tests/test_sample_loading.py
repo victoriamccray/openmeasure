@@ -278,5 +278,48 @@ class TestInterpretationStagePreservesTheResult(unittest.TestCase):
         self.assertIn(STORE_KEY, app.session_state)
 
 
+class TestFormulaExplanationReachesTheResult(unittest.TestCase):
+    """
+    The formula component renders beside the statistic it explains, with
+    notation collapsed. A reader meets the concept and their own numbers
+    first; the symbols are one click away rather than the first thing on
+    screen.
+    """
+
+    def _run_analysis(self):
+        app = _open(IMPACT_EVALUATION)
+        _button(app, SAMPLE_BUTTON_LABEL).click().run()
+        _button(app, "Get recommendation").click().run()
+        _button(app, "Run analysis").click().run()
+        return app
+
+    def test_the_concept_and_the_substituted_numbers_are_both_shown(self):
+        app = self._run_analysis()
+
+        self.assertFalse(app.exception)
+
+        rendered = " ".join(str(m.value) for m in app.markdown)
+        self.assertIn("Difference between group means", rendered)
+        self.assertIn("Typical variation within a group", rendered)
+
+    def test_the_notation_is_collapsed_rather_than_leading(self):
+        app = self._run_analysis()
+
+        labels = [expander.label for expander in app.expander]
+        self.assertIn("Show the notation and what each symbol means", labels)
+
+    def test_the_substituted_line_matches_the_computed_effect_size(self):
+        """
+        The page shows one Cohen's d in a metric and another inside the
+        explanation. They have to be the same number.
+        """
+        app = self._run_analysis()
+
+        metric = next(m for m in app.metric if m.label == "Cohen's d")
+        rendered = " ".join(str(m.value) for m in app.markdown)
+
+        self.assertIn(f"= {metric.value}", rendered)
+
+
 if __name__ == "__main__":
     unittest.main()

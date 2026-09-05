@@ -27,6 +27,7 @@ from modules.program_evaluation.core import comparison as comp
 from modules.program_evaluation.core import designs
 from modules.program_evaluation.core import did as did_core
 from modules.program_evaluation.core import domains
+from modules.program_evaluation.core import formulas
 from modules.program_evaluation.core import interpret
 from modules.program_evaluation.core import recommend as rec
 from modules.program_evaluation.core import research
@@ -50,6 +51,7 @@ from shared.report import (
     implications,
     inspect_note,
     interpretation_note,
+    render_formula,
     render_lifecycle_tracker,
 )
 from shared.upload import render_data_entry, render_data_profile
@@ -388,6 +390,8 @@ def render_did_result(result) -> None:
             + "; ".join(result.small_groups_flagged)
             + "."
         )
+
+    render_formula(formulas.did_explanation(result))
 
     inspect_note(
         "The two Change values. The estimate is the gap between them, so a "
@@ -1033,6 +1037,9 @@ if "pe_recommendation" in st.session_state:
                     f"(95% CI: {result.ci_95_low:.2f} to {result.ci_95_high:.2f}), "
                     f"df = {result.degrees_of_freedom:.1f}"
                 )
+
+                render_formula(formulas.cohens_d_explanation(result))
+
                 inspect_note("The p-value against your significance threshold, and Cohen's d for effect size.")
                 implications(
                     "A p-value below the threshold is evidence of a "

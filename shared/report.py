@@ -14,10 +14,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Sequence
 
+import pandas as pd
 import streamlit as st
 
 from shared.case_studies import get_case_studies, get_case_study
 from shared.catalog import LIFECYCLE_STAGES, STAGE_QUESTIONS, WORKFLOWS, workflows_by_stage
+from shared.formula import FormulaExplanation
 from shared.handoff import HandoffEntry
 from shared.progress import stage_progress
 
@@ -186,6 +188,62 @@ def case_study_note(key: str, connection: str) -> None:
         st.write(connection)
 
         st.caption(study.citation)
+
+
+def render_formula(explanation: FormulaExplanation) -> None:
+    """
+    Show a statistic as concept, then this reader's numbers, then result.
+
+    Notation and per-symbol anatomy are real and are reachable, but both
+    sit behind a collapsed expander. Leading with notation is the thing
+    this ordering exists to avoid: a reader should not have to decode
+    symbols before understanding what the calculation is doing.
+
+    The model, shared/formula.py, guarantees the substituted line is
+    assembled from the same terms the anatomy lists, so nothing rendered
+    here can show a number that disagrees with its own definition.
+    Interactivity is the caller's: a page that moves an input recomputes
+    its result and rebuilds the explanation, so the figure and the
+    arithmetic update together rather than through separate paths.
+    """
+    st.markdown(f"**{explanation.name}**")
+
+    # The concept, as labeled parts with no notation in them at all.
+    st.markdown(
+        " ".join(
+            block if block in {"/", "-", "+", "x", "="} else f"`{block}`"
+            for block in explanation.blocks
+        )
+    )
+
+    # The same arithmetic, with this reader's own values in it.
+    st.markdown(f"### {explanation.substituted}")
+    st.caption(explanation.reading)
+
+    with st.expander("Show the notation and what each symbol means"):
+        st.latex(explanation.formal_latex)
+
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    {
+                        "Symbol": term.symbol,
+                        "Is": term.plain_name,
+                        "Value here": term.display_value,
+                        "From": term.source,
+                    }
+                    for term in explanation.terms
+                ]
+            ),
+            width="stretch",
+            hide_index=True,
+        )
+
+        for term in explanation.terms:
+            st.caption(f"**{term.plain_name}**: {term.meaning}")
+
+        if explanation.citation:
+            st.caption(explanation.citation)
 
 
 def show_case_studies(module: str) -> None:
