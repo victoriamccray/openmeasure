@@ -232,22 +232,31 @@ def recommend_method(
     2. Paired pre/post comparison:
        ``pre_col`` and ``post_col``
 
+    3. Difference-in-differences:
+       ``group_col``, ``pre_col``, and ``post_col``, with no
+       ``outcome_col``. This is design 1 and design 2 combined: two
+       groups, each measured before and after.
+
     Parameters
     ----------
     data:
         Input dataset.
 
     outcome_col:
-        Outcome variable for independent-group comparisons.
+        Outcome variable for independent-group comparisons. Left unset
+        for difference-in-differences, where the outcome is carried by
+        the pre and post columns instead.
 
     group_col:
         Variable identifying independent groups.
 
     pre_col:
-        Baseline outcome for paired pre/post analysis.
+        Baseline outcome for paired pre/post analysis, or for the
+        difference-in-differences design.
 
     post_col:
-        Follow-up outcome for paired pre/post analysis.
+        Follow-up outcome for paired pre/post analysis, or for the
+        difference-in-differences design.
 
     is_multiselect_group:
         Whether each participant can belong to multiple categories in
@@ -276,6 +285,36 @@ def recommend_method(
             "The dataset contains no rows."
         )
 
+    # Checked before the two single-design branches below, because a DiD
+    # request supplies a group column and a pre/post pair at the same
+    # time, which those branches would otherwise reject as two designs
+    # at once. Requiring outcome_col to be unset is what keeps the two
+    # cases apart: the DiD design carries its outcome in pre_col and
+    # post_col, so an outcome column supplied alongside them is still
+    # the ambiguous request it always was.
+    has_did_design = (
+        group_col is not None
+        and pre_col is not None
+        and post_col is not None
+        and outcome_col is None
+    )
+
+    if has_did_design:
+        if is_multiselect_group:
+            raise ValueError(
+                "Difference-in-differences needs exactly one treated group "
+                "and one comparison group, so it cannot be run on a "
+                "multi-select group column where a unit can belong to "
+                "several groups at once."
+            )
+
+        return _recommend_did(
+            data=data,
+            group_col=group_col,
+            pre_col=pre_col,
+            post_col=post_col,
+        )
+
     has_group_design = (
         outcome_col is not None
         or group_col is not None
@@ -287,8 +326,10 @@ def recommend_method(
 
     if has_group_design and has_pre_post_design:
         raise ValueError(
-            "Provide either an outcome and group column or a paired "
-            "pre/post column pair, not both."
+            "Provide either an outcome and group column, or a paired "
+            "pre/post column pair, or a group column with both a pre and "
+            "a post column for difference-in-differences. This request "
+            "mixes two of those."
         )
 
     if not has_group_design and not has_pre_post_design:
@@ -419,6 +460,132 @@ def _recommend_pre_post(
     return MethodRecommendation(
         method="compare_pre_post",
         display_name="Paired t-test",
+        reasoning=reasoning,
+        warnings=warnings,
+    )
+
+
+def _recommend_did(
+    data: pd.DataFrame,
+    *,
+    group_col: str,
+    pre_col: str,
+    post_col: str,
+) -> MethodRecommendation:
+    """
+    Recommend a 2x2 difference-in-differences estimate.
+
+    The design check is structural: two groups, each with a pre and a
+    post value. Whether the comparison group is a credible stand-in for
+    what the treated group would have done is a question about the
+    setting, which no column check answers, so it is raised as a warning
+    rather than treated as satisfied by the data having the right shape.
+    """
+    if group_col in (pre_col, post_col):
+        raise ValueError(
+            "The group, pre, and post columns must be three different "
+            f"columns, got group='{group_col}', pre='{pre_col}', "
+            f"post='{post_col}'."
+        )
+
+    _validate_pre_post_columns(
+        data,
+        pre_col,
+        post_col,
+    )
+
+    number_of_groups = _validate_group_column(
+        data,
+        group_col,
+    )
+
+    reasoning = [
+        f"'{group_col}' identifies {number_of_groups} groups, and every "
+        "unit has both a baseline and a follow-up measurement, so each "
+        "group's change over time can be computed separately."
+    ]
+    warnings: list[str] = []
+
+    if number_of_groups != 2:
+        warnings.append(
+            f"'{group_col}' contains {number_of_groups} groups. A 2x2 "
+            "difference-in-differences compares exactly one treated group "
+            "with one comparison group. Filter to two groups, or combine "
+            "categories on a rationale you can state."
+        )
+
+        return MethodRecommendation(
+            method="review_did_groups",
+            display_name="Review the group column",
+            reasoning=reasoning,
+            warnings=warnings,
+            supported=False,
+        )
+
+    pre_series = data[pre_col]
+    post_series = data[post_col]
+
+    for series, role in ((pre_series, "pre"), (post_series, "post")):
+        id_warning = _identifier_warning(series, series.name, role=role)
+        if id_warning is not None:
+            warnings.append(id_warning)
+
+    group_id_warning = _identifier_warning(
+        data[group_col], group_col, role="group variable"
+    )
+    if group_id_warning is not None:
+        warnings.append(group_id_warning)
+
+    if _outcome_looks_categorical(pre_series) or _outcome_looks_categorical(
+        post_series
+    ):
+        warnings.append(
+            "The pre and post columns need to be continuous-like for this "
+            "estimate, because it works on how much each unit's value "
+            "changed. At least one of them looks categorical."
+        )
+
+        return MethodRecommendation(
+            method="review_did_outcome",
+            display_name="Review the pre/post coding",
+            reasoning=reasoning,
+            warnings=warnings,
+            supported=False,
+        )
+
+    reasoning.append(
+        "Subtracting the comparison group's change from the treated "
+        "group's removes anything that moved both groups equally between "
+        "the two measurements, such as a seasonal pattern or an outside "
+        "event."
+    )
+    reasoning.append(
+        "It also removes any fixed difference between the groups that was "
+        "already present at baseline, because each unit is compared "
+        "against its own earlier value first."
+    )
+    reasoning.append(
+        "Inference uses a Welch two-sample comparison of the change "
+        "scores, which does not assume the two groups' changes vary by "
+        "the same amount."
+    )
+
+    warnings.append(
+        "This estimate is causal only if the treated group would have "
+        "changed by the same amount as the comparison group without the "
+        "program. Two time points give no way to check whether the groups "
+        "were moving together beforehand, so the assumption is stated "
+        "rather than tested."
+    )
+    warnings.append(
+        "The comparison group has to have stayed untreated, and the "
+        "program must not have reached or displaced it. Neither is "
+        "visible in the data."
+    )
+
+    return MethodRecommendation(
+        method="estimate_did",
+        display_name="Difference-in-differences (2x2)",
         reasoning=reasoning,
         warnings=warnings,
     )

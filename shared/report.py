@@ -16,7 +16,7 @@ from typing import Sequence
 
 import streamlit as st
 
-from shared.case_studies import get_case_studies
+from shared.case_studies import get_case_studies, get_case_study
 from shared.catalog import LIFECYCLE_STAGES, STAGE_QUESTIONS, WORKFLOWS, workflows_by_stage
 from shared.handoff import HandoffEntry
 from shared.progress import stage_progress
@@ -136,6 +136,56 @@ def implications(text: str) -> None:
     stance.
     """
     st.write(f"**Implications**: {text}")
+
+
+def case_study_note(key: str, connection: str) -> None:
+    """
+    Anchor one published example beside the decision it speaks to.
+
+    Distinct from show_case_studies(), which renders a page's whole
+    examples section at the top. This puts a single example at the point
+    a reader is actually making the choice it is about, collapsed, so it
+    is available without competing with the analysis.
+
+    The reading order is concept, example, what it demonstrates, then
+    connection to this analysis. The concept is the expander's own label
+    rather than a line inside it: a study's `principle` field is already
+    a one-line statement of the idea, so using it as the label means a
+    collapsed note tells a reader which concept is behind it, and
+    repeating it inside would say the same sentence twice in one box.
+
+    `connection` is supplied by the call site because it is the only part
+    that depends on where the note appears. Everything else comes from
+    shared/case_studies.py, so the summary, takeaway, and citation a
+    reader sees here are the same verified text the examples section
+    shows, and cannot drift into a second, looser paraphrase.
+
+    A connection must say how the example bears on the analysis at hand
+    without claiming the study showed more than it did. Empty text
+    raises, so a note cannot render as an example with no stated reason
+    for being where it is.
+    """
+    if not connection.strip():
+        raise ValueError(
+            f"The case-study note for '{key}' has no connection text. A "
+            "note needs to state how the example bears on the analysis it "
+            "is placed beside."
+        )
+
+    study = get_case_study(key)
+
+    with st.expander(study.principle):
+        st.markdown("**Example**")
+        st.write(f"**{study.title}**")
+        st.write(study.summary)
+
+        st.markdown("**What it demonstrates**")
+        st.write(study.takeaway)
+
+        st.markdown("**Connection to this analysis**")
+        st.write(connection)
+
+        st.caption(study.citation)
 
 
 def show_case_studies(module: str) -> None:

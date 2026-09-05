@@ -262,5 +262,105 @@ class TestMultiselectDelimiterSafeguard(unittest.TestCase):
         self.assertEqual(result.method, "sensitivity_analysis")
 
 
+class TestDifferenceInDifferencesRecommendation(unittest.TestCase):
+    @staticmethod
+    def _panel(groups=("treated", "comparison"), n=20, seed=5):
+        rng = np.random.RandomState(seed)
+        arms = [group for group in groups for _ in range(n)]
+        pre = rng.normal(50, 6, len(arms))
+        return pd.DataFrame({
+            "arm": arms,
+            "pre": pre,
+            "post": pre + rng.normal(3, 4, len(arms)),
+        })
+
+    def test_group_plus_pre_and_post_recommends_did(self):
+        result = rec.recommend_method(
+            self._panel(), group_col="arm", pre_col="pre", post_col="post"
+        )
+
+        self.assertEqual(result.method, "estimate_did")
+        self.assertTrue(result.supported)
+
+    def test_an_outcome_column_alongside_pre_post_is_still_ambiguous(self):
+        """
+        The DiD branch is distinguished from a mixed request only by
+        outcome_col being unset, so the old ambiguity must still raise.
+        """
+        data = self._panel()
+        data["score"] = data["post"]
+
+        with self.assertRaises(ValueError):
+            rec.recommend_method(
+                data,
+                outcome_col="score",
+                group_col="arm",
+                pre_col="pre",
+                post_col="post",
+            )
+
+    def test_warns_that_parallel_trends_cannot_be_tested(self):
+        result = rec.recommend_method(
+            self._panel(), group_col="arm", pre_col="pre", post_col="post"
+        )
+
+        self.assertTrue(
+            any("moving together beforehand" in w for w in result.warnings)
+        )
+
+    def test_three_groups_are_not_supported(self):
+        result = rec.recommend_method(
+            self._panel(groups=("a", "b", "c")),
+            group_col="arm",
+            pre_col="pre",
+            post_col="post",
+        )
+
+        self.assertFalse(result.supported)
+        self.assertEqual(result.method, "review_did_groups")
+
+    def test_a_categorical_outcome_is_not_supported(self):
+        data = pd.DataFrame({
+            "arm": ["treated"] * 10 + ["comparison"] * 10,
+            "pre": ["yes", "no"] * 10,
+            "post": ["yes", "yes"] * 10,
+        })
+        result = rec.recommend_method(
+            data, group_col="arm", pre_col="pre", post_col="post"
+        )
+
+        self.assertFalse(result.supported)
+        self.assertEqual(result.method, "review_did_outcome")
+
+    def test_rejects_a_multiselect_group_column(self):
+        with self.assertRaises(ValueError) as raised:
+            rec.recommend_method(
+                self._panel(),
+                group_col="arm",
+                pre_col="pre",
+                post_col="post",
+                is_multiselect_group=True,
+            )
+
+        self.assertIn("multi-select", str(raised.exception))
+
+    def test_rejects_a_group_column_reused_as_pre_or_post(self):
+        with self.assertRaises(ValueError) as raised:
+            rec.recommend_method(
+                self._panel(), group_col="pre", pre_col="pre", post_col="post"
+            )
+
+        self.assertIn("three different", str(raised.exception))
+
+    def test_rejects_a_single_group(self):
+        with self.assertRaises(ValueError):
+            rec.recommend_method(
+                self._panel(groups=("treated",)),
+                group_col="arm",
+                pre_col="pre",
+                post_col="post",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

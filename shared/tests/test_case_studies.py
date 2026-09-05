@@ -19,6 +19,7 @@ from shared.case_studies import (
     PAGE_ORDER,
     CaseStudy,
     get_case_studies,
+    get_case_study,
 )
 from shared.catalog import LIFECYCLE_STAGES, WORKFLOWS
 
@@ -289,6 +290,60 @@ class TestRequiredContent(unittest.TestCase):
 
     def test_entries_are_frozen(self):
         self.assertTrue(CaseStudy.__dataclass_params__.frozen)
+
+
+class TestGetCaseStudy(unittest.TestCase):
+    """
+    Single-study lookup, used to anchor an example beside the decision it
+    speaks to rather than in a page's examples section.
+    """
+
+    def test_returns_the_requested_study(self):
+        self.assertIs(
+            get_case_study("lalonde_1986"), CASE_STUDIES["lalonde_1986"]
+        )
+
+    def test_unknown_key_raises_and_names_the_known_keys(self):
+        with self.assertRaises(ValueError) as raised:
+            get_case_study("lalonde")
+
+        message = str(raised.exception)
+        self.assertIn("lalonde", message)
+        self.assertIn("lalonde_1986", message)
+
+    def test_every_key_is_retrievable(self):
+        for key in CASE_STUDIES:
+            with self.subTest(study=key):
+                self.assertEqual(get_case_study(key).title, CASE_STUDIES[key].title)
+
+
+class TestAnchoredStudiesStayTagged(unittest.TestCase):
+    """
+    Studies anchored at a specific decision on a validation page must
+    still be tagged for that page.
+
+    An anchor renders from the study's own verified text, so an anchored
+    study that lost its tag would keep displaying while disappearing from
+    the page's examples section, leaving one lesson in two states. This
+    pins the four the Impact Evaluation page anchors today.
+    """
+
+    ANCHORED_ON_IMPACT_EVALUATION = (
+        "scared_straight",
+        "lalonde_1986",
+        "dead_salmon",
+        "narps",
+    )
+
+    def test_anchored_studies_are_tagged_for_program_validation(self):
+        for key in self.ANCHORED_ON_IMPACT_EVALUATION:
+            with self.subTest(study=key):
+                self.assertIn("program_validation", get_case_study(key).modules)
+
+    def test_anchored_studies_appear_in_the_page_order(self):
+        for key in self.ANCHORED_ON_IMPACT_EVALUATION:
+            with self.subTest(study=key):
+                self.assertIn(key, PAGE_ORDER["program_validation"])
 
 
 if __name__ == "__main__":

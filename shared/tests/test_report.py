@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import unittest
 
-from shared.report import Band, classify, render_lifecycle_tracker
+from shared.report import Band, case_study_note, classify, render_lifecycle_tracker
 
 
 BANDS = [
@@ -64,6 +64,31 @@ class TestLifecycleTrackerValidation(unittest.TestCase):
             render_lifecycle_tracker(current_workflow="Not A Real Workflow")
 
         self.assertIn("does not match any workflow", str(context.exception))
+
+
+class TestCaseStudyNoteValidation(unittest.TestCase):
+    """
+    Both failure paths run before any Streamlit call, so they are
+    testable without a running app.
+
+    A note exists to say why an example sits where it does. Rendering one
+    with no connection text, or against a key that no longer exists,
+    would leave a reader with an example and no stated reason for it.
+    """
+
+    def test_empty_connection_raises(self):
+        for blank in ("", "   ", "\n"):
+            with self.subTest(connection=repr(blank)):
+                with self.assertRaises(ValueError) as context:
+                    case_study_note("lalonde_1986", blank)
+
+                self.assertIn("lalonde_1986", str(context.exception))
+
+    def test_unknown_key_raises(self):
+        with self.assertRaises(ValueError) as context:
+            case_study_note("no_such_study", "A real connection.")
+
+        self.assertIn("not a known case study", str(context.exception))
 
 
 if __name__ == "__main__":

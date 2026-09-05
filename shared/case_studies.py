@@ -521,6 +521,28 @@ PAGE_ORDER: dict[str, tuple[str, ...]] = {
 }
 
 
+def get_case_study(key: str) -> CaseStudy:
+    """
+    Return one study by key, for anchoring it at a specific decision.
+
+    Distinct from get_case_studies(), which answers "what should this
+    page's examples section show". This answers "show this exact
+    example here", which is what a page needs when a lesson belongs
+    beside one particular choice rather than in a list at the top.
+
+    An unknown key raises rather than returning None, so a typo or a
+    renamed study fails loudly at the call site instead of silently
+    rendering nothing where a reader was meant to find an example.
+    """
+    if key not in CASE_STUDIES:
+        raise ValueError(
+            f"'{key}' is not a known case study. Known keys: "
+            f"{', '.join(sorted(CASE_STUDIES))}."
+        )
+
+    return CASE_STUDIES[key]
+
+
 def get_case_studies(module: str) -> list[CaseStudy]:
     """
     Return case studies for a module, most relevant first.
