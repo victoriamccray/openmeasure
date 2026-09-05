@@ -719,6 +719,7 @@ TRACKER.render_restart_button(
         "pe_recommendation",
         "pe_context",
         "pe_uploaded_file_id",
+        "pe_run",
         "pe_search_results",
         "pe_search_provenance",
         "pe_selected_studies",
@@ -1007,6 +1008,7 @@ profile = render_data_profile(df)
 if st.session_state.get("pe_uploaded_file_id") != loaded.token:
     st.session_state["pe_uploaded_file_id"] = loaded.token
     st.session_state.pop("pe_recommendation", None)
+    st.session_state.pop("pe_run", None)
     st.session_state.pop("pe_context", None)
 
 st.write(f"Loaded **{df.shape[0]} rows** and **{df.shape[1]} columns**.")
@@ -1161,6 +1163,10 @@ else:
 if recommendation is not None:
     st.session_state["pe_recommendation"] = recommendation
     st.session_state["pe_context"] = context
+    # A fresh recommendation invalidates whatever was last run. Without
+    # this, changing the design would show the previous analysis's result
+    # underneath the new recommendation without anyone pressing Run.
+    st.session_state.pop("pe_run", None)
 
 if "pe_recommendation" in st.session_state:
     recommendation = st.session_state["pe_recommendation"]
@@ -1180,9 +1186,18 @@ if "pe_recommendation" in st.session_state:
         )
         st.stop()
 
-    run_clicked = st.button("Run analysis", type="primary")
+    if st.button("Run analysis", type="primary"):
+        st.session_state["pe_run"] = True
 
-    if run_clicked:
+    # Gated on stored state rather than on the button, because st.button
+    # is True only on the pass that clicked it. The result section holds
+    # interactive elements of its own (the effect-size step-through), and
+    # touching one of those reruns the script; under a button gate the
+    # rerun found run_clicked False and the entire result vanished, which
+    # read as the page jumping back a step. Recomputing costs nothing at
+    # these sizes and keeps the displayed result and the analysis the
+    # same object.
+    if st.session_state.get("pe_run"):
         method = recommendation.method
         result = None
 
@@ -1551,6 +1566,8 @@ if "pe_recommendation" in st.session_state:
                     "7. Interpret",
                     "What this design and this result together support",
                 )
+
+                caveat(interpret.P_VALUE_NOTE)
 
                 if method == "estimate_did":
                     render_did_interpretation(result)

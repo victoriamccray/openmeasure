@@ -321,5 +321,71 @@ class TestFormulaExplanationReachesTheResult(unittest.TestCase):
         self.assertIn(f"= {metric.value}", rendered)
 
 
+class TestResultsSurviveInteraction(unittest.TestCase):
+    """
+    Regression: the result section holds interactive elements of its own,
+    and st.button is True only on the pass that clicked it.
+
+    While the section was gated on the button, touching the effect-size
+    step-through reran the script, the gate found the button False, and
+    the entire result disappeared. On screen that read as the page
+    jumping back a step. Gating on stored state instead is what keeps a
+    result on screen while a reader explores it.
+    """
+
+    def _run_analysis(self):
+        app = _open(IMPACT_EVALUATION)
+        _button(app, SAMPLE_BUTTON_LABEL).click().run()
+        _button(app, "Get recommendation").click().run()
+        _button(app, "Run analysis").click().run()
+        return app
+
+    def test_the_result_is_still_there_after_stepping_the_visual(self):
+        app = self._run_analysis()
+
+        stepper = next(
+            s for s in app.select_slider if s.label == "Stage"
+        )
+        stepper.set_value("Take the difference").run()
+
+        self.assertFalse(app.exception)
+
+        headings = [str(item.value) for item in app.subheader]
+        self.assertIn("Result", headings)
+        self.assertIn("7. Interpret", headings)
+
+    def test_the_stepper_actually_advances(self):
+        app = self._run_analysis()
+
+        stepper = next(s for s in app.select_slider if s.label == "Stage")
+        stepper.set_value("Measure it against the spread").run()
+
+        rendered = " ".join(str(m.value) for m in app.markdown)
+        self.assertIn("Measure it against the spread", rendered)
+
+    def test_a_rerun_that_touches_nothing_keeps_the_result(self):
+        """
+        Any widget anywhere on the page reruns the script, not only the
+        ones inside the result.
+        """
+        app = self._run_analysis()
+        app.run()
+
+        self.assertFalse(app.exception)
+        self.assertIn("Result", [str(i.value) for i in app.subheader])
+
+    def test_a_new_recommendation_clears_the_previous_run(self):
+        """
+        Otherwise the last analysis would sit under a recommendation it
+        was not produced from.
+        """
+        app = self._run_analysis()
+        self.assertIn("Result", [str(i.value) for i in app.subheader])
+
+        _button(app, "Get recommendation").click().run()
+
+        self.assertNotIn("Result", [str(i.value) for i in app.subheader])
+
+
 if __name__ == "__main__":
     unittest.main()
