@@ -53,6 +53,46 @@ This is a **program validation** question. Reliability asks whether a measure is
     before-and-after estimate staying put while the
     difference-in-differences estimate moves with it.
 
+## Domain context
+
+`core/domains.py` carries seven fields of practice (public health &
+healthcare, social programs, education, workforce, criminal justice &
+reentry, digital interventions, and Other). A domain supplies literature
+search terms, the words that field uses for each design concept, the
+outcomes it commonly measures, and the measurement caveats those
+outcomes carry. Several outcomes carry a caveat that travels with the
+suggestion rather than sitting in page prose, so an outcome cannot be
+offered anywhere its known problems are not stated: rearrest counts
+police contact as well as behavior, state wage records miss
+self-employment and out-of-state work, standardized scores respond to
+instructional emphasis, and in-app surveys reach only the users a change
+did not drive away.
+
+**A domain never reaches the analysis.** It changes what a researcher
+reads and searches for, never which method is recommended or what any
+statistic comes out as. This is enforced, not just documented.
+`tests/test_domains.py` asserts that `Domain` carries no method or design
+field, that `recommend.py`, `comparison.py`, and `did.py` never import
+`domains`, that no analysis function accepts a domain argument, and that
+every domain variant of the teaching example returns an identical
+estimate at every slider value.
+
+The difference-in-differences teaching example is told in public health,
+education, and workforce terms; the remaining domains fall back to the
+canonical telling and the page says so. Every variant carries identical
+numbers (60 to 72 treated, 58 comparison baseline) by construction, so
+the field changes the story and not the arithmetic.
+
+Search terms name fields and populations, never study designs. Seeding a
+search with "randomized" or "quasi-experimental" would steer a
+researcher toward literature using one design before they have decided
+what their own question supports.
+
+The selected domain is not recorded to `shared/handoff.py`.
+`HandoffEntry` has no free-form metadata field, and `primary_statistics`
+is typed to floats, so recording it would require a shared-schema
+change.
+
 - Plain-language interpretation
 - Assumptions and limitations
 - Standardized reporting
@@ -90,6 +130,7 @@ modules/
     │   ├── __init__.py
     │   ├── comparison.py
     │   ├── did.py
+    │   ├── domains.py
     │   ├── interpret.py
     │   ├── recommend.py
     │   └── teaching.py
@@ -97,6 +138,7 @@ modules/
     │   ├── __init__.py
     │   ├── test_comparison.py
     │   ├── test_did.py
+    │   ├── test_domains.py
     │   ├── test_interpret.py
     │   ├── test_recommend.py
     │   └── test_teaching.py

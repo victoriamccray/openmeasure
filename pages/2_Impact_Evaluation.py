@@ -19,6 +19,7 @@ import streamlit as st
 
 from modules.program_evaluation.core import comparison as comp
 from modules.program_evaluation.core import did as did_core
+from modules.program_evaluation.core import domains
 from modules.program_evaluation.core import interpret
 from modules.program_evaluation.core import recommend as rec
 from modules.program_evaluation.core import teaching
@@ -148,9 +149,10 @@ def _did_teaching_svg(scenario, outcome) -> str:
     return f"""
     <svg width="100%" height="185" viewBox="0 0 360 185"
          preserveAspectRatio="xMidYMid meet" role="img"
-         aria-label="Kept-appointment rate at two clinics before and after
-         the reminder program, with the treated clinic's assumed path
-         without it.">
+         aria-label="{scenario.outcome_label.capitalize()} for
+         {scenario.treated_label} and {scenario.comparison_label} before and
+         after the {scenario.program_label}, with the path
+         {scenario.treated_label} is assumed to have been on without it.">
       <line x1="8" y1="10" x2="24" y2="10" stroke="{ACCENT_2}" stroke-width="2"/>
       <text x="28" y="13" font-size="9" fill="{INK_MUTED}">{scenario.treated_label}</text>
       <line x1="90" y1="10" x2="106" y2="10" stroke="{ACCENT}" stroke-width="2"/>
@@ -158,7 +160,7 @@ def _did_teaching_svg(scenario, outcome) -> str:
       <line x1="180" y1="10" x2="196" y2="10" stroke="{INK_MUTED}" stroke-width="2"
             stroke-dasharray="4,3"/>
       <text x="200" y="13" font-size="9" fill="{INK_MUTED}">
-        {scenario.treated_label} without the program
+        {scenario.treated_label} without the {scenario.program_label}
       </text>
 
       {gridlines}
@@ -192,13 +194,16 @@ def _did_teaching_svg(scenario, outcome) -> str:
       <text x="{bracket_x + 7}" y="{gap_label_y:.1f}" font-size="10" fill="{INK_MUTED}">
         {outcome.did_estimate:+.1f} pts
       </text>
+      <title>Difference of {outcome.did_estimate:+.1f} {scenario.unit_label}
+      between what {scenario.treated_label} reached and where it would have
+      ended up on {scenario.comparison_label}'s path.</title>
 
       <text x="{_TEACH_X_PRE}" y="165" font-size="9" fill="{INK_MUTED}"
-            text-anchor="middle">December</text>
+            text-anchor="middle">{scenario.pre_period_label}</text>
       <text x="{_TEACH_X_POST}" y="165" font-size="9" fill="{INK_MUTED}"
-            text-anchor="middle">June</text>
+            text-anchor="middle">{scenario.post_period_label}</text>
       <text x="8" y="178" font-size="8" fill="{INK_MUTED}">
-        Percentage of scheduled appointments kept
+        {scenario.outcome_label.capitalize()}
       </text>
     </svg>
     """
@@ -217,10 +222,48 @@ def render_did_teaching_example() -> None:
     Every value and every sentence comes from
     modules/program_evaluation/core/teaching.py, so the prose and the
     arithmetic cannot drift apart.
-    """
-    scenario = teaching.DID_TEACHING_SCENARIO
 
+    The field selector changes which telling of the scenario is shown and
+    nothing else. It is scoped to this example rather than offered as a
+    page-level setting, because that is all it currently does: the wider
+    domain layer (search seeding, outcome suggestions and their caveats)
+    has no stage to live in until the workflow is restructured.
+    """
     with st.expander("See how a comparison group changes the estimate"):
+        domain_labels = {domain.id: domain.label for domain in domains.DOMAINS}
+        domain_id = st.selectbox(
+            "Show this example in the terms of",
+            options=list(domain_labels),
+            format_func=lambda key: domain_labels[key],
+        )
+
+        scenario = teaching.did_scenario_for(domain_id)
+
+        if not teaching.has_own_did_scenario(domain_id):
+            fallback_label = domain_labels[scenario.domain_id]
+            st.caption(
+                f"{domain_labels[domain_id]} does not have its own telling "
+                f"of this example yet, so it is shown in {fallback_label.lower()} "
+                "terms. The arithmetic is identical either way, which is "
+                "the point: the field changes the story, not the method."
+            )
+
+        glossary = pd.DataFrame(
+            {
+                "Concept": list(domains.CONCEPTS),
+                "In this field": [
+                    domains.get_domain(domain_id).term_for(concept)
+                    for concept in domains.CONCEPTS
+                ],
+            }
+        )
+        st.dataframe(glossary, width="stretch", hide_index=True)
+        st.caption(
+            "The same design concepts, in the words this field uses for "
+            "them. The statistical terms on the left are what the rest of "
+            "this page uses."
+        )
+
         st.markdown("**Scenario**")
         st.write(scenario.scenario)
 
@@ -236,32 +279,40 @@ def render_did_teaching_example() -> None:
 
         st.markdown("**Result**")
         comparison_change = st.slider(
-            f"How much {scenario.comparison_label}'s kept-appointment rate "
-            "changed over the same six months (percentage points)",
+            f"How much {scenario.comparison_label}'s "
+            f"{scenario.outcome_label} changed over the same "
+            f"{scenario.period_label} ({scenario.unit_label})",
             min_value=-10.0,
             max_value=20.0,
             value=5.0,
             step=0.5,
         )
-        outcome = teaching.teaching_did(comparison_change)
+        outcome = teaching.teaching_did(comparison_change, scenario=scenario)
 
         st.markdown(
             _did_teaching_svg(scenario, outcome),
             unsafe_allow_html=True,
         )
         st.caption(
-            "The dashed line is the comparison clinic's slope drawn from "
-            "the treated clinic's own starting point. Parallel trends is "
-            "the assumption that the dashed line is where Clinic A would "
-            "have ended up, and the bracket is what is left over."
+            f"The dashed line is {scenario.comparison_label}'s slope drawn "
+            f"from {scenario.treated_label}'s own starting point. Parallel "
+            "trends is the assumption that the dashed line is where "
+            f"{scenario.treated_label} would have ended up, and the bracket "
+            "is what is left over."
         )
 
         st.dataframe(
             pd.DataFrame(
                 {
                     "Group": [scenario.treated_label, scenario.comparison_label],
-                    "December": [scenario.pre_treated, scenario.pre_comparison],
-                    "June": [scenario.post_treated, outcome.post_comparison],
+                    scenario.pre_period_label: [
+                        scenario.pre_treated,
+                        scenario.pre_comparison,
+                    ],
+                    scenario.post_period_label: [
+                        scenario.post_treated,
+                        outcome.post_comparison,
+                    ],
                     "Change": [outcome.change_treated, outcome.comparison_change],
                 }
             ),
@@ -272,11 +323,11 @@ def render_did_teaching_example() -> None:
         t1, t2 = st.columns(2)
         t1.metric(
             "Before-and-after estimate",
-            f"{outcome.before_after_estimate:+.1f} points",
+            f"{outcome.before_after_estimate:+.1f}",
         )
         t2.metric(
             "Difference-in-differences estimate",
-            f"{outcome.did_estimate:+.1f} points",
+            f"{outcome.did_estimate:+.1f}",
         )
         inspect_note(
             "Which of the two estimates moves when you move the slider, and "
