@@ -23,13 +23,13 @@ from modules.data_profile.core.suggest import (
     default_outcome_column,
     default_prepost_columns,
 )
-from modules.evidence_review.core import record as record_core
-from modules.evidence_review.core import relevance as relevance_core
 from modules.program_evaluation.core import comparison as comp
+from modules.program_evaluation.core import designs
 from modules.program_evaluation.core import did as did_core
 from modules.program_evaluation.core import domains
 from modules.program_evaluation.core import interpret
 from modules.program_evaluation.core import recommend as rec
+from modules.program_evaluation.core import research
 from modules.program_evaluation.core import teaching
 from shared.catalog import MODULE_PROGRAM_EVALUATION
 from shared.handoff import (
@@ -726,37 +726,22 @@ if st.button("Search OpenAlex", disabled=not query.strip()):
 raw_results = st.session_state.get("pe_search_results")
 
 if raw_results:
-    records = [record_core.from_openalex_work(work) for work in raw_results]
-    scored = [
-        (record, relevance_core.score_relevance(question_terms, record))
-        for record in records
-    ]
+    rows = research.research_rows(raw_results, question_terms)
 
     st.dataframe(
-        pd.DataFrame(
-            [
-                {
-                    "Title": record.title,
-                    "Authors": record.author_summary,
-                    "Year": record.year,
-                    "Venue": record.venue,
-                    "Shared keywords": score.overlap_count,
-                }
-                for record, score in scored
-            ]
-        ),
+        pd.DataFrame([row.as_display_row() for row in rows]),
         width="stretch",
         hide_index=True,
     )
     st.caption(
-        "Shared keywords counts words your question and a result's title "
-        "or abstract have in common. It is a text overlap, not a judgment "
-        "that a result is relevant."
+        f"{research.OVERLAP_COLUMN} counts words your question and a "
+        "result's title or abstract have in common. It is a text overlap, "
+        "not a judgment that a result is relevant."
     )
 
     st.multiselect(
         "Studies worth keeping in mind",
-        options=[record.title for record, _ in scored],
+        options=research.selectable_titles(rows),
         key="pe_selected_studies",
     )
 elif raw_results is not None:
@@ -791,57 +776,17 @@ if selected_studies:
             "answers and your data's shape, not on what these studies did."
         )
 
-comparison_term = selected_domain.term_for(domains.CONCEPT_COMPARISON_GROUP)
-unit_term = selected_domain.term_for(domains.CONCEPT_UNIT)
+for design in designs.DESIGN_OPTIONS:
+    st.markdown(f"**{design.label}**")
+    st.write(design.summary_for(selected_domain))
 
-st.markdown("**Two or more groups**")
-st.write(
-    "Compares an outcome across groups measured once. Needs an outcome "
-    f"column and a column identifying which group each {unit_term} "
-    "belongs to."
-)
-case_study_note(
-    "lalonde_1986",
-    "This design compares the groups as they are, and has no way to see "
-    "how anyone ended up in one rather than the other. If group "
-    "membership was not randomly assigned, whatever distinguished the "
-    "groups beforehand is carried along in the difference it reports, and "
-    "the confidence interval around that difference will look no wider "
-    "for it.",
-)
+    if design.caveat:
+        st.caption(design.caveat)
 
-st.markdown("**Pre/post, same participants**")
-st.write(
-    "Compares one group's outcome before and after, using each unit as "
-    "its own baseline. Needs a baseline column and a follow-up column."
-)
-case_study_note(
-    "scared_straight",
-    "This design measures how much one group changed between two "
-    "measurements. Nothing in it observes what would have happened "
-    "without the program, so maturation, regression to the mean, and "
-    "outside events stay open as explanations for the change.",
-)
+    if design.case_study_key:
+        case_study_note(design.case_study_key, design.case_study_connection)
 
-st.markdown("**Two groups, each measured before and after**")
-st.write(
-    f"Difference-in-differences. Subtracts the {comparison_term}'s change "
-    "from the treated group's, which removes anything that moved both "
-    "equally and any fixed gap between them at baseline. Needs a group "
-    "column plus a baseline and a follow-up column."
-)
-st.caption(
-    "It buys that with an assumption instead: that the treated group "
-    "would have followed the comparison group's path. Two time points "
-    "give no way to check it, so this page states the assumption "
-    "alongside the estimate."
-)
-
-implications(
-    "The design that fits is the one your data can support. The analysis "
-    "stage recommends a test from your data's shape and lets you override "
-    "it."
-)
+implications(designs.DESIGN_CHOICE_IMPLICATION)
 
 if stage < STAGE_EXAMPLE:
     if st.button("Continue to the worked example", type="primary"):

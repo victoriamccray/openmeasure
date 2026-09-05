@@ -110,6 +110,33 @@ change.
 - Automated causal conclusions
 - Multi-arm study designs
 
+## Workflow content lives in core, not in the page
+
+`pages/2_Impact_Evaluation.py` runs a seven-stage sequence (evaluation
+question, domain, find research, explore designs, interactive example,
+analyze your data, interpret). The content each stage shows is data in
+`core/`, not prose inline in the page:
+
+- `core/designs.py` describes the three designs a reader chooses between,
+  with what each compares, what columns it needs, what it leaves open,
+  and the published example anchored beside it. Descriptions take a
+  Domain so a field's own word for the comparison group or the unit
+  appears in them. Design ids correspond to the methods `recommend.py`
+  returns, and a test pins that correspondence so a reader cannot read
+  about one design and be recommended another under a different name.
+- `core/research.py` turns raw OpenAlex works into display rows paired
+  with their keyword overlap against the researcher's own question. The
+  network call itself is `shared/literature.py`. Rows keep the order
+  OpenAlex returned rather than sorting by overlap, since overlap counts
+  shared words and is not a relevance ranking.
+- `core/domains.py`, `core/teaching.py`, and `core/interpret.py` own the
+  domain vocabulary, the worked example, and the plain-language readings
+  respectively.
+
+The page renders these; it does not restate them. That keeps the content
+unit-testable, which page code is not, and lets a later real-study
+journey present the same material without copying it.
+
 ## Interpretations
 
 A statistically significant result does not necessarily demonstrate that a program caused an observed effect. Every analysis will include explicit statements about what the selected design can and cannot support.
@@ -129,18 +156,22 @@ modules/
     ├── core/
     │   ├── __init__.py
     │   ├── comparison.py
+    │   ├── designs.py
     │   ├── did.py
     │   ├── domains.py
     │   ├── interpret.py
     │   ├── recommend.py
+    │   ├── research.py
     │   └── teaching.py
     ├── tests/
     │   ├── __init__.py
     │   ├── test_comparison.py
+    │   ├── test_designs.py
     │   ├── test_did.py
     │   ├── test_domains.py
     │   ├── test_interpret.py
     │   ├── test_recommend.py
+    │   ├── test_research.py
     │   └── test_teaching.py
     └── sample_data/
 ```
