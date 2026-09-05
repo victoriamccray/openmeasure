@@ -224,7 +224,7 @@ finding_text = st.text_area(
 )
 
 query = st.text_input(
-    "Search terms sent to OpenAlex (editable -- this is exactly what is searched)",
+    "Search terms sent to OpenAlex",
     value=finding_text,
 )
 
