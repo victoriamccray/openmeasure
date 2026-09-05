@@ -49,7 +49,7 @@ from shared.report import (
     section_header,
     show_case_studies,
 )
-from shared.upload import render_data_profile
+from shared.upload import render_data_entry, render_data_profile
 from modules.data_profile.core.profile import ROLE_DATETIME
 
 
@@ -258,26 +258,7 @@ section_header(
     "CSV file, one row per observation, with a timestamp column and a value column",
 )
 
-uploaded = st.file_uploader(
-    "CSV file",
-    type="csv",
-    label_visibility="collapsed",
-)
-
-SAMPLE_PATH = (
-    ROOT
-    / "modules"
-    / "time_series_qa"
-    / "sample_data"
-    / "time_series_example.csv"
-)
-
-if uploaded is None:
-    st.info("Upload a CSV to begin, or download the sample dataset below.")
-
-    with st.expander("About the sample dataset"):
-        st.markdown(
-            """
+ABOUT_SAMPLE = """
 Daily clinic visit counts from a nightly export, covering four months.
 
 | Column | Description |
@@ -291,31 +272,21 @@ counts, three days where the export ran but recorded no count, one row out
 of chronological order, and a few seconds of logging jitter on every
 timestamp.
 """
-        )
 
-    if SAMPLE_PATH.exists():
-        with SAMPLE_PATH.open("rb") as sample_file:
-            st.download_button(
-                label="Download sample time-series dataset",
-                data=sample_file,
-                file_name=SAMPLE_PATH.name,
-                mime="text/csv",
-            )
-    else:
-        st.warning(
-            "Sample dataset could not be found. Add a CSV under "
-            "modules/time_series_qa/sample_data."
-        )
+loaded = render_data_entry(
+    MODULE_TIME_SERIES_QA,
+    empty_prompt=(
+        "Load the sample dataset to see every check this module runs, or "
+        "upload your own CSV."
+    ),
+    about_sample=ABOUT_SAMPLE,
+)
 
+if loaded is None:
     show_case_studies("data_validation")
     st.stop()
 
-
-try:
-    frame = pd.read_csv(uploaded)
-except Exception as error:
-    st.error(f"The CSV could not be read: {error}")
-    st.stop()
+frame = loaded.frame
 
 if frame.empty or len(frame.columns) < 2:
     st.error(
@@ -413,7 +384,7 @@ frequency = result.frequency
 recommendation = result.recommendation
 
 
-def record_time_series(frame, upload, qa_result) -> None:
+def record_time_series(frame, source_name, qa_result) -> None:
     """
     Record this analysis for the Cross-Analysis Implications page.
 
@@ -454,7 +425,7 @@ def record_time_series(frame, upload, qa_result) -> None:
 
     HandoffStore(st.session_state).record(
         module=MODULE_TIME_SERIES_QA,
-        fingerprint=fingerprint_dataframe(frame, upload.name),
+        fingerprint=fingerprint_dataframe(frame, source_name),
         exclusion=ExclusionAccount(
             module=MODULE_TIME_SERIES_QA,
             analysis_label="Time-Series QA",
@@ -474,7 +445,7 @@ def record_time_series(frame, upload, qa_result) -> None:
     )
 
 
-record_time_series(frame, uploaded, result)
+record_time_series(frame, loaded.name, result)
 
 st.caption(
     "Recorded for the Cross-Analysis Implications page, which shows how much "
@@ -489,7 +460,7 @@ st.caption(
 section_header("Dataset", "What was loaded, what was excluded, and why")
 
 first_column, second_column, third_column = st.columns(3)
-first_column.metric("Rows uploaded", result.n_input_rows)
+first_column.metric("Rows loaded", result.n_input_rows)
 second_column.metric("Observations used", result.n_rows_used)
 third_column.metric(
     "Excluded",

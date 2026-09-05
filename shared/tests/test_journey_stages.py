@@ -151,5 +151,34 @@ class TestStageTrackerBehavior(unittest.TestCase):
         self.assertIn("stage is 0", self._rendered(app))
 
 
+class TestMarkReached(unittest.TestCase):
+    """
+    mark_reached unlocks without rerunning, for a stage the page has
+    already decided to render in the current pass. Impact Evaluation's
+    interpretation stage is the case: it opens because an analysis just
+    produced a result, and a rerun would discard that result.
+
+    The range check runs before any Streamlit call, so both rejections are
+    testable outside a script run.
+    """
+
+    def test_negative_stage_is_rejected(self):
+        tracker = StageTracker(session_key="m_negative", stage_labels=("A", "B"))
+
+        with self.assertRaises(ValueError) as context:
+            tracker.mark_reached(-1)
+
+        self.assertIn("out of range", str(context.exception))
+
+    def test_stage_past_the_declared_labels_is_rejected(self):
+        tracker = StageTracker(session_key="m_overflow", stage_labels=("A", "B"))
+
+        with self.assertRaises(ValueError) as context:
+            tracker.mark_reached(2)
+
+        self.assertIn("out of range", str(context.exception))
+        self.assertIn("m_overflow", str(context.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -144,11 +144,22 @@ DISCLOSURES: tuple[DataHandlingDisclosure, ...] = (
     ),
     DataHandlingDisclosure(
         page="pages/2_Impact_Evaluation.py",
-        data_access=(DATA_ACCESS_USER_UPLOAD, DATA_ACCESS_BUNDLED_EXAMPLE),
+        data_access=(
+            DATA_ACCESS_USER_UPLOAD,
+            DATA_ACCESS_BUNDLED_EXAMPLE,
+            DATA_ACCESS_PUBLIC_REMOTE,
+        ),
         processing=(PROCESSING_IN_MEMORY,),
         persistent_storage=PERSISTENT_STORAGE_NONE,
-        data_accessed="Uploaded CSV's outcome/group or pre/post columns.",
-        redistribution=REDISTRIBUTION_NOT_APPLICABLE,
+        data_accessed=(
+            "The loaded CSV's outcome/group or pre/post columns. Separately, "
+            "on the optional Find Research step only, the search terms shown "
+            "in the query box and OpenAlex's public metadata for matching "
+            "works. The evaluation question typed in the first step is used "
+            "to prefill that query, so whatever remains in the box when the "
+            "search runs is what is sent."
+        ),
+        redistribution=REDISTRIBUTION_NOT_BUNDLED,
         notes=_HANDOFF_NOTE,
     ),
     DataHandlingDisclosure(

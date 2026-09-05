@@ -69,6 +69,30 @@ class StageTracker:
         st.session_state[self.session_key] = max(self.current(), stage)
         st.rerun()
 
+    def mark_reached(self, stage: int) -> None:
+        """
+        Unlock through `stage` without rerunning.
+
+        advance_to() is for a button: the reader asked to move on, and the
+        rerun is what draws the newly unlocked section. This is for a stage
+        the page has already decided to render in the current pass, where
+        a rerun would discard the very thing that unlocked it. Impact
+        Evaluation's interpretation stage is the case: it opens because an
+        analysis just produced a result, and that result exists only in
+        this pass.
+
+        Same range check as advance_to(), so an out-of-range stage still
+        fails loudly rather than recording a frontier no label matches.
+        """
+
+        if not 0 <= stage < len(self.stage_labels):
+            raise ValueError(
+                f"Stage {stage} is out of range for '{self.session_key}', "
+                f"which declares {len(self.stage_labels)} stage_labels."
+            )
+
+        st.session_state[self.session_key] = max(self.current(), stage)
+
     def render_breadcrumb(self) -> int:
         """
         Render the stage breadcrumb and return the current stage.

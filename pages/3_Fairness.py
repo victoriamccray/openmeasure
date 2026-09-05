@@ -44,7 +44,7 @@ from shared.report import (
     section_header,
     show_case_studies,
 )
-from shared.upload import render_data_profile
+from shared.upload import render_data_entry, render_data_profile
 
 FAIRNESS_ACCENT = "#2a78d6"
 
@@ -81,7 +81,7 @@ def _two_group_rate_chart_spec(
     }
 
 
-def record_fairness(frame, upload, label_column, group_column, result) -> None:
+def record_fairness(frame, source_name, label_column, group_column, result) -> None:
     """
     Record this analysis for the Cross-Analysis Implications page.
 
@@ -91,7 +91,7 @@ def record_fairness(frame, upload, label_column, group_column, result) -> None:
     """
     HandoffStore(st.session_state).record(
         module=MODULE_FAIRNESS,
-        fingerprint=fingerprint_dataframe(frame, upload.name),
+        fingerprint=fingerprint_dataframe(frame, source_name),
         exclusion=ExclusionAccount(
             module=MODULE_FAIRNESS,
             analysis_label="Fairness (pre-model)",
@@ -117,7 +117,7 @@ def record_fairness(frame, upload, label_column, group_column, result) -> None:
 
 
 def record_post_model_fairness(
-    frame, upload, true_label_column, predicted_label_column, group_column, result
+    frame, source_name, true_label_column, predicted_label_column, group_column, result
 ) -> None:
     """
     Record this analysis for the Cross-Analysis Implications page.
@@ -129,7 +129,7 @@ def record_post_model_fairness(
     """
     HandoffStore(st.session_state).record(
         module=MODULE_FAIRNESS,
-        fingerprint=fingerprint_dataframe(frame, upload.name),
+        fingerprint=fingerprint_dataframe(frame, source_name),
         exclusion=ExclusionAccount(
             module=MODULE_FAIRNESS,
             analysis_label="Fairness (post-model)",
@@ -379,20 +379,7 @@ section_header(
     "CSV file, one row per participant, observation, or prediction",
 )
 
-uploaded = st.file_uploader(
-    "CSV file",
-    type="csv",
-    label_visibility="collapsed",
-)
-
-if uploaded is None:
-    st.info(
-        "Upload a CSV to begin an analysis, or download the sample dataset."
-    )
-
-    with st.expander("About the sample dataset"):
-        st.markdown(
-            """
+ABOUT_SAMPLE = """
 The sample dataset represents a **simulated binary classification
 problem**. Each row contains one observed outcome and one model
 prediction.
@@ -420,36 +407,20 @@ groups with positive predictive value rather than using
 `predicted_probability` directly; a full calibration curve over that
 column is a planned feature.
 """
-        )
 
-    sample_path = (
-        ROOT
-        / "modules"
-        / "fairness"
-        / "sample_data"
-        / "fairness_example.csv"
-    )
+loaded = render_data_entry(
+    MODULE_FAIRNESS,
+    empty_prompt=(
+        "Load the sample dataset to work through both fairness analyses "
+        "straight away, or upload your own CSV."
+    ),
+    about_sample=ABOUT_SAMPLE,
+)
 
-    if sample_path.exists():
-        with sample_path.open("rb") as sample_file:
-            st.download_button(
-                label="Download sample fairness dataset",
-                data=sample_file,
-                file_name=sample_path.name,
-                mime="text/csv",
-            )
-    else:
-        st.warning(
-            "Sample fairness dataset could not be found. Add a CSV under "
-            "modules/fairness/sample_data."
-        )
-
+if loaded is None:
+    df = None
 else:
-    try:
-        df = pd.read_csv(uploaded)
-    except Exception as error:
-        st.error(f"The CSV could not be read: {error}")
-        df = None
+    df = loaded.frame
 
     if df is not None:
         render_data_profile(df)
@@ -592,7 +563,7 @@ else:
                 st.error(str(error))
 
             else:
-                record_fairness(df, uploaded, label_col, group_col, bias_result)
+                record_fairness(df, loaded.name, label_col, group_col, bias_result)
                 st.caption(
                     "Recorded for the Cross-Analysis Implications page, "
                     "which shows how much of your data each analysis used."
@@ -867,7 +838,7 @@ else:
                 else:
                     record_post_model_fairness(
                         df,
-                        uploaded,
+                        loaded.name,
                         label_col,
                         predicted_label_col,
                         group_col,

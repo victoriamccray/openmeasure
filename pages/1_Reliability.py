@@ -26,7 +26,7 @@ from modules.reliability.core import reliability as rel
 from modules.reliability.core import interpret as interp
 from modules.data_profile.core.profile import ROLE_IDENTIFIER
 from shared.catalog import MODULE_RELIABILITY
-from shared.upload import render_data_profile
+from shared.upload import render_data_entry, render_data_profile
 from shared.handoff import (
     KIND_CELLS_EMPTY,
     KIND_ROWS_DROPPED,
@@ -37,7 +37,7 @@ from shared.handoff import (
 )
 
 
-def record_reliability(frame, upload, columns, result) -> None:
+def record_reliability(frame, source_name, columns, result) -> None:
     """
     Record this analysis for the Cross-Analysis Implications page.
 
@@ -51,7 +51,7 @@ def record_reliability(frame, upload, columns, result) -> None:
 
     HandoffStore(st.session_state).record(
         module=MODULE_RELIABILITY,
-        fingerprint=fingerprint_dataframe(frame, upload.name),
+        fingerprint=fingerprint_dataframe(frame, source_name),
         exclusion=ExclusionAccount(
             module=MODULE_RELIABILITY,
             analysis_label="Reliability",
@@ -179,18 +179,20 @@ with st.expander("Assumptions & limitations", icon=":material/balance:"):
 """
     )
 
-section_header("1. Upload Your Data", "CSV file in wide format, one row per participant")
+section_header("1. Load Your Data", "CSV file in wide format, one row per participant")
 
-uploaded = st.file_uploader("CSV file", type="csv", label_visibility="collapsed")
+loaded = render_data_entry(
+    MODULE_RELIABILITY,
+    empty_prompt=(
+        "Load the sample dataset to see a worked reliability analysis "
+        "straight away, or upload your own CSV."
+    ),
+)
 
-if uploaded is None:
-    st.info("Upload a CSV to get started, or try the sample dataset below.")
-    sample_path = ROOT / "modules" / "reliability" / "sample_data" / "survey_example.csv"
-    with open(sample_path, "rb") as f:
-        st.download_button("Download sample_data/survey_example.csv", f, file_name="survey_example.csv")
+if loaded is None:
     st.stop()
 
-df = pd.read_csv(uploaded)
+df = loaded.frame
 profile = render_data_profile(df)
 st.write(f"Loaded **{df.shape[0]} rows** and **{df.shape[1]} columns**.")
 st.dataframe(df.head(), width="stretch")
@@ -328,7 +330,7 @@ if analyze_clicked:
         if msg:
             flagged_item_note(d.item, msg)
 
-    record_reliability(df, uploaded, item_cols, result)
+    record_reliability(df, loaded.name, item_cols, result)
     st.caption(
         "Recorded for the Cross-Analysis Implications page, which shows how "
         "much of your data each analysis used."

@@ -63,6 +63,7 @@ from shared.progress import (
     status_caption,
     workflow_progress,
 )
+from shared.case_studies import CASE_STUDIES
 from shared.report import CASE_STUDIES_HEADING, CURRENT_STAGE_MARKER
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -137,22 +138,31 @@ class TestEveryPageLoads(unittest.TestCase):
             "The entrypoint ran but did not render the overview content.",
         )
 
-    def test_every_workflow_page_names_its_examples_section(self):
+    def test_every_workflow_page_labels_the_examples_it_shows(self):
         """
-        The examples section must be labelled, not left to be inferred.
+        A case study must arrive labelled, not left to be inferred.
+
+        Two ways of satisfying that now exist. A page can render the
+        collected examples section, which shared/report.py's
+        show_case_studies() heads with one fixed title; or it can anchor
+        individual studies at the decision each speaks to, which
+        case_study_note() labels with that study's own principle. Impact
+        Evaluation moved to the second when it became a staged workflow,
+        so a heading-only check would force a page back to a top-of-page
+        block it deliberately replaced.
+
+        What is still asserted is the property the original test was for:
+        a workflow page shows its examples under a name. It is not
+        satisfied by rendering studies bare.
 
         Scoped to the pages the catalog calls workflows, not to every file
-        in the directory. The property is that a page showing case studies
-        names the section, and the overview shows none.
-
-        There are nine show_case_studies call sites across the workflow
-        pages, including early-return branches, and the heading used to be
-        applied by each page individually. Only three sites had one, so two
-        pages showed the panel with no heading at all.
+        in the directory.
         """
         names = workflow_page_names()
 
         self.assertTrue(names, "The catalog lists no workflow pages.")
+
+        principles = {study.principle for study in CASE_STUDIES.values()}
 
         app = AppTest.from_file(
             str(ENTRYPOINT), default_timeout=LOAD_TIMEOUT_SECONDS
@@ -164,15 +174,17 @@ class TestEveryPageLoads(unittest.TestCase):
                 app.switch_page(f"pages/{name}")
                 app.run()
 
-                headings = [
-                    str(item.value) for item in app.subheader
-                ]
+                headings = [str(item.value) for item in app.subheader]
+                expanders = [expander.label for expander in app.expander]
 
-                self.assertIn(
-                    CASE_STUDIES_HEADING,
-                    headings,
-                    f"{name} renders case studies without naming the "
-                    f"section. Headings found: {headings}",
+                has_section = CASE_STUDIES_HEADING in headings
+                has_anchor = any(label in principles for label in expanders)
+
+                self.assertTrue(
+                    has_section or has_anchor,
+                    f"{name} names neither a '{CASE_STUDIES_HEADING}' "
+                    "section nor any anchored study. Headings found: "
+                    f"{headings}. Expanders found: {expanders}",
                 )
 
 

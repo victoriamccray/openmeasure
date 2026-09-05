@@ -30,11 +30,14 @@ require.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Sequence
 
 from .profile import (
     ROLE_CATEGORICAL,
     ROLE_CONTINUOUS,
     ROLE_DATETIME,
+    ROLE_IDENTIFIER,
+    ROLES,
     DataProfile,
 )
 
@@ -180,3 +183,142 @@ def suggest_workflows(profile: DataProfile) -> tuple[WorkflowSuggestion, ...]:
     )
 
     return tuple(suggestion for suggestion in candidates if suggestion is not None)
+
+
+# A column with only one or two distinct values is not something to
+# compare as a quantity, and one with a great many is not a grouping.
+MIN_OUTCOME_LEVELS = 3
+MAX_GROUP_LEVELS = 12
+
+_NUMERIC_DTYPE_MARKERS = ("int", "float")
+
+
+def _is_numeric(column) -> bool:
+    """Whether a column's recorded dtype is a numeric one."""
+    return any(marker in column.dtype.lower() for marker in _NUMERIC_DTYPE_MARKERS)
+
+
+def _pick(profile: DataProfile, options: Sequence[str], *tests) -> str | None:
+    """
+    First option satisfying the earliest test that any option satisfies.
+
+    Tests are tried in order, each against every option, so a later test
+    is a fallback for the whole list rather than for one column. Returns
+    the first non-identifier option when no test matches, and the first
+    option when every column looks like an identifier, since at that
+    point there is no better answer available.
+    """
+    if not options:
+        return None
+
+    by_name = {column.name: column for column in profile.columns}
+    identifiers = set(profile.columns_with_role(ROLE_IDENTIFIER))
+    candidates = [name for name in options if name not in identifiers]
+
+    for test in tests:
+        for name in candidates:
+            column = by_name.get(name)
+            if column is not None and test(column):
+                return name
+
+    return candidates[0] if candidates else options[0]
+
+
+def default_outcome_column(
+    profile: DataProfile, options: Sequence[str]
+) -> str | None:
+    """
+    Which column an outcome picker should open on.
+
+    Prefers a numeric column with enough distinct values to be worth
+    comparing as a quantity, which is also what
+    modules/program_evaluation/core/recommend.py treats as continuous-like
+    when it chooses a test. Note that this deliberately does not defer to
+    the profile's own role guess: profile_dataframe marks a 1-to-5 Likert
+    column categorical-like, while the recommender treats any numeric
+    column with three or more distinct values as continuous-like. For
+    choosing an outcome the recommender is the right authority, since it
+    is what decides which test runs.
+
+    Falls back to any numeric column, then to any non-identifier column,
+    then to the first option. An identifier is never preferred and always
+    still selectable.
+    """
+    return _pick(
+        profile,
+        options,
+        lambda column: _is_numeric(column) and column.n_unique >= MIN_OUTCOME_LEVELS,
+        _is_numeric,
+    )
+
+
+def default_group_column(
+    profile: DataProfile, options: Sequence[str]
+) -> str | None:
+    """
+    Which column a group picker should open on.
+
+    Prefers a non-numeric column with at least two but not many distinct
+    values, which is the shape of a real grouping variable. A numeric
+    column with the same shape is the next choice, then any
+    non-identifier column, then the first option.
+    """
+    def is_grouping(column) -> bool:
+        return 2 <= column.n_unique <= MAX_GROUP_LEVELS
+
+    return _pick(
+        profile,
+        options,
+        lambda column: is_grouping(column) and not _is_numeric(column),
+        is_grouping,
+    )
+
+
+# Prefixes that mark the two halves of a repeated measurement. Matched on
+# a shared remainder ("pre_confidence" with "post_confidence"), never on
+# the prefix alone, so "pretest_score" is not paired with "post_weight".
+_BASELINE_PREFIXES = ("pre_", "pre", "baseline_", "baseline")
+_FOLLOW_UP_PREFIXES = ("post_", "post", "followup_", "follow_up_")
+
+
+def _strip_prefix(name: str, prefixes: Sequence[str]) -> str | None:
+    """The remainder after the first matching prefix, or None."""
+    lowered = name.lower()
+    for prefix in prefixes:
+        if lowered.startswith(prefix) and len(lowered) > len(prefix):
+            return lowered[len(prefix):].strip("_")
+    return None
+
+
+def default_prepost_columns(
+    profile: DataProfile, options: Sequence[str]
+) -> tuple[str | None, str | None]:
+    """
+    Which two columns a baseline/follow-up pair of pickers should open on.
+
+    Prefers a genuine pair: two columns whose names share a remainder
+    after a baseline prefix and a follow-up prefix respectively, so
+    pre_confidence and post_confidence are matched to each other rather
+    than each being picked independently. Without this the two pickers
+    default to the first two numeric columns, which are usually not a
+    repeated measure of the same thing at all.
+
+    Falls back to two different outcome-like columns when no pair is
+    found, and to (something, None) when only one column is available.
+    """
+    remainders: dict[str, str] = {}
+    for name in options:
+        remainder = _strip_prefix(name, _BASELINE_PREFIXES)
+        if remainder:
+            remainders.setdefault(remainder, name)
+
+    for name in options:
+        remainder = _strip_prefix(name, _FOLLOW_UP_PREFIXES)
+        if remainder and remainder in remainders:
+            baseline = remainders[remainder]
+            if baseline != name:
+                return baseline, name
+
+    baseline = default_outcome_column(profile, options)
+    remaining = [name for name in options if name != baseline]
+    return baseline, default_outcome_column(profile, remaining)

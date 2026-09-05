@@ -34,13 +34,9 @@ data), never the reviewer's own typed finding text.
 from __future__ import annotations
 
 import hashlib
-import json
 import sys
-import urllib.parse
-import urllib.request
 from datetime import date
 from pathlib import Path
-from urllib.error import HTTPError, URLError
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -59,6 +55,7 @@ from modules.evidence_to_claim.core import strength as strength_core
 from modules.evidence_to_claim.core import validate as validate_core
 from shared.catalog import MODULE_EVIDENCE_REVIEW
 from shared.data_handling import disclosure_for, render_data_handling_summary
+from shared.literature import MAX_RESULTS, SEARCH_ERRORS, search_openalex
 from shared.handoff import (
     KIND_ROWS_DROPPED,
     ExclusionAccount,
@@ -88,32 +85,6 @@ NESTA_LEVEL_BANDS = (
     Band(3, "Nesta Level 3: causality demonstrated via a comparison group.", "warning"),
     Band(4, "Nesta Level 4: causality confirmed by independent replication.", "success"),
 )
-
-OPENALEX_WORKS_ENDPOINT = "https://api.openalex.org/works"
-USER_AGENT = "OpenMeasure/0.1 (+https://github.com/victoriamccray/openmeasure)"
-MAX_RESULTS = 10
-REQUEST_TIMEOUT_SECONDS = 15
-
-
-@st.cache_data(ttl=3600, show_spinner="Searching OpenAlex...")
-def _search_openalex(query: str, max_results: int = MAX_RESULTS) -> list[dict]:
-    """
-    The one network call on this page: a keyword search against OpenAlex's
-    public Works API. Cached for an hour so re-rendering this page (e.g.
-    after a screening decision changes) does not re-fire the same search.
-    """
-
-    params = urllib.parse.urlencode({"search": query, "per-page": max_results})
-    url = f"{OPENALEX_WORKS_ENDPOINT}?{params}"
-    request = urllib.request.Request(
-        url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"}
-    )
-
-    with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
-        payload = json.loads(response.read().decode("utf-8"))
-
-    return payload.get("results", [])
-
 
 st.set_page_config(
     page_title="OpenMeasure · Evidence Review",
@@ -249,8 +220,8 @@ active_query = st.session_state.get("evidence_review_last_query", query)
 # ---------------------------------------------------------------------
 
 try:
-    raw_results = _search_openalex(active_query)
-except (URLError, HTTPError, ValueError, KeyError) as error:
+    raw_results = search_openalex(active_query)
+except SEARCH_ERRORS as error:
     st.error(f"Could not reach OpenAlex: {error}")
     st.stop()
 

@@ -8,6 +8,7 @@ modules/program_evaluation/core, this file is presentation only.
 """
 
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,6 +18,13 @@ if str(ROOT) not in sys.path:
 import pandas as pd
 import streamlit as st
 
+from modules.data_profile.core.suggest import (
+    default_group_column,
+    default_outcome_column,
+    default_prepost_columns,
+)
+from modules.evidence_review.core import record as record_core
+from modules.evidence_review.core import relevance as relevance_core
 from modules.program_evaluation.core import comparison as comp
 from modules.program_evaluation.core import did as did_core
 from modules.program_evaluation.core import domains
@@ -32,6 +40,8 @@ from shared.handoff import (
     fingerprint_dataframe,
 )
 from shared.data_handling import disclosure_for, render_data_handling_summary
+from shared.journey_stages import StageTracker
+from shared.literature import SEARCH_ERRORS, search_openalex
 from shared.report import (
     section_header,
     case_study_note,
@@ -40,10 +50,9 @@ from shared.report import (
     implications,
     inspect_note,
     interpretation_note,
-    show_case_studies,
     render_lifecycle_tracker,
 )
-from shared.upload import render_data_profile
+from shared.upload import render_data_entry, render_data_profile
 
 
 def render_sensitivity_sub_result(sub_result) -> None:
@@ -209,7 +218,7 @@ def _did_teaching_svg(scenario, outcome) -> str:
     """
 
 
-def render_did_teaching_example() -> None:
+def render_did_teaching_example(domain_id: str) -> None:
     """
     A fixed scenario with one adjustable number, shown collapsed beside
     the difference-in-differences design.
@@ -229,15 +238,10 @@ def render_did_teaching_example() -> None:
     domain layer (search seeding, outcome suggestions and their caveats)
     has no stage to live in until the workflow is restructured.
     """
-    with st.expander("See how a comparison group changes the estimate"):
-        domain_labels = {domain.id: domain.label for domain in domains.DOMAINS}
-        domain_id = st.selectbox(
-            "Show this example in the terms of",
-            options=list(domain_labels),
-            format_func=lambda key: domain_labels[key],
-        )
+    domain_labels = {domain.id: domain.label for domain in domains.DOMAINS}
+    scenario = teaching.did_scenario_for(domain_id)
 
-        scenario = teaching.did_scenario_for(domain_id)
+    with st.expander("See how a comparison group changes the estimate", expanded=True):
 
         if not teaching.has_own_did_scenario(domain_id):
             fallback_label = domain_labels[scenario.domain_id]
@@ -247,22 +251,6 @@ def render_did_teaching_example() -> None:
                 "terms. The arithmetic is identical either way, which is "
                 "the point: the field changes the story, not the method."
             )
-
-        glossary = pd.DataFrame(
-            {
-                "Concept": list(domains.CONCEPTS),
-                "In this field": [
-                    domains.get_domain(domain_id).term_for(concept)
-                    for concept in domains.CONCEPTS
-                ],
-            }
-        )
-        st.dataframe(glossary, width="stretch", hide_index=True)
-        st.caption(
-            "The same design concepts, in the words this field uses for "
-            "them. The statistical terms on the left are what the rest of "
-            "this page uses."
-        )
 
         st.markdown("**Scenario**")
         st.write(scenario.scenario)
@@ -353,10 +341,9 @@ def render_did_result(result) -> None:
     change from a small comparison change without both rows in front of
     them.
 
-    Assumptions render as a visible section rather than inside an
-    expander. Parallel trends is the condition the causal reading rests
-    on and cannot be tested with two time points, so it is not something
-    a reader should have to open something to find.
+    The assumptions and the plain-language reading are rendered
+    separately by render_did_interpretation(), which the interpretation
+    stage calls.
     """
     section_header("Result")
 
@@ -408,6 +395,17 @@ def render_did_result(result) -> None:
         "as the treated group's own change."
     )
 
+def render_did_interpretation(result) -> None:
+    """
+    The assumptions a causal reading rests on, and that reading.
+
+    Split from render_did_result() so the numbers belong to the analysis
+    stage and this belongs to the interpretation stage. Assumptions render
+    visibly rather than inside an expander: parallel trends is the
+    condition the causal reading rests on and cannot be tested with two
+    time points, so it is not something a reader should have to open
+    something to find.
+    """
     section_header("Assumptions Behind a Causal Reading")
     st.caption(
         "The arithmetic above is the same whether these hold or not. Each "
@@ -443,7 +441,7 @@ def render_did_result(result) -> None:
             st.write(f"- {item}")
 
 
-def record_comparison(frame, upload, analysis_context, recommendation, result) -> None:
+def record_comparison(frame, source_name, analysis_context, recommendation, result) -> None:
     """
     Record this analysis for the Cross-Analysis Implications page.
 
@@ -499,7 +497,7 @@ def record_comparison(frame, upload, analysis_context, recommendation, result) -
 
     HandoffStore(st.session_state).record(
         module=MODULE_PROGRAM_EVALUATION,
-        fingerprint=fingerprint_dataframe(frame, upload.name),
+        fingerprint=fingerprint_dataframe(frame, source_name),
         exclusion=account,
         primary_statistics=statistics,
     )
@@ -508,7 +506,10 @@ st.set_page_config(page_title="OpenMeasure · Program Evaluation", page_icon=":m
 
 st.title("Impact Evaluation")
 st.subheader("Program Validation")
-st.caption("Compare outcomes across groups, or across time, and see which test fits your data before running it.")
+st.caption(
+    "Work from an evaluation question to a defensible estimate, one step "
+    "at a time."
+)
 
 st.divider()
 
@@ -516,81 +517,395 @@ render_lifecycle_tracker(current_workflow="Impact Evaluation")
 
 render_data_handling_summary(disclosure_for("pages/2_Impact_Evaluation.py"))
 
-show_case_studies("program_validation")
+# One gated sequence, in the order an evaluation is actually reasoned
+# through. Before this, the page put its case studies, its method
+# discussion, and a standalone teaching example above a numbered upload
+# workflow, so it read as two pages stacked rather than as one path.
+STAGE_QUESTION = 0
+STAGE_DOMAIN = 1
+STAGE_RESEARCH = 2
+STAGE_DESIGNS = 3
+STAGE_EXAMPLE = 4
+STAGE_ANALYZE = 5
+STAGE_INTERPRET = 6
 
-st.divider()
+STAGE_LABELS = (
+    "Evaluation question",
+    "Domain",
+    "Find research",
+    "Explore designs",
+    "Interactive example",
+    "Analyze your data",
+    "Interpret",
+)
 
-with st.expander("Method Selection"):
-    st.markdown(
-        """
-This module looks at the shape of your data, how many groups you're
-comparing, whether the outcome is continuous or categorical, whether
-you're comparing groups or comparing the same people before and after,
-and recommends a test. You can always override the recommendation.
+TRACKER = StageTracker(session_key="pe_stage", stage_labels=STAGE_LABELS)
 
-**Design decisions this module makes:**
+stage = TRACKER.render_breadcrumb()
+TRACKER.render_restart_button(
+    extra_session_keys=(
+        "pe_recommendation",
+        "pe_context",
+        "pe_uploaded_file_id",
+        "pe_search_results",
+        "pe_search_provenance",
+        "pe_selected_studies",
+    )
+)
 
-- **2 groups, continuous outcome** → Welch's t-test, which does not
-  assume equal variances between groups.
-- **3+ groups, continuous outcome** → Welch's one-way ANOVA with
-  Games-Howell post-hoc comparisons, which also does not assume equal
-  variances across groups.
-- **Categorical outcome** → chi-square test of independence.
-- **Multi-select group field** (e.g. participants who could select more
-  than one demographic category) → a sensitivity analysis comparing
-  three different ways of coding those selections, rather than picking
-  one arbitrarily.
-- **Pre/post, same participants** → paired t-test.
-- **Two groups, each measured before and after** →
-  difference-in-differences, which subtracts the comparison group's
-  change from the treated group's. Inference comes from a Welch
-  comparison of the two groups' change scores.
+# Stages reveal one at a time by stopping the script rather than by
+# indenting each stage into a block. The analysis further down is the same
+# code it was before this sequence existed, which a re-indentation would
+# have quietly put at risk.
 
-None of these establish causation on their own. If group membership
-wasn't randomized, a difference may reflect selection or pre-existing
-differences between groups rather than a program effect. This caveat is
-shown with two-group and multi-group continuous-outcome comparisons.
+# ---------------------------------------------------------------------
+# 1. Evaluation question
+# ---------------------------------------------------------------------
 
-Difference-in-differences removes anything that moved both groups
-equally, and any fixed gap between them that was already there at
-baseline. It buys that with an assumption instead: that the treated
-group would have followed the comparison group's path. Two time points
-give no way to check it, so the module states the assumption alongside
-the estimate rather than treating a well-shaped dataset as evidence the
-assumption holds.
-"""
+section_header(
+    "1. Evaluation Question",
+    "What is being evaluated, for whom, against what, and over what period",
+)
+
+question_columns = st.columns(2)
+with question_columns[0]:
+    q_program = st.text_input(
+        "Program or intervention",
+        key="pe_q_program",
+        placeholder="e.g. text-message appointment reminders",
+    )
+    q_population = st.text_input(
+        "Population",
+        key="pe_q_population",
+        placeholder="e.g. adult primary-care patients",
+    )
+    q_timing = st.text_input(
+        "Timing",
+        key="pe_q_timing",
+        placeholder="e.g. six months before and after launch",
+    )
+with question_columns[1]:
+    q_outcome = st.text_input(
+        "Outcome",
+        key="pe_q_outcome",
+        placeholder="e.g. share of appointments kept",
+    )
+    q_comparison = st.text_input(
+        "Comparison",
+        key="pe_q_comparison",
+        placeholder="e.g. a similar clinic that sent no reminders",
     )
 
-section_header("1. Upload Your Data", "CSV file, one row per participant")
+question_terms = " ".join(
+    part.strip() for part in (q_program, q_outcome) if part.strip()
+)
 
-uploaded = st.file_uploader("CSV file", type="csv", label_visibility="collapsed")
+if question_terms:
+    st.caption(
+        "These words seed the literature search two stages on. Nothing is "
+        "sent anywhere until you run that search."
+    )
 
-if uploaded is None:
-    st.info("Upload a CSV to get started, or try the sample dataset below.")
-    sample_path = ROOT / "modules" / "program_evaluation" / "sample_data" / "program_eval_example.csv"
-    with open(sample_path, "rb") as f:
-        st.download_button(
-            "Download sample_data/program_eval_example.csv",
-            f,
-            file_name="program_eval_example.csv",
-        )
+case_study_note(
+    "head_start_impact_study",
+    "A question names an outcome and the period it is measured over, and "
+    "an evaluation answers it only for those. Settling both here is what "
+    "keeps a later result from being read as a claim about outcomes it "
+    "never measured, or about a period it never covered.",
+)
+
+if stage < STAGE_DOMAIN:
+    if st.button(
+        "Continue to domain",
+        type="primary",
+        disabled=not question_terms,
+    ):
+        TRACKER.advance_to(STAGE_DOMAIN)
+    if not question_terms:
+        st.caption("Name at least the program and the outcome to continue.")
     st.stop()
 
-df = pd.read_csv(uploaded)
-render_data_profile(df)
+# ---------------------------------------------------------------------
+# 2. Domain
+# ---------------------------------------------------------------------
 
-# Discard a recommendation carried over from a different upload. Without
-# this, uploading a second file whose column names happen to match the first
-# would analyze the new data under the previous file's plan, silently.
-if st.session_state.get("pe_uploaded_file_id") != uploaded.file_id:
-    st.session_state["pe_uploaded_file_id"] = uploaded.file_id
+section_header(
+    "2. Domain",
+    "Your field, which sets vocabulary and search terms and nothing else",
+)
+
+domain_labels = {domain.id: domain.label for domain in domains.DOMAINS}
+domain_id = st.selectbox(
+    "Field of practice",
+    options=list(domain_labels),
+    format_func=lambda key: domain_labels[key],
+    key="pe_domain",
+)
+selected_domain = domains.get_domain(domain_id)
+
+st.caption(
+    "The field changes the words this page uses, the terms it suggests "
+    "for a literature search, and which telling of the worked example you "
+    "see. It does not change which method is recommended, or what any "
+    "statistic comes out as."
+)
+
+st.markdown("**How this field names each design concept**")
+st.dataframe(
+    pd.DataFrame(
+        {
+            "Concept": list(domains.CONCEPTS),
+            "In this field": [
+                selected_domain.term_for(concept) for concept in domains.CONCEPTS
+            ],
+        }
+    ),
+    width="stretch",
+    hide_index=True,
+)
+
+if selected_domain.outcomes:
+    st.markdown("**Outcomes this field commonly measures**")
+    for outcome_suggestion in selected_domain.outcomes:
+        st.write(f"- {outcome_suggestion.label}")
+        if outcome_suggestion.caveat:
+            st.caption(outcome_suggestion.caveat)
+    inspect_note(
+        "The notes under some outcomes. They describe what that measure "
+        "responds to besides the thing being studied."
+    )
+else:
+    st.caption(
+        "No field-specific outcome suggestions, so the search below uses "
+        "your own words alone."
+    )
+
+if stage < STAGE_RESEARCH:
+    if st.button("Continue to find research", type="primary"):
+        TRACKER.advance_to(STAGE_RESEARCH)
+    st.stop()
+
+# ---------------------------------------------------------------------
+# 3. Find research
+# ---------------------------------------------------------------------
+
+section_header(
+    "3. Find Research",
+    "Optional: how this question has been studied before",
+)
+
+st.info(
+    "Published work informs your reasoning here. It does not choose your "
+    "method. Whatever design these studies used, the designs the next "
+    "stage surfaces come from your own answers and your data's shape."
+)
+
+default_query = domains.build_search_query(question_terms, domain_id)
+query = st.text_input(
+    "Search terms sent to OpenAlex",
+    value=default_query,
+    key="pe_query",
+)
+
+if st.button("Search OpenAlex", disabled=not query.strip()):
+    try:
+        st.session_state["pe_search_results"] = search_openalex(query)
+        # Provenance for a later Evaluation Record: the query actually
+        # sent (which the reader may have edited), the field context it
+        # was composed under, and when it ran. Captured at search time
+        # because none of it can be reconstructed afterwards.
+        st.session_state["pe_search_provenance"] = {
+            "query": query,
+            "domain_id": domain_id,
+            "retrieved_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        }
+    except SEARCH_ERRORS as error:
+        st.session_state["pe_search_results"] = []
+        st.error(f"The search could not be completed: {error}")
+
+raw_results = st.session_state.get("pe_search_results")
+
+if raw_results:
+    records = [record_core.from_openalex_work(work) for work in raw_results]
+    scored = [
+        (record, relevance_core.score_relevance(question_terms, record))
+        for record in records
+    ]
+
+    st.dataframe(
+        pd.DataFrame(
+            [
+                {
+                    "Title": record.title,
+                    "Authors": record.author_summary,
+                    "Year": record.year,
+                    "Venue": record.venue,
+                    "Shared keywords": score.overlap_count,
+                }
+                for record, score in scored
+            ]
+        ),
+        width="stretch",
+        hide_index=True,
+    )
+    st.caption(
+        "Shared keywords counts words your question and a result's title "
+        "or abstract have in common. It is a text overlap, not a judgment "
+        "that a result is relevant."
+    )
+
+    st.multiselect(
+        "Studies worth keeping in mind",
+        options=[record.title for record, _ in scored],
+        key="pe_selected_studies",
+    )
+elif raw_results is not None:
+    st.caption("That search returned no results. Try broader terms.")
+
+if stage < STAGE_DESIGNS:
+    skip_column, continue_column = st.columns(2)
+    with continue_column:
+        if st.button("Continue to designs", type="primary"):
+            TRACKER.advance_to(STAGE_DESIGNS)
+    with skip_column:
+        if st.button("Skip this step"):
+            TRACKER.advance_to(STAGE_DESIGNS)
+    st.stop()
+
+# ---------------------------------------------------------------------
+# 4. Explore designs
+# ---------------------------------------------------------------------
+
+section_header(
+    "4. Explore Designs",
+    "What each design compares, and what it can support",
+)
+
+selected_studies = st.session_state.get("pe_selected_studies") or []
+if selected_studies:
+    with st.expander(f"Studies you kept ({len(selected_studies)})"):
+        for title in selected_studies:
+            st.write(f"- {title}")
+        st.caption(
+            "Shown as context. Which design fits depends on your own "
+            "answers and your data's shape, not on what these studies did."
+        )
+
+comparison_term = selected_domain.term_for(domains.CONCEPT_COMPARISON_GROUP)
+unit_term = selected_domain.term_for(domains.CONCEPT_UNIT)
+
+st.markdown("**Two or more groups**")
+st.write(
+    "Compares an outcome across groups measured once. Needs an outcome "
+    f"column and a column identifying which group each {unit_term} "
+    "belongs to."
+)
+case_study_note(
+    "lalonde_1986",
+    "This design compares the groups as they are, and has no way to see "
+    "how anyone ended up in one rather than the other. If group "
+    "membership was not randomly assigned, whatever distinguished the "
+    "groups beforehand is carried along in the difference it reports, and "
+    "the confidence interval around that difference will look no wider "
+    "for it.",
+)
+
+st.markdown("**Pre/post, same participants**")
+st.write(
+    "Compares one group's outcome before and after, using each unit as "
+    "its own baseline. Needs a baseline column and a follow-up column."
+)
+case_study_note(
+    "scared_straight",
+    "This design measures how much one group changed between two "
+    "measurements. Nothing in it observes what would have happened "
+    "without the program, so maturation, regression to the mean, and "
+    "outside events stay open as explanations for the change.",
+)
+
+st.markdown("**Two groups, each measured before and after**")
+st.write(
+    f"Difference-in-differences. Subtracts the {comparison_term}'s change "
+    "from the treated group's, which removes anything that moved both "
+    "equally and any fixed gap between them at baseline. Needs a group "
+    "column plus a baseline and a follow-up column."
+)
+st.caption(
+    "It buys that with an assumption instead: that the treated group "
+    "would have followed the comparison group's path. Two time points "
+    "give no way to check it, so this page states the assumption "
+    "alongside the estimate."
+)
+
+implications(
+    "The design that fits is the one your data can support. The analysis "
+    "stage recommends a test from your data's shape and lets you override "
+    "it."
+)
+
+if stage < STAGE_EXAMPLE:
+    if st.button("Continue to the worked example", type="primary"):
+        TRACKER.advance_to(STAGE_EXAMPLE)
+    st.stop()
+
+# ---------------------------------------------------------------------
+# 5. Interactive example
+# ---------------------------------------------------------------------
+
+section_header(
+    "5. Interactive Example",
+    "Difference-in-differences on numbers you can move, before your own data",
+)
+
+render_did_teaching_example(domain_id)
+
+if stage < STAGE_ANALYZE:
+    if st.button("Continue to your own data", type="primary"):
+        TRACKER.advance_to(STAGE_ANALYZE)
+    st.stop()
+
+# ---------------------------------------------------------------------
+# 6. Analyze your data
+# ---------------------------------------------------------------------
+
+section_header("6. Analyze Your Data", "CSV file, one row per participant")
+
+loaded = render_data_entry(
+    MODULE_PROGRAM_EVALUATION,
+    empty_prompt=(
+        "Load the sample dataset to try a comparison straight away, or "
+        "upload your own CSV."
+    ),
+)
+
+if loaded is None:
+    st.stop()
+
+df = loaded.frame
+profile = render_data_profile(df)
+
+# Discard a recommendation carried over from different data. Without this,
+# loading a second dataset whose column names happen to match the first
+# would analyze the new data under the previous plan, silently.
+if st.session_state.get("pe_uploaded_file_id") != loaded.token:
+    st.session_state["pe_uploaded_file_id"] = loaded.token
     st.session_state.pop("pe_recommendation", None)
     st.session_state.pop("pe_context", None)
 
 st.write(f"Loaded **{df.shape[0]} rows** and **{df.shape[1]} columns**.")
 st.dataframe(df.head(), width="stretch")
 
-section_header("2. Describe Your Comparison")
+# Column defaults come from the data profile's role guesses, so the
+# zero-friction path opens on a meaningful analysis rather than on
+# whichever column happens to be first. An identifier column stays
+# selectable; it is simply not the default. Without this the bundled
+# example opened with participant_id as its outcome, produced a
+# technically valid but meaningless comparison, and only warned about it
+# two steps later.
+def index_of(options, chosen):
+    """Where a picker should open, as an index into its own options."""
+    return options.index(chosen) if chosen in options else 0
+
 
 DESIGN_GROUPS = "Two or more groups"
 DESIGN_PRE_POST = "Pre/post (same participants)"
@@ -606,10 +921,17 @@ recommendation = None
 context = {}
 
 if design == DESIGN_GROUPS:
-    outcome_col = st.selectbox("Outcome column", options=list(df.columns))
+    outcome_options = list(df.columns)
+    outcome_col = st.selectbox(
+        "Outcome column",
+        options=outcome_options,
+        index=index_of(outcome_options, default_outcome_column(profile, outcome_options)),
+    )
+    group_options = [c for c in df.columns if c != outcome_col]
     group_col = st.selectbox(
         "Group column",
-        options=[c for c in df.columns if c != outcome_col],
+        options=group_options,
+        index=index_of(group_options, default_group_column(profile, group_options)),
     )
     is_multiselect = st.checkbox(
         "This group column allows multiple selections per participant "
@@ -627,16 +949,6 @@ if design == DESIGN_GROUPS:
         "delimiter": delimiter,
     }
 
-    case_study_note(
-        "lalonde_1986",
-        "The test this recommends compares the groups as they are, and "
-        "has no way to see how anyone ended up in one rather than the "
-        "other. If group membership was not randomly assigned, whatever "
-        "distinguished the groups beforehand is carried along in the "
-        "difference it reports, and the confidence interval around that "
-        "difference will look no wider for it.",
-    )
-
     if st.button("Get recommendation", type="primary"):
         try:
             recommendation = rec.recommend_method(
@@ -651,23 +963,20 @@ if design == DESIGN_GROUPS:
             st.stop()
 
 elif design == DESIGN_PRE_POST:
-    pre_col = st.selectbox("Pre (baseline) column", options=list(df.columns))
+    pre_options = list(df.columns)
+    default_pre, default_post = default_prepost_columns(profile, pre_options)
+    pre_col = st.selectbox(
+        "Pre (baseline) column",
+        options=pre_options,
+        index=index_of(pre_options, default_pre),
+    )
+    post_options = [c for c in df.columns if c != pre_col]
     post_col = st.selectbox(
         "Post (follow-up) column",
-        options=[c for c in df.columns if c != pre_col],
+        options=post_options,
+        index=index_of(post_options, default_post),
     )
     context = {"pre_col": pre_col, "post_col": post_col}
-
-    case_study_note(
-        "scared_straight",
-        "The paired test this recommends measures how much one group "
-        "changed between two measurements. Nothing in it observes what "
-        "would have happened without the program, so maturation, "
-        "regression to the mean, and outside events stay open as "
-        "explanations for the change. The difference-in-differences "
-        "option adds a comparison group to stand in for that, in exchange "
-        "for an assumption about the group it adds.",
-    )
 
     if st.button("Get recommendation", type="primary"):
         try:
@@ -680,20 +989,27 @@ else:
     st.caption(
         "This design needs one row per unit, a column marking which two "
         "groups the units belong to, and that unit's outcome measured at "
-        "the same two time points in two more columns. The sample dataset "
-        "above has this shape already, in event_format with pre_confidence "
-        "and post_confidence."
+        "the same two time points in two more columns."
     )
 
+    group_options = list(df.columns)
     group_col = st.selectbox(
         "Group column (which units were treated)",
-        options=list(df.columns),
+        options=group_options,
+        index=index_of(group_options, default_group_column(profile, group_options)),
     )
     remaining = [c for c in df.columns if c != group_col]
-    pre_col = st.selectbox("Pre (baseline) column", options=remaining)
+    default_pre, default_post = default_prepost_columns(profile, remaining)
+    pre_col = st.selectbox(
+        "Pre (baseline) column",
+        options=remaining,
+        index=index_of(remaining, default_pre),
+    )
+    post_options = [c for c in remaining if c != pre_col]
     post_col = st.selectbox(
         "Post (follow-up) column",
-        options=[c for c in remaining if c != pre_col],
+        options=post_options,
+        index=index_of(post_options, default_post),
     )
 
     group_values = sorted(df[group_col].dropna().unique().tolist(), key=str)
@@ -712,8 +1028,6 @@ else:
         "post_col": post_col,
         "treated_label": treated_label,
     }
-
-    render_did_teaching_example()
 
     if st.button("Get recommendation", type="primary"):
         try:
@@ -776,10 +1090,12 @@ if "pe_recommendation" in st.session_state:
                 )
                 inspect_note("The p-value against your significance threshold, and Cohen's d for effect size.")
                 implications(
-                    "A p-value below threshold supports attributing the "
-                    "difference to what distinguishes the groups, subject "
-                    "to Welch's t-test assumptions. Above threshold, no "
-                    "difference was detected at this sample size."
+                    "A p-value below the threshold is evidence of a "
+                    "difference between the observed groups, under Welch's "
+                    "t-test assumptions. Whether that difference can be "
+                    "attributed to the program depends on the study design, "
+                    "not on the p-value. Above the threshold, no difference "
+                    "was detected at this sample size."
                 )
 
                 nonparametric = comp.compare_two_groups_nonparametric(
@@ -1086,11 +1402,38 @@ if "pe_recommendation" in st.session_state:
                 )
 
             if result is not None:
-                record_comparison(df, uploaded, context, recommendation, result)
+                record_comparison(df, loaded.name, context, recommendation, result)
                 st.caption(
                     "Recorded for the Cross-Analysis Implications page, which "
                     "shows how much of your data each analysis used."
                 )
+
+                # ---------------------------------------------------------
+                # 7. Interpret
+                # ---------------------------------------------------------
+                #
+                # Marked reached rather than advanced to: this stage opens
+                # because an analysis just produced a result, and that
+                # result exists only in this pass. A rerun would discard
+                # the very thing that unlocked it.
+                TRACKER.mark_reached(STAGE_INTERPRET)
+
+                section_header(
+                    "7. Interpret",
+                    "What this design and this result together support",
+                )
+
+                if method == "estimate_did":
+                    render_did_interpretation(result)
+                else:
+                    st.markdown("**What the design leaves open**")
+                    for warning in recommendation.warnings:
+                        st.write(f"- {warning}")
+                    st.caption(
+                        "These are properties of the design, not of the "
+                        "numbers. A smaller p-value does not retire any of "
+                        "them."
+                    )
 
         except (ValueError, TypeError) as e:
             st.error(str(e))
