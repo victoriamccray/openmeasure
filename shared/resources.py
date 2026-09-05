@@ -197,12 +197,16 @@ RESOURCES: tuple[Resource, ...] = (
         url="https://doi.org/10.1186/s12874-025-02514-4",
     ),
     Resource(
-        name="Center for Implementation Science",
+        # Name and description are the organization's own wording, supplied
+        # by them when they approved being listed here (September 2026).
+        # Change them only with their agreement.
+        name="The Center for Implementation",
         kind="Research Impact Resource",
         description=(
-            "Training and consulting on evidence-informed implementation "
-            "methods: assessing readiness, planning adaptations, and "
-            "sustaining change efforts across fields."
+            "Training, consulting, and free interactive online tools that "
+            "help individuals and teams across diverse fields apply "
+            "evidence-informed implementation methods to support change "
+            "efforts."
         ),
         url="https://thecenterforimplementation.com/",
     ),
