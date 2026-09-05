@@ -36,6 +36,25 @@ CHECK_NOT_TESTABLE_HERE = "Not testable with two time points"
 CHECK_FROM_CONTEXT = "Answered by knowledge of the setting, not by these data"
 
 
+# Shown once per analysis, wherever a result is interpreted. The page
+# displays a p-value in every method branch and never says what one is,
+# and it is the statistic readers most reliably misread: as the chance
+# the finding is wrong, or the chance the groups are really the same.
+#
+# Phrased as a frequency of results rather than as a probability about a
+# hypothesis, which is the part that makes the difference. It also names
+# the two things a p-value is silent about, size and cause, because both
+# are what a reader is usually trying to settle when they look at one.
+P_VALUE_NOTE = (
+    "A p-value is how often a difference at least this large would turn "
+    "up if the groups did not really differ and the test's assumptions "
+    "held. A small one means these data would be unusual under that "
+    "scenario. It is not the chance the finding is wrong, it says nothing "
+    "about how large the difference is, and it says nothing about what "
+    "caused it."
+)
+
+
 @dataclass(frozen=True)
 class Assumption:
     """One condition a causal reading of an estimate rests on."""

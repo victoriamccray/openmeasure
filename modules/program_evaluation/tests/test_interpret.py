@@ -188,5 +188,44 @@ class TestInterpretDid(unittest.TestCase):
         )
 
 
+class TestPValueNote(unittest.TestCase):
+    """
+    The page shows a p-value in every method branch and never said what
+    one was. This is the one definition every analysis reaches, so its
+    wording matters more than most.
+    """
+
+    def test_it_is_phrased_as_a_frequency_of_results(self):
+        """
+        The correct reading is how often data like this would turn up
+        under a scenario, not a probability attached to a hypothesis.
+        """
+        self.assertIn("how often", interpret.P_VALUE_NOTE)
+
+    def test_it_rules_out_the_three_common_misreadings(self):
+        note = interpret.P_VALUE_NOTE.lower()
+
+        self.assertIn("not the chance the finding is wrong", note)
+        self.assertIn("how large", note)
+        self.assertIn("caused it", note)
+
+    def test_it_never_calls_a_p_value_a_probability_about_a_hypothesis(self):
+        """
+        Guards the phrasings that make a p-value sound like the
+        probability the null is true, which is the misreading this note
+        exists to head off.
+        """
+        note = interpret.P_VALUE_NOTE.lower()
+
+        for wrong in (
+            "probability that the null",
+            "probability the null",
+            "chance that there is no difference",
+            "probability the groups are the same",
+        ):
+            with self.subTest(phrase=wrong):
+                self.assertNotIn(wrong, note)
+
+
 if __name__ == "__main__":
     unittest.main()
