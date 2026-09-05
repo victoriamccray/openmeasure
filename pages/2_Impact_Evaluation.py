@@ -32,6 +32,7 @@ from modules.program_evaluation.core import interpret
 from modules.program_evaluation.core import recommend as rec
 from modules.program_evaluation.core import research
 from modules.program_evaluation.core import teaching
+from modules.program_evaluation.core import transformation
 from shared.catalog import MODULE_PROGRAM_EVALUATION
 from shared.handoff import (
     KIND_ROWS_DROPPED,
@@ -218,6 +219,173 @@ def _did_teaching_svg(scenario, outcome) -> str:
       </text>
     </svg>
     """
+
+
+# The effect-size transformation chart. Its geometry is fixed rather
+# than fitted per stage: the value axis, the two rows and the point
+# positions stay put from the first stage to the last, so what changes
+# between them is only what has been added. An axis that rescaled as
+# stages advanced would make the marks appear to move when nothing about
+# the data had changed.
+_XF_LEFT, _XF_RIGHT = 60.0, 330.0
+_XF_ROW_A, _XF_ROW_B = 62.0, 108.0
+_XF_ROW_MERGED = 85.0
+_XF_ROW_HEIGHT = 16.0
+
+
+def _xf_x(value: float, low: float, high: float) -> float:
+    """Place an outcome value along the shared horizontal axis."""
+    if high == low:
+        return (_XF_LEFT + _XF_RIGHT) / 2
+    return _XF_LEFT + (value - low) / (high - low) * (_XF_RIGHT - _XF_LEFT)
+
+
+def _xf_points(values, jitters, row, low, high, color, faded):
+    """One group's observations as small circles."""
+    opacity = "0.22" if faded else "0.62"
+    return "".join(
+        f'<circle cx="{_xf_x(value, low, high):.1f}" '
+        f'cy="{row + jitter * _XF_ROW_HEIGHT / 2:.1f}" r="2.6" '
+        f'fill="{color}" fill-opacity="{opacity}"/>'
+        for value, jitter in zip(values, jitters)
+    )
+
+
+def _transformation_svg(view, stage_index: int) -> str:
+    """
+    One frame of the observations-to-effect-size journey.
+
+    Redrawn per stage rather than animated on a timer: the reader sets
+    the pace, and nothing moves unless they move it. The only motion is a
+    CSS fade on newly added elements, disabled outright under
+    prefers-reduced-motion, so the chart is fully legible without it.
+
+    Each stage adds to the one before instead of replacing it, which is
+    the point of the sequence: by the last frame the raw observations are
+    still on screen underneath the summary drawn from them.
+    """
+    values = view.all_values
+    low, high = min(values), max(values)
+    padding = (high - low) * 0.08 or 0.5
+    low, high = low - padding, high + padding
+
+    split = stage_index >= view.stage_index(transformation.STAGE_GROUPS)
+    row_a = _XF_ROW_A if split else _XF_ROW_MERGED
+    row_b = _XF_ROW_B if split else _XF_ROW_MERGED
+
+    show_means = stage_index >= view.stage_index(transformation.STAGE_MEANS)
+    show_difference = stage_index >= view.stage_index(transformation.STAGE_DIFFERENCE)
+    show_effect = stage_index >= view.stage_index(transformation.STAGE_EFFECT_SIZE)
+
+    mean_a_x = _xf_x(view.mean_a, low, high)
+    mean_b_x = _xf_x(view.mean_b, low, high)
+
+    parts = [
+        _xf_points(view.values_a, view.jitter_a, row_a, low, high, ACCENT_2, show_means),
+        _xf_points(view.values_b, view.jitter_b, row_b, low, high, ACCENT, show_means),
+    ]
+
+    if split:
+        parts.append(
+            f'<text x="8" y="{row_a + 3:.1f}" font-size="9" fill="{INK_MUTED}">'
+            f"{view.label_a}</text>"
+            f'<text x="8" y="{row_b + 3:.1f}" font-size="9" fill="{INK_MUTED}">'
+            f"{view.label_b}</text>"
+        )
+
+    if show_means:
+        for x, row, color in ((mean_a_x, row_a, ACCENT_2), (mean_b_x, row_b, ACCENT)):
+            parts.append(
+                f'<line class="xf-new" x1="{x:.1f}" y1="{row - 11:.1f}" '
+                f'x2="{x:.1f}" y2="{row + 11:.1f}" stroke="{color}" '
+                f'stroke-width="2.5"/>'
+            )
+
+    if show_difference:
+        bracket_y = 138.0
+        left, right = sorted((mean_a_x, mean_b_x))
+        parts.append(
+            f'<g class="xf-new">'
+            f'<line x1="{left:.1f}" y1="{bracket_y}" x2="{right:.1f}" '
+            f'y2="{bracket_y}" stroke="{INK_MUTED}" stroke-width="1"/>'
+            f'<line x1="{left:.1f}" y1="{bracket_y - 4}" x2="{left:.1f}" '
+            f'y2="{bracket_y + 4}" stroke="{INK_MUTED}" stroke-width="1"/>'
+            f'<line x1="{right:.1f}" y1="{bracket_y - 4}" x2="{right:.1f}" '
+            f'y2="{bracket_y + 4}" stroke="{INK_MUTED}" stroke-width="1"/>'
+            f'<text x="{(left + right) / 2:.1f}" y="{bracket_y - 8}" '
+            f'font-size="9" fill="{INK_MUTED}" text-anchor="middle">'
+            f"{abs(view.mean_difference):.2f}</text></g>"
+        )
+
+    if show_effect:
+        # One pooled standard deviation, drawn from the lower mean, as a
+        # ruler the difference above is measured against.
+        ruler_y = 166.0
+        start = min(mean_a_x, mean_b_x)
+        span = abs(_xf_x(low + view.pooled_sd, low, high) - _XF_LEFT)
+        parts.append(
+            f'<g class="xf-new">'
+            f'<line x1="{start:.1f}" y1="{ruler_y}" x2="{start + span:.1f}" '
+            f'y2="{ruler_y}" stroke="{INK_MUTED}" stroke-width="1" '
+            f'stroke-dasharray="3,2"/>'
+            f'<line x1="{start:.1f}" y1="{ruler_y - 4}" x2="{start:.1f}" '
+            f'y2="{ruler_y + 4}" stroke="{INK_MUTED}" stroke-width="1"/>'
+            f'<line x1="{start + span:.1f}" y1="{ruler_y - 4}" '
+            f'x2="{start + span:.1f}" y2="{ruler_y + 4}" stroke="{INK_MUTED}" '
+            f'stroke-width="1"/>'
+            f'<text x="{start + span + 6:.1f}" y="{ruler_y + 3}" font-size="9" '
+            f'fill="{INK_MUTED}">1 SD = {view.pooled_sd:.2f}</text></g>'
+        )
+
+    return f"""
+    <style>
+      @keyframes xf-fade {{ from {{ opacity: 0; }} to {{ opacity: 1; }} }}
+      .xf-new {{ animation: xf-fade 240ms ease-out; }}
+      @media (prefers-reduced-motion: reduce) {{
+        .xf-new {{ animation: none; }}
+      }}
+    </style>
+    <svg width="100%" height="185" viewBox="0 0 400 185"
+         preserveAspectRatio="xMidYMid meet" role="img"
+         aria-label="{view.label_a} and {view.label_b} observations, their
+         group averages, the difference between those averages, and that
+         difference measured against one pooled standard deviation.">
+      <line x1="{_XF_LEFT}" y1="128" x2="{_XF_RIGHT}" y2="128"
+            stroke="{GRIDLINE}" stroke-width="1"/>
+      {"".join(parts)}
+    </svg>
+    """
+
+
+def render_effect_size_transformation(view) -> None:
+    """
+    Step through how these observations became this effect size.
+
+    Collapsed, and placed beside the formula that states the same journey
+    arithmetically: the formula says what is divided by what, this shows
+    which marks on screen those numbers came from.
+    """
+    with st.expander("Step through how this effect size was built"):
+        labels = [stage.label for stage in view.stages]
+        chosen = st.select_slider(
+            "Stage",
+            options=labels,
+            value=labels[0],
+            key="pe_transformation_stage",
+        )
+        index = labels.index(chosen)
+        stage = view.stages[index]
+
+        st.markdown(_transformation_svg(view, index), unsafe_allow_html=True)
+
+        st.markdown(f"**{stage.label}**")
+        st.markdown(f"### {stage.headline}")
+        st.write(stage.explanation)
+        st.caption(
+            f"Step {index + 1} of {len(view.stages)}. Each step adds to the "
+            "one before, so the observations stay on screen underneath the "
+            "summary drawn from them."
+        )
 
 
 def render_did_teaching_example(domain_id: str) -> None:
@@ -1039,6 +1207,15 @@ if "pe_recommendation" in st.session_state:
                 )
 
                 render_formula(formulas.cohens_d_explanation(result))
+
+                render_effect_size_transformation(
+                    transformation.effect_size_transformation(
+                        df,
+                        context["group_col"],
+                        context["outcome_col"],
+                        result,
+                    )
+                )
 
                 inspect_note("The p-value against your significance threshold, and Cohen's d for effect size.")
                 implications(

@@ -127,9 +127,11 @@ def did_assumptions() -> tuple[Assumption, ...]:
             ),
             checkable=CHECK_FROM_CONTEXT,
             citation=(
-                "Rubin, D. B. (1980). Comment on Basu, D. Journal of the "
-                "American Statistical Association, 75(371), 591-593 (the "
-                "stable unit treatment value assumption)."
+                "Rubin, D. B. (1980). Comment on \"Randomization Analysis "
+                "of Experimental Data: The Fisher Randomization Test\" by D. "
+                "Basu. Journal of the American Statistical Association, "
+                "75(371), 591-593, where the stable unit treatment value "
+                "assumption is named."
             ),
         ),
         Assumption(
