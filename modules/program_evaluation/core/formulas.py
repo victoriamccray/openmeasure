@@ -28,6 +28,7 @@ from shared.formula import FormulaExplanation, FormulaTerm  # noqa: E402
 
 from .comparison import TwoGroupResult  # noqa: E402
 from .did import DiDResult  # noqa: E402
+from .teaching import TeachingOutcome, TeachingScenario  # noqa: E402
 
 COHENS_D_CITATION = (
     "Cohen, J. (1988). Statistical Power Analysis for the Behavioral "
@@ -187,4 +188,68 @@ def did_explanation(result: DiDResult) -> FormulaExplanation:
             "equally. It does not establish that the program caused the "
             "remainder."
         ),
+    )
+
+
+def teaching_did_explanation(
+    scenario: TeachingScenario,
+    outcome: TeachingOutcome,
+) -> FormulaExplanation:
+    """
+    The worked example's arithmetic, in the same shape as a real result.
+
+    The teaching example and an actual analysis show the same subtraction,
+    so they use the same component rather than one of them restating the
+    other in prose. It also means the formal notation sits behind the same
+    collapsed disclosure in both places, which is what keeps the example
+    from leading with symbols.
+
+    Takes a TeachingOutcome rather than a DiDResult because the example
+    has no sample and no standard error: it is two changes and the gap
+    between them, which is the whole point of showing it before any data.
+    """
+    return FormulaExplanation(
+        name="Difference-in-differences",
+        blocks=(
+            f"{scenario.treated_label}'s change",
+            "-",
+            f"{scenario.comparison_label}'s change",
+            "=",
+            "Difference-in-differences",
+        ),
+        substitution_template="{change_treated} - {change_comparison}",
+        formal_latex=(
+            r"\text{DiD} = (\bar{y}_{T,\text{post}} - \bar{y}_{T,\text{pre}})"
+            r" - (\bar{y}_{C,\text{post}} - \bar{y}_{C,\text{pre}})"
+        ),
+        terms=(
+            FormulaTerm(
+                key="change_treated",
+                symbol="Δ_T",
+                plain_name=f"{scenario.treated_label}'s change",
+                meaning=(
+                    f"{scenario.pre_treated:.0f} to "
+                    f"{scenario.post_treated:.0f}, so "
+                    f"{outcome.change_treated:+.1f} {scenario.unit_label}. "
+                    "This is the number that does not move."
+                ),
+                display_value=f"{outcome.change_treated:.1f}",
+                source=f"the {scenario.treated_label} row above",
+            ),
+            FormulaTerm(
+                key="change_comparison",
+                symbol="Δ_C",
+                plain_name=f"{scenario.comparison_label}'s change",
+                meaning=(
+                    f"{scenario.pre_comparison:.0f} to "
+                    f"{outcome.post_comparison:.0f}, so "
+                    f"{outcome.comparison_change:+.1f} "
+                    f"{scenario.unit_label}. This is the number you set."
+                ),
+                display_value=f"{outcome.comparison_change:.1f}",
+                source="the slider above",
+            ),
+        ),
+        result_display=f"{outcome.did_estimate:.1f}",
+        reading=outcome.reading,
     )

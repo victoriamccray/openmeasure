@@ -229,5 +229,73 @@ class TestExplanationsAreValidForRealResults(unittest.TestCase):
                 self.assertNotIn("{", explanation.substituted)
 
 
+class TestTeachingDidExplanation(unittest.TestCase):
+    """
+    The worked example and a real analysis show the same subtraction, so
+    they share the component rather than one restating the other.
+    """
+
+    def setUp(self):
+        from core import teaching
+
+        self.scenario = teaching.DID_TEACHING_SCENARIO
+        self.outcome = teaching.teaching_did(12.5, scenario=self.scenario)
+        self.explanation = formulas.teaching_did_explanation(
+            self.scenario, self.outcome
+        )
+
+    def test_the_arithmetic_is_the_scenario_arithmetic(self):
+        self.assertEqual(self.explanation.substituted, "12.0 - 12.5 = -0.5")
+
+    def test_the_concept_uses_the_scenario_labels(self):
+        self.assertIn(self.scenario.treated_label, self.explanation.concept)
+        self.assertIn(self.scenario.comparison_label, self.explanation.concept)
+
+    def test_the_notation_survived_the_source_file(self):
+        """
+        The LaTeX was once corrupted by shell escaping into literal tab
+        and backspace characters, which renders as nonsense. Control
+        characters have no business in a formula string.
+        """
+        latex = self.explanation.formal_latex
+
+        self.assertNotIn(chr(9), latex)
+        self.assertNotIn(chr(8), latex)
+        self.assertIn("\\text{DiD}", latex)
+        self.assertIn("\\bar{y}", latex)
+
+    def test_it_matches_the_real_result_builder_in_shape(self):
+        """
+        A reader meets this in the example and the real one in a result;
+        differing structure between them would teach one thing and show
+        another.
+        """
+        real = formulas.did_explanation(
+            did.estimate_did(
+                _did_frame(), "arm", "pre", "post", treated_label="treated"
+            )
+        )
+
+        self.assertEqual(
+            self.explanation.substitution_template, real.substitution_template
+        )
+        self.assertEqual(self.explanation.formal_latex, real.formal_latex)
+        self.assertEqual(
+            [t.key for t in self.explanation.terms],
+            [t.key for t in real.terms],
+        )
+
+    def test_it_tracks_the_slider(self):
+        from core import teaching
+
+        for change, expected in ((0.0, "12.0"), (12.0, "0.0"), (20.0, "-8.0")):
+            outcome = teaching.teaching_did(change, scenario=self.scenario)
+            explanation = formulas.teaching_did_explanation(
+                self.scenario, outcome
+            )
+            with self.subTest(comparison_change=change):
+                self.assertEqual(explanation.result_display, expected)
+
+
 if __name__ == "__main__":
     unittest.main()

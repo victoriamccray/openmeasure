@@ -30,19 +30,27 @@ class DesignOption:
 
     id: str
     label: str
-    # Rendered with .format(unit=..., comparison=...), so a field's own
-    # vocabulary appears without this module importing a specific domain.
-    summary_template: str
-    needs: str
-    # The trade the design makes, shown as a quieter note beneath it.
-    caveat: str = ""
+    # Three short cells, one short sentence each, so a reader can compare
+    # the designs by scanning a row rather than by reading three
+    # structurally identical paragraphs. Each is rendered with
+    # .format(unit=..., comparison=...), so a field's own vocabulary
+    # appears without this module importing a specific domain.
+    compares_template: str
+    needs_template: str
+    leaves_open_template: str
     # A published example anchored beside this design, and why it is
     # placed here. Both empty for a design with no anchored study.
     case_study_key: str = ""
     case_study_connection: str = ""
 
     def __post_init__(self) -> None:
-        for field_name in ("id", "label", "summary_template", "needs"):
+        for field_name in (
+            "id",
+            "label",
+            "compares_template",
+            "needs_template",
+            "leaves_open_template",
+        ):
             if not getattr(self, field_name):
                 raise ValueError(
                     f"{self.id or 'A design'} is missing a value for "
@@ -56,24 +64,39 @@ class DesignOption:
                 "to say why it sits where it does."
             )
 
-    def summary_for(self, domain: Domain) -> str:
-        """The summary in one field's vocabulary."""
-        return self.summary_template.format(
-            unit=domain.term_for(CONCEPT_UNIT),
-            comparison=domain.term_for(CONCEPT_COMPARISON_GROUP),
-        )
+    def cells_for(self, domain: Domain) -> dict[str, str]:
+        """
+        The three comparison cells, in one field's vocabulary.
+
+        Returned together because they are only ever shown together, as
+        one row of a table, and keeping them in one call is what stops a
+        caller rendering two of the three.
+        """
+        vocabulary = {
+            "unit": domain.term_for(CONCEPT_UNIT),
+            "comparison": domain.term_for(CONCEPT_COMPARISON_GROUP),
+        }
+
+        return {
+            "What it compares": self.compares_template.format(**vocabulary),
+            "What it needs": self.needs_template.format(**vocabulary),
+            "What it leaves open": self.leaves_open_template.format(**vocabulary),
+        }
 
 
 DESIGN_OPTIONS: tuple[DesignOption, ...] = (
     DesignOption(
         id="two_or_more_groups",
         label="Two or more groups",
-        summary_template=(
-            "Compares an outcome across groups measured once. Needs an "
-            "outcome column and a column identifying which group each "
-            "{unit} belongs to."
+        compares_template="An outcome across groups, each measured once.",
+        needs_template=(
+            "An outcome column, and a column saying which group each "
+            "{unit} is in."
         ),
-        needs="An outcome column and a group column.",
+        leaves_open_template=(
+            "Whatever already differed between the groups before the "
+            "program did."
+        ),
         case_study_key="lalonde_1986",
         case_study_connection=(
             "This design compares the groups as they are, and has no way "
@@ -87,12 +110,14 @@ DESIGN_OPTIONS: tuple[DesignOption, ...] = (
     DesignOption(
         id="pre_post",
         label="Pre/post, same participants",
-        summary_template=(
-            "Compares one group's outcome before and after, using each "
-            "{unit} as its own baseline. Needs a baseline column and a "
-            "follow-up column."
+        compares_template=(
+            "One group before and after, each {unit} against its own "
+            "baseline."
         ),
-        needs="A baseline column and a follow-up column.",
+        needs_template="A baseline column and a follow-up column.",
+        leaves_open_template=(
+            "Anything else that changed over the same period."
+        ),
         case_study_key="scared_straight",
         case_study_connection=(
             "This design measures how much one group changed between two "
@@ -103,20 +128,17 @@ DESIGN_OPTIONS: tuple[DesignOption, ...] = (
     ),
     DesignOption(
         id="difference_in_differences",
-        label="Two groups, each measured before and after",
-        summary_template=(
-            "Difference-in-differences. Subtracts the {comparison}'s "
-            "change from the treated group's, which removes anything that "
-            "moved both equally and any fixed gap between them at "
-            "baseline. Needs a group column plus a baseline and a "
-            "follow-up column."
+        label="Two groups, before and after",
+        compares_template=(
+            "How much the treated group changed, against how much the "
+            "{comparison} changed."
         ),
-        needs="A group column, a baseline column, and a follow-up column.",
-        caveat=(
-            "It buys that with an assumption instead: that the treated "
-            "group would have followed the comparison group's path. Two "
-            "time points give no way to check it, so this page states the "
-            "assumption alongside the estimate."
+        needs_template=(
+            "A group column, plus a baseline and a follow-up column."
+        ),
+        leaves_open_template=(
+            "Whether the two were on the same path already, which two "
+            "time points cannot show."
         ),
     ),
 )

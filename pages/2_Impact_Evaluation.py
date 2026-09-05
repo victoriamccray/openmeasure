@@ -390,114 +390,109 @@ def render_effect_size_transformation(view) -> None:
 
 def render_did_teaching_example(domain_id: str) -> None:
     """
-    A fixed scenario with one adjustable number, shown collapsed beside
-    the difference-in-differences design.
+    One question, answered by doing the subtraction rather than reading
+    about it.
 
-    Collapsed by default so it stays out of the way of an analysis, and
-    placed before the recommendation rather than after the result,
-    because the thing it teaches (what the comparison group is doing to
-    the estimate) is a design decision the reader is making right here.
+    The order is deliberate and was arrived at by rewriting: what
+    happened here, what happened there, subtract the two, then see it,
+    then read it. An earlier version opened with the scenario, the
+    research question, why the method fits, and four assumptions, so a
+    reader met the counterfactual and parallel trends before they had
+    done the basic subtraction those ideas are about.
 
-    Every value and every sentence comes from
+    The chart comes after the arithmetic on purpose. Its dashed line is
+    the comparison group's slope drawn from the treated group's starting
+    point, which only means something once a reader has already
+    subtracted one change from the other.
+
+    Everything that explains, justifies or qualifies the method is
+    collapsed underneath. Every value and every sentence comes from
     modules/program_evaluation/core/teaching.py, so the prose and the
     arithmetic cannot drift apart.
-
-    The field selector changes which telling of the scenario is shown and
-    nothing else. It is scoped to this example rather than offered as a
-    page-level setting, because that is all it currently does: the wider
-    domain layer (search seeding, outcome suggestions and their caveats)
-    has no stage to live in until the workflow is restructured.
     """
     domain_labels = {domain.id: domain.label for domain in domains.DOMAINS}
     scenario = teaching.did_scenario_for(domain_id)
 
-    with st.expander("See how a comparison group changes the estimate", expanded=True):
+    if not teaching.has_own_did_scenario(domain_id):
+        fallback_label = domain_labels[scenario.domain_id]
+        st.caption(
+            f"{domain_labels[domain_id]} does not have its own telling of "
+            f"this example yet, so it is shown in {fallback_label.lower()} "
+            "terms. The arithmetic is identical either way, which is the "
+            "point: the field changes the story, not the method."
+        )
 
-        if not teaching.has_own_did_scenario(domain_id):
-            fallback_label = domain_labels[scenario.domain_id]
-            st.caption(
-                f"{domain_labels[domain_id]} does not have its own telling "
-                f"of this example yet, so it is shown in {fallback_label.lower()} "
-                "terms. The arithmetic is identical either way, which is "
-                "the point: the field changes the story, not the method."
-            )
+    st.markdown(
+        f"**{scenario.treated_label} improved by "
+        f"{scenario.change_treated:.0f} points. How much of that improvement "
+        f"looks different from what happened at {scenario.comparison_label}?**"
+    )
 
-        st.markdown("**Scenario**")
+    st.markdown(f"**1. What happened at {scenario.treated_label}?**")
+    st.write(
+        f"It introduced a {scenario.program_label}. Its "
+        f"{scenario.outcome_label} went from {scenario.pre_treated:.0f}% to "
+        f"{scenario.post_treated:.0f}%."
+    )
+    st.metric(
+        f"{scenario.treated_label} change",
+        f"{scenario.change_treated:+.1f} points",
+    )
+
+    st.markdown(f"**2. What happened at {scenario.comparison_label}?**")
+    st.write(
+        f"It ran no {scenario.program_label} over the same "
+        f"{scenario.period_label}. Move the slider to set what it did."
+    )
+    comparison_change = st.slider(
+        f"How much did {scenario.comparison_label} change?",
+        min_value=-10.0,
+        max_value=20.0,
+        value=5.0,
+        step=0.5,
+        format="%+.1f",
+    )
+    outcome = teaching.teaching_did(comparison_change, scenario=scenario)
+    st.metric(
+        f"{scenario.comparison_label} change",
+        f"{outcome.comparison_change:+.1f} points",
+    )
+
+    st.markdown("**3. Compare the changes**")
+    render_formula(formulas.teaching_did_explanation(scenario, outcome))
+
+    st.markdown("**4. See it**")
+    st.markdown(
+        _did_teaching_svg(scenario, outcome),
+        unsafe_allow_html=True,
+    )
+    st.caption(
+        f"The dashed line is {scenario.comparison_label}'s slope drawn from "
+        f"{scenario.treated_label}'s own starting point, and the bracket is "
+        "the difference you just calculated."
+    )
+
+    st.markdown("**5. What it means**")
+    st.write(outcome.reading)
+    inspect_note(
+        f"What happens to the difference as {scenario.comparison_label} "
+        f"passes {scenario.change_treated:.0f} points."
+    )
+
+    with st.expander("Why use a comparison group at all?"):
         st.write(scenario.scenario)
-
-        st.markdown("**Research question**")
-        st.write(scenario.question)
-
-        st.markdown("**Why difference-in-differences fits**")
         st.write(scenario.method_fit)
 
-        st.markdown("**Assumptions this rests on**")
+    with st.expander("What this assumes"):
         for assumption in scenario.assumptions:
             st.write(f"- {assumption}")
 
-        st.markdown("**Result**")
-        comparison_change = st.slider(
-            f"How much {scenario.comparison_label}'s "
-            f"{scenario.outcome_label} changed over the same "
-            f"{scenario.period_label} ({scenario.unit_label})",
-            min_value=-10.0,
-            max_value=20.0,
-            value=5.0,
-            step=0.5,
-        )
-        outcome = teaching.teaching_did(comparison_change, scenario=scenario)
-
-        st.markdown(
-            _did_teaching_svg(scenario, outcome),
-            unsafe_allow_html=True,
-        )
-        st.caption(
-            f"The dashed line is {scenario.comparison_label}'s slope drawn "
-            f"from {scenario.treated_label}'s own starting point. Parallel "
-            "trends is the assumption that the dashed line is where "
-            f"{scenario.treated_label} would have ended up, and the bracket "
-            "is what is left over."
-        )
-
-        st.dataframe(
-            pd.DataFrame(
-                {
-                    "Group": [scenario.treated_label, scenario.comparison_label],
-                    scenario.pre_period_label: [
-                        scenario.pre_treated,
-                        scenario.pre_comparison,
-                    ],
-                    scenario.post_period_label: [
-                        scenario.post_treated,
-                        outcome.post_comparison,
-                    ],
-                    "Change": [outcome.change_treated, outcome.comparison_change],
-                }
-            ),
-            width="stretch",
-            hide_index=True,
-        )
-
-        t1, t2 = st.columns(2)
-        t1.metric(
-            "Before-and-after estimate",
-            f"{outcome.before_after_estimate:+.1f}",
-        )
-        t2.metric(
-            "Difference-in-differences estimate",
-            f"{outcome.did_estimate:+.1f}",
-        )
-        inspect_note(
-            "Which of the two estimates moves when you move the slider, and "
-            "which one cannot see the comparison group at all."
-        )
-        st.write(outcome.reading)
-
-        st.markdown("**What this can conclude**")
+    with st.expander("What this example can and cannot support"):
+        st.markdown("**Can support**")
         for item in scenario.can_conclude:
             st.write(f"- {item}")
 
-        st.markdown("**What this cannot conclude**")
+        st.markdown("**Cannot support**")
         for item in scenario.cannot_conclude:
             st.write(f"- {item}")
 
@@ -949,15 +944,31 @@ if selected_studies:
             "answers and your data's shape, not on what these studies did."
         )
 
+# One row per design rather than three structurally identical
+# paragraphs. The same three facts about each design read as a comparison
+# when they line up in columns, and as a wall when they do not.
+st.dataframe(
+    pd.DataFrame(
+        [
+            {"Design": design.label, **design.cells_for(selected_domain)}
+            for design in designs.DESIGN_OPTIONS
+        ]
+    ),
+    width="stretch",
+    hide_index=True,
+)
+
+inspect_note(
+    "The last column. Every design leaves something open, and which of "
+    "those you can live with is usually what decides between them."
+)
+
 for design in designs.DESIGN_OPTIONS:
-    st.markdown(f"**{design.label}**")
-    st.write(design.summary_for(selected_domain))
+    if not design.case_study_key:
+        continue
 
-    if design.caveat:
-        st.caption(design.caveat)
-
-    if design.case_study_key:
-        case_study_note(design.case_study_key, design.case_study_connection)
+    st.caption(f"A published example, on {design.label.lower()}:")
+    case_study_note(design.case_study_key, design.case_study_connection)
 
 implications(designs.DESIGN_CHOICE_IMPLICATION)
 
@@ -972,7 +983,7 @@ if stage < STAGE_EXAMPLE:
 
 section_header(
     "5. Interactive Example",
-    "Difference-in-differences on numbers you can move, before your own data",
+    "Work the comparison yourself, on numbers you can move",
 )
 
 render_did_teaching_example(domain_id)

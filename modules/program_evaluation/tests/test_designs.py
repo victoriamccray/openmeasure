@@ -23,7 +23,9 @@ class TestDesignCatalogue(unittest.TestCase):
         )
 
     def test_get_design_returns_the_requested_one(self):
-        self.assertEqual(designs.get_design("pre_post").label, "Pre/post, same participants")
+        self.assertEqual(
+            designs.get_design("pre_post").label, "Pre/post, same participants"
+        )
 
     def test_unknown_design_raises_and_names_the_known_ones(self):
         with self.assertRaises(ValueError) as raised:
@@ -33,10 +35,32 @@ class TestDesignCatalogue(unittest.TestCase):
         self.assertIn("regression_discontinuity", message)
         self.assertIn("pre_post", message)
 
-    def test_every_design_states_what_it_needs(self):
+    def test_every_design_fills_all_three_cells(self):
+        neutral = domains.get_domain(domains.DOMAIN_OTHER)
+
         for design in designs.DESIGN_OPTIONS:
-            with self.subTest(design=design.id):
-                self.assertTrue(design.needs.strip())
+            cells = design.cells_for(neutral)
+            self.assertEqual(
+                set(cells),
+                {"What it compares", "What it needs", "What it leaves open"},
+            )
+            for column, text in cells.items():
+                with self.subTest(design=design.id, column=column):
+                    self.assertTrue(text.strip())
+
+    def test_every_cell_is_one_short_sentence(self):
+        """
+        A table of paragraphs is the wall it was meant to replace. One
+        sentence, one full stop, and short enough to scan in a row.
+        """
+        neutral = domains.get_domain(domains.DOMAIN_OTHER)
+
+        for design in designs.DESIGN_OPTIONS:
+            for column, text in design.cells_for(neutral).items():
+                with self.subTest(design=design.id, column=column):
+                    self.assertLessEqual(len(text), 110)
+                    self.assertEqual(text.count("."), 1)
+                    self.assertTrue(text.endswith("."))
 
     def test_labels_are_unique(self):
         labels = [design.label for design in designs.DESIGN_OPTIONS]
@@ -51,25 +75,25 @@ class TestDomainVocabulary(unittest.TestCase):
 
     def test_the_unit_placeholder_is_filled_from_the_domain(self):
         education = domains.get_domain("education")
-        summary = designs.get_design("pre_post").summary_for(education)
+        cells = designs.get_design("pre_post").cells_for(education)
 
-        self.assertIn("student", summary)
-        self.assertNotIn("{unit}", summary)
+        self.assertIn("student", cells["What it compares"])
+        self.assertNotIn("{unit}", " ".join(cells.values()))
 
     def test_the_comparison_placeholder_is_filled_from_the_domain(self):
         digital = domains.get_domain("digital")
-        summary = designs.get_design("difference_in_differences").summary_for(digital)
+        cells = designs.get_design("difference_in_differences").cells_for(digital)
 
-        self.assertIn("control condition or holdout", summary)
-        self.assertNotIn("{comparison}", summary)
+        self.assertIn("control condition or holdout", cells["What it compares"])
+        self.assertNotIn("{comparison}", " ".join(cells.values()))
 
     def test_no_placeholder_survives_for_any_domain_or_design(self):
         for domain in domains.DOMAINS:
             for design in designs.DESIGN_OPTIONS:
+                rendered = " ".join(design.cells_for(domain).values())
                 with self.subTest(domain=domain.id, design=design.id):
-                    summary = design.summary_for(domain)
-                    self.assertNotIn("{", summary)
-                    self.assertNotIn("}", summary)
+                    self.assertNotIn("{", rendered)
+                    self.assertNotIn("}", rendered)
 
     def test_the_same_designs_are_offered_whatever_the_domain(self):
         """
@@ -82,7 +106,7 @@ class TestDomainVocabulary(unittest.TestCase):
                 )
                 self.assertEqual(labels, tuple(d.label for d in designs.DESIGN_OPTIONS))
                 for design in designs.DESIGN_OPTIONS:
-                    self.assertTrue(design.summary_for(domain).strip())
+                    self.assertTrue(design.cells_for(domain)["What it compares"])
 
 
 class TestAnchoredCaseStudies(unittest.TestCase):
@@ -99,8 +123,9 @@ class TestAnchoredCaseStudies(unittest.TestCase):
             designs.DesignOption(
                 id="x",
                 label="X",
-                summary_template="Compares things.",
-                needs="Columns.",
+                compares_template="Compares things.",
+                needs_template="Columns.",
+                leaves_open_template="Something.",
                 case_study_key="lalonde_1986",
             )
 
@@ -118,7 +143,11 @@ class TestAnchoredCaseStudies(unittest.TestCase):
     def test_a_design_missing_a_required_field_is_rejected(self):
         with self.assertRaises(ValueError):
             designs.DesignOption(
-                id="x", label="", summary_template="Compares.", needs="Columns."
+                id="x",
+                label="",
+                compares_template="Compares.",
+                needs_template="Columns.",
+                leaves_open_template="Something.",
             )
 
 

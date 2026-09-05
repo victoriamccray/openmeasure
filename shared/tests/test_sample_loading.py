@@ -138,12 +138,45 @@ class TestTeachingContentIsReachableWithoutData(unittest.TestCase):
     """
 
     def test_the_did_example_is_reachable_before_any_data_is_loaded(self):
+        """
+        Asserts on the example's own content rather than on a wrapper.
+        It used to sit behind an expander, and checking for that label
+        broke the moment the example was made visible by default, which
+        was an improvement rather than a regression.
+        """
         app = _open(IMPACT_EVALUATION)
 
         self.assertFalse(app.exception)
 
+        slider_labels = [slider.label for slider in app.slider]
+        self.assertIn("How much did Clinic B change?", slider_labels)
+
+        metric_labels = [metric.label for metric in app.metric]
+        self.assertIn("Clinic A change", metric_labels)
+
+    def test_the_example_leads_with_doing_not_explaining(self):
+        """
+        The subtraction comes before the justification. Everything that
+        explains or qualifies the method is collapsed, so a reader works
+        the comparison before reading about counterfactuals.
+        """
+        app = _open(IMPACT_EVALUATION)
+
         labels = [expander.label for expander in app.expander]
-        self.assertIn("See how a comparison group changes the estimate", labels)
+        for collapsed in (
+            "Why use a comparison group at all?",
+            "What this assumes",
+            "What this example can and cannot support",
+        ):
+            with self.subTest(expander=collapsed):
+                self.assertIn(collapsed, labels)
+
+        rendered = " ".join(str(m.value) for m in app.markdown)
+        self.assertLess(
+            rendered.index("Compare the changes"),
+            rendered.index("See it"),
+            "the chart should come after the subtraction",
+        )
 
     def test_the_field_selector_offers_every_domain(self):
         from modules.program_evaluation.core.domains import DOMAINS
