@@ -29,9 +29,11 @@ from modules.data_profile.core.suggest import (
     default_binary_column,
     default_group_column,
 )
+from modules.fairness.core import analysis_paths
 from modules.fairness.core import post_model_metrics as pmm
 from modules.fairness.core import pre_model_metrics as pm
 from modules.fairness.core.recommend import recommend_fairness_metric
+from shared import visuals
 from shared.catalog import MODULE_FAIRNESS
 from shared.handoff import (
     KIND_ROWS_DROPPED,
@@ -57,6 +59,159 @@ from shared.upload import (
 )
 
 FAIRNESS_ACCENT = "#2a78d6"
+
+
+# The analysis fork. Structure, so a diagram: what each fairness analysis
+# observes, and where a model sits in it.
+#
+# The two analyses were two configuration forms one after the other,
+# which made them look like one analysis with more fields. They are not.
+# A pre-model comparison runs on what was observed; a post-model one
+# needs the model's decision recorded next to the outcome it was
+# predicting. Drawn as two rows that start alike and end alike, the extra
+# step in the middle is the whole difference.
+#
+# Solid means these columns can support the path, dashed means they
+# cannot, which is the same rule the rest of OpenMeasure uses for
+# established and not. Colour is deliberately not the signal: a dataset
+# that records no predictions is not a deficient dataset, and red would
+# say it was.
+_FORK_W, _FORK_H = 640.0, 246.0
+_FORK_BOX_H = 64.0
+_FORK_ROW_Y = (30.0, 150.0)
+
+# Left box, middle box, right box. Both rows share the outer two, so the
+# post-model row visibly passes through a step the pre-model row does
+# not.
+_FORK_START = (0.0, 210.0)
+_FORK_MIDDLE = (250.0, 160.0)
+_FORK_END = (452.0, 188.0)
+
+
+def _fork_box(x: float, width: float, y: float, lines, *, available: bool) -> str:
+    """One stage of a path, drawn solid when the path is open to it."""
+    stroke = FAIRNESS_ACCENT if available else visuals.INK_MUTED
+    dash = "" if available else f' stroke-dasharray="{visuals.DASH_UNESTABLISHED}"'
+
+    text = "".join(
+        f'<text x="{x + width / 2:.0f}" y="{y + 27 + index * 20:.0f}" '
+        f'font-size="14" fill="{visuals.INK_MUTED}" text-anchor="middle">'
+        f"{line}</text>"
+        for index, line in enumerate(lines)
+    )
+
+    return (
+        f'<rect x="{x:.0f}" y="{y:.0f}" width="{width:.0f}" '
+        f'height="{_FORK_BOX_H:.0f}" rx="5" fill="none" stroke="{stroke}" '
+        f'stroke-width="1.5"{dash}/>' + text
+    )
+
+
+def _fork_row(
+    y: float, label: str, status: str, *, through_model: bool, available: bool
+) -> str:
+    """One path, from the columns it needs to what it would compare."""
+    middle_y = y + _FORK_BOX_H / 2
+    start_x, start_w = _FORK_START
+    middle_x, middle_w = _FORK_MIDDLE
+    end_x, end_w = _FORK_END
+
+    parts = [
+        f'<text x="0" y="{y - 10:.0f}" font-size="12" '
+        f'fill="{visuals.INK_MUTED}" font-weight="600">{label}</text>',
+        _fork_box(
+            start_x,
+            start_w,
+            y,
+            ("Observed outcome", "and group"),
+            available=available,
+        ),
+        _fork_box(
+            end_x,
+            end_w,
+            y,
+            ("Error disparity",) if through_model else ("Group disparity",),
+            available=available,
+        ),
+        f'<text x="{end_x:.0f}" y="{y + _FORK_BOX_H + 18:.0f}" font-size="12" '
+        f'fill="{visuals.INK_MUTED}">{status}</text>',
+    ]
+
+    if through_model:
+        parts.append(
+            _fork_box(
+                middle_x,
+                middle_w,
+                y,
+                ("The model's",  "decision"),
+                available=available,
+            )
+        )
+        parts.append(
+            visuals.arrow(
+                start_x + start_w + 6,
+                middle_y,
+                middle_x - 6,
+                middle_y,
+                established=available,
+            )
+        )
+        parts.append(
+            visuals.arrow(
+                middle_x + middle_w + 6,
+                middle_y,
+                end_x - 6,
+                middle_y,
+                established=available,
+            )
+        )
+    else:
+        parts.append(
+            visuals.arrow(
+                start_x + start_w + 6,
+                middle_y,
+                end_x - 6,
+                middle_y,
+                established=available,
+            )
+        )
+
+    return "".join(parts)
+
+
+def _analysis_fork_svg(reading) -> str:
+    """
+    The two fairness analyses, and which of them these columns support.
+
+    Availability is drawn rather than written because the shape of the
+    answer is the answer: a dataset holding no recorded decision simply
+    has no middle box to pass through, and that is a boundary rather than
+    a shortfall.
+    """
+    rows = "".join(
+        _fork_row(
+            y,
+            path.label,
+            path.status_label,
+            through_model=path.id == analysis_paths.PATH_POST_MODEL,
+            available=path.available,
+        )
+        for y, path in zip(_FORK_ROW_Y, reading.paths)
+    )
+
+    supported = [p.label for p in reading.paths if p.available] or ["neither"]
+
+    return visuals.figure(
+        rows,
+        width=_FORK_W,
+        height=_FORK_H,
+        label=(
+            "Two fairness analyses. Pre-model compares the observed "
+            "outcome across groups. Post-model passes through the model's "
+            "decision and compares its errors across groups. These "
+            f"columns support: {', '.join(supported)}."
+        ),
+    )
 
 
 def _two_group_rate_chart_spec(
@@ -374,8 +529,8 @@ with st.expander("Applicable domains or contexts", icon=":material/category:"):
 if recommendation.metric != "demographic_parity":
     st.info(
         f"{recommendation.display_name} requires model predictions. "
-        "Step 3 below examines favorable-label rates already present in "
-        "the data; step 4 adds this and other post-model metrics if a "
+        "Step 4 below examines favorable-label rates already present in "
+        "the data; step 5 adds this and other post-model metrics if a "
         "predicted-label column is available."
     )
 
@@ -410,8 +565,8 @@ These columns can support several fairness analyses:
 - **Calibration within groups** evaluates whether predicted probabilities
   have the same meaning across groups.
 
-Step 3 below uses `true_label` and `sex` for the pre-model analysis.
-Step 4 adds `predicted_label` for equal opportunity, predictive
+Step 4 below uses `true_label` and `sex` for the pre-model analysis.
+Step 5 adds `predicted_label` for equal opportunity, predictive
 equality, and equalized odds, and approximates calibration within
 groups with positive predictive value rather than using
 `predicted_probability` directly; a full calibration curve over that
@@ -463,22 +618,32 @@ else:
             profile, [column for column in df.columns if column != default_label]
         )
 
-        st.write(
-            f"Loaded **{df.shape[0]} rows** and "
-            f"**{df.shape[1]} columns**."
+        with st.expander("The first rows, as loaded"):
+            st.dataframe(df.head(), width="stretch", hide_index=True)
+
+        # -------------------------------------------------------------
+        # Which analysis these columns can support
+        # -------------------------------------------------------------
+
+        section_header(
+            "3. Which Fairness Analysis These Columns Support",
+            "The two below are different analyses, not one with more "
+            "fields",
         )
 
-        st.dataframe(
-            df.head(),
-            width="stretch",
-            hide_index=True,
-        )
+        paths = analysis_paths.read_paths(profile)
+
+        st.markdown(_analysis_fork_svg(paths), unsafe_allow_html=True)
+
+        for path in paths.paths:
+            st.markdown(f"**{path.label}**  \n{path.question}")
+            st.caption(path.explanation)
 
         # -------------------------------------------------------------
         # Configure analysis
         # -------------------------------------------------------------
 
-        section_header("3. Configure The Pre-Model Analysis")
+        section_header("4. Configure The Pre-Model Analysis")
 
         label_options = list(df.columns)
         label_col = st.selectbox(
@@ -810,14 +975,14 @@ else:
         # -------------------------------------------------------------
 
         section_header(
-            "4. Configure The Post-Model Analysis",
+            "5. Configure The Post-Model Analysis",
             "Optional: add a predicted-label column to compare "
             "true-positive and false-positive rates across groups",
         )
 
         st.caption(
             "Uses the observed label, group, reference group, and "
-            "comparison group selected in step 3 above, plus one "
+            "comparison group selected in step 4 above, plus one "
             "additional column: the model's predicted label."
         )
 
@@ -827,11 +992,14 @@ else:
             if column not in (label_col, group_col)
         ]
 
-        if not remaining_columns:
+        # Gated on what the columns can support rather than on whether
+        # any column happens to be left over. A leftover continuous score
+        # is not a decision, and offering it as one produced a picker
+        # whose default the analysis then rejected.
+        if not paths.post_model.available or not remaining_columns:
             st.info(
-                "No columns remain to serve as a predicted-label column. "
-                "Post-model metrics require the observed label, the "
-                "group, and a separate model prediction."
+                f"{paths.post_model.status_label}. "
+                f"{paths.post_model.explanation}"
             )
         else:
             predicted_label_col = st.selectbox(
@@ -845,7 +1013,7 @@ else:
                 help=(
                     "Should use the same two values as the observed label "
                     "column above, one of which is the favorable label "
-                    "selected in step 3."
+                    "selected in step 4."
                 ),
             )
 
