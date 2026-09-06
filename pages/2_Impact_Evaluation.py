@@ -57,11 +57,7 @@ from shared.report import (
     render_formula,
     render_lifecycle_tracker,
 )
-from shared.upload import (
-    ROLE_GUESS_CAVEAT,
-    render_data_entry,
-    render_data_profile,
-)
+from shared.upload import render_data_entry, render_data_profile
 
 
 def render_sensitivity_sub_result(sub_result) -> None:
@@ -516,19 +512,27 @@ def _design_diagram_svg(design_id: str, treated: str, comparison: str) -> str:
 # whether it is complete, and neither is legible in five rows of raw
 # values.
 #
-# So the portrait groups columns by the role the profiler guessed, with
-# a completeness bar for each. Entities as a pictograph, structure as the
-# grouping, quantity as the bars: the same grammar the rest of the page
-# uses. The first rows stay on the page underneath, because a portrait is
-# not a substitute for looking at the actual values.
+# So the portrait counts what is in the dataset, then groups columns by
+# the role the profiler guessed, with a completeness bar for each.
+# Entities as a pictograph, structure as the grouping, quantity as the
+# bars: the same grammar the rest of the page uses. The first rows stay
+# on the page underneath, because a portrait is not a substitute for
+# looking at the actual values.
 #
-# The grouping is where a reader starts looking for an outcome or a group
-# column, not a ruling on which column may go where. Nine distinct values
-# is under the profiler's categorical threshold, so this module's own
-# sample lands its pre and post scores in categorical-like, and every
-# column stays selectable whatever the portrait shows.
+# The counts come first, and they are facts: how many columns hold
+# numbers, how many of those have few enough distinct values to read
+# either way, how many hold text, how many values are absent. The role
+# grouping comes second and is labelled as a guess, because it is one. A
+# nine-point confidence scale is under the profiler's categorical
+# threshold, so this module's own sample lands its pre and post scores in
+# categorical-like; whether that is the right reading is a modelling
+# question, and a portrait that summarised itself as having no continuous
+# columns would be settling it on the reader's behalf.
 _PORTRAIT_W = 640.0
-_PORTRAIT_HEADER_H = 68.0
+_PORTRAIT_HEADER_H = 132.0
+
+# The four counts across the top, and where each sits.
+_PORTRAIT_TALLY_X = (0.0, 168.0, 348.0, 508.0)
 _PORTRAIT_ROW_STEP = 24.0
 _PORTRAIT_GROUP_STEP = 30.0
 _PORTRAIT_BAR_X, _PORTRAIT_BAR_W = 412.0, 200.0
@@ -595,7 +599,7 @@ def _dataset_portrait_svg(profile, *, source_name: str, is_sample: bool) -> str:
 
         body += (
             f'<text x="0" y="{y:.0f}" font-size="12" fill="{INK_MUTED}" '
-            f'font-weight="600">{role}</text>'
+            f'font-weight="600">Likely role: {role}</text>'
         )
         y += _PORTRAIT_ROW_STEP
 
@@ -634,11 +638,33 @@ def _dataset_portrait_svg(profile, *, source_name: str, is_sample: bool) -> str:
         "Bundled sample dataset" if is_sample else f"Uploaded: {source_name}"
     )
 
+    # Four counts of how the data is stored, before any reading of it.
+    # "of them low-cardinality" rather than a fourth category, because
+    # those columns are a subset of the numeric ones and printing the two
+    # side by side would read as seven columns where there are five.
+    tally = (
+        (f"{profile.n_numeric:,}", "numeric columns"),
+        (f"{profile.n_low_cardinality_numeric:,}", "of them low-cardinality"),
+        (f"{profile.n_non_numeric:,}", "text, date or category"),
+        (f"{profile.n_missing_cells:,}", "values missing"),
+    )
+
+    counts = "".join(
+        f'<text x="{x:.0f}" y="102" font-size="26" fill="{INK_MUTED}">'
+        f"{value}</text>"
+        f'<text x="{x:.0f}" y="120" font-size="12" fill="{INK_MUTED}">'
+        f"{caption}</text>"
+        for x, (value, caption) in zip(_PORTRAIT_TALLY_X, tally)
+    )
+
     header = (
         visuals.unit_cluster(24, 30, ACCENT, count=5, radius=6.5)
         + f'<text x="58" y="36" font-size="17" fill="{INK_MUTED}">{rows}</text>'
         + f'<text x="{_PORTRAIT_W:.0f}" y="36" font-size="12" '
         f'fill="{INK_MUTED}" text-anchor="end">{provenance}</text>'
+        + f'<line x1="0" y1="60" x2="{_PORTRAIT_W:.0f}" y2="60" '
+        f'stroke="{GRIDLINE}" stroke-width="1"/>'
+        + counts
         + f'<line x1="0" y1="{_PORTRAIT_HEADER_H:.0f}" x2="{_PORTRAIT_W:.0f}" '
         f'y2="{_PORTRAIT_HEADER_H:.0f}" stroke="{GRIDLINE}" '
         f'stroke-width="1"/>'
@@ -649,7 +675,9 @@ def _dataset_portrait_svg(profile, *, source_name: str, is_sample: bool) -> str:
         width=_PORTRAIT_W,
         height=y,
         label=(
-            f"{provenance}. {rows}, grouped by the role guessed for each: "
+            f"{provenance}. {rows}. "
+            + ", ".join(f"{value} {caption}" for value, caption in tally)
+            + ". Grouped by a guess at each column's likely role: "
             + "; ".join(
                 f"{role}, {', '.join(c.name for c in columns)}"
                 for role, columns in by_role.items()
@@ -1505,7 +1533,7 @@ st.markdown(
     ),
     unsafe_allow_html=True,
 )
-st.caption(ROLE_GUESS_CAVEAT)
+st.caption(dp_profile.LOW_CARDINALITY_NOTE)
 
 with st.expander("The first rows, as loaded"):
     st.dataframe(df.head(), width="stretch")

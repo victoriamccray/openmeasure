@@ -55,6 +55,21 @@ _ID_NAME_PATTERN = re.compile(r"(^|_)(id|index|key|uuid)($|_)", re.IGNORECASE)
 # column singled out yet.
 CATEGORICAL_MAX_UNIQUE = 10
 
+# Said wherever the role guess is shown as a grouping rather than as one
+# cell in a table, because a grouping looks like a ruling on where a
+# column may go and this one is not.
+#
+# The threshold is interpolated rather than written out, so the sentence
+# cannot come to disagree with the number it describes. A test holds it
+# to that.
+LOW_CARDINALITY_NOTE = (
+    f"A numeric column with {CATEGORICAL_MAX_UNIQUE} or fewer distinct "
+    "values is grouped as categorical-like. That is read off the count of "
+    "distinct values, not a restriction on the column: a rating scale is "
+    "often analysed as a continuous outcome, and every column stays "
+    "selectable whichever group it appears in."
+)
+
 # A nonnumeric column with more distinct values than this, relative to
 # row count, reads as free text (e.g. an open-ended response) rather
 # than a category to group by.
@@ -77,6 +92,21 @@ class ColumnProfile:
     pct_missing: float
     n_unique: int
     role: str
+
+    @property
+    def is_numeric(self) -> bool:
+        """
+        Whether the column holds numbers, read off the dtype recorded.
+
+        A property rather than a stored field so it cannot disagree with
+        the dtype beside it, and so callers that build a ColumnProfile by
+        hand do not have to remember to keep the two in step.
+
+        Distinct from the role guess: role puts a numeric column with few
+        distinct values in categorical-like, which is a reading of the
+        column, while this is a fact about how it is stored.
+        """
+        return pd.api.types.is_numeric_dtype(pd.api.types.pandas_dtype(self.dtype))
 
     def __post_init__(self) -> None:
         if self.role not in ROLES:
@@ -110,6 +140,44 @@ class DataProfile:
                 f"'{role}' is not a known role. Valid roles: {', '.join(ROLES)}."
             )
         return tuple(c.name for c in self.columns if c.role == role)
+
+    # Counts of what is in the dataset, as facts rather than as readings
+    # of it. A summary built out of role guesses ("no continuous
+    # columns") states a heuristic more confidently than the heuristic
+    # supports; these four say how the data is stored and how much of it
+    # is there, which is true whatever anyone decides the roles are.
+
+    @property
+    def n_numeric(self) -> int:
+        """How many columns hold numbers."""
+        return sum(1 for column in self.columns if column.is_numeric)
+
+    @property
+    def n_low_cardinality_numeric(self) -> int:
+        """
+        Numeric columns with few enough distinct values to read either
+        way, as a Likert item or a count does.
+
+        A subset of n_numeric, not a category beside it. These are the
+        columns where the role guess is a judgement call rather than a
+        formality, which is exactly what a reader should be told before
+        being asked to pick an outcome.
+        """
+        return sum(
+            1
+            for column in self.columns
+            if column.is_numeric and column.n_unique <= CATEGORICAL_MAX_UNIQUE
+        )
+
+    @property
+    def n_non_numeric(self) -> int:
+        """How many columns hold text, categories, dates, or anything else."""
+        return self.n_columns - self.n_numeric
+
+    @property
+    def n_missing_cells(self) -> int:
+        """How many values are absent across the whole dataset."""
+        return sum(column.n_missing for column in self.columns)
 
 
 def _looks_like_identifier(series: pd.Series, column_name: str) -> bool:

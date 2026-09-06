@@ -118,5 +118,102 @@ class TestProfileDataframe(unittest.TestCase):
             profile.profile_dataframe([1, 2, 3])
 
 
+class TestIsNumeric(unittest.TestCase):
+    """
+    Whether a column holds numbers, as distinct from what role it was
+    guessed to play. A nine-point rating scale is numeric and guessed
+    categorical-like, and a summary that conflated the two would report
+    a dataset of rating scales as having no numeric columns.
+    """
+
+    def test_numeric_dtypes_are_numeric(self):
+        frame = pd.DataFrame(
+            {"i": [1, 2, 3], "f": [1.0, 2.0, 3.0], "b": [True, False, True]}
+        )
+        built = profile.profile_dataframe(frame)
+
+        for name in ("i", "f", "b"):
+            with self.subTest(column=name):
+                self.assertTrue(built.column(name).is_numeric)
+
+    def test_text_and_dates_are_not_numeric(self):
+        frame = pd.DataFrame(
+            {
+                "text": ["a", "b", "c"],
+                "when": pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"]),
+            }
+        )
+        built = profile.profile_dataframe(frame)
+
+        self.assertFalse(built.column("text").is_numeric)
+        self.assertFalse(built.column("when").is_numeric)
+
+    def test_a_rating_scale_is_numeric_and_guessed_categorical(self):
+        frame = pd.DataFrame({"confidence": [(i % 9) + 1 for i in range(40)]})
+        column = profile.profile_dataframe(frame).column("confidence")
+
+        self.assertTrue(column.is_numeric)
+        self.assertEqual(column.role, profile.ROLE_CATEGORICAL)
+
+
+class TestDatasetCounts(unittest.TestCase):
+    """
+    The counts a portrait leads with. Facts about how the data is stored,
+    so that a summary of a dataset never states the role heuristic more
+    confidently than the heuristic supports.
+    """
+
+    def setUp(self):
+        self.frame = pd.DataFrame(
+            {
+                "participant_id": range(1, 21),
+                "rating": [(i % 5) + 1 for i in range(20)],
+                "score": [float(i) for i in range(20)],
+                "arm": ["a", "b"] * 10,
+                "notes": [None] * 20,
+            }
+        )
+        self.frame.loc[self.frame.index[:3], "score"] = None
+        self.built = profile.profile_dataframe(self.frame)
+
+    def test_numeric_columns_are_counted(self):
+        self.assertEqual(self.built.n_numeric, 3)
+
+    def test_low_cardinality_numeric_is_a_subset_of_numeric(self):
+        # rating has 5 distinct values; participant_id and score have 20
+        # and 17, both over the threshold.
+        self.assertEqual(self.built.n_low_cardinality_numeric, 1)
+        self.assertLessEqual(
+            self.built.n_low_cardinality_numeric, self.built.n_numeric
+        )
+
+    def test_non_numeric_is_the_remainder(self):
+        self.assertEqual(self.built.n_non_numeric, 2)
+        self.assertEqual(
+            self.built.n_numeric + self.built.n_non_numeric,
+            self.built.n_columns,
+        )
+
+    def test_missing_cells_are_totalled_across_columns(self):
+        self.assertEqual(self.built.n_missing_cells, 23)
+
+
+class TestLowCardinalityNote(unittest.TestCase):
+    def test_it_states_the_threshold_it_describes(self):
+        """
+        The sentence interpolates the constant, so raising or lowering
+        the threshold cannot leave the explanation quoting the old one.
+        """
+        self.assertIn(
+            str(profile.CATEGORICAL_MAX_UNIQUE), profile.LOW_CARDINALITY_NOTE
+        )
+
+    def test_it_says_the_grouping_does_not_restrict_the_column(self):
+        note = profile.LOW_CARDINALITY_NOTE.lower()
+
+        self.assertIn("not a restriction", note)
+        self.assertIn("continuous outcome", note)
+
+
 if __name__ == "__main__":
     unittest.main()
