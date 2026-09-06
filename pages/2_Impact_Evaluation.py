@@ -388,6 +388,156 @@ def render_effect_size_transformation(view) -> None:
         )
 
 
+# Mini design diagrams. Structure, so a diagram rather than a chart: what
+# each design observes, and when. Deliberately schematic and identically
+# scaled, so the three can be compared at a glance rather than read one at
+# a time. A dot is a unit, a column of dots is a group, and horizontal
+# distance is time.
+_DESIGN_W, _DESIGN_H = 300.0, 104.0
+_DESIGN_LEFT, _DESIGN_RIGHT = 46.0, 236.0
+
+
+def _unit_cluster(x: float, y: float, color: str) -> str:
+    """One group, drawn as a small cluster of units."""
+    offsets = ((-7, -7), (7, -6), (0, 0), (-8, 7), (8, 8))
+    return "".join(
+        f'<circle cx="{x + dx:.0f}" cy="{y + dy:.0f}" r="3.1" fill="{color}" '
+        f'fill-opacity="0.75"/>'
+        for dx, dy in offsets
+    )
+
+
+def _time_arrow(y: float, label: str) -> str:
+    """A left-to-right arrow marking that time passes between observations."""
+    return (
+        f'<line x1="{_DESIGN_LEFT + 30}" y1="{y}" x2="{_DESIGN_RIGHT - 30}" '
+        f'y2="{y}" stroke="{INK_MUTED}" stroke-width="1" '
+        f'stroke-dasharray="3,3"/>'
+        f'<polygon points="{_DESIGN_RIGHT - 30},{y} {_DESIGN_RIGHT - 37},{y - 3.5} '
+        f'{_DESIGN_RIGHT - 37},{y + 3.5}" fill="{INK_MUTED}"/>'
+        f'<text x="{(_DESIGN_LEFT + _DESIGN_RIGHT) / 2:.0f}" y="{y - 6}" '
+        f'font-size="8" fill="{INK_MUTED}" text-anchor="middle">{label}</text>'
+    )
+
+
+def _design_diagram_svg(design_id: str, treated: str, comparison: str) -> str:
+    """
+    What one design actually observes, as a schematic.
+
+    Three shapes for three designs: two groups seen once, one group seen
+    twice, and two groups each seen twice. Reading them side by side is
+    what makes the difference-in-differences design look like what it is,
+    the other two combined, rather than a third unrelated method.
+    """
+    if design_id == "two_or_more_groups":
+        body = (
+            _unit_cluster(96, 34, ACCENT_2)
+            + _unit_cluster(96, 74, ACCENT)
+            + f'<text x="8" y="37" font-size="8" fill="{INK_MUTED}">{treated}</text>'
+            + f'<text x="8" y="77" font-size="8" fill="{INK_MUTED}">{comparison}</text>'
+            + f'<text x="150" y="58" font-size="8" fill="{INK_MUTED}">'
+            "measured once</text>"
+        )
+    elif design_id == "pre_post":
+        body = (
+            _unit_cluster(_DESIGN_LEFT + 14, 62, ACCENT_2)
+            + _unit_cluster(_DESIGN_RIGHT - 14, 62, ACCENT_2)
+            + _time_arrow(62, "same units, later")
+            + f'<text x="8" y="30" font-size="8" fill="{INK_MUTED}">{treated}</text>'
+        )
+    else:
+        body = (
+            _unit_cluster(_DESIGN_LEFT + 14, 34, ACCENT_2)
+            + _unit_cluster(_DESIGN_RIGHT - 14, 34, ACCENT_2)
+            + _time_arrow(34, "")
+            + _unit_cluster(_DESIGN_LEFT + 14, 82, ACCENT)
+            + _unit_cluster(_DESIGN_RIGHT - 14, 82, ACCENT)
+            + _time_arrow(82, "")
+            + f'<text x="8" y="14" font-size="8" fill="{INK_MUTED}">{treated}</text>'
+            + f'<text x="8" y="62" font-size="8" fill="{INK_MUTED}">{comparison}</text>'
+            + f'<text x="{(_DESIGN_LEFT + _DESIGN_RIGHT) / 2:.0f}" y="58" '
+            f'font-size="8" fill="{INK_MUTED}" text-anchor="middle">'
+            "both change, one was treated</text>"
+        )
+
+    return f"""
+    <svg width="100%" height="{_DESIGN_H:.0f}" viewBox="0 0 {_DESIGN_W:.0f} {_DESIGN_H:.0f}"
+         preserveAspectRatio="xMidYMid meet" role="img"
+         aria-label="Schematic of the {design_id.replace('_', ' ')} design:
+         each dot is a unit, each cluster a group, and horizontal distance
+         is time between observations.">
+      {body}
+    </svg>
+    """
+
+
+# The support boundary. Evidence states, so neither a chart nor a
+# diagram of structure: two claims and the line between what the analysis
+# settled and what it did not.
+#
+# Solid means established by this analysis, dashed means not. That is the
+# same convention the difference-in-differences chart already uses for
+# its assumed counterfactual, so the page carries one visual rule rather
+# than two. Colour is deliberately not the signal: an unresolved
+# condition is not a failure, and red would say it was.
+_BOUND_W, _BOUND_H = 380.0, 150.0
+
+
+def _support_boundary_svg(established: str, unresolved: str, conditions: tuple) -> str:
+    """
+    What this result supports, and where support stops.
+
+    conditions are the things that would have to hold for the second
+    claim to follow from the first. They hang off the unresolved box
+    rather than sitting in a list beneath it, because their whole
+    relevance is that they are what the gap is made of.
+    """
+    shown = conditions[:3]
+    rows = "".join(
+        f'<circle cx="228" cy="{96 + index * 16}" r="2" fill="{INK_MUTED}"/>'
+        f'<text x="236" y="{99 + index * 16}" font-size="8" fill="{INK_MUTED}">'
+        f"{condition}</text>"
+        for index, condition in enumerate(shown)
+    )
+
+    more = ""
+    if len(conditions) > len(shown):
+        more = (
+            f'<text x="236" y="{99 + len(shown) * 16}" font-size="8" '
+            f'fill="{INK_MUTED}">and {len(conditions) - len(shown)} more</text>'
+        )
+
+    return f"""
+    <svg width="100%" height="{_BOUND_H:.0f}" viewBox="0 0 {_BOUND_W:.0f} {_BOUND_H:.0f}"
+         preserveAspectRatio="xMidYMid meet" role="img"
+         aria-label="This analysis establishes that {established}. Whether
+         {unresolved} does not follow from it, and depends on conditions
+         the design cannot settle.">
+      <rect x="8" y="26" width="180" height="34" rx="4" fill="none"
+            stroke="{ACCENT}" stroke-width="1.5"/>
+      <text x="18" y="42" font-size="9" fill="{ACCENT}">Established here</text>
+      <text x="18" y="54" font-size="9" fill="{INK_MUTED}">{established}</text>
+
+      <line x1="188" y1="43" x2="214" y2="43" stroke="{INK_MUTED}"
+            stroke-width="1" stroke-dasharray="3,3"/>
+      <polygon points="222,43 214,39 214,47" fill="{INK_MUTED}"/>
+
+      <rect x="228" y="26" width="144" height="34" rx="4" fill="none"
+            stroke="{INK_MUTED}" stroke-width="1.5" stroke-dasharray="4,3"/>
+      <text x="238" y="42" font-size="9" fill="{INK_MUTED}">Not established</text>
+      <text x="238" y="54" font-size="9" fill="{INK_MUTED}">{unresolved}</text>
+
+      <line x1="300" y1="60" x2="300" y2="84" stroke="{INK_MUTED}"
+            stroke-width="1" stroke-dasharray="3,3"/>
+      <text x="228" y="80" font-size="8" fill="{INK_MUTED}">
+        which would need:
+      </text>
+      {rows}
+      {more}
+    </svg>
+    """
+
+
 def render_did_teaching_example(domain_id: str) -> None:
     """
     One question, answered by doing the subtraction rather than reading
@@ -943,6 +1093,29 @@ if selected_studies:
             "Shown as context. Which design fits depends on your own "
             "answers and your data's shape, not on what these studies did."
         )
+
+# Structure first, detail second. The diagrams say what each design
+# observes and when; the table below says what each needs and leaves
+# open. Reading them side by side is what makes difference-in-differences
+# look like the other two combined rather than a third unrelated method.
+design_columns = st.columns(len(designs.DESIGN_OPTIONS))
+
+for column, design in zip(design_columns, designs.DESIGN_OPTIONS):
+    with column:
+        st.caption(design.label)
+        st.markdown(
+            _design_diagram_svg(
+                design.id,
+                selected_domain.term_for(domains.CONCEPT_TREATMENT_GROUP),
+                selected_domain.term_for(domains.CONCEPT_COMPARISON_GROUP),
+            ),
+            unsafe_allow_html=True,
+        )
+
+st.caption(
+    "Each dot is a unit, each cluster a group, and horizontal distance is "
+    "time between observations."
+)
 
 # One row per design rather than three structurally identical
 # paragraphs. The same three facts about each design read as a comparison
@@ -1577,6 +1750,30 @@ if "pe_recommendation" in st.session_state:
                     "7. Interpret",
                     "What this design and this result together support",
                 )
+
+                # Lead with where support stops, then explain it. The
+                # conditions come from the recommendation's own warnings
+                # for every design, and from the DiD assumptions where
+                # those exist, so the diagram cannot drift from the text
+                # underneath it.
+                if method == "estimate_did":
+                    conditions = tuple(
+                        a.name for a in interpret.did_assumptions()
+                    )
+                else:
+                    conditions = tuple(
+                        w.split(".")[0] for w in recommendation.warnings
+                    )
+
+                if conditions:
+                    st.markdown(
+                        _support_boundary_svg(
+                            "a difference between the groups observed",
+                            "the program produced it",
+                            conditions,
+                        ),
+                        unsafe_allow_html=True,
+                    )
 
                 caveat(interpret.P_VALUE_NOTE)
 
