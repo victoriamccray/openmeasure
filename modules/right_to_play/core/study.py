@@ -66,6 +66,14 @@ TRIAL_CITATION = (
 
 CATALOG_ENTRY = "shared/datasets.py, right_to_play_baseline"
 
+# The reported allocation, kept as numbers so the design diagram draws
+# what the trial did rather than an illustrative split. Verified against
+# the trial abstract, which reports 20 schools per arm and 1,752 students
+# split 929 to 823.
+SCHOOLS_PER_ARM = 20
+STUDENTS_INTERVENTION = 929
+STUDENTS_CONTROL = 823
+
 # How wide a label can be on the boundary diagram before it runs into the
 # column beside it.
 #
@@ -156,8 +164,21 @@ DESIGN: tuple[StudyFact, ...] = (
         source=BASELINE_CITATION,
     ),
     StudyFact(
+        label="Arm allocation",
+        short_label="Arm allocation",
+        value="20 schools per arm, 10 of each sex",
+        provenance=REPORTED,
+        source=TRIAL_CITATION,
+    ),
+    StudyFact(
+        label="Students per arm",
+        value="929 in the intervention arm, 823 in the control arm",
+        provenance=REPORTED,
+        source=TRIAL_CITATION,
+    ),
+    StudyFact(
         label="Follow-up",
-        value="Outcomes reported at 24 months",
+        value="A two-year trial",
         provenance=REPORTED,
         source=TRIAL_CITATION,
     ),

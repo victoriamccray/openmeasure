@@ -1271,8 +1271,8 @@ if raw_results:
 
     st.caption(
         f"{research.OVERLAP_COLUMN} counts words your question and a "
-        "result's title or abstract have in common. It is a text overlap, "
-        "not a judgment that a result is relevant."
+        "result's title or abstract have in common. Relevance is yours to "
+        "judge."
     )
 
     st.multiselect(

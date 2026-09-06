@@ -144,7 +144,7 @@ def _school_box(x: float, y: float, color: str) -> str:
     )
 
 
-def _arm(y: float, name: str, color: str) -> str:
+def _arm(y: float, name: str, detail: str, color: str) -> str:
     """One trial arm: its schools, each holding its own students."""
     boxes = "".join(
         _school_box(_ARM_X + index * (_BOX_W + _BOX_GAP), y, color)
@@ -152,7 +152,8 @@ def _arm(y: float, name: str, color: str) -> str:
     )
 
     return (
-        _label(0, y + 28, name, size=13, color=color)
+        _label(0, y + 18, name, size=13, color=color)
+        + _label(0, y + 36, detail, size=12)
         + boxes
         + _label(
             _ARM_X + _BOXES_PER_ARM * (_BOX_W + _BOX_GAP) - 6,
@@ -172,11 +173,12 @@ def _cluster_randomization_svg() -> str:
     things rather than of 1,752. And every student sits inside one of
     those boxes, so a student's arm was decided by their school.
 
-    The number of schools per arm is deliberately not drawn as twenty and
-    twenty. The publications report forty schools in two arms; how many
-    landed in each is not among the facts core/study.py records, and an
-    even split would assert one. The trailing ellipsis says the row is a
-    sample of the arm rather than all of it.
+    The allocation drawn is the reported one. An earlier version drew an
+    illustrative number of schools per arm and said the split was not
+    among the recorded facts; the trial abstract reports twenty schools
+    per arm, ten of each sex, so the caution was replaced by the figure
+    rather than kept. The trailing ellipsis still marks the row as a
+    sample of the arm rather than all twenty of it.
     """
     split_y = 74.0
     intervention_y = 100.0
@@ -193,8 +195,20 @@ def _cluster_randomization_svg() -> str:
         + f'<path d="M {_ARM_X - 20:.0f} {split_y:.0f} '
         f'V {control_y + 25:.0f} H {_ARM_X - 6:.0f}" fill="none" '
         f'stroke="{INK}" stroke-width="1"/>'
-        + _arm(intervention_y, "Intervention arm", ACCENT_2)
-        + _arm(control_y, "Control arm", ACCENT)
+        + _arm(
+            intervention_y,
+            "Intervention arm",
+            f"{study.SCHOOLS_PER_ARM} schools, "
+            f"{study.STUDENTS_INTERVENTION:,} students",
+            ACCENT_2,
+        )
+        + _arm(
+            control_y,
+            "Control arm",
+            f"{study.SCHOOLS_PER_ARM} schools, "
+            f"{study.STUDENTS_CONTROL:,} students",
+            ACCENT,
+        )
         + f'<line x1="0" y1="270" x2="640" y2="270" '
         f'stroke="{visuals.GRIDLINE}" stroke-width="1"/>'
         + _label(
@@ -215,9 +229,10 @@ def _cluster_randomization_svg() -> str:
             "into an intervention arm and a control arm. Each school is "
             "drawn as a box containing its own students, because the 1,752 "
             "grade 6 students were never randomized individually: a "
-            "student's arm was decided by their school. The number of "
-            "schools drawn per arm is illustrative; how the forty split "
-            "between the arms is not among the facts this journey records."
+            "student's arm was decided by their school. Twenty schools "
+            "went to each arm, ten of each sex, carrying 929 students into "
+            "the intervention arm and 823 into the control arm. The rows "
+            "draw four schools each as a sample of the twenty."
         ),
     )
 
