@@ -319,35 +319,69 @@ decisions: list[screening_core.ScreeningDecision] = []
 for index, (item, score, assessment) in enumerate(
     zip(results, scores, eligibility_summary.assessments)
 ):
+    # Scan, then inspect, then decide.
+    #
+    # Every result used to print its whole abstract, its matched
+    # keywords, its citation count and its eligibility reasoning before
+    # the reader had decided whether the paper was worth reading at all.
+    # Ten results was ten mini literature reviews to work through, and
+    # the density was worst exactly when retrieval was poor, which is
+    # when a reader most needs to move quickly.
+    #
+    # What stays visible is what a screening decision is made on: what
+    # the paper is, and how much of the question it actually matches.
+    # Everything that supports the decision rather than driving it sits
+    # one click away, and none of it is removed.
     with st.container(border=True):
         st.markdown(f"**[{item.title}]({item.url})**")
-        st.caption(
-            f"{item.author_summary} · {item.year or 'n/a'} · {item.venue} · "
-            f"{item.citation_count if item.citation_count is not None else 'n/a'} citations"
-        )
+        st.caption(f"{item.author_summary} · {item.year or 'n/a'}")
 
-        if item.abstract:
-            st.write(item.abstract)
-        else:
-            st.caption("No abstract available from OpenAlex for this result.")
-
+        # The count leads, because zero is the number that should stop a
+        # reader, and it was previously the last caption under a
+        # paragraph of abstract.
         if score.matched_keywords:
             st.caption(
-                f"Matched keywords ({score.overlap_count}): "
-                + ", ".join(score.matched_keywords)
+                f"{score.overlap_count} question "
+                f"{'term' if score.overlap_count == 1 else 'terms'} matched"
             )
         else:
-            st.caption("Matched keywords (0): none.")
+            st.caption("No question terms matched")
 
-        if not criteria.is_empty:
-            if assessment.eligible:
-                st.caption("Meets the eligibility criteria stated above.")
+        with st.expander("Inspect paper"):
+            if item.abstract:
+                st.write(item.abstract)
             else:
                 st.caption(
-                    "Does not meet the eligibility criteria stated above: "
-                    + "; ".join(assessment.reasons_excluded)
-                    + ". Still yours to screen either way."
+                    "No abstract available from OpenAlex for this result."
                 )
+
+            st.caption(
+                f"{item.venue} · "
+                f"{item.citation_count if item.citation_count is not None else 'n/a'}"
+                " citations"
+            )
+
+            if score.matched_keywords:
+                st.caption(
+                    "Matched terms: " + ", ".join(score.matched_keywords)
+                )
+            else:
+                st.caption(
+                    "This result shares no words with your question. It was "
+                    "returned by the search, which is a different thing "
+                    "from matching what you asked."
+                )
+
+            if not criteria.is_empty:
+                if assessment.eligible:
+                    st.caption("Meets the eligibility criteria stated above.")
+                else:
+                    st.caption(
+                        "Does not meet the eligibility criteria stated "
+                        "above: "
+                        + "; ".join(assessment.reasons_excluded)
+                        + ". Still yours to screen either way."
+                    )
 
         decision_key = f"evidence_review_decision_{query_hash}_{index}"
         decision_value = st.radio(
@@ -360,10 +394,15 @@ for index, (item, score, assessment) in enumerate(
 
         decision_reason = ""
         if decision_value == screening_core.DECISION_EXCLUDE:
+            # The PRISMA rationale moves into help text. It is worth
+            # saying and it is not worth three lines of label on every
+            # excluded result.
             decision_reason = st.text_input(
-                "Reason for excluding this result (optional, but PRISMA 2020 "
-                "recommends stating why when a result might otherwise look "
-                "eligible)",
+                "Reason for excluding",
+                help=(
+                    "Optional. PRISMA 2020 recommends stating why when a "
+                    "result might otherwise look eligible."
+                ),
                 key=f"evidence_review_reason_{query_hash}_{index}",
             )
 
