@@ -208,16 +208,27 @@ def render_data_entry(
     return None
 
 
-def render_data_profile(data: pd.DataFrame, *, expanded: bool = False) -> DataProfile:
+def render_data_profile(
+    data: pd.DataFrame,
+    *,
+    expanded: bool = False,
+    profile: DataProfile | None = None,
+) -> DataProfile:
     """
     Render a per-column structure summary and any quality flags for data,
     and return the underlying DataProfile so the calling page can use its
     role guesses (e.g. to default a timestamp selectbox to a detected
     datetime-like column) -- a hint for that default, never a filter that
     removes other columns from the choice.
+
+    Pass profile when the caller has already built one, so a page that
+    draws its own summary above this expander scans the data once instead
+    of twice.
     """
 
-    profile = profile_dataframe(data)
+    if profile is None:
+        profile = profile_dataframe(data)
+
     flags = quality_flags(data, profile)
 
     label = f"Data profile: {profile.n_rows:,} rows x {profile.n_columns} columns"

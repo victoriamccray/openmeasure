@@ -50,6 +50,23 @@ df = pd.DataFrame({"a": [1, 2, 3], "b": [4.0, 5.0, 6.0]})
 render_data_profile(df, expanded=True)
 """
 
+# A caller that has already profiled the data, which is what a page
+# drawing its own summary above this expander does.
+_SCRIPT_PRECOMPUTED = """
+import pandas as pd
+from modules.data_profile.core.profile import profile_dataframe
+from shared.upload import render_data_profile
+
+df = pd.DataFrame({
+    "participant_id": [1, 2, 3, 4],
+    "score": [10.0, 20.0, 30.0, 40.0],
+    "notes": [None, None, None, None],
+})
+built = profile_dataframe(df)
+returned = render_data_profile(df, profile=built)
+assert returned is built
+"""
+
 
 class TestRenderDataProfile(unittest.TestCase):
     def test_renders_without_raising_and_returns_a_profile(self):
@@ -75,6 +92,22 @@ class TestRenderDataProfile(unittest.TestCase):
         warnings = " ".join(str(w.value) for w in app.warning)
         self.assertIn("notes", warnings)
         self.assertIn("Every value is missing", warnings)
+
+    def test_a_precomputed_profile_is_used_rather_than_rebuilt(self):
+        """
+        A page that draws its own summary above this expander has already
+        scanned the data. Passing the profile back in means it is scanned
+        once, and the two views cannot disagree about what is in it.
+        """
+        app = AppTest.from_string(_SCRIPT_PRECOMPUTED)
+        app.run()
+
+        self.assertFalse(app.exception)
+
+        labels = [e.label for e in app.expander]
+        self.assertEqual(len(labels), 1)
+        self.assertIn("4 rows", labels[0])
+        self.assertIn("1 quality flag", labels[0])
 
     def test_no_flags_shows_the_all_clear_message(self):
         app = AppTest.from_string(_SCRIPT_NO_FLAGS)

@@ -18,6 +18,7 @@ if str(ROOT) not in sys.path:
 import pandas as pd
 import streamlit as st
 
+from modules.data_profile.core import profile as dp_profile
 from modules.data_profile.core.suggest import (
     default_group_column,
     default_outcome_column,
@@ -56,7 +57,11 @@ from shared.report import (
     render_formula,
     render_lifecycle_tracker,
 )
-from shared.upload import render_data_entry, render_data_profile
+from shared.upload import (
+    ROLE_GUESS_CAVEAT,
+    render_data_entry,
+    render_data_profile,
+)
 
 
 def render_sensitivity_sub_result(sub_result) -> None:
@@ -501,6 +506,156 @@ def _design_diagram_svg(design_id: str, treated: str, comparison: str) -> str:
             f"A schematic of {described}. Each dot is a unit, each cluster "
             "a group, and horizontal distance is time between "
             "observations."
+        ),
+    )
+
+
+# The dataset portrait. A reader arriving at stage 6 is about to say
+# which column is the outcome, which is the group, and which two are the
+# baseline and follow-up. What decides that is each column's role and
+# whether it is complete, and neither is legible in five rows of raw
+# values.
+#
+# So the portrait groups columns by the role the profiler guessed, with
+# a completeness bar for each. Entities as a pictograph, structure as the
+# grouping, quantity as the bars: the same grammar the rest of the page
+# uses. The first rows stay on the page underneath, because a portrait is
+# not a substitute for looking at the actual values.
+#
+# The grouping is where a reader starts looking for an outcome or a group
+# column, not a ruling on which column may go where. Nine distinct values
+# is under the profiler's categorical threshold, so this module's own
+# sample lands its pre and post scores in categorical-like, and every
+# column stays selectable whatever the portrait shows.
+_PORTRAIT_W = 640.0
+_PORTRAIT_HEADER_H = 68.0
+_PORTRAIT_ROW_STEP = 24.0
+_PORTRAIT_GROUP_STEP = 30.0
+_PORTRAIT_BAR_X, _PORTRAIT_BAR_W = 412.0, 200.0
+_PORTRAIT_COUNT_X = 396.0
+
+# Past this the portrait stops being a glance. The profile table
+# underneath carries every column, so the rest are counted rather than
+# drawn.
+_PORTRAIT_MAX_COLUMNS = 14
+
+# A name longer than this is shortened here and read in full in the table
+# below. Unlike a claim on the support boundary, a shortened column name
+# is still recognisable, so this truncates rather than refusing.
+_PORTRAIT_MAX_NAME = 46
+
+
+def _portrait_bar(y: float, pct_missing: float) -> str:
+    """One column's completeness, as a bar with its gap drawn."""
+    present_w = _PORTRAIT_BAR_W * (100.0 - pct_missing) / 100.0
+
+    bar = (
+        f'<rect x="{_PORTRAIT_BAR_X:.0f}" y="{y - 8:.0f}" '
+        f'width="{_PORTRAIT_BAR_W:.0f}" height="9" rx="2" '
+        f'fill="{visuals.MISSING}"/>'
+    )
+
+    if present_w > 0:
+        bar += (
+            f'<rect x="{_PORTRAIT_BAR_X:.0f}" y="{y - 8:.0f}" '
+            f'width="{present_w:.1f}" height="9" rx="2" fill="{ACCENT}" '
+            f'fill-opacity="0.55"/>'
+        )
+
+    return bar
+
+
+def _dataset_portrait_svg(profile, *, source_name: str, is_sample: bool) -> str:
+    """
+    What this dataset is, before anyone picks a column out of it.
+
+    Columns are grouped by the role the profiler guessed, in the order
+    the roles are declared, so the grouping is stable across datasets
+    rather than reordering itself with the data. The guess is a heuristic
+    and the caption underneath says so; the portrait shows what it
+    guessed, not a determination.
+    """
+    rows = f"{profile.n_rows:,} rows, {profile.n_columns:,} columns"
+
+    shown = profile.columns[:_PORTRAIT_MAX_COLUMNS]
+    by_role = {
+        role: [column for column in shown if column.role == role]
+        for role in dp_profile.ROLES
+    }
+
+    n_groups = sum(1 for columns in by_role.values() if columns)
+    drawn_groups = 0
+
+    body = ""
+    y = _PORTRAIT_HEADER_H + 24
+
+    for role, columns in by_role.items():
+        if not columns:
+            continue
+
+        body += (
+            f'<text x="0" y="{y:.0f}" font-size="12" fill="{INK_MUTED}" '
+            f'font-weight="600">{role}</text>'
+        )
+        y += _PORTRAIT_ROW_STEP
+
+        for column in columns:
+            name = column.name
+            if len(name) > _PORTRAIT_MAX_NAME:
+                name = name[: _PORTRAIT_MAX_NAME - 1] + "…"
+
+            detail = f"{column.n_unique:,} unique"
+            if column.n_missing:
+                detail += f", {column.n_missing:,} missing"
+
+            body += (
+                f'<text x="14" y="{y:.0f}" font-size="14" fill="{INK_MUTED}">'
+                f"{name}</text>"
+                f'<text x="{_PORTRAIT_COUNT_X:.0f}" y="{y:.0f}" font-size="12" '
+                f'fill="{INK_MUTED}" text-anchor="end">{detail}</text>'
+                + _portrait_bar(y, column.pct_missing)
+            )
+            y += _PORTRAIT_ROW_STEP
+
+        drawn_groups += 1
+        if drawn_groups < n_groups:
+            y += _PORTRAIT_GROUP_STEP - _PORTRAIT_ROW_STEP
+
+    remaining = profile.n_columns - len(shown)
+    if remaining:
+        body += (
+            f'<text x="0" y="{y:.0f}" font-size="12" fill="{INK_MUTED}">'
+            f"and {remaining:,} more columns, listed in the profile below"
+            "</text>"
+        )
+        y += _PORTRAIT_ROW_STEP
+
+    provenance = (
+        "Bundled sample dataset" if is_sample else f"Uploaded: {source_name}"
+    )
+
+    header = (
+        visuals.unit_cluster(24, 30, ACCENT, count=5, radius=6.5)
+        + f'<text x="58" y="36" font-size="17" fill="{INK_MUTED}">{rows}</text>'
+        + f'<text x="{_PORTRAIT_W:.0f}" y="36" font-size="12" '
+        f'fill="{INK_MUTED}" text-anchor="end">{provenance}</text>'
+        + f'<line x1="0" y1="{_PORTRAIT_HEADER_H:.0f}" x2="{_PORTRAIT_W:.0f}" '
+        f'y2="{_PORTRAIT_HEADER_H:.0f}" stroke="{GRIDLINE}" '
+        f'stroke-width="1"/>'
+    )
+
+    return visuals.figure(
+        header + body,
+        width=_PORTRAIT_W,
+        height=y,
+        label=(
+            f"{provenance}. {rows}, grouped by the role guessed for each: "
+            + "; ".join(
+                f"{role}, {', '.join(c.name for c in columns)}"
+                for role, columns in by_role.items()
+                if columns
+            )
+            + ". Each bar shows how much of a column is present."
         ),
     )
 
@@ -1329,7 +1484,7 @@ if loaded is None:
     st.stop()
 
 df = loaded.frame
-profile = render_data_profile(df)
+profile = dp_profile.profile_dataframe(df)
 
 # Discard a recommendation carried over from different data. Without this,
 # loading a second dataset whose column names happen to match the first
@@ -1340,8 +1495,22 @@ if st.session_state.get("pe_uploaded_file_id") != loaded.token:
     st.session_state.pop("pe_run", None)
     st.session_state.pop("pe_context", None)
 
-st.write(f"Loaded **{df.shape[0]} rows** and **{df.shape[1]} columns**.")
-st.dataframe(df.head(), width="stretch")
+# The portrait leads, then the values, then the detail. A row count and
+# five rows of raw values were the focal point here, and neither says
+# what a reader is about to be asked: which columns exist, what each
+# looks like, and whether any of them have holes in them.
+st.markdown(
+    _dataset_portrait_svg(
+        profile, source_name=loaded.name, is_sample=loaded.is_sample
+    ),
+    unsafe_allow_html=True,
+)
+st.caption(ROLE_GUESS_CAVEAT)
+
+with st.expander("The first rows, as loaded"):
+    st.dataframe(df.head(), width="stretch")
+
+render_data_profile(df, profile=profile)
 
 # Column defaults come from the data profile's role guesses, so the
 # zero-friction path opens on a meaningful analysis rather than on
