@@ -313,14 +313,43 @@ class TestRedistributionIsSeparateFromAccess(unittest.TestCase):
 
         self.assertEqual(dataset.delivery, DELIVERY_BUNDLED_PUBLIC)
 
-    def test_no_current_dataset_claims_redistribution_it_has_not_established(self):
+    # Datasets whose terms have actually been read, with the licence that
+    # establishes the permission. Adding a name here is the deliberate act
+    # the test below exists to force: a redistribution claim cannot drift
+    # in, it has to be argued for in this list.
+    REDISTRIBUTION_ESTABLISHED = {
+        "diabetes_130_hospitals": "CC BY 4.0, stated on its UCI record",
+    }
+
+    def test_redistribution_is_claimed_only_where_it_was_established(self):
         """
-        Every entry today is conservative. Loosening one should be a
-        deliberate edit that trips this test and gets justified, rather
-        than something that drifts in.
+        Every other entry stays conservative. Loosening one should be a
+        deliberate edit that trips this test and gets justified here,
+        rather than something that arrives unnoticed.
         """
         for dataset in DATASETS:
             with self.subTest(dataset=dataset.id):
-                self.assertFalse(dataset.redistribution_permitted)
-                self.assertEqual(dataset.delivery, DELIVERY_UPLOAD_ONLY)
+                self.assertEqual(
+                    dataset.redistribution_permitted,
+                    dataset.id in self.REDISTRIBUTION_ESTABLISHED,
+                    f"{dataset.id} claims redistribution without a recorded "
+                    "licence, or records one it does not claim.",
+                )
+
+    def test_an_established_licence_names_what_established_it(self):
+        for dataset_id, licence in self.REDISTRIBUTION_ESTABLISHED.items():
+            with self.subTest(dataset=dataset_id):
+                self.assertTrue(licence.strip())
+                self.assertIn(dataset_id, {d.id for d in DATASETS})
+
+    def test_a_permitted_dataset_may_still_be_fetched_rather_than_bundled(self):
+        """
+        Permission to bundle is not an instruction to. Diabetes 130 is
+        CC BY 4.0 and could legally carry a local copy; it is fetched on
+        request because 101,766 rows is not a repository-sized file.
+        """
+        diabetes = next(d for d in DATASETS if d.id == "diabetes_130_hospitals")
+
+        self.assertTrue(diabetes.redistribution_permitted)
+        self.assertEqual(diabetes.delivery, DELIVERY_REMOTE_FETCH)
 

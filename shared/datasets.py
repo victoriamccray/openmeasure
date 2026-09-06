@@ -308,4 +308,49 @@ DATASETS: tuple[RealDataset, ...] = (
             "https://doi.org/10.2105/AJPH.2026.308472"
         ),
     ),
+    RealDataset(
+        id="diabetes_130_hospitals",
+        name="Diabetes 130-US hospitals, 1999-2008",
+        domain="Clinical care / health services",
+        description=(
+            "101,766 hospital encounters for patients with diabetes across "
+            "130 US hospitals, with 47 features covering demographics, "
+            "admission and discharge details, diagnoses, medications and "
+            "whether the patient was readmitted within 30 days. It records "
+            "what happened to real patients, and contains no predictions "
+            "from any deployed model, which is what decides the fairness "
+            "questions it can answer. Race is recorded and has missing "
+            "values, documented as such at source."
+        ),
+        try_with=("Fairness",),
+        explore_question=(
+            "Does 30-day readmission differ across racial groups, and what "
+            "would it take to say that a difference reflects unequal care "
+            "rather than unequal case mix?"
+        ),
+        access=ACCESS_OPEN,
+        # CC BY 4.0, so redistribution is established rather than assumed:
+        # the first entry in this catalog for which bundling or caching
+        # would be lawful. Fetched on request all the same, because 101,766
+        # rows is not a repository-sized file and nothing yet needs a local
+        # copy. Revisit if performance, not licence, makes the case.
+        delivery=DELIVERY_REMOTE_FETCH,
+        redistribution_permitted=True,
+        sources=(
+            DataSource(
+                label="UCI Machine Learning Repository (CC BY 4.0)",
+                url="https://archive.ics.uci.edu/dataset/296/diabetes+130-us+hospitals+for+years+1999-2008",
+            ),
+            DataSource(
+                label="Dataset DOI",
+                url="https://doi.org/10.24432/C5230J",
+            ),
+        ),
+        citation=(
+            "Clore, J., Cios, K., DeShazo, J., & Strack, B. (2014). "
+            "Diabetes 130-US Hospitals for Years 1999-2008 [Dataset]. UCI "
+            "Machine Learning Repository. "
+            "https://doi.org/10.24432/C5230J"
+        ),
+    ),
 )
