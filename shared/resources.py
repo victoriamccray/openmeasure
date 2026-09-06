@@ -103,23 +103,6 @@ RESOURCES: tuple[Resource, ...] = (
         url="https://openalex.org/",
     ),
     Resource(
-        name="OpenMesh urban weather-sensing dataset",
-        kind="Dataset Directory",
-        description=(
-            "Wireless signal data for opportunistic urban weather sensing "
-            "in New York City, published with its own account of hardware "
-            "outages, irregular sampling, transmission errors and missing "
-            "intervals, including a week-long hardware failure. Unusual in "
-            "documenting its own collection failures rather than "
-            "presenting a cleaned series. Confirm its licence and access "
-            "terms before using it in an analysis. Jacoby, D., Yu, S., "
-            "Hu, Q., Hine, Z., Johnson, R., Ostrometzky, J., Kadota, I., "
-            "Zussman, G., & Messer, H. (2026). Earth System Science Data, "
-            "18, 5817-5836."
-        ),
-        url="https://doi.org/10.5194/essd-18-5817-2026",
-    ),
-    Resource(
         name="Open Psychometrics",
         kind="Measures Repository",
         description=(

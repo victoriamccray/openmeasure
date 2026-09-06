@@ -323,6 +323,7 @@ class TestRedistributionIsSeparateFromAccess(unittest.TestCase):
         "right_to_play_baseline": "CC BY 4.0, PLOS applies it to the works it publishes",
         "nwss_wastewater_metrics": "CDC, a US federal work not subject to domestic copyright",
         "noaa_lcd_hourly": "NOAA/NCEI, a US federal work not subject to domestic copyright",
+        "openmesh_nyc": "CC BY 4.0, stated in the article data availability statement",
     }
 
     def test_redistribution_is_claimed_only_where_it_was_established(self):

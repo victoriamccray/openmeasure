@@ -553,4 +553,53 @@ DATASETS: tuple[RealDataset, ...] = (
             "Commerce, National Oceanic and Atmospheric Administration."
         ),
     ),
+    RealDataset(
+        id="openmesh_nyc",
+        name="OpenMesh urban weather sensing, New York City",
+        domain="Urban sensing / wireless signal time series",
+        description=(
+            "Wireless signal measurements from a community mesh network "
+            "across New York City, published in NetCDF with its collection "
+            "failures documented by the authors rather than cleaned away. "
+            "About 30% of sublinks began collecting on 7 November, leaving "
+            "an initial 10-day gap after the nominal start; the collection "
+            "system then suffered a hardware failure lasting a week in "
+            "early March, producing missing or corrupted samples. Further "
+            "outages come from hardware faults and weather-induced signal "
+            "attenuation, encoded as NaN. Unusual among public datasets in "
+            "treating its own gaps as part of what it reports."
+        ),
+        try_with=("Time-Series QA",),
+        explore_question=(
+            "Which of these gaps are equipment failure, which are weather "
+            "attenuating the signal being measured, and can the record "
+            "alone tell them apart?"
+        ),
+        access=ACCESS_OPEN,
+        # CC BY 4.0 on Zenodo, stated in the article's data availability
+        # statement, so redistribution is established. Fetched on request:
+        # NetCDF is a format OpenMeasure cannot currently read, which the
+        # description says, and adding that capability is an integration
+        # decision rather than a cataloguing one.
+        delivery=DELIVERY_REMOTE_FETCH,
+        redistribution_permitted=True,
+        sources=(
+            DataSource(
+                label="Dataset on Zenodo (CC BY 4.0, NetCDF)",
+                url="https://doi.org/10.5281/zenodo.15287692",
+            ),
+            DataSource(
+                label="Data descriptor paper (Earth System Science Data)",
+                url="https://doi.org/10.5194/essd-18-5817-2026",
+            ),
+        ),
+        citation=(
+            "Jacoby, D., Yu, S., Hu, Q., Hine, Z., Johnson, R., "
+            "Ostrometzky, J., Kadota, I., Zussman, G., & Messer, H. "
+            "(2026). OpenMesh: wireless signal dataset for opportunistic "
+            "urban weather sensing in New York City. Earth System Science "
+            "Data, 18, 5817-5836. "
+            "https://doi.org/10.5194/essd-18-5817-2026"
+        ),
+    ),
 )
