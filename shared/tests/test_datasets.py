@@ -11,7 +11,13 @@ import unittest
 from shared.catalog import WORKFLOWS
 from shared.datasets import (
     ACCESS_LEVELS,
+    ACCESS_OPEN,
     DATASETS,
+    DELIVERY_BUNDLED_PUBLIC,
+    DELIVERY_CACHED_PUBLIC,
+    DELIVERY_MODES,
+    DELIVERY_REMOTE_FETCH,
+    DELIVERY_UPLOAD_ONLY,
     DataSource,
     RealDataset,
 )
@@ -45,6 +51,8 @@ class TestDatasetFields(unittest.TestCase):
                 try_with=("Reliability",),
                 explore_question="A question?",
                 access="Open",
+                delivery=DELIVERY_UPLOAD_ONLY,
+                redistribution_permitted=False,
                 sources=(DataSource(label="Source", url="https://example.org"),),
             )
 
@@ -69,6 +77,8 @@ class TestAccessLevels(unittest.TestCase):
                 try_with=("Reliability",),
                 explore_question="A question?",
                 access="Free for all",
+                delivery=DELIVERY_UPLOAD_ONLY,
+                redistribution_permitted=False,
                 sources=(DataSource(label="Source", url="https://example.org"),),
             )
 
@@ -92,6 +102,8 @@ class TestWorkflowReferences(unittest.TestCase):
                 try_with=("Not A Real Workflow",),
                 explore_question="A question?",
                 access="Open",
+                delivery=DELIVERY_UPLOAD_ONLY,
+                redistribution_permitted=False,
                 sources=(DataSource(label="Source", url="https://example.org"),),
             )
 
@@ -107,6 +119,8 @@ class TestWorkflowReferences(unittest.TestCase):
                 try_with=(),
                 explore_question="A question?",
                 access="Open",
+                delivery=DELIVERY_UPLOAD_ONLY,
+                redistribution_permitted=False,
                 sources=(DataSource(label="Source", url="https://example.org"),),
             )
 
@@ -136,6 +150,8 @@ class TestSources(unittest.TestCase):
                 try_with=("Reliability",),
                 explore_question="A question?",
                 access="Open",
+                delivery=DELIVERY_UPLOAD_ONLY,
+                redistribution_permitted=False,
                 sources=(),
             )
 
@@ -184,3 +200,127 @@ class TestDoesNotLeakIntoValidationLifecycle(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDeliveryMode(unittest.TestCase):
+    """
+    How a dataset reaches a workflow, which is a different question from
+    whether a reader is allowed to obtain it.
+    """
+
+    @staticmethod
+    def _dataset(**overrides):
+        fields = {
+            "id": "probe",
+            "name": "Probe",
+            "domain": "Some domain",
+            "description": "A description.",
+            "try_with": ("Reliability",),
+            "explore_question": "A question?",
+            "access": ACCESS_OPEN,
+            "delivery": DELIVERY_UPLOAD_ONLY,
+            "redistribution_permitted": False,
+            "sources": (DataSource(label="Source", url="https://example.org"),),
+        }
+        fields.update(overrides)
+        return RealDataset(**fields)
+
+    def test_every_declared_dataset_names_a_known_delivery_mode(self):
+        for dataset in DATASETS:
+            with self.subTest(dataset=dataset.id):
+                self.assertIn(dataset.delivery, DELIVERY_MODES)
+
+    def test_an_unknown_delivery_mode_is_rejected(self):
+        with self.assertRaises(ValueError) as raised:
+            self._dataset(delivery="Magic")
+
+        self.assertIn("not one of the declared delivery modes", str(raised.exception))
+
+    def test_delivery_and_redistribution_are_required_not_defaulted(self):
+        """
+        A silent default would be exactly the provenance loss this
+        catalog exists to prevent, and the safe value differs per
+        dataset.
+        """
+        fields = {
+            "id": "probe",
+            "name": "Probe",
+            "domain": "Some domain",
+            "description": "A description.",
+            "try_with": ("Reliability",),
+            "explore_question": "A question?",
+            "access": ACCESS_OPEN,
+            "sources": (DataSource(label="Source", url="https://example.org"),),
+        }
+
+        with self.assertRaises(TypeError):
+            RealDataset(**fields)
+
+
+class TestRedistributionIsSeparateFromAccess(unittest.TestCase):
+    """
+    The distinction this pair of fields exists for. HealthRing is the
+    case in this repository that proves one field cannot carry both:
+    openly downloadable from Zenodo, and deliberately not redistributed
+    here.
+    """
+
+    def test_an_open_dataset_can_still_be_non_redistributable(self):
+        healthring = next(d for d in DATASETS if d.id == "healthring")
+
+        self.assertEqual(healthring.access, ACCESS_OPEN)
+        self.assertFalse(healthring.redistribution_permitted)
+
+    def test_bundling_without_permission_is_rejected(self):
+        with self.assertRaises(ValueError) as raised:
+            TestDeliveryMode._dataset(
+                delivery=DELIVERY_BUNDLED_PUBLIC,
+                redistribution_permitted=False,
+            )
+
+        self.assertIn("do not permit redistribution", str(raised.exception))
+
+    def test_caching_without_permission_is_rejected(self):
+        """
+        A runtime cache counts. On a hosted deployment one fetch serves
+        every visitor, which is closer to distributing the file than to a
+        reader keeping their own download.
+        """
+        with self.assertRaises(ValueError) as raised:
+            TestDeliveryMode._dataset(
+                delivery=DELIVERY_CACHED_PUBLIC,
+                redistribution_permitted=False,
+            )
+
+        self.assertIn("do not permit redistribution", str(raised.exception))
+
+    def test_fetching_on_request_needs_no_redistribution_permission(self):
+        """
+        Retrieving a file to the reader's own session is not OpenMeasure
+        handing out a copy, so an open but non-redistributable dataset
+        can still be fetched.
+        """
+        dataset = TestDeliveryMode._dataset(
+            delivery=DELIVERY_REMOTE_FETCH, redistribution_permitted=False
+        )
+
+        self.assertEqual(dataset.delivery, DELIVERY_REMOTE_FETCH)
+
+    def test_bundling_with_permission_is_allowed(self):
+        dataset = TestDeliveryMode._dataset(
+            delivery=DELIVERY_BUNDLED_PUBLIC, redistribution_permitted=True
+        )
+
+        self.assertEqual(dataset.delivery, DELIVERY_BUNDLED_PUBLIC)
+
+    def test_no_current_dataset_claims_redistribution_it_has_not_established(self):
+        """
+        Every entry today is conservative. Loosening one should be a
+        deliberate edit that trips this test and gets justified, rather
+        than something that drifts in.
+        """
+        for dataset in DATASETS:
+            with self.subTest(dataset=dataset.id):
+                self.assertFalse(dataset.redistribution_permitted)
+                self.assertEqual(dataset.delivery, DELIVERY_UPLOAD_ONLY)
+

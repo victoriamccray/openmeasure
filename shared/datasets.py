@@ -1,10 +1,18 @@
 """
-Real research datasets a user can bring to an existing OpenMeasure workflow.
+Real research datasets, and how each one reaches a workflow.
 
-This is a discovery catalog, not a workflow. It carries no module_key, is
-never passed to shared/handoff.py, and its page is not part of
-shared/catalog.py's lifecycle stages: nothing here should look like an
-analysis has been run just because a dataset was read about.
+This began as a discovery catalog: entries described a dataset and left
+the reader to go and get it. It is becoming the single place a dataset's
+provenance and delivery are declared, so a workflow can offer real public
+data without inventing its own loader and without losing the citation,
+licence and access terms on the way. `delivery` is what carries that
+change; entries that are still read-about-only simply declare
+DELIVERY_UPLOAD_ONLY.
+
+Reading about a dataset is still not running an analysis. This module
+carries no module_key, is never passed to shared/handoff.py, and its page
+is not part of shared/catalog.py's lifecycle stages. Nothing here should
+make it look as though an analysis has been performed.
 
 try_with names must match a Workflow.workflow value in shared/catalog.py
 exactly, so a rename there cannot silently orphan a reference here.
@@ -31,6 +39,41 @@ ACCESS_CONTROLLED = "Controlled"
 
 ACCESS_LEVELS: frozenset[str] = frozenset(
     {ACCESS_OPEN, ACCESS_REGISTRATION_REQUIRED, ACCESS_CONTROLLED}
+)
+
+# How a dataset reaches a workflow, which is a different question from
+# whether a reader may obtain it. A closed set rather than a handful of
+# booleans, because booleans permit combinations that cannot exist: a
+# dataset cannot be both bundled and upload-only, and "has a local copy"
+# means nothing without knowing whether that copy may legally be there.
+#
+# DELIVERY_REMOTE_FETCH   the app retrieves it on a user's action
+# DELIVERY_BUNDLED_PUBLIC a copy is checked into this repository
+# DELIVERY_CACHED_PUBLIC  fetched once at runtime and held, not committed
+# DELIVERY_UPLOAD_ONLY    the reader obtains their own copy and uploads it
+DELIVERY_REMOTE_FETCH = "Fetched on request"
+DELIVERY_BUNDLED_PUBLIC = "Bundled with OpenMeasure"
+DELIVERY_CACHED_PUBLIC = "Fetched once and cached"
+DELIVERY_UPLOAD_ONLY = "You supply the file"
+
+DELIVERY_MODES: frozenset[str] = frozenset(
+    {
+        DELIVERY_REMOTE_FETCH,
+        DELIVERY_BUNDLED_PUBLIC,
+        DELIVERY_CACHED_PUBLIC,
+        DELIVERY_UPLOAD_ONLY,
+    }
+)
+
+# The two modes that put a copy somewhere other than the reader's own
+# machine, and therefore require permission to redistribute. A runtime
+# cache is included deliberately: on a hosted deployment one fetch serves
+# every visitor, which is closer to distributing the file than to a
+# reader keeping their own download. Conservative on purpose; relaxing it
+# for a specific dataset should follow a specific reading of its terms,
+# not a general assumption.
+_DELIVERY_REQUIRING_REDISTRIBUTION: frozenset[str] = frozenset(
+    {DELIVERY_BUNDLED_PUBLIC, DELIVERY_CACHED_PUBLIC}
 )
 
 _WORKFLOW_NAMES: frozenset[str] = frozenset(item.workflow for item in WORKFLOWS)
@@ -74,6 +117,14 @@ class RealDataset:
     explore_question: str
     access: str
     sources: tuple[DataSource, ...]
+
+    # How this dataset reaches a workflow, and whether OpenMeasure may
+    # keep a copy of it. Both are required rather than defaulted: the
+    # safe value differs per dataset, and a silent default is exactly the
+    # provenance loss this catalog exists to prevent.
+    delivery: str
+    redistribution_permitted: bool
+
     citation: str = ""
 
     def __post_init__(self) -> None:
@@ -99,6 +150,31 @@ class RealDataset:
             raise ValueError(
                 f"{self.id} has access '{self.access}', which is not one of "
                 f"the declared access levels: {', '.join(sorted(ACCESS_LEVELS))}."
+            )
+
+        if self.delivery not in DELIVERY_MODES:
+            raise ValueError(
+                f"{self.id} has delivery '{self.delivery}', which is not one "
+                f"of the declared delivery modes: "
+                f"{', '.join(sorted(DELIVERY_MODES))}."
+            )
+
+        # Access and redistribution are independent, and conflating them
+        # is the mistake this guard exists to catch. HealthRing is the
+        # case in this repository: openly downloadable from Zenodo, and
+        # deliberately not redistributed here (see
+        # modules/healthring/sample_data/README.md). "Anyone may obtain
+        # it" does not imply "OpenMeasure may hand it out".
+        if (
+            self.delivery in _DELIVERY_REQUIRING_REDISTRIBUTION
+            and not self.redistribution_permitted
+        ):
+            raise ValueError(
+                f"{self.id} is delivered as '{self.delivery}', which keeps a "
+                "copy outside the reader's own machine, but its terms do not "
+                "permit redistribution. Use "
+                f"'{DELIVERY_REMOTE_FETCH}' or '{DELIVERY_UPLOAD_ONLY}', or "
+                "record permission explicitly."
             )
 
         if not self.sources:
@@ -127,6 +203,11 @@ DATASETS: tuple[RealDataset, ...] = (
             "activity conditions and the two ring designs?"
         ),
         access=ACCESS_OPEN,
+        # Openly downloadable, and deliberately not redistributed here:
+        # modules/healthring/sample_data/README.md records that decision
+        # and checks in no excerpt.
+        delivery=DELIVERY_UPLOAD_ONLY,
+        redistribution_permitted=False,
         sources=(
             DataSource(
                 label="Zenodo record (RingDatasetV2.1)",
@@ -156,6 +237,10 @@ DATASETS: tuple[RealDataset, ...] = (
             "across sessions and across the two software versions?"
         ),
         access=ACCESS_CONTROLLED,
+        # A data use agreement gates access, so nothing can be fetched or
+        # held on a reader's behalf.
+        delivery=DELIVERY_UPLOAD_ONLY,
+        redistribution_permitted=False,
         sources=(
             DataSource(
                 label="Vivli study record (data use agreement required)",
@@ -193,6 +278,13 @@ DATASETS: tuple[RealDataset, ...] = (
             "convincingly rather than just suggestively?"
         ),
         access=ACCESS_OPEN,
+        # Public government feeds, but this entry is a linkage of three
+        # separate sources and their reuse terms have not been read
+        # individually. Upload-only until they have been; loosening this
+        # should follow a specific reading, not an assumption about
+        # government data in general.
+        delivery=DELIVERY_UPLOAD_ONLY,
+        redistribution_permitted=False,
         sources=(
             DataSource(
                 label="NY State statewide wastewater surveillance data (Health Data NY)",
