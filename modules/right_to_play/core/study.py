@@ -267,7 +267,15 @@ MEASUREMENT_MAP: tuple[MeasuredConstruct, ...] = (
     ),
     MeasuredConstruct(
         name="Depressive symptoms",
-        facets=(MeasuredFacet("Depressive symptoms", "CDI-2"),),
+        # Expanded here because the diagram is drawn before the fact
+        # list that introduces the abbreviation. A reader meets the
+        # instrument's name first and "CDI-2" second, which is the order
+        # an abbreviation should arrive in.
+        facets=(
+            MeasuredFacet(
+                "Depressive symptoms", "Children's Depression Inventory"
+            ),
+        ),
     ),
 )
 

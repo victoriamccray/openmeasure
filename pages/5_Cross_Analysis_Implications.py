@@ -559,7 +559,9 @@ for limitation in summary.limitations:
 # Housekeeping
 # ---------------------------------------------------------------------
 
-section_header("Recorded Results")
+# Named apart from "2. Results" above, which is where findings are
+# compared. This is the housekeeping section that clears them.
+section_header("Stored Records")
 
 st.caption(
     "Records last for this browser session only. Re-running a module "
