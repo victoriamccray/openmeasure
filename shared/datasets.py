@@ -603,3 +603,25 @@ DATASETS: tuple[RealDataset, ...] = (
         ),
     ),
 )
+
+
+DATASET_IDS: tuple[str, ...] = tuple(dataset.id for dataset in DATASETS)
+
+_DATASET_BY_ID: dict[str, RealDataset] = {d.id: d for d in DATASETS}
+
+
+def get_dataset(dataset_id: str) -> RealDataset:
+    """
+    Return one catalogued dataset by id.
+
+    Raises on an unknown id rather than returning None, so a typo in a
+    loader registry or a page fails at the call site instead of quietly
+    presenting nothing where a dataset was meant to appear.
+    """
+    if dataset_id not in _DATASET_BY_ID:
+        raise ValueError(
+            f"'{dataset_id}' is not a catalogued dataset. Known datasets: "
+            f"{', '.join(DATASET_IDS)}."
+        )
+
+    return _DATASET_BY_ID[dataset_id]
