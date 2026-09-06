@@ -147,6 +147,41 @@ class DataSource:
 
 
 @dataclass(frozen=True)
+class DerivedArtifact:
+    """
+    A small subset of a catalogued dataset, committed to this repository.
+
+    Deliberately not a delivery mode. Delivery describes the dataset:
+    HealthRing's archive is 2.4 GiB and a reader supplies their own copy.
+    The subset beside it is 80 KB and ships here. Recording that as
+    "bundled" would say OpenMeasure distributes the HealthRing dataset,
+    which it does not and could not.
+
+    So a catalog entry can say both things at once: this is how you get
+    the dataset, and this much smaller derived thing is what a page can
+    open immediately. The provenance file is required rather than
+    optional, because a derived file without a record of what was done to
+    it is indistinguishable from the original to anyone who finds it.
+    """
+
+    path: str
+    provenance_path: str
+    description: str
+    # Declared here rather than read from the file, so a loader verifies
+    # the artifact against the catalog instead of against itself. A file
+    # that hashes to whatever it happens to contain verifies nothing.
+    sha256: str
+
+    def __post_init__(self) -> None:
+        for field_name in ("path", "provenance_path", "description", "sha256"):
+            if not getattr(self, field_name):
+                raise ValueError(
+                    f"A derived artifact is missing a value for "
+                    f"'{field_name}'."
+                )
+
+
+@dataclass(frozen=True)
 class RealDataset:
     """
     One real dataset, and how it connects to OpenMeasure.
@@ -188,6 +223,10 @@ class RealDataset:
     # because none were verified, and an empty strip says that more
     # honestly than an estimate would.
     scale: tuple[str, ...] = ()
+
+    # A committed subset a page can open without the reader obtaining
+    # anything, where one exists and the terms permit it.
+    derived_artifact: DerivedArtifact | None = None
 
     citation: str = ""
 
@@ -265,6 +304,17 @@ class RealDataset:
                     "strip that draws it."
                 )
 
+        # The same rule that governs bundling, for the same reason: a
+        # derived subset committed here is a redistribution of the work
+        # it was derived from, whatever its size.
+        if self.derived_artifact is not None and not self.redistribution_permitted:
+            raise ValueError(
+                f"{self.id} carries a derived artifact, which is a "
+                "redistribution of the work it was derived from, but its "
+                "terms do not permit redistribution. Record permission "
+                "explicitly, or do not commit the artifact."
+            )
+
         if not self.sources:
             raise ValueError(f"{self.id} lists no sources.")
 
@@ -312,6 +362,20 @@ DATASETS: tuple[RealDataset, ...] = (
         # Streamlit's 200 MB upload cap.
         delivery=DELIVERY_UPLOAD_ONLY,
         redistribution_permitted=True,
+        derived_artifact=DerivedArtifact(
+            path="data/public/healthring_journey.parquet",
+            provenance_path="data/public/healthring_journey_provenance.json",
+            description=(
+                "The per-window summary columns the worked example's "
+                "analysis reads, for one ring design: 1,797 windows across "
+                "28 subjects. The PPG and accelerometer waveforms are not "
+                "included, so the Signal Inspection stage needs the full "
+                "archive."
+            ),
+            sha256=(
+                "bd8f94c1441b83144982200db6eb68edbc57aff131789b32ff5c17d70e8665a2"
+            ),
+        ),
         sources=(
             DataSource(
                 label="Zenodo record (RingDatasetV2.1)",

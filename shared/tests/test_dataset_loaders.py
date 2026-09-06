@@ -11,7 +11,16 @@ from __future__ import annotations
 
 import unittest
 
-from shared.dataset_loaders import LOADERS, can_load, loadable_dataset_ids
+from dataclasses import replace
+
+from shared.dataset_loaders import (
+    ARTIFACT_DERIVED,
+    LOADERS,
+    ArtifactChecksumError,
+    can_load,
+    load_public_artifact,
+    loadable_dataset_ids,
+)
 from shared.datasets import DATASETS, DATASET_IDS, get_dataset
 
 
@@ -78,3 +87,104 @@ class TestLoaderRegistry(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLoadPublicArtifact(unittest.TestCase):
+    """
+    One path for every catalogued dataset, and no silent substitution of
+    one source for another.
+    """
+
+    def test_a_committed_subset_opens_and_says_it_is_derived(self):
+        loaded = load_public_artifact(get_dataset("healthring"))
+
+        self.assertEqual(loaded.kind, ARTIFACT_DERIVED)
+        self.assertTrue(loaded.is_derived)
+        self.assertFalse(loaded.frame.empty)
+
+    def test_it_carries_provenance_alongside_the_data(self):
+        """
+        Together, so a page showing a derived subset can say what was
+        done to it without a caller having to go and find the record.
+        """
+        loaded = load_public_artifact(get_dataset("healthring"))
+
+        self.assertFalse(loaded.provenance["is_the_original_dataset"])
+        self.assertEqual(loaded.provenance["source"]["license"], "CC BY 4.0")
+        self.assertIn("columns_excluded", loaded.provenance["transformation"])
+
+    def test_the_subset_holds_only_the_summary_columns(self):
+        """
+        The waveform columns are the whole size reduction, and their
+        absence is what the Signal Inspection stage has to adapt to.
+        """
+        columns = set(load_public_artifact(get_dataset("healthring")).frame.columns)
+
+        self.assertIn("bvp_hr", columns)
+        self.assertIn("quality", columns)
+        for waveform in ("ir-filtered", "red-filtered", "ax-filtered", "fs"):
+            with self.subTest(column=waveform):
+                self.assertNotIn(waveform, columns)
+
+    def test_a_dataset_with_no_route_raises_and_says_what_to_do(self):
+        """
+        Rather than returning something from somewhere else. A page
+        silently substituting one source for another is the failure this
+        catalog exists to prevent.
+        """
+        with self.assertRaises(ValueError) as raised:
+            load_public_artifact(get_dataset("noaa_lcd_hourly"))
+
+        message = str(raised.exception)
+        self.assertIn("cannot open", message)
+        self.assertIn("supply it yourself", message)
+
+    def test_a_mismatched_checksum_refuses_to_load(self):
+        """
+        Verified against the catalog's declared digest, not against one
+        stored beside the file: a file hashed to whatever it happens to
+        contain verifies nothing.
+        """
+        dataset = get_dataset("healthring")
+        tampered = replace(
+            dataset,
+            derived_artifact=replace(dataset.derived_artifact, sha256="0" * 64),
+        )
+
+        with self.assertRaises(ArtifactChecksumError) as raised:
+            load_public_artifact(tampered)
+
+        self.assertIn("come apart", str(raised.exception))
+
+
+class TestDerivedArtifactsAreDeclaredHonestly(unittest.TestCase):
+    def test_a_derived_artifact_requires_redistribution_permission(self):
+        """
+        A subset committed here is a redistribution of the work it came
+        from, whatever its size.
+        """
+        dataset = get_dataset("healthring")
+
+        with self.assertRaises(ValueError) as raised:
+            replace(dataset, redistribution_permitted=False)
+
+        self.assertIn("redistribution", str(raised.exception))
+
+    def test_a_derived_artifact_does_not_change_how_the_dataset_arrives(self):
+        """
+        HealthRing's archive is still 2.4 GiB and still supplied by the
+        reader. Recording the subset as a delivery mode would say
+        OpenMeasure distributes the dataset, which it does not.
+        """
+        dataset = get_dataset("healthring")
+
+        self.assertEqual(dataset.delivery, "You supply the file")
+        self.assertIsNotNone(dataset.derived_artifact)
+
+    def test_every_declared_artifact_is_present_and_matches(self):
+        for dataset in DATASETS:
+            if dataset.derived_artifact is None:
+                continue
+            with self.subTest(dataset=dataset.id):
+                load_public_artifact(dataset)
+

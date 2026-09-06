@@ -67,8 +67,12 @@ import streamlit.components.v1 as components
 from modules.healthring.core import acquisition_robustness as ar
 from modules.healthring.core import interpret as hr_interpret
 from shared.charts import multiline_time_series_chart
-from shared.datasets import DATASETS
 from shared.data_handling import disclosure_for, render_data_handling_summary
+from shared.dataset_loaders import (
+    ArtifactChecksumError,
+    load_public_artifact,
+)
+from shared.datasets import DATASETS, get_dataset
 from shared.journey_stages import StageTracker
 from shared.report import caveat, flagged_item_note, implications, inspect_note, section_header
 
@@ -136,6 +140,16 @@ CONCLUSION_OPTIONS = (
 # second ring design (ring2); mixing both into one model would confound
 # "does the model generalize" with "do the two rings even measure the
 # same thing," so ring2 stays a stated next check instead.
+# Which of the two routes the loaded windows came from. Recorded so the
+# stages below can say what they are looking at rather than assume: the
+# public subset carries no waveforms, and Signal Inspection has to adapt
+# to that rather than fail.
+SOURCE_PUBLIC_SUBSET = "public_subset"
+SOURCE_FULL_ARCHIVE = "full_archive"
+
+# What a caller should catch around load_public_artifact.
+LOAD_ARTIFACT_ERRORS = (ArtifactChecksumError, FileNotFoundError, OSError, ValueError)
+
 RING_ENTRY = "ring1"
 
 RAW_COLUMNS: tuple[str, ...] = ("Label", "hr", "bvp_hr", "ir-quality", "red-quality")
@@ -1007,96 +1021,126 @@ Each measurement window in this dataset carries:
     # A hosted Streamlit app has no access to a path on the visitor's
     # computer, so "browse" (a file uploader, which opens the browser's own
     # native file picker) has to be an option, not just a path typed in. The
-    # default favors whichever is likely to actually work where this
-    # script is running: if the archive already sits at DEFAULT_ZIP_PATH,
-    # this is presumably a local run with the file on disk, so default to
-    # path; otherwise (the hosted case, since the archive is never
-    # bundled with this repo) default to browse.
-    source_mode = st.radio(
-        "How will you provide the archive?",
-        options=["upload", "path"],
-        format_func=lambda key: {
-            "upload": "Browse for the archive on this computer",
-            "path": "Enter a local filesystem path already on this machine",
-        }[key],
-        index=1 if DEFAULT_ZIP_PATH.exists() else 0,
-        horizontal=True,
-    )
+    # The public subset first, the archive behind it.
+    #
+    # This stage used to require the 2.4 GiB archive before a visitor
+    # reached any research interaction, and Streamlit caps browser
+    # uploads at 200 MB, so a hosted copy of the app could not start the
+    # journey at all. The committed subset carries the per-window columns
+    # the analysis reads and opens immediately.
+    #
+    # It is not the dataset, and the disclosure below says so rather than
+    # letting a smaller file pass for the original.
+    healthring_dataset = get_dataset("healthring")
+    artifact = healthring_dataset.derived_artifact
 
-    st.caption(
-        "Most people want 'Browse': it opens your browser's own file "
-        "picker, works for a file anywhere on disk (including Downloads), "
-        "and cannot be mistyped. 'Enter a local filesystem path' only "
-        "works if this app is running on the same machine where the "
-        "archive already sits; on a hosted copy of this app, a typed "
-        "path points at the server, not your computer, and will never "
-        "resolve."
-    )
-    st.info(
-        "The archive is about 2.4 GiB against Streamlit's 200 MB upload "
-        "cap, so neither option works on a hosted copy. Loading the real "
-        "archive is a local-run task: clone this repository, run "
-        "`streamlit run Home.py` on the machine holding the archive, and "
-        "enter its path there."
-    )
+    st.markdown("**Load the public HealthRing example**")
+    st.caption(artifact.description)
+
+    if st.button("Load public HealthRing example", type="primary"):
+        try:
+            loaded_artifact = load_public_artifact(healthring_dataset)
+            st.session_state["healthring_windows"] = ar.prepare_windows(
+                loaded_artifact.frame
+            )
+            st.session_state["healthring_n_subjects"] = int(
+                loaded_artifact.frame["subject_id"].nunique()
+            )
+            st.session_state["healthring_source"] = SOURCE_PUBLIC_SUBSET
+            st.session_state["healthring_provenance"] = loaded_artifact.provenance
+        except (LOAD_ARTIFACT_ERRORS) as error:
+            st.error(f"Could not load the public example: {error}")
+
+    if st.session_state.get("healthring_source") == SOURCE_PUBLIC_SUBSET:
+        provenance = st.session_state.get("healthring_provenance", {})
+        source = provenance.get("source", {})
+        contents = provenance.get("contents", {})
+
+        st.caption(
+            f"{contents.get('n_rows', 0):,} windows · "
+            f"{contents.get('n_subjects', 0)} subjects · "
+            "derived summary artifact · raw PPG and accelerometer "
+            "channels excluded"
+        )
+        st.caption(provenance.get("attribution", ""))
 
     zip_path: Path | None = None
     path_input_given = False
 
-    if source_mode == "upload":
-        uploaded_archive = st.file_uploader(
-            "RingDatasetV2.1_submission.zip",
-            type="zip",
-            help=(
-                "Kept for this session only: it is written to a "
-                "session-scoped temp file so the loader below can read "
-                "it the same way it reads a local path, and it is never "
-                "redistributed."
-            ),
+    with st.expander("Advanced: use the original archive instead"):
+        st.caption(
+            "The full archive carries the PPG and accelerometer waveforms, "
+            "which the subset above does not. It is about 2.4 GiB against "
+            "Streamlit's 200 MB upload cap, so this is a local-run route: "
+            "clone this repository, run `streamlit run Home.py` on the "
+            "machine holding the archive, and enter its path here."
         )
 
-        if uploaded_archive is not None:
-            zip_path = _save_uploaded_archive(uploaded_archive)
-    else:
-        zip_path_input = st.text_input(
-            "Local path to RingDatasetV2.1_submission.zip",
-            value=str(DEFAULT_ZIP_PATH) if DEFAULT_ZIP_PATH.exists() else "",
-            help=(
-                "The full path to the archive, exactly as your file "
-                "browser shows it -- for example "
-                "C:\\Users\\you\\Downloads\\RingDatasetV2.1_submission.zip "
-                "on Windows, or "
-                "/home/you/Downloads/RingDatasetV2.1_submission.zip on "
-                "macOS/Linux. Surrounding quotes are stripped "
-                "automatically if a 'copy path' action added them."
-            ),
+        source_mode = st.radio(
+            "How will you provide the archive?",
+            options=["upload", "path"],
+            format_func=lambda key: {
+                "upload": "Browse for the archive on this computer",
+                "path": "Enter a local filesystem path already on this machine",
+            }[key],
+            index=1 if DEFAULT_ZIP_PATH.exists() else 0,
+            horizontal=True,
         )
-        cleaned_input = zip_path_input.strip().strip('"').strip("'")
-        path_input_given = bool(cleaned_input)
-        zip_path = Path(cleaned_input).expanduser() if cleaned_input else None
 
-        if zip_path is not None and not zip_path.is_file():
-            if zip_path.is_dir():
-                st.warning(
-                    f"'{zip_path}' is a folder, not the archive itself. "
-                    "Point at RingDatasetV2.1_submission.zip inside it, "
-                    "not the folder it is in."
-                )
-            elif not zip_path.exists():
-                st.warning(
-                    f"No file was found at '{zip_path}'. Check the path is "
-                    "typed exactly as your file browser shows it (on "
-                    "Windows, including the drive letter), or switch to "
-                    "'Browse for the archive' above, which cannot be "
-                    "mistyped."
-                )
-            elif zip_path.suffix.lower() != ".zip":
-                st.warning(
-                    f"'{zip_path}' does not end in .zip. Point at "
-                    "RingDatasetV2.1_submission.zip itself, not a folder "
-                    "it was extracted into."
-                )
-            zip_path = None
+        if source_mode == "upload":
+            uploaded_archive = st.file_uploader(
+                "RingDatasetV2.1_submission.zip",
+                type="zip",
+                help=(
+                    "Kept for this session only: it is written to a "
+                    "session-scoped temp file so the loader below can read "
+                    "it the same way it reads a local path, and it is never "
+                    "redistributed."
+                ),
+            )
+
+            if uploaded_archive is not None:
+                zip_path = _save_uploaded_archive(uploaded_archive)
+        else:
+            zip_path_input = st.text_input(
+                "Local path to RingDatasetV2.1_submission.zip",
+                value=str(DEFAULT_ZIP_PATH) if DEFAULT_ZIP_PATH.exists() else "",
+                help=(
+                    "The full path to the archive, exactly as your file "
+                    "browser shows it -- for example "
+                    "C:\\Users\\you\\Downloads\\RingDatasetV2.1_submission.zip "
+                    "on Windows, or "
+                    "/home/you/Downloads/RingDatasetV2.1_submission.zip on "
+                    "macOS/Linux. Surrounding quotes are stripped "
+                    "automatically if a 'copy path' action added them."
+                ),
+            )
+            cleaned_input = zip_path_input.strip().strip('"').strip("'")
+            path_input_given = bool(cleaned_input)
+            zip_path = Path(cleaned_input).expanduser() if cleaned_input else None
+
+            if zip_path is not None and not zip_path.is_file():
+                if zip_path.is_dir():
+                    st.warning(
+                        f"'{zip_path}' is a folder, not the archive itself. "
+                        "Point at RingDatasetV2.1_submission.zip inside it, "
+                        "not the folder it is in."
+                    )
+                elif not zip_path.exists():
+                    st.warning(
+                        f"No file was found at '{zip_path}'. Check the path is "
+                        "typed exactly as your file browser shows it (on "
+                        "Windows, including the drive letter), or switch to "
+                        "'Browse for the archive' above, which cannot be "
+                        "mistyped."
+                    )
+                elif zip_path.suffix.lower() != ".zip":
+                    st.warning(
+                        f"'{zip_path}' does not end in .zip. Point at "
+                        "RingDatasetV2.1_submission.zip itself, not a folder "
+                        "it was extracted into."
+                    )
+                zip_path = None
 
     if zip_path is None:
         if not path_input_given:
@@ -1143,6 +1187,7 @@ Each measurement window in this dataset carries:
                     raw = _load_subjects(str(zip_path), subject_ids)
                     st.session_state["healthring_windows"] = ar.prepare_windows(raw)
                     st.session_state["healthring_n_subjects"] = n_subjects
+                    st.session_state["healthring_source"] = SOURCE_FULL_ARCHIVE
                 except (OSError, KeyError, ValueError) as error:
                     st.error(f"Could not load the requested participants: {error}")
                     st.session_state["healthring_windows"] = None
@@ -1181,20 +1226,51 @@ if stage >= STAGE_SIGNAL_INSPECTION and windows is not None:
         "window you pick, not a simulated waveform."
     )
 
-    loaded_subject_ids = sorted(windows.data["subject_id"].unique().tolist())
+    # The waveforms are the whole size difference between the public
+    # subset and the 2.4 GiB archive, so this stage cannot run on the
+    # subset. It says what it would need and what is available instead,
+    # rather than erroring on a column that was never there.
+    if st.session_state.get("healthring_source") == SOURCE_PUBLIC_SUBSET:
+        st.info(
+            "This stage draws the PPG and accelerometer waveforms, which "
+            "the public subset does not carry: excluding them is what "
+            "makes it 80 KB rather than 2.4 GiB. Load the original "
+            "archive under 'Advanced' above to walk a window end to end."
+        )
 
-    signal_subject_id = st.selectbox(
-        "Which participant to inspect",
-        options=loaded_subject_ids,
-        key="hr_signal_subject",
-    )
+        st.markdown("**What the subset does carry, per window**")
+        st.dataframe(
+            windows.data.head(20),
+            width="stretch",
+            hide_index=True,
+        )
+        st.caption(
+            "The activity label, the reference and ring heart-rate "
+            "estimates, the ring's own per-channel quality scores, and "
+            "the error terms derived from them. Every later stage runs on "
+            "these; only the waveform walk-through needs the archive."
+        )
 
-    try:
-        signal_raw = _load_subject_signal(str(zip_path), int(signal_subject_id))
-        signal_windows = ar.prepare_windows(signal_raw)
-    except (OSError, KeyError, ValueError) as error:
-        st.error(f"Could not load this participant's signal: {error}")
+        if stage < STAGE_DESIGN_EVALUATION:
+            if st.button("Continue to design evaluation", type="primary"):
+                TRACKER.advance_to(STAGE_DESIGN_EVALUATION)
+
         signal_windows = None
+    else:
+        loaded_subject_ids = sorted(windows.data["subject_id"].unique().tolist())
+
+        signal_subject_id = st.selectbox(
+            "Which participant to inspect",
+            options=loaded_subject_ids,
+            key="hr_signal_subject",
+        )
+
+        try:
+            signal_raw = _load_subject_signal(str(zip_path), int(signal_subject_id))
+            signal_windows = ar.prepare_windows(signal_raw)
+        except (OSError, KeyError, ValueError) as error:
+            st.error(f"Could not load this participant's signal: {error}")
+            signal_windows = None
 
     if signal_windows is not None:
         available_labels = signal_windows.condition_order
