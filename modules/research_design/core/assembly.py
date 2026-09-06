@@ -32,14 +32,34 @@ from .ontology import CONCEPT_KINDS, Measure, get_measure, modalities_of
 OBSERVED = "Observed"
 NOT_OBSERVED = "Not measured by anything selected"
 
-# What a study's shape suggests looking at, once measures are chosen.
-# Selected from the assembled structure rather than fixed, because the
-# useful view of a multimodal cross-section and of one measure repeated
-# over months are not the same view.
+# How a study describes itself once measures are chosen. A headline, for
+# a record and a caption.
 SHAPE_SINGLE = "one measure, one occasion"
 SHAPE_MULTIMODAL = "several kinds of evidence about the same concepts"
 SHAPE_REPEATED = "the same measures on more than one occasion"
 SHAPE_MULTIMODAL_REPEATED = "several kinds of evidence, more than once"
+
+# Which pictures of this study are worth drawing.
+#
+# Selected from the assembled structure rather than fixed, because the
+# useful view of a multimodal cross-section and of one measure repeated
+# across eight weeks are not the same picture, and a single diagram
+# trying to serve both serves neither. More than one can apply at once: a
+# clustered trial measured repeatedly has a nesting and a timeline, and
+# both are true of it.
+VIEW_MEASUREMENT = "Measurement architecture"
+VIEW_CONVERGENCE = "Cross-modal convergence"
+VIEW_TIMELINE = "Timeline"
+VIEW_NESTING = "Nesting"
+VIEW_ARMS = "Arms"
+
+VIEWS: tuple[str, ...] = (
+    VIEW_MEASUREMENT,
+    VIEW_CONVERGENCE,
+    VIEW_TIMELINE,
+    VIEW_NESTING,
+    VIEW_ARMS,
+)
 
 
 @dataclass(frozen=True)
@@ -90,10 +110,28 @@ class AssembledStudy:
     selected_measures: tuple[str, ...]
     occasions: int = 1
 
+    # What the units sit inside, where they sit inside anything. Named by
+    # the researcher rather than detected, because no property of a plan
+    # establishes that students were sampled through schools; only the
+    # person designing it knows.
+    nesting: str = ""
+
+    # The arms a study compares, where it compares any. Two or more is a
+    # comparison; one or none is not, and an empty tuple is the honest
+    # default for a study that has not said.
+    arms: tuple[str, ...] = ()
+
     def __post_init__(self) -> None:
         if self.occasions < 1:
             raise ValueError(
                 f"A study is measured at least once; got {self.occasions}."
+            )
+
+        if len(self.arms) == 1:
+            raise ValueError(
+                f"'{self.arms[0]}' is the only arm named. One arm is not a "
+                "comparison; name the arm it would be compared with, or "
+                "name none."
             )
 
         for name in self.selected_measures:
@@ -139,6 +177,29 @@ class AssembledStudy:
     def unobserved(self) -> tuple[Concept, ...]:
         """The concepts nothing selected reaches."""
         return tuple(row.concept for row in self.coverage if not row.observed)
+
+    @property
+    def applicable_views(self) -> tuple[str, ...]:
+        """
+        Which pictures of this study are worth drawing, in fixed order.
+
+        The measurement architecture always applies, because a study with
+        one measure on one occasion still has a structure. The rest apply
+        when the thing they draw is actually present, so a view never
+        appears with nothing in it.
+        """
+        views = [VIEW_MEASUREMENT]
+
+        if len(self.modalities) > 1:
+            views.append(VIEW_CONVERGENCE)
+        if self.occasions > 1:
+            views.append(VIEW_TIMELINE)
+        if self.nesting.strip():
+            views.append(VIEW_NESTING)
+        if len(self.arms) > 1:
+            views.append(VIEW_ARMS)
+
+        return tuple(view for view in VIEWS if view in views)
 
     @property
     def shape(self) -> str:
@@ -198,6 +259,8 @@ def design_record_lines(study: AssembledStudy, entered: dict[str, str]) -> tuple
         "Evidence this would produce",
         f"- Modalities: {', '.join(study.modalities) or UNSET}",
         f"- Occasions: {study.occasions}",
+        f"- Units nested within: {study.nesting or UNSET}",
+        f"- Arms compared: {', '.join(study.arms) or UNSET}",
         f"- Shape: {study.shape}",
         "",
         "What this design would not observe",

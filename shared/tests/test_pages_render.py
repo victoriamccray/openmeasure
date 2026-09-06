@@ -835,8 +835,11 @@ class TestMethodSelectionPage(unittest.TestCase):
         self.assertIn("Enter your own, or load the built-in example", rendered)
 
         # The hypothesis field starts empty (user-editable, per Design
-        # mode's actual purpose); "Load pain example" populates it.
-        load_example_buttons = [b for b in app.button if b.label == "Load pain example"]
+        # mode's actual purpose); loading the worked example populates it,
+        # along with the concepts and measures it is assembled from.
+        load_example_buttons = [
+            b for b in app.button if str(b.label).startswith("Load worked example")
+        ]
         self.assertEqual(len(load_example_buttons), 1)
         load_example_buttons[0].click()
         app.run()
@@ -854,6 +857,17 @@ class TestMethodSelectionPage(unittest.TestCase):
         app = self._run_method_selection_page()
 
         app.radio[0].set_value("design")
+        app.run()
+
+        # The measure gallery, the timing controls and the simulation all
+        # belong to the chronic-pain worked example, so reaching them
+        # means loading it. That is the point of the gating: a researcher
+        # who has not asked for the example never meets its stages.
+        load_example = [
+            b for b in app.button if str(b.label).startswith("Load worked example")
+        ]
+        self.assertEqual(len(load_example), 1)
+        load_example[0].click()
         app.run()
 
         continue_labels = (

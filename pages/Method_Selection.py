@@ -60,7 +60,7 @@ import streamlit.components.v1 as components
 
 from modules.data_profile.core.profile import profile_dataframe
 from modules.data_profile.core.suggest import WorkflowSuggestion, suggest_workflows
-from modules.research_design.core import assembly, ontology
+from modules.research_design.core import assembly, examples, ontology
 from modules.research_design.core.design import DesignAssumptions
 from modules.research_design.core.estimate import estimate_coupling_difference
 from modules.research_design.core.inspect_rules import (
@@ -74,6 +74,7 @@ from modules.research_design.core.inspect_rules import (
 )
 from modules.research_design.core.schema import measurement_plan_profile
 from modules.research_design.core.simulate import generate_naturalistic_pain_study
+from shared import visuals
 from shared.catalog import WORKFLOWS
 from shared.journey_stages import StageTracker
 from shared.method_guide import BRANCHES
@@ -747,12 +748,15 @@ if mode == MODE_ANALYSIS:
 # =======================================================================
 
 else:
+    # The simulation's one built-in scenario used to be disclosed here,
+    # at the top of the generalized path, where it read as a statement
+    # that nothing a researcher entered would be used. It is disclosed
+    # where it applies now: when the worked example that owns it is
+    # loaded.
     st.caption(
-        "Build a study and explore how design choices shape the "
-        "evidence, before any data exists. v0.1's simulation always "
-        "models one built-in scenario, a naturalistic pain study, "
-        "regardless of what you enter below. It never scores a design "
-        "as good or bad, only what it does and does not support."
+        "Build a study and explore how design choices shape the evidence, "
+        "before any data exists. It never scores a design as good or bad, "
+        "only what it does and does not support."
     )
     st.caption(
         "This walkthrough is OpenMeasure's own structural logic, not "
@@ -810,17 +814,57 @@ else:
         "study_compares_subgroups": False,
     }
 
-    rq_button_cols = st.columns([1, 1, 4])
+    # Loading the example fills the same workspace a researcher plans in,
+    # rather than switching the page into a different mode. Everything it
+    # sets can then be changed, which is what makes it teach the planner
+    # instead of replacing it.
+    worked = examples.CHRONIC_PAIN
+
+    rq_button_cols = st.columns([2, 1, 3])
     with rq_button_cols[0]:
-        if st.button("Load pain example"):
+        if st.button(f"Load worked example: {worked.title}"):
             for key, value in PAIN_EXAMPLE.items():
                 st.session_state[key] = value
+            st.session_state["planner_concepts"] = [
+                {
+                    "Concept": concept.name,
+                    "What sort of thing is it?": concept.kind,
+                }
+                for concept in worked.study.concepts
+            ]
+            # The editor keeps its own copy once touched, so it has to be
+            # dropped for the rows above to take.
+            st.session_state.pop("planner_concept_editor", None)
+            for concept in worked.study.concepts:
+                st.session_state[f"planner_measures_{concept.name}"] = [
+                    name
+                    for name in worked.study.selected_measures
+                    if concept.kind in ontology.get_measure(name).observes
+                ]
+            st.session_state["worked_example_loaded"] = True
             st.rerun()
     with rq_button_cols[1]:
         if st.button("Clear"):
             for key in PAIN_EXAMPLE:
                 st.session_state.pop(key, None)
+            for key in list(st.session_state):
+                if str(key).startswith("planner_"):
+                    st.session_state.pop(key, None)
+            st.session_state.pop("worked_example_loaded", None)
             st.rerun()
+
+    worked_example_loaded = bool(
+        st.session_state.get("worked_example_loaded", False)
+    )
+
+    if worked_example_loaded:
+        st.caption(
+            f"The {worked.title} worked example is loaded. Everything below "
+            "is its study, and every part of it can be changed. Its "
+            "simulation models this one scenario, so the simulated results "
+            "further down describe it rather than a study you describe "
+            "yourself."
+        )
 
     hypothesis = st.text_area(
         "Research question / hypothesis", key="rq_hypothesis", height=100
@@ -855,6 +899,225 @@ else:
     # Nothing is generated from the wording of the question. The library
     # in modules/research_design/core/ontology.py is curated and finite,
     # and a measure it lacks is a gap to add deliberately.
+
+    # -------------------------------------------------------------
+    # Drawing the assembled study
+    # -------------------------------------------------------------
+    #
+    # Which picture gets drawn follows from what was assembled, because
+    # the useful view of three modalities on one occasion and of one
+    # measure across eight weeks are different pictures and a single
+    # diagram serving both serves neither. More than one can apply: a
+    # clustered trial measured repeatedly has a nesting and a timeline,
+    # and both are true of it.
+    #
+    # These take the study, never a domain. A study of mental models and
+    # a study of chronic pain with the same structure get the same
+    # drawing, which is the point of having an ontology underneath.
+
+    def _svg_text(x, y, value, *, size=13, color=visuals.INK_MUTED, anchor_at="start"):
+        return (
+            f'<text x="{x:.0f}" y="{y:.0f}" font-size="{size}" '
+            f'fill="{color}" text-anchor="{anchor_at}">{value}</text>'
+        )
+
+    def _measurement_svg(study):
+        """Concepts on the left, what reaches them on the right."""
+        rows = study.coverage
+        height = max(120, 46 + len(rows) * 52)
+        inner = _svg_text(0, 20, "Concept", size=12) + _svg_text(
+            300, 20, "Observed by", size=12
+        )
+
+        for index, row in enumerate(rows):
+            y = 52 + index * 52
+            established = row.observed
+            color = visuals.ACCENT if established else visuals.INK_MUTED
+            dash = (
+                ""
+                if established
+                else f' stroke-dasharray="{visuals.DASH_UNESTABLISHED}"'
+            )
+            inner += (
+                f'<circle cx="8" cy="{y - 5:.0f}" r="5" fill="none" '
+                f'stroke="{color}" stroke-width="1.5"{dash}/>'
+                + (
+                    f'<circle cx="8" cy="{y - 5:.0f}" r="2.5" fill="{color}"/>'
+                    if established
+                    else ""
+                )
+                + _svg_text(24, y, row.concept.name, size=14)
+                + visuals.arrow(
+                    250, y - 5, 292, y - 5, established=established
+                )
+                + _svg_text(
+                    300,
+                    y,
+                    ", ".join(row.measures) if row.measures else "nothing selected",
+                    size=13,
+                    color=color,
+                )
+            )
+
+        return visuals.figure(
+            inner,
+            width=640,
+            height=height,
+            label=(
+                "Each concept this study names, and which selected measures "
+                "reach it. A hollow circle and a dashed arrow mark a concept "
+                "nothing selected observes."
+            ),
+        )
+
+    def _convergence_svg(study):
+        """Several kinds of evidence meeting at the same unit."""
+        modalities = study.modalities
+        width = 640.0
+        column = width / len(modalities)
+        inner = ""
+
+        for index, modality in enumerate(modalities):
+            x = column * (index + 0.5)
+            inner += _svg_text(x, 24, modality, size=13, anchor_at="middle")
+            inner += (
+                f'<path d="M {x:.0f} 34 V 60 H {width / 2:.0f} V 84" '
+                f'fill="none" stroke="{visuals.ACCENT}" stroke-width="1"/>'
+            )
+
+        inner += (
+            f'<rect x="{width / 2 - 90:.0f}" y="84" width="180" height="44" '
+            f'rx="5" fill="none" stroke="{visuals.ACCENT}" stroke-width="1.5"/>'
+            + _svg_text(
+                width / 2, 111, "the same unit", size=14, anchor_at="middle"
+            )
+            + _svg_text(
+                width / 2,
+                156,
+                "Agreement between them is evidence; it is not independent "
+                "evidence",
+                size=12,
+                anchor_at="middle",
+            )
+        )
+
+        return visuals.figure(
+            inner,
+            width=width,
+            height=176,
+            label=(
+                "This study would produce "
+                + ", ".join(modalities)
+                + " evidence about the same unit."
+            ),
+        )
+
+    def _timeline_svg(study):
+        """The same measures, on more than one occasion."""
+        shown = min(study.occasions, 8)
+        spacing = 600.0 / max(shown - 1, 1)
+        inner = _svg_text(0, 20, f"{study.occasions} occasions", size=13)
+        inner += (
+            f'<line x1="8" y1="60" x2="628" y2="60" '
+            f'stroke="{visuals.GRIDLINE}" stroke-width="1"/>'
+        )
+
+        for index in range(shown):
+            x = 8 + index * spacing
+            inner += (
+                f'<circle cx="{x:.0f}" cy="60" r="5" '
+                f'fill="{visuals.ACCENT}" fill-opacity="0.8"/>'
+            )
+
+        if study.occasions > shown:
+            inner += _svg_text(628, 44, "...", size=13, anchor_at="end")
+
+        inner += _svg_text(
+            0,
+            92,
+            "Repeated on the same units, so observations within a unit are "
+            "not independent",
+            size=12,
+        )
+
+        return visuals.figure(
+            inner,
+            width=640,
+            height=110,
+            label=(
+                f"The selected measures repeated across {study.occasions} "
+                "occasions on the same units."
+            ),
+        )
+
+    def _nesting_svg(study):
+        """Units inside whatever they were sampled through."""
+        inner = (
+            f'<rect x="0" y="14" width="200" height="46" rx="5" fill="none" '
+            f'stroke="{visuals.ACCENT}" stroke-width="1.5"/>'
+            + _svg_text(14, 42, study.nesting, size=14)
+            + f'<path d="M 100 60 V 78 H 40 V 96" fill="none" '
+            f'stroke="{visuals.INK_MUTED}" stroke-width="1"/>'
+            + f'<path d="M 100 78 H 160 V 96" fill="none" '
+            f'stroke="{visuals.INK_MUTED}" stroke-width="1"/>'
+            + visuals.unit_cluster(40, 116, visuals.ACCENT, count=5, radius=6)
+            + visuals.unit_cluster(160, 116, visuals.ACCENT, count=5, radius=6)
+            + _svg_text(230, 120, "units, sampled through the level above", size=13)
+            + _svg_text(
+                0,
+                168,
+                "Units inside one group are more alike than units drawn at "
+                "random",
+                size=12,
+            )
+        )
+
+        return visuals.figure(
+            inner,
+            width=640,
+            height=186,
+            label=(
+                f"Units nested within {study.nesting}, so units inside one "
+                "are more alike than units drawn at random."
+            ),
+        )
+
+    def _arms_svg(study):
+        """What this study compares."""
+        arms = study.arms
+        column = 640.0 / len(arms)
+        inner = _svg_text(0, 20, "Compared arms", size=12)
+        inner += (
+            f'<path d="M 320 30 V 48" fill="none" '
+            f'stroke="{visuals.INK_MUTED}" stroke-width="1"/>'
+        )
+
+        for index, arm in enumerate(arms):
+            x = column * (index + 0.5)
+            colour = visuals.ACCENT_2 if index == 0 else visuals.ACCENT
+            inner += (
+                f'<path d="M 320 48 H {x:.0f} V 66" fill="none" '
+                f'stroke="{visuals.INK_MUTED}" stroke-width="1"/>'
+                + f'<rect x="{x - 90:.0f}" y="66" width="180" height="42" '
+                f'rx="5" fill="none" stroke="{colour}" stroke-width="1.5"/>'
+                + _svg_text(x, 92, arm, size=14, anchor_at="middle", color=colour)
+                + visuals.unit_cluster(x, 140, colour, count=5, radius=6)
+            )
+
+        return visuals.figure(
+            inner,
+            width=640,
+            height=180,
+            label="This study compares " + " and ".join(arms) + ".",
+        )
+
+    _VIEW_BUILDERS = {
+        assembly.VIEW_MEASUREMENT: _measurement_svg,
+        assembly.VIEW_CONVERGENCE: _convergence_svg,
+        assembly.VIEW_TIMELINE: _timeline_svg,
+        assembly.VIEW_NESTING: _nesting_svg,
+        assembly.VIEW_ARMS: _arms_svg,
+    }
 
     section_header(
         "Concepts And How To Observe Them",
@@ -932,13 +1195,12 @@ else:
     st.session_state["planner_study"] = planner_study
 
     if planner_study.selected_measures:
-        st.markdown("**What this would observe**")
+        st.markdown("**Your study, as assembled**")
 
-        for row in planner_study.coverage:
-            marker = "filled" if row.observed else "hollow"
+        for view in planner_study.applicable_views:
+            st.caption(view)
             st.markdown(
-                f"- {row.concept.name}: {row.status}"
-                + (f" ({', '.join(row.measures)})" if row.measures else "")
+                _VIEW_BUILDERS[view](planner_study), unsafe_allow_html=True
             )
 
         st.caption(
@@ -964,7 +1226,7 @@ else:
 
     n_participants = observations_per_day = duration_days = None
 
-    if design_stage >= STAGE_MEASURES:
+    if design_stage >= STAGE_MEASURES and worked_example_loaded:
         section_header(
             "Explore & Assemble Measures",
             "How could we observe pain in everyday life? Tap a measure to see what it captures.",
@@ -1141,7 +1403,7 @@ else:
     # 2. Timing & synchronization
     # -------------------------------------------------------------
 
-    if design_stage >= STAGE_TIMING:
+    if design_stage >= STAGE_TIMING and worked_example_loaded:
         section_header(
             "Timing & Synchronization",
             "When are measures collected, and how closely aligned are they?",
@@ -1208,7 +1470,11 @@ else:
     study = None
     estimate = None
 
-    if design_stage >= STAGE_SIMULATE and n_participants is not None:
+    if (
+        design_stage >= STAGE_SIMULATE
+        and worked_example_loaded
+        and n_participants is not None
+    ):
         section_header(
             "Explore With a Worked Simulation",
             "A fixed chronic-pain scenario, not a simulation of your own study above",
