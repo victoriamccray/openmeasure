@@ -51,12 +51,20 @@ def build_leadership_summary(record: EvidenceRecord) -> str:
     supported = record.supported_claim
     validation = record.validation
 
+    # "independent source(s)" was the phrase that carried the conflation
+    # into the summary a reader is most likely to quote. A source is a
+    # place evidence came from; calling it independent invites the
+    # replication reading, which is a claim about studies rather than
+    # about sources. The sentence now says what was counted.
     sentence = (
         f"{record.claim.claim_text} "
-        f"Based on {validation.corroboration_count} independent source(s), "
+        f"Drawing on {validation.corroboration_count} evidence source(s), "
         f"the evidence reaches Nesta Standards of Evidence Level "
         f"{supported.nesta_level.level} ({supported.nesta_level.description})"
     )
+
+    if not supported.replication_established:
+        sentence += " " + supported.replication_note
 
     if supported.claim_type_alignment_warning:
         sentence += " " + supported.claim_type_alignment_warning

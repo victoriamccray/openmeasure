@@ -69,14 +69,31 @@ class TestBuildLeadershipSummary(unittest.TestCase):
         *_, record = _build_record()
         summary = r.build_leadership_summary(record)
 
+        # Two evidence sources describing one program. Comparison-group
+        # evidence takes this to Level 3; nothing here reproduces the
+        # finding on an independent sample, so it stops there and says
+        # so.
         expected = (
             "Participants improved job readiness. "
-            "Based on 2 independent source(s), the evidence reaches Nesta "
-            "Standards of Evidence Level 4 (One or more independent "
-            "replications confirm the finding.) This meets the rigor "
+            "Drawing on 2 evidence source(s), the evidence reaches Nesta "
+            "Standards of Evidence Level 3 (Causality is demonstrated "
+            "using a comparison group.) Independent replication not "
+            "established from the supplied evidence. 2 sources describe "
+            "this program, which is a count of sources rather than of "
+            "studies that reproduced the finding. This meets the rigor "
             "conventionally expected for a claim of this type ('outcome')."
         )
         self.assertEqual(summary, expected)
+
+    def test_the_summary_does_not_call_sources_independent(self):
+        """
+        The phrase a reader is most likely to quote. A source is a place
+        evidence came from, and calling it independent invites the
+        replication reading.
+        """
+        *_, record = _build_record()
+
+        self.assertNotIn("independent source", r.build_leadership_summary(record))
 
     def test_raises_on_claim_id_mismatch_across_sub_results(self):
         claim, bundle, validation, supported, limitations, _ = _build_record()

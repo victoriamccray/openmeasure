@@ -1033,13 +1033,11 @@ Each measurement window in this dataset carries:
         "resolve."
     )
     st.info(
-        "RingDatasetV2.1_submission.zip is about 2.4 GiB. Streamlit caps "
-        "browser uploads at 200 MB by default, so 'Browse' is unlikely "
-        "to work for the real archive on a hosted copy of this app "
-        "either, regardless of that cap, loading the real archive is "
-        "realistically a local-run task: clone this repository, run "
-        "`streamlit run Home.py` on the same machine the archive is on, "
-        "and use 'Enter a local filesystem path' there."
+        "The archive is about 2.4 GiB against Streamlit's 200 MB upload "
+        "cap, so neither option works on a hosted copy. Loading the real "
+        "archive is a local-run task: clone this repository, run "
+        "`streamlit run Home.py` on the machine holding the archive, and "
+        "enter its path there."
     )
 
     zip_path: Path | None = None

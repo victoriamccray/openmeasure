@@ -185,17 +185,31 @@ def _claim_from_row(row: pd.Series) -> claim_core.ClaimDraft:
     )
 
 
+def _yes(row: pd.Series, column: str) -> bool:
+    """A yes/no evidence column, absent meaning no."""
+    return str(row.get(column, "")).strip().lower() == "yes"
+
+
 def _item_from_row(row: pd.Series) -> evidence_core.EvidenceItem:
     sample_size = row.get("sample_size")
     time_lag = row.get("time_lag_days")
+
+    # The last four columns are optional and describe an independent
+    # evaluation of the same claim. Absent means the row says nothing
+    # about replication, which is the right answer for administrative
+    # and monitoring evidence and is why they default to no.
     return evidence_core.EvidenceItem(
         source=str(row["source"]),
         finding_text=str(row["finding_text"]),
         indicator_id=_none_if_nan(row.get("indicator_id")),
         sample_size=int(sample_size) if pd.notna(sample_size) else None,
-        has_comparison_group=str(row.get("has_comparison_group", "")).strip().lower() == "yes",
+        has_comparison_group=_yes(row, "has_comparison_group"),
         collection_method=str(row["collection_method"]),
         time_lag_days=int(time_lag) if pd.notna(time_lag) else None,
+        study_identity=str(_none_if_nan(row.get("study_identity")) or ""),
+        independent_sample=_yes(row, "independent_sample"),
+        same_intervention=_yes(row, "same_intervention"),
+        causal_design=_yes(row, "causal_design"),
     )
 
 
@@ -592,7 +606,9 @@ if stage >= STAGE_DESCRIBE_EVIDENCE and "pia_claim" in st.session_state:
     uploaded_evidence = st.file_uploader(
         "Upload a custom evidence CSV (optional, with columns source, "
         "finding_text, indicator_id, sample_size, has_comparison_group, "
-        "collection_method, time_lag_days)",
+        "collection_method, time_lag_days). Optional, to describe an "
+        "independent evaluation: study_identity, independent_sample, "
+        "same_intervention, causal_design",
         type="csv",
     )
 
@@ -781,12 +797,29 @@ if stage >= STAGE_DETERMINE_SUPPORTED_CLAIM and "pia_validation" in st.session_s
         st.info(supported.next_level_hint)
 
     st.write(supported.suggested_language)
-    st.caption(supported.framework_citation)
+
+    # Triangulation and replication, named apart. Several ways of looking
+    # agreeing about one program is worth having and is a different claim
+    # from a causal finding reproduced on an independent sample. Counting
+    # sources conflated them, and promoted three sources describing one
+    # program to independent replication.
+    if supported.triangulated:
+        st.caption(strength_core.TRIANGULATION_NOTE)
+
+    st.caption(supported.replication_note)
 
     if supported.claim_type_alignment_warning:
         st.warning(supported.claim_type_alignment_warning)
 
-    caveat(supported.level_5_note)
+    # The framework is Nesta's; the rule mapping this bundle onto it is
+    # not, and citing Nesta for both would put their name on an algorithm
+    # they did not write.
+    with st.expander("Where this level came from"):
+        st.caption(supported.framework_citation)
+        st.markdown(f"**{supported.openmeasure_rule_note}**")
+        st.write(supported.openmeasure_rule_statement)
+        st.caption(supported.level_5_note)
+
     caveat(
         "A Nesta level describes the evidence's causal rigor, not whether "
         "the underlying claim is true."
