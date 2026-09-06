@@ -402,4 +402,61 @@ DATASETS: tuple[RealDataset, ...] = (
             "and Human Services."
         ),
     ),
+    RealDataset(
+        id="right_to_play_baseline",
+        name="Right To Play Pakistan cluster RCT, baseline",
+        domain="Violence prevention / school-based intervention",
+        description=(
+            "Baseline responses from all 1,752 grade 6 students in a "
+            "two-arm cluster randomized trial across 40 single-sex public "
+            "schools in Hyderabad, Pakistan, verified at 1,752 rows by 350 "
+            "variables. It carries School, Group and Gender, so the "
+            "clustering and the randomized arm assignment are inspectable "
+            "rather than only described, alongside item-level responses to "
+            "the Peer Victimization Scale, the Peer Perpetration Scale and "
+            "the CDI-2. Distributed as an SPSS .sav file. Children were "
+            "asked about being victimized, about perpetrating violence, and "
+            "about depression; the responses are de-identified and were "
+            "published by the authors for reuse, and a reader should know "
+            "that before opening them."
+        ),
+        try_with=("Impact Evaluation",),
+        explore_question=(
+            "The trial reports large reductions in peer violence at 24 "
+            "months. Which parts of that finding can be checked against "
+            "the artifacts the study actually published?"
+        ),
+        access=ACCESS_OPEN,
+        # Published as supporting information to a CC BY article, and PLOS
+        # applies that licence to the works it publishes, so redistribution
+        # is established. Fetched on request all the same: nothing needs a
+        # local copy, and OpenMeasure cannot currently read .sav at all.
+        # Whether to add that capability is an integration decision, kept
+        # separate from cataloguing what the dataset is.
+        delivery=DELIVERY_REMOTE_FETCH,
+        redistribution_permitted=True,
+        sources=(
+            DataSource(
+                label="S1 File, baseline dataset for all 1,752 participants (.sav)",
+                url="https://journals.plos.org/plosone/article/file?id=10.1371/journal.pone.0180833.s001&type=supplementary",
+            ),
+            DataSource(
+                label="Baseline article, instruments and licence (PLOS ONE, CC BY)",
+                url="https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0180833",
+            ),
+            DataSource(
+                label="Trial results at 24 months (Global Health Action)",
+                url="https://doi.org/10.1080/16549716.2020.1836604",
+            ),
+        ),
+        citation=(
+            "Karmaliani, R., McFarlane, J., Somani, R., Khuwaja, H. M. A., "
+            "Bhamani, S. S., Ali, T. S., Gulzar, S., Somani, Y., Chirwa, "
+            "E. D., & Jewkes, R. (2017). Peer violence perpetration and "
+            "victimization: Prevalence, associated factors and pathways "
+            "among 1752 sixth grade boys and girls in schools in Pakistan. "
+            "PLOS ONE, 12(8), e0180833. Trial results: Karmaliani, R., et "
+            "al. (2020). Global Health Action, 13(1), 1836604."
+        ),
+    ),
 )

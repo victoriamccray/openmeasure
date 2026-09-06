@@ -320,6 +320,7 @@ class TestRedistributionIsSeparateFromAccess(unittest.TestCase):
     REDISTRIBUTION_ESTABLISHED = {
         "diabetes_130_hospitals": "CC BY 4.0, stated on its UCI record",
         "nhanes_dpq_phq9": "US federal public-use file, not subject to domestic copyright",
+        "right_to_play_baseline": "CC BY 4.0, PLOS applies it to the works it publishes",
     }
 
     def test_redistribution_is_claimed_only_where_it_was_established(self):
@@ -425,4 +426,77 @@ class TestNhanesProvenanceContract(unittest.TestCase):
 
         self.assertIn("PHQ-9", entry.name)
         self.assertIn("freely available", entry.description)
+
+
+class TestRightToPlayBoundaries(unittest.TestCase):
+    """
+    This entry is worth featuring because of what it cannot support, not
+    in spite of it. Two different kinds of limit meet in one study, and
+    an entry that lost either would offer a reader a real trial with the
+    impression that all of it is reproducible.
+    """
+
+    @staticmethod
+    def _entry():
+        return next(d for d in DATASETS if d.id == "right_to_play_baseline")
+
+    def test_it_is_offered_to_impact_evaluation_only(self):
+        """
+        The scales in it would suit Reliability too, but CDI-2 is
+        commercially published, so item wording could not be shown.
+        NHANES carries that workflow instead.
+        """
+        self.assertEqual(self._entry().try_with, ("Impact Evaluation",))
+
+    def test_the_entry_says_it_is_baseline_only(self):
+        entry = self._entry()
+
+        self.assertIn("Baseline", entry.description)
+        self.assertIn("baseline", entry.name.lower())
+
+    def test_the_randomisation_structure_is_described_as_present(self):
+        """
+        School, Group and Gender are in the public file, which is what
+        makes the design inspectable rather than only described.
+        """
+        description = self._entry().description
+
+        for variable in ("School", "Group", "Gender"):
+            with self.subTest(variable=variable):
+                self.assertIn(variable, description)
+
+    def test_the_verified_shape_is_recorded(self):
+        """1,752 by 350, confirmed by reading the file, not the paper."""
+        description = self._entry().description
+
+        self.assertIn("1,752", description)
+        self.assertIn("350", description)
+
+    def test_the_sensitive_content_is_disclosed_in_the_entry_itself(self):
+        """
+        Not left to documentation. A reader should know what they are
+        opening before they open it.
+        """
+        description = self._entry().description
+
+        self.assertIn("victimized", description)
+        self.assertIn("depression", description)
+        self.assertIn("de-identified", description)
+
+    def test_both_the_baseline_and_the_trial_results_are_linked(self):
+        """
+        The published effects live in a different paper from the data, and
+        a reader needs both to see where reproduction stops.
+        """
+        labels = " ".join(source.label for source in self._entry().sources)
+
+        self.assertIn("baseline dataset", labels.lower())
+        self.assertIn("24 months", labels.lower())
+
+    def test_the_file_format_is_stated(self):
+        """
+        OpenMeasure cannot read .sav today. The catalog says what the
+        dataset is; whether to add that capability is a separate call.
+        """
+        self.assertIn(".sav", self._entry().description)
 
