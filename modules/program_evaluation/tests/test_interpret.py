@@ -227,5 +227,98 @@ class TestPValueNote(unittest.TestCase):
                 self.assertNotIn(wrong, note)
 
 
+class TestSupportBoundaryConditions(unittest.TestCase):
+    """
+    The names drawn on the stage 7 boundary diagram.
+
+    These were the first sentence of each recommender warning, which is
+    150 to 170 characters. SVG text does not wrap, so those did not
+    truncate, they ran off the canvas: the conditions were invisible on
+    every design except difference-in-differences.
+    """
+
+    # Every method the recommender can return with supported=True, and so
+    # every method that can reach the interpretation stage. Listed
+    # literally so adding one to the recommender without a boundary entry
+    # fails here rather than in front of a reader.
+    ANALYSABLE_METHODS = (
+        "compare_two_groups",
+        "compare_multiple_groups_welch",
+        "compare_categorical",
+        "compare_pre_post",
+        "sensitivity_analysis",
+        "estimate_did",
+    )
+
+    def test_every_analysable_method_has_conditions(self):
+        for method in self.ANALYSABLE_METHODS:
+            with self.subTest(method=method):
+                self.assertTrue(interpret.support_boundary_conditions(method))
+
+    def test_every_name_fits_the_figure_that_draws_it(self):
+        for method in self.ANALYSABLE_METHODS:
+            for name in interpret.support_boundary_conditions(method):
+                with self.subTest(method=method, name=name):
+                    self.assertLessEqual(
+                        len(name), interpret.SUPPORT_BOUNDARY_LABEL_LIMIT
+                    )
+
+    def test_a_name_is_a_short_label_not_a_sentence(self):
+        for method in self.ANALYSABLE_METHODS:
+            for name in interpret.support_boundary_conditions(method):
+                with self.subTest(method=method, name=name):
+                    self.assertNotIn(".", name)
+
+    def test_did_takes_its_conditions_from_its_assumptions(self):
+        """
+        One list, so the branches on the diagram and the statements
+        printed under it cannot drift apart.
+        """
+        self.assertEqual(
+            interpret.support_boundary_conditions("estimate_did"),
+            tuple(a.name for a in interpret.did_assumptions()),
+        )
+
+    def test_an_unknown_method_raises_and_names_the_known_ones(self):
+        with self.assertRaises(ValueError) as raised:
+            interpret.support_boundary_conditions("regression_discontinuity")
+
+        message = str(raised.exception)
+        self.assertIn("regression_discontinuity", message)
+        self.assertIn("estimate_did", message)
+
+    def test_the_names_use_the_words_the_warnings_already_use(self):
+        """
+        Nothing in the mapping is a new claim about a design. Each name
+        is a word the recommender's own warning for that design already
+        uses, so the branch label and the sentence it points at agree.
+        """
+        import pandas as pd
+
+        from core import recommend
+
+        frame = pd.DataFrame(
+            {
+                "pre": [1.0, 2, 3, 4, 5, 6, 7, 9],
+                "post": [2.0, 3, 4, 5, 6, 7, 8, 11],
+                "y": [1.0, 2, 3, 4, 5, 6, 7, 9],
+                "g": list("aaaabbbb"),
+            }
+        )
+        cases = (
+            (dict(pre_col="pre", post_col="post"), "compare_pre_post"),
+            (dict(outcome_col="y", group_col="g"), "compare_two_groups"),
+        )
+
+        for columns, expected_method in cases:
+            recommendation = recommend.recommend_method(frame, **columns)
+            self.assertEqual(recommendation.method, expected_method)
+            warning_text = " ".join(recommendation.warnings).lower()
+
+            for name in interpret.support_boundary_conditions(expected_method):
+                with self.subTest(method=expected_method, name=name):
+                    self.assertIn(name.lower(), warning_text)
+
+
 if __name__ == "__main__":
     unittest.main()

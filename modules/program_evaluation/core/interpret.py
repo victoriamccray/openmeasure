@@ -186,6 +186,77 @@ def did_assumptions() -> tuple[Assumption, ...]:
     )
 
 
+# The longest a boundary condition's name can be and still fit the
+# diagram that draws it. SVG text does not wrap, so a name over this
+# length does not truncate, it runs off the canvas and disappears. Kept
+# beside the names rather than in the page so a test can hold the names
+# to it.
+SUPPORT_BOUNDARY_LABEL_LIMIT = 34
+
+# What stands between an observed difference and a causal claim, per
+# method, for the designs with no named assumption set of their own.
+#
+# Every name here is this module's own word for a threat the recommender
+# already states in full in its warnings, shortened to fit a diagram.
+# Nothing in this mapping is a new claim: the sentence a reader gets is
+# still the warning, and this is the label on the branch pointing at it.
+_BOUNDARY_CONDITIONS: dict[str, tuple[str, ...]] = {
+    "compare_pre_post": (
+        "Maturation",
+        "Regression to the mean",
+        "External events",
+    ),
+    "compare_two_groups": (
+        "Baseline imbalance",
+        "Selection",
+        "Unmeasured confounding",
+    ),
+    "compare_multiple_groups_welch": (
+        "Baseline imbalance",
+        "Selection",
+        "Unmeasured confounding",
+    ),
+    "compare_categorical": (
+        "Baseline imbalance",
+        "Selection",
+        "Unmeasured confounding",
+    ),
+    "sensitivity_analysis": (
+        "Baseline imbalance",
+        "Selection",
+        "Unmeasured confounding",
+    ),
+}
+
+
+def support_boundary_conditions(method: str) -> tuple[str, ...]:
+    """
+    The short names of what a design leaves between the difference it
+    observed and the claim that the program produced it.
+
+    Difference-in-differences takes its names from did_assumptions(), so
+    the branches on the diagram and the statements printed underneath it
+    are the same list and cannot drift apart.
+
+    Raises on a method it does not know rather than returning nothing. An
+    empty boundary would draw as a design with nothing left open, which
+    is not a claim this module makes about any design, and a method added
+    to the recommender without a matching entry here should fail loudly
+    instead of quietly asserting that.
+    """
+    if method == "estimate_did":
+        return tuple(assumption.name for assumption in did_assumptions())
+
+    if method not in _BOUNDARY_CONDITIONS:
+        raise ValueError(
+            f"'{method}' has no support-boundary conditions. Known "
+            f"methods: estimate_did, "
+            f"{', '.join(sorted(_BOUNDARY_CONDITIONS))}."
+        )
+
+    return _BOUNDARY_CONDITIONS[method]
+
+
 def interpret_did(
     result: DiDResult,
     *,

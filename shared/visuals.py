@@ -11,10 +11,12 @@ The grammar decides which form a thing takes, not merely how it looks:
     Evidence and provenance states -> visual states
 
 This module holds the parts of that grammar that are not specific to any
-one statistic: the colours, a unit pictograph, an arrow, and the support
-boundary. Builders that describe one particular thing stay with the page
-that owns them, because a pulse-sequence diagram or a
-difference-in-differences chart is not a primitive.
+one statistic: the colours, the dash patterns, a unit pictograph, an
+arrow, and the sized wrapper the rest are drawn into. Builders that
+describe one particular thing stay with the page that owns them, because
+a pulse-sequence diagram, a support boundary, or a
+difference-in-differences chart is not a primitive. They move here when a
+second page needs one, not before.
 
 It exists because the same pieces were being rewritten. The palette below
 was duplicated in twelve pages, and arrows and unit clusters had been

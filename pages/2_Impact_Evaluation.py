@@ -506,15 +506,54 @@ def _design_diagram_svg(design_id: str, treated: str, comparison: str) -> str:
 
 
 # The support boundary. Evidence states, so neither a chart nor a
-# diagram of structure: two claims and the line between what the analysis
-# settled and what it did not.
+# diagram of structure: what this analysis settled, what it did not, and
+# what the gap between them is made of.
 #
-# Solid means established by this analysis, dashed means not. That is the
-# same convention the difference-in-differences chart already uses for
-# its assumed counterfactual, so the page carries one visual rule rather
-# than two. Colour is deliberately not the signal: an unresolved
-# condition is not a failure, and red would say it was.
-_BOUND_W, _BOUND_H = 380.0, 150.0
+# Solid means established here, dashed means not. That is the same
+# convention the difference-in-differences chart uses for its assumed
+# counterfactual and the design cards use for nothing at all, so the page
+# carries one visual rule. Colour is deliberately not the signal: an
+# unresolved condition is not a failure, and red would say it was.
+#
+# The boundary is drawn as a boundary, a rule down the middle of the
+# figure with a single gap in it. The inference crosses at that gap and
+# crosses dashed, which is the whole claim of the diagram: support does
+# not extend to the right-hand side on its own.
+_BOUND_W = 640.0
+_BOUND_BOX_H = 68.0
+_BOUND_LEFT_END, _BOUND_RIGHT_START = 290.0, 350.0
+_BOUND_RULE_X = 316.0
+
+# Where the branches start and how far apart they sit.
+_BOUND_TRUNK_X = 362.0
+_BOUND_FIRST_BRANCH_Y = 136.0
+_BOUND_BRANCH_STEP = 28.0
+
+# More than this and the list stops being readable as a set of
+# conditions; the rest are counted instead.
+_BOUND_MAX_BRANCHES = 6
+
+
+def _bound_claim_box(
+    x: float, width: float, heading: str, claim: str, *, established: bool
+) -> str:
+    """One side of the boundary: a claim, and whether this analysis got it."""
+    stroke = ACCENT if established else INK_MUTED
+    dash = (
+        ""
+        if established
+        else f' stroke-dasharray="{visuals.DASH_UNESTABLISHED}"'
+    )
+
+    return (
+        f'<rect x="{x:.0f}" y="16" width="{width:.0f}" '
+        f'height="{_BOUND_BOX_H:.0f}" rx="5" fill="none" stroke="{stroke}" '
+        f'stroke-width="1.5"{dash}/>'
+        f'<text x="{x + 16:.0f}" y="44" font-size="12" fill="{stroke}">'
+        f"{heading}</text>"
+        f'<text x="{x + 16:.0f}" y="68" font-size="14" fill="{INK_MUTED}">'
+        f"{claim}</text>"
+    )
 
 
 def _support_boundary_svg(established: str, unresolved: str, conditions: tuple) -> str:
@@ -522,54 +561,111 @@ def _support_boundary_svg(established: str, unresolved: str, conditions: tuple) 
     What this result supports, and where support stops.
 
     conditions are the things that would have to hold for the second
-    claim to follow from the first. They hang off the unresolved box
-    rather than sitting in a list beneath it, because their whole
+    claim to follow from the first. They branch off the unresolved side
+    rather than sitting in a list beneath the figure, because their whole
     relevance is that they are what the gap is made of.
-    """
-    shown = conditions[:3]
-    rows = "".join(
-        f'<circle cx="228" cy="{96 + index * 16}" r="2" fill="{INK_MUTED}"/>'
-        f'<text x="236" y="{99 + index * 16}" font-size="8" fill="{INK_MUTED}">'
-        f"{condition}</text>"
-        for index, condition in enumerate(shown)
-    )
 
-    more = ""
-    if len(conditions) > len(shown):
-        more = (
-            f'<text x="236" y="{99 + len(shown) * 16}" font-size="8" '
-            f'fill="{INK_MUTED}">and {len(conditions) - len(shown)} more</text>'
+    Names are refused rather than truncated past the width the figure
+    can set. SVG text does not wrap, so an over-long name does not
+    overflow visibly, it runs off the canvas and is silently lost, which
+    is what the first sentence of a recommender warning did here.
+    """
+    if not conditions:
+        raise ValueError(
+            "A support boundary needs at least one condition. A boundary "
+            "with none would draw as a design that leaves nothing open."
         )
 
-    return f"""
-    <svg viewBox="0 0 {_BOUND_W:.0f} {_BOUND_H:.0f}" style="width:100%;height:auto;display:block"
-         preserveAspectRatio="xMidYMid meet" role="img"
-         aria-label="This analysis establishes that {established}. Whether
-         {unresolved} does not follow from it, and depends on conditions
-         the design cannot settle.">
-      <rect x="8" y="26" width="180" height="34" rx="4" fill="none"
-            stroke="{ACCENT}" stroke-width="1.5"/>
-      <text x="18" y="42" font-size="9" fill="{ACCENT}">Established here</text>
-      <text x="18" y="54" font-size="9" fill="{INK_MUTED}">{established}</text>
+    too_long = [
+        name
+        for name in conditions
+        if len(name) > interpret.SUPPORT_BOUNDARY_LABEL_LIMIT
+    ]
+    if too_long:
+        raise ValueError(
+            f"These boundary conditions are longer than "
+            f"{interpret.SUPPORT_BOUNDARY_LABEL_LIMIT} characters and "
+            f"would run off the figure: {'; '.join(too_long)}. The "
+            "diagram takes a short name; the sentence belongs in the text "
+            "underneath it."
+        )
 
-      <line x1="188" y1="43" x2="214" y2="43" stroke="{INK_MUTED}"
-            stroke-width="1" stroke-dasharray="3,3"/>
-      <polygon points="222,43 214,39 214,47" fill="{INK_MUTED}"/>
+    shown = tuple(conditions[:_BOUND_MAX_BRANCHES])
+    last_y = _BOUND_FIRST_BRANCH_Y + (len(shown) - 1) * _BOUND_BRANCH_STEP
 
-      <rect x="228" y="26" width="144" height="34" rx="4" fill="none"
-            stroke="{INK_MUTED}" stroke-width="1.5" stroke-dasharray="4,3"/>
-      <text x="238" y="42" font-size="9" fill="{INK_MUTED}">Not established</text>
-      <text x="238" y="54" font-size="9" fill="{INK_MUTED}">{unresolved}</text>
+    branches = "".join(
+        f'<line x1="{_BOUND_TRUNK_X:.0f}" y1="{y:.0f}" '
+        f'x2="{_BOUND_TRUNK_X + 16:.0f}" y2="{y:.0f}" stroke="{INK_MUTED}" '
+        f'stroke-width="1"/>'
+        f'<circle cx="{_BOUND_TRUNK_X + 20:.0f}" cy="{y:.0f}" r="3.5" '
+        f'fill="{INK_MUTED}"/>'
+        f'<text x="{_BOUND_TRUNK_X + 32:.0f}" y="{y + 5:.0f}" font-size="14" '
+        f'fill="{INK_MUTED}">{name}</text>'
+        for name, y in (
+            (name, _BOUND_FIRST_BRANCH_Y + index * _BOUND_BRANCH_STEP)
+            for index, name in enumerate(shown)
+        )
+    )
 
-      <line x1="300" y1="60" x2="300" y2="84" stroke="{INK_MUTED}"
-            stroke-width="1" stroke-dasharray="3,3"/>
-      <text x="228" y="80" font-size="8" fill="{INK_MUTED}">
-        which would need:
-      </text>
-      {rows}
-      {more}
-    </svg>
-    """
+    remaining = len(conditions) - len(shown)
+    more = ""
+    if remaining:
+        more = (
+            f'<text x="{_BOUND_TRUNK_X + 32:.0f}" '
+            f'y="{last_y + _BOUND_BRANCH_STEP + 5:.0f}" font-size="14" '
+            f'fill="{INK_MUTED}">and {remaining} more</text>'
+        )
+        last_y += _BOUND_BRANCH_STEP
+
+    height = last_y + 24
+
+    inner = (
+        # The rule, in two pieces, so the one gap in it is where the
+        # inference crosses.
+        f'<line x1="{_BOUND_RULE_X:.0f}" y1="6" x2="{_BOUND_RULE_X:.0f}" '
+        f'y2="32" stroke="{INK_MUTED}" stroke-width="1" '
+        f'stroke-dasharray="{visuals.DASH_GUIDE}"/>'
+        f'<line x1="{_BOUND_RULE_X:.0f}" y1="66" x2="{_BOUND_RULE_X:.0f}" '
+        f'y2="{height - 6:.0f}" stroke="{INK_MUTED}" stroke-width="1" '
+        f'stroke-dasharray="{visuals.DASH_GUIDE}"/>'
+        + _bound_claim_box(
+            0, _BOUND_LEFT_END, "Established here", established, established=True
+        )
+        + _bound_claim_box(
+            _BOUND_RIGHT_START,
+            _BOUND_W - _BOUND_RIGHT_START,
+            "Not established here",
+            unresolved,
+            established=False,
+        )
+        + visuals.arrow(
+            _BOUND_LEFT_END + 6,
+            49,
+            _BOUND_RIGHT_START - 6,
+            49,
+            established=False,
+            head=5.0,
+        )
+        + f'<line x1="{_BOUND_TRUNK_X:.0f}" y1="120" '
+        f'x2="{_BOUND_TRUNK_X:.0f}" y2="{last_y:.0f}" stroke="{INK_MUTED}" '
+        f'stroke-width="1"/>'
+        + f'<text x="{_BOUND_RIGHT_START:.0f}" y="112" font-size="12" '
+        f'fill="{INK_MUTED}">Which would require:</text>'
+        + branches
+        + more
+    )
+
+    return visuals.figure(
+        inner,
+        width=_BOUND_W,
+        height=height,
+        label=(
+            f"This analysis establishes {established}. It does not "
+            f"establish {unresolved}, which rests on {len(conditions)} "
+            "conditions the design cannot settle: "
+            f"{', '.join(conditions)}."
+        ),
+    )
 
 
 def render_did_teaching_example(domain_id: str) -> None:
@@ -1781,28 +1877,20 @@ if "pe_recommendation" in st.session_state:
                 )
 
                 # Lead with where support stops, then explain it. The
-                # conditions come from the recommendation's own warnings
-                # for every design, and from the DiD assumptions where
-                # those exist, so the diagram cannot drift from the text
-                # underneath it.
-                if method == "estimate_did":
-                    conditions = tuple(
-                        a.name for a in interpret.did_assumptions()
-                    )
-                else:
-                    conditions = tuple(
-                        w.split(".")[0] for w in recommendation.warnings
-                    )
-
-                if conditions:
-                    st.markdown(
-                        _support_boundary_svg(
-                            "a difference between the groups observed",
-                            "the program produced it",
-                            conditions,
-                        ),
-                        unsafe_allow_html=True,
-                    )
+                # names come from core, per method, so the branches on
+                # the diagram and the statements underneath it are the
+                # same list. They used to be the first sentence of each
+                # recommender warning, which put a 160-character sentence
+                # on a branch label: not truncated but off the canvas,
+                # and invisible on every design except this one.
+                st.markdown(
+                    _support_boundary_svg(
+                        "the difference these data show",
+                        "that the program produced it",
+                        interpret.support_boundary_conditions(method),
+                    ),
+                    unsafe_allow_html=True,
+                )
 
                 caveat(interpret.P_VALUE_NOTE)
 
