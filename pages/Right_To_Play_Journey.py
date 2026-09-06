@@ -40,7 +40,7 @@ from modules.right_to_play.core import study
 from shared import visuals
 from shared.datasets import get_dataset
 from shared.journey_stages import StageTracker
-from shared.report import caveat, implications, inspect_note, section_header
+from shared.report import caveat, inspect_note, section_header
 
 st.set_page_config(
     page_title="OpenMeasure - Right To Play",
@@ -100,10 +100,18 @@ _ARM_X = 150.0
 _BOXES_PER_ARM = 4
 
 
-def _label(x: float, y: float, text: str, *, size: int = 13, color: str = INK) -> str:
+def _label(
+    x: float,
+    y: float,
+    text: str,
+    *,
+    size: int = 13,
+    color: str = INK,
+    anchor: str = "start",
+) -> str:
     return (
-        f'<text x="{x:.0f}" y="{y:.0f}" font-size="{size}" fill="{color}">'
-        f"{text}</text>"
+        f'<text x="{x:.0f}" y="{y:.0f}" font-size="{size}" fill="{color}" '
+        f'text-anchor="{anchor}">{text}</text>'
     )
 
 
@@ -215,12 +223,216 @@ def _cluster_randomization_svg() -> str:
 
 
 def _fact_table(facts, heading: str) -> None:
-    """One group of facts, each with how it is known."""
+    """
+    One group of facts, each badged with how it is known.
+
+    The badge rather than the sentence. Printing "Reported by the
+    publication" and a full citation under every row turned six facts
+    into six paragraphs, and at that point a reader's question is only
+    which of the three states this is. The citations move into one
+    expander, where they are still one click from the fact they belong
+    to.
+    """
     st.markdown(f"**{heading}**")
 
     for fact in facts:
-        st.markdown(f"{fact.label}  \n{fact.value}")
-        st.caption(f"{fact.provenance}. {fact.source}")
+        badge_column, fact_column = st.columns([1, 4])
+        with badge_column:
+            st.badge(
+                fact.badge,
+                color="blue" if fact.is_established else "gray",
+            )
+        with fact_column:
+            st.markdown(f"**{fact.label}**  \n{fact.value}")
+
+    with st.expander("Sources for the above"):
+        for fact in facts:
+            st.caption(f"**{fact.label}**: {fact.provenance}. {fact.source}")
+
+
+# The measurement map. Peer violence was measured as two separate things,
+# being victimized and perpetrating, on two separate scales. Listed as
+# three instruments that structure disappears; drawn, it is the first
+# thing a reader sees.
+def _measurement_map_svg(constructs) -> str:
+    """
+    Constructs, the facets they were split into, and the instruments.
+
+    Facets are laid out across the whole width rather than inside their
+    construct's box. Nesting them made two columns 110 pixels wide, and
+    "Peer Victimization Scale" and "Peer Perpetration Scale" ran into
+    each other; an instrument's real name is not something to shorten to
+    fit a diagram.
+    """
+    total_facets = sum(len(construct.facets) for construct in constructs)
+    slot = 640.0 / total_facets
+    inner = ""
+    facet_index = 0
+
+    for construct in constructs:
+        first = facet_index
+        last = facet_index + len(construct.facets) - 1
+        centre = slot * (first + last + 1) / 2
+        box_half = min(slot * len(construct.facets) / 2 - 8, 150)
+
+        inner += (
+            f'<rect x="{centre - box_half:.0f}" y="8" '
+            f'width="{box_half * 2:.0f}" height="38" rx="5" fill="none" '
+            f'stroke="{ACCENT}" stroke-width="1.5"/>'
+            + _label(
+                centre, 33, construct.name, size=14, color=ACCENT, anchor="middle"
+            )
+        )
+
+        for facet in construct.facets:
+            x = slot * (facet_index + 0.5)
+            inner += (
+                f'<path d="M {centre:.0f} 46 V 62 H {x:.0f} V 78" '
+                f'fill="none" stroke="{INK}" stroke-width="1"/>'
+                + _label(x, 96, facet.name, size=13, anchor="middle")
+                + f'<line x1="{x:.0f}" y1="108" x2="{x:.0f}" y2="128" '
+                f'stroke="{INK}" stroke-width="1" '
+                f'stroke-dasharray="{visuals.DASH_GUIDE}"/>'
+                + _label(x, 148, facet.instrument, size=12, anchor="middle")
+            )
+            facet_index += 1
+
+    inner += _label(
+        320,
+        184,
+        "The dashed line is where a construct becomes an instrument",
+        size=12,
+        anchor="middle",
+    )
+
+    return visuals.figure(
+        inner,
+        width=640,
+        height=200,
+        label=(
+            "What the study set out to measure, split into the aspects it "
+            "was measured as, and the instrument standing in for each: "
+            + "; ".join(
+                f"{construct.name} as "
+                + " and ".join(
+                    f"{facet.name} on the {facet.instrument}"
+                    for facet in construct.facets
+                )
+                for construct in constructs
+            )
+            + "."
+        ),
+    )
+
+
+# How wide a listed artifact can be before it runs into the column beside
+# it. The full label is in the expander under the figure, so this
+# shortens rather than refusing: unlike an instrument's name, a
+# shortened artifact label is still recognisable.
+_ARTIFACT_LABEL_LIMIT = 30
+
+
+def _short(value: str) -> str:
+    """An artifact label, shortened to fit its column."""
+    if len(value) <= _ARTIFACT_LABEL_LIMIT:
+        return value
+
+    return value[: _ARTIFACT_LABEL_LIMIT - 1] + "\u2026"
+
+
+# The replication boundary. The payoff of the journey, and previously two
+# columns of text.
+#
+# Drawn as one study splitting into what exists and what does not, and
+# the two arriving at different places: the available artifacts support
+# inspecting the study, and nothing supports recomputing its effect. The
+# cross is the point, and it marks a boundary rather than a fault.
+def _boundary_svg(boundary) -> str:
+    """One published study, and where each half of it can be taken."""
+    left, right = 160.0, 480.0
+    row_step = 22.0
+    first_row = 134.0
+
+    def _column(x, heading, facts, *, established):
+        colour = ACCENT if established else INK
+        dash = (
+            "" if established else f' stroke-dasharray="{visuals.DASH_UNESTABLISHED}"'
+        )
+        rows = "".join(
+            _label(
+                x,
+                first_row + index * row_step,
+                _short(fact.label),
+                size=12,
+                anchor="middle",
+            )
+            for index, fact in enumerate(facts)
+        )
+
+        return (
+            f'<path d="M 320 62 H {x:.0f} V 76" fill="none" '
+            f'stroke="{INK}" stroke-width="1"{dash}/>'
+            + f'<rect x="{x - 140:.0f}" y="76" width="280" height="34" rx="5" '
+            f'fill="none" stroke="{colour}" stroke-width="1.5"{dash}/>'
+            + _label(x, 99, heading, size=14, color=colour, anchor="middle")
+            + rows
+        )
+
+    rows_end = first_row + max(
+        len(boundary.established), len(boundary.unresolved)
+    ) * row_step
+    outcome_y = rows_end + 46
+
+    inner = (
+        _label(320, 26, "The published study", size=15, anchor="middle")
+        + f'<path d="M 320 34 V 62" fill="none" stroke="{INK}" '
+        f'stroke-width="1"/>'
+        + _column(left, "Available", boundary.established, established=True)
+        + _column(right, "Not available", boundary.unresolved, established=False)
+        # Where each half can be taken. Solid down to what is supported;
+        # dashed to a stop at what is not.
+        + visuals.arrow(
+            left, rows_end + 4, left, outcome_y - 18, established=True
+        )
+        + _label(
+            left,
+            outcome_y,
+            "Inspect the study",
+            size=14,
+            color=ACCENT,
+            anchor="middle",
+        )
+        + _label(left, outcome_y + 20, "supported", size=12, anchor="middle")
+        + f'<line x1="{right:.0f}" y1="{rows_end + 4:.0f}" x2="{right:.0f}" '
+        f'y2="{outcome_y - 30:.0f}" stroke="{INK}" stroke-width="1" '
+        f'stroke-dasharray="{visuals.DASH_UNESTABLISHED}"/>'
+        + f'<line x1="{right - 8:.0f}" y1="{outcome_y - 30:.0f}" '
+        f'x2="{right + 8:.0f}" y2="{outcome_y - 16:.0f}" stroke="{INK}" '
+        f'stroke-width="1.5"/>'
+        + f'<line x1="{right + 8:.0f}" y1="{outcome_y - 30:.0f}" '
+        f'x2="{right - 8:.0f}" y2="{outcome_y - 16:.0f}" stroke="{INK}" '
+        f'stroke-width="1.5"/>'
+        + _label(
+            right, outcome_y, "Recompute the effect", size=14, anchor="middle"
+        )
+        + _label(right, outcome_y + 20, "not supported", size=12, anchor="middle")
+    )
+
+    return visuals.figure(
+        inner,
+        width=640,
+        height=outcome_y + 38,
+        label=(
+            "The published study divides into artifacts that exist and "
+            "artifacts that do not. What exists supports inspecting the "
+            "study methodologically: "
+            + ", ".join(fact.label for fact in boundary.established)
+            + ". What is missing is what recomputing the reported effect "
+            "would need, so that path stops: "
+            + ", ".join(fact.label for fact in boundary.unresolved)
+            + "."
+        ),
+    )
 
 
 # ---------------------------------------------------------------------
@@ -282,6 +494,14 @@ section_header(
     "3. Measurement", "The concepts, and the instruments standing in for them"
 )
 
+st.markdown(_measurement_map_svg(study.MEASUREMENT_MAP), unsafe_allow_html=True)
+
+inspect_note(
+    "That peer violence is two things, not one. Being victimized and "
+    "perpetrating were measured on separate scales, which is why the "
+    "trial reports them separately."
+)
+
 _fact_table(study.MEASUREMENT, "What was measured, and with what")
 
 st.caption(
@@ -322,26 +542,29 @@ if stage < STAGE_BOUNDARY:
 
 section_header(
     "5. Replication Boundary",
-    "What you could check yourself, and what you could not",
+    "What the available artifacts support, and where that stops",
 )
 
 boundary = study.replication_boundary()
 
-established_column, unresolved_column = st.columns(2)
+st.markdown(_boundary_svg(boundary), unsafe_allow_html=True)
 
-with established_column:
-    st.markdown("**Available**")
-    for fact in boundary.established:
-        st.markdown(f"- {fact.label}")
+st.markdown(f"**{boundary.lesson}**")
 
-with unresolved_column:
-    st.markdown("**Not available, or incompletely reported**")
-    for fact in boundary.unresolved:
-        st.markdown(f"- {fact.label}")
+with st.expander("Every artifact, and which side it falls on"):
+    established_column, unresolved_column = st.columns(2)
 
-st.divider()
+    with established_column:
+        st.markdown("**Available**")
+        for fact in boundary.established:
+            st.markdown(f"- {fact.label}")
+            st.caption(fact.value)
 
-implications(boundary.lesson)
+    with unresolved_column:
+        st.markdown("**Not available, or incompletely reported**")
+        for fact in boundary.unresolved:
+            st.markdown(f"- {fact.label}")
+            st.caption(fact.value)
 
 caveat(
     "None of this is a criticism of the study. Publishing a baseline wave "

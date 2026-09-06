@@ -167,5 +167,81 @@ class TestCitationsMatchTheCatalog(unittest.TestCase):
         self.assertNotIn("PLOS ONE", study.TRIAL_CITATION)
 
 
+class TestProvenanceBadges(unittest.TestCase):
+    """
+    The short form, for sitting beside a fact rather than under it.
+    """
+
+    def test_every_state_has_a_badge(self):
+        for state in study.PROVENANCE_STATES:
+            with self.subTest(state=state):
+                self.assertIn(state, study.PROVENANCE_BADGES)
+
+    def test_a_badge_is_short_enough_to_sit_beside_a_fact(self):
+        for badge in study.PROVENANCE_BADGES.values():
+            with self.subTest(badge=badge):
+                self.assertLessEqual(len(badge), 16)
+
+    def test_the_badges_stay_distinguishable(self):
+        self.assertEqual(
+            len(set(study.PROVENANCE_BADGES.values())),
+            len(study.PROVENANCE_STATES),
+        )
+
+    def test_every_fact_can_produce_one(self):
+        for fact in ALL_FACTS:
+            with self.subTest(fact=fact.label):
+                self.assertTrue(fact.badge)
+
+
+class TestMeasurementMap(unittest.TestCase):
+    """
+    Peer violence was measured as two separate things, on two separate
+    scales. A list of three instruments hides that.
+    """
+
+    def test_peer_violence_splits_into_two_facets(self):
+        violence = next(
+            construct
+            for construct in study.MEASUREMENT_MAP
+            if construct.name == "Peer violence"
+        )
+
+        self.assertEqual(len(violence.facets), 2)
+
+    def test_the_two_facets_use_different_instruments(self):
+        violence = next(
+            construct
+            for construct in study.MEASUREMENT_MAP
+            if construct.name == "Peer violence"
+        )
+        instruments = {facet.instrument for facet in violence.facets}
+
+        self.assertEqual(len(instruments), 2)
+
+    def test_every_instrument_named_also_appears_in_the_facts(self):
+        """
+        So the diagram and the cited list cannot drift apart.
+        """
+        recorded = " ".join(fact.value for fact in study.MEASUREMENT)
+
+        for construct in study.MEASUREMENT_MAP:
+            for facet in construct.facets:
+                with self.subTest(instrument=facet.instrument):
+                    self.assertIn(facet.instrument, recorded)
+
+    def test_a_facet_without_an_instrument_is_rejected(self):
+        with self.assertRaises(ValueError) as raised:
+            study.MeasuredFacet("Something", "")
+
+        self.assertIn("was not measured", str(raised.exception))
+
+    def test_a_construct_with_no_facets_is_rejected(self):
+        with self.assertRaises(ValueError) as raised:
+            study.MeasuredConstruct("Something", ())
+
+        self.assertIn("names no facets", str(raised.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

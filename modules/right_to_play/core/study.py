@@ -40,6 +40,18 @@ PROVENANCE_STATES: frozenset[str] = frozenset(
     {REPORTED, CALCULATED, NOT_ESTABLISHED}
 )
 
+# The same three states, short enough to sit beside a fact rather than
+# under it. Printing the full state and citation on every row turned six
+# facts into six paragraphs, and the reader's question at that point is
+# only which of the three this is; the citation is what they open when
+# the answer surprises them.
+PROVENANCE_BADGES: dict[str, str] = {
+    REPORTED: "Publication",
+    CALCULATED: "OpenMeasure",
+    NOT_ESTABLISHED: "Not established",
+}
+
+
 BASELINE_CITATION = (
     "Karmaliani, R., McFarlane, J., Somani, R., Khuwaja, H. M. A., "
     "Bhamani, S. S., Ali, T. S., Gulzar, S., Somani, Y., Chirwa, E. D., & "
@@ -84,6 +96,11 @@ class StudyFact:
     def is_established(self) -> bool:
         """Whether the artifacts settle this."""
         return self.provenance != NOT_ESTABLISHED
+
+    @property
+    def badge(self) -> str:
+        """The short form, for sitting beside the fact rather than under it."""
+        return PROVENANCE_BADGES[self.provenance]
 
 
 DESIGN: tuple[StudyFact, ...] = (
@@ -158,6 +175,54 @@ MEASUREMENT: tuple[StudyFact, ...] = (
         source=CATALOG_ENTRY,
     ),
 )
+
+@dataclass(frozen=True)
+class MeasuredFacet:
+    """One aspect of a construct, and the instrument standing in for it."""
+
+    name: str
+    instrument: str
+
+    def __post_init__(self) -> None:
+        if not self.name or not self.instrument:
+            raise ValueError(
+                f"{self.name or 'A facet'} needs both a name and an "
+                "instrument. A facet with no instrument was not measured."
+            )
+
+
+@dataclass(frozen=True)
+class MeasuredConstruct:
+    """One thing the study set out to measure, and how it was split."""
+
+    name: str
+    facets: tuple[MeasuredFacet, ...]
+
+    def __post_init__(self) -> None:
+        if not self.facets:
+            raise ValueError(f"{self.name} names no facets.")
+
+
+# What the instruments stand in for, as a structure rather than a list.
+#
+# Peer violence was measured as two separate things, being victimized and
+# perpetrating, on two separate scales. A list of three instruments hides
+# that; drawn, it is the first thing a reader sees, and it is what makes
+# the trial's outcomes legible.
+MEASUREMENT_MAP: tuple[MeasuredConstruct, ...] = (
+    MeasuredConstruct(
+        name="Peer violence",
+        facets=(
+            MeasuredFacet("Being victimized", "Peer Victimization Scale"),
+            MeasuredFacet("Perpetrating", "Peer Perpetration Scale"),
+        ),
+    ),
+    MeasuredConstruct(
+        name="Depressive symptoms",
+        facets=(MeasuredFacet("Depressive symptoms", "CDI-2"),),
+    ),
+)
+
 
 ARTIFACTS: tuple[StudyFact, ...] = (
     StudyFact(
