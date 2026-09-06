@@ -229,6 +229,81 @@ _BOUNDARY_CONDITIONS: dict[str, tuple[str, ...]] = {
 }
 
 
+@dataclass(frozen=True)
+class BoundaryClaims:
+    """The two sides of a support boundary, as short lines to be drawn."""
+
+    established: tuple[str, ...]
+    unresolved: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        for side, lines in (
+            ("established", self.established),
+            ("unresolved", self.unresolved),
+        ):
+            if not lines:
+                raise ValueError(f"The {side} side of a boundary has no text.")
+
+            for line in lines:
+                if len(line) > SUPPORT_BOUNDARY_LABEL_LIMIT:
+                    raise ValueError(
+                        f"'{line}' is longer than "
+                        f"{SUPPORT_BOUNDARY_LABEL_LIMIT} characters and "
+                        "would run off the boundary figure. Claims are "
+                        "drawn as fixed lines, not wrapped."
+                    )
+
+
+# What each analysis does and does not settle, named for the comparison
+# it actually ran. A generic "the difference these data show" is true of
+# every method and specific to none, and the boundary is easier to read
+# when the left side names the quantity the reader just saw computed.
+#
+# Neither side depends on the p-value. The estimate is established
+# whatever its size; what the conditions underneath stand between is the
+# estimate and its cause, which is a separate question from whether the
+# difference was large enough to notice.
+_GROUP_COMPARISON_CLAIMS = BoundaryClaims(
+    established=("How far apart the groups are", "on this outcome, measured once"),
+    unresolved=("That the program put them apart,", "rather than something else"),
+)
+
+_BOUNDARY_CLAIMS: dict[str, BoundaryClaims] = {
+    "estimate_did": BoundaryClaims(
+        established=(
+            "How much more the treated group",
+            "changed than the comparison group",
+        ),
+        unresolved=("That the program caused that gap,", "rather than something else"),
+    ),
+    "compare_pre_post": BoundaryClaims(
+        established=("How much this group changed", "between the two measurements"),
+        unresolved=("That the program caused it,", "rather than something else"),
+    ),
+    "compare_two_groups": _GROUP_COMPARISON_CLAIMS,
+    "compare_multiple_groups_welch": _GROUP_COMPARISON_CLAIMS,
+    "compare_categorical": _GROUP_COMPARISON_CLAIMS,
+    "sensitivity_analysis": _GROUP_COMPARISON_CLAIMS,
+}
+
+
+def support_boundary_claims(method: str) -> BoundaryClaims:
+    """
+    What this analysis settles, and what it leaves to the conditions.
+
+    Raises on an unknown method for the same reason
+    support_boundary_conditions does: a boundary drawn with no claim on
+    either side would say less than nothing.
+    """
+    if method not in _BOUNDARY_CLAIMS:
+        raise ValueError(
+            f"'{method}' has no support-boundary claims. Known methods: "
+            f"{', '.join(sorted(_BOUNDARY_CLAIMS))}."
+        )
+
+    return _BOUNDARY_CLAIMS[method]
+
+
 def support_boundary_conditions(method: str) -> tuple[str, ...]:
     """
     The short names of what a design leaves between the difference it

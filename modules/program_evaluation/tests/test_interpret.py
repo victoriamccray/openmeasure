@@ -320,5 +320,96 @@ class TestSupportBoundaryConditions(unittest.TestCase):
                     self.assertIn(name.lower(), warning_text)
 
 
+class TestSupportBoundaryClaims(unittest.TestCase):
+    """
+    The two sides of the boundary, named for the comparison that ran.
+
+    A single generic pair read "the difference these data show" against
+    "that the program produced it", which is true of every method and
+    specific to none.
+    """
+
+    METHODS = TestSupportBoundaryConditions.ANALYSABLE_METHODS
+
+    def test_every_analysable_method_has_both_sides(self):
+        for method in self.METHODS:
+            with self.subTest(method=method):
+                claims = interpret.support_boundary_claims(method)
+                self.assertTrue(claims.established)
+                self.assertTrue(claims.unresolved)
+
+    def test_every_line_fits_the_figure_that_draws_it(self):
+        for method in self.METHODS:
+            claims = interpret.support_boundary_claims(method)
+            for line in claims.established + claims.unresolved:
+                with self.subTest(method=method, line=line):
+                    self.assertLessEqual(
+                        len(line), interpret.SUPPORT_BOUNDARY_LABEL_LIMIT
+                    )
+
+    def test_each_design_names_its_own_comparison(self):
+        """
+        The left box says which quantity was settled, so the three
+        designs cannot share one sentence.
+        """
+        did = " ".join(interpret.support_boundary_claims("estimate_did").established)
+        pre_post = " ".join(
+            interpret.support_boundary_claims("compare_pre_post").established
+        )
+        groups = " ".join(
+            interpret.support_boundary_claims("compare_two_groups").established
+        )
+
+        self.assertIn("comparison group", did)
+        self.assertIn("between the two measurements", pre_post)
+        self.assertIn("measured once", groups)
+        self.assertEqual(len({did, pre_post, groups}), 3)
+
+    def test_neither_side_asserts_a_finding(self):
+        """
+        The estimate is established whatever its size. A boundary that
+        said a difference was found would be wrong on every null result.
+        """
+        for method in self.METHODS:
+            claims = interpret.support_boundary_claims(method)
+            text = " ".join(claims.established + claims.unresolved).lower()
+            for word in ("significant", "detected", "found a", "proves"):
+                with self.subTest(method=method, word=word):
+                    self.assertNotIn(word, text)
+
+    def test_an_over_long_line_is_rejected(self):
+        with self.assertRaises(ValueError) as raised:
+            interpret.BoundaryClaims(
+                established=("x" * 80,),
+                unresolved=("Something",),
+            )
+
+        self.assertIn("run off", str(raised.exception))
+
+    def test_a_side_with_no_text_is_rejected(self):
+        with self.assertRaises(ValueError) as raised:
+            interpret.BoundaryClaims(established=(), unresolved=("Something",))
+
+        self.assertIn("established", str(raised.exception))
+
+    def test_an_unknown_method_raises_and_names_the_known_ones(self):
+        with self.assertRaises(ValueError) as raised:
+            interpret.support_boundary_claims("regression_discontinuity")
+
+        message = str(raised.exception)
+        self.assertIn("regression_discontinuity", message)
+        self.assertIn("estimate_did", message)
+
+    def test_claims_and_conditions_cover_the_same_methods(self):
+        """
+        The diagram needs both for the method it is drawing. A method
+        with one and not the other renders half a figure.
+        """
+        for method in self.METHODS:
+            with self.subTest(method=method):
+                self.assertTrue(interpret.support_boundary_claims(method))
+                self.assertTrue(interpret.support_boundary_conditions(method))
+
+
 if __name__ == "__main__":
     unittest.main()

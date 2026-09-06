@@ -520,13 +520,13 @@ def _design_diagram_svg(design_id: str, treated: str, comparison: str) -> str:
 # crosses dashed, which is the whole claim of the diagram: support does
 # not extend to the right-hand side on its own.
 _BOUND_W = 640.0
-_BOUND_BOX_H = 68.0
+_BOUND_BOX_H = 92.0
 _BOUND_LEFT_END, _BOUND_RIGHT_START = 290.0, 350.0
 _BOUND_RULE_X = 316.0
 
 # Where the branches start and how far apart they sit.
 _BOUND_TRUNK_X = 362.0
-_BOUND_FIRST_BRANCH_Y = 136.0
+_BOUND_FIRST_BRANCH_Y = 160.0
 _BOUND_BRANCH_STEP = 28.0
 
 # More than this and the list stops being readable as a set of
@@ -535,7 +535,12 @@ _BOUND_MAX_BRANCHES = 6
 
 
 def _bound_claim_box(
-    x: float, width: float, heading: str, claim: str, *, established: bool
+    x: float,
+    width: float,
+    heading: str,
+    lines: tuple[str, ...],
+    *,
+    established: bool,
 ) -> str:
     """One side of the boundary: a claim, and whether this analysis got it."""
     stroke = ACCENT if established else INK_MUTED
@@ -545,20 +550,30 @@ def _bound_claim_box(
         else f' stroke-dasharray="{visuals.DASH_UNESTABLISHED}"'
     )
 
+    claim = "".join(
+        f'<text x="{x + 16:.0f}" y="{68 + index * 22:.0f}" font-size="14" '
+        f'fill="{INK_MUTED}">{line}</text>'
+        for index, line in enumerate(lines)
+    )
+
     return (
         f'<rect x="{x:.0f}" y="16" width="{width:.0f}" '
         f'height="{_BOUND_BOX_H:.0f}" rx="5" fill="none" stroke="{stroke}" '
         f'stroke-width="1.5"{dash}/>'
-        f'<text x="{x + 16:.0f}" y="44" font-size="12" fill="{stroke}">'
+        f'<text x="{x + 16:.0f}" y="42" font-size="12" fill="{stroke}">'
         f"{heading}</text>"
-        f'<text x="{x + 16:.0f}" y="68" font-size="14" fill="{INK_MUTED}">'
-        f"{claim}</text>"
+        + claim
     )
 
 
-def _support_boundary_svg(established: str, unresolved: str, conditions: tuple) -> str:
+def _support_boundary_svg(claims, conditions: tuple) -> str:
     """
     What this result supports, and where support stops.
+
+    claims names both sides for the comparison that actually ran, so
+    the left box says which quantity this analysis settled rather than
+    "the difference these data show", which is true of every method and
+    specific to none.
 
     conditions are the things that would have to hold for the second
     claim to follow from the first. They branch off the unresolved side
@@ -623,33 +638,37 @@ def _support_boundary_svg(established: str, unresolved: str, conditions: tuple) 
         # The rule, in two pieces, so the one gap in it is where the
         # inference crosses.
         f'<line x1="{_BOUND_RULE_X:.0f}" y1="6" x2="{_BOUND_RULE_X:.0f}" '
-        f'y2="32" stroke="{INK_MUTED}" stroke-width="1" '
+        f'y2="46" stroke="{INK_MUTED}" stroke-width="1" '
         f'stroke-dasharray="{visuals.DASH_GUIDE}"/>'
-        f'<line x1="{_BOUND_RULE_X:.0f}" y1="66" x2="{_BOUND_RULE_X:.0f}" '
+        f'<line x1="{_BOUND_RULE_X:.0f}" y1="78" x2="{_BOUND_RULE_X:.0f}" '
         f'y2="{height - 6:.0f}" stroke="{INK_MUTED}" stroke-width="1" '
         f'stroke-dasharray="{visuals.DASH_GUIDE}"/>'
         + _bound_claim_box(
-            0, _BOUND_LEFT_END, "Established here", established, established=True
+            0,
+            _BOUND_LEFT_END,
+            "Established here",
+            claims.established,
+            established=True,
         )
         + _bound_claim_box(
             _BOUND_RIGHT_START,
             _BOUND_W - _BOUND_RIGHT_START,
             "Not established here",
-            unresolved,
+            claims.unresolved,
             established=False,
         )
         + visuals.arrow(
             _BOUND_LEFT_END + 6,
-            49,
+            62,
             _BOUND_RIGHT_START - 6,
-            49,
+            62,
             established=False,
             head=5.0,
         )
-        + f'<line x1="{_BOUND_TRUNK_X:.0f}" y1="120" '
+        + f'<line x1="{_BOUND_TRUNK_X:.0f}" y1="144" '
         f'x2="{_BOUND_TRUNK_X:.0f}" y2="{last_y:.0f}" stroke="{INK_MUTED}" '
         f'stroke-width="1"/>'
-        + f'<text x="{_BOUND_RIGHT_START:.0f}" y="112" font-size="12" '
+        + f'<text x="{_BOUND_RIGHT_START:.0f}" y="136" font-size="12" '
         f'fill="{INK_MUTED}">Which would require:</text>'
         + branches
         + more
@@ -660,9 +679,10 @@ def _support_boundary_svg(established: str, unresolved: str, conditions: tuple) 
         width=_BOUND_W,
         height=height,
         label=(
-            f"This analysis establishes {established}. It does not "
-            f"establish {unresolved}, which rests on {len(conditions)} "
-            "conditions the design cannot settle: "
+            "This analysis establishes "
+            f"{' '.join(claims.established).lower()}. It does not establish "
+            f"{' '.join(claims.unresolved).lower()}. That rests on "
+            f"{len(conditions)} conditions the design cannot settle: "
             f"{', '.join(conditions)}."
         ),
     )
@@ -1885,8 +1905,7 @@ if "pe_recommendation" in st.session_state:
                 # and invisible on every design except this one.
                 st.markdown(
                     _support_boundary_svg(
-                        "the difference these data show",
-                        "that the program produced it",
+                        interpret.support_boundary_claims(method),
                         interpret.support_boundary_conditions(method),
                     ),
                     unsafe_allow_html=True,
