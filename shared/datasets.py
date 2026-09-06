@@ -459,4 +459,52 @@ DATASETS: tuple[RealDataset, ...] = (
             "al. (2020). Global Health Action, 13(1), 1836604."
         ),
     ),
+    RealDataset(
+        id="nwss_wastewater_metrics",
+        name="CDC NWSS public SARS-CoV-2 wastewater metrics",
+        domain="Public health surveillance",
+        description=(
+            "Site-level SARS-CoV-2 wastewater measurements from the "
+            "National Wastewater Surveillance System, 837,382 rows across "
+            "all reporting sites, each row a site and a date with a "
+            "percentile and a 15-day percent change. One site is one time "
+            "series, selected through key_plot_id, and choosing which site "
+            "to inspect is the reader's first decision. Values arrive as "
+            "text and need parsing, and a -99 in ptc_15d is a sentinel "
+            "rather than a measurement. Checked across 400 sites, every "
+            "one had complete daily coverage: these series are placed on a "
+            "regular grid upstream, so they show what an intact time axis "
+            "looks like and cannot demonstrate outages, duplicate "
+            "timestamps or out-of-order rows."
+        ),
+        try_with=("Time-Series QA",),
+        explore_question=(
+            "What does a healthy surveillance series look like on the "
+            "checks this module runs, and what would have to be different "
+            "about the data for any of them to fire?"
+        ),
+        access=ACCESS_OPEN,
+        # CDC data, a US federal work not subject to domestic copyright,
+        # so redistribution is established on the same footing as NHANES.
+        # Fetched on request and necessarily so: the full extract is
+        # 837,382 rows, and the Socrata API takes a $where filter, so a
+        # single site's series is a request rather than a download.
+        delivery=DELIVERY_REMOTE_FETCH,
+        redistribution_permitted=True,
+        sources=(
+            DataSource(
+                label="Dataset page (data.cdc.gov)",
+                url="https://data.cdc.gov/Public-Health-Surveillance/NWSS-Public-SARS-CoV-2-Wastewater-Metric-Data/2ew6-ywp6",
+            ),
+            DataSource(
+                label="Socrata API endpoint, filterable by site",
+                url="https://data.cdc.gov/resource/2ew6-ywp6.json",
+            ),
+        ),
+        citation=(
+            "Centers for Disease Control and Prevention. NWSS Public "
+            "SARS-CoV-2 Wastewater Metric Data. National Wastewater "
+            "Surveillance System, data.cdc.gov dataset 2ew6-ywp6."
+        ),
+    ),
 )

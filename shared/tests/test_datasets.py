@@ -321,6 +321,7 @@ class TestRedistributionIsSeparateFromAccess(unittest.TestCase):
         "diabetes_130_hospitals": "CC BY 4.0, stated on its UCI record",
         "nhanes_dpq_phq9": "US federal public-use file, not subject to domestic copyright",
         "right_to_play_baseline": "CC BY 4.0, PLOS applies it to the works it publishes",
+        "nwss_wastewater_metrics": "CDC, a US federal work not subject to domestic copyright",
     }
 
     def test_redistribution_is_claimed_only_where_it_was_established(self):
@@ -354,6 +355,41 @@ class TestRedistributionIsSeparateFromAccess(unittest.TestCase):
 
         self.assertTrue(diabetes.redistribution_permitted)
         self.assertEqual(diabetes.delivery, DELIVERY_REMOTE_FETCH)
+
+
+class TestNwssCannotDemonstrateFailureModes(unittest.TestCase):
+    """
+    The one entry catalogued partly for what it cannot show. Checked
+    across 400 sites, every one had complete daily coverage, because
+    these series are placed on a regular grid upstream. It is real data
+    for inspecting an intact time axis, and it is not a replacement for
+    the constructed fixture that exercises every finding the module
+    reports.
+    """
+
+    @staticmethod
+    def _entry():
+        return next(d for d in DATASETS if d.id == "nwss_wastewater_metrics")
+
+    def test_the_complete_coverage_is_stated_rather_than_discovered(self):
+        description = self._entry().description
+
+        self.assertIn("400 sites", description)
+        self.assertIn("complete daily coverage", description)
+
+    def test_it_says_which_checks_it_cannot_exercise(self):
+        description = self._entry().description
+
+        for failure in ("outages", "duplicate timestamps", "out-of-order"):
+            with self.subTest(failure=failure):
+                self.assertIn(failure, description)
+
+    def test_the_sentinel_value_is_named(self):
+        """-99 in ptc_15d is not a measurement."""
+        self.assertIn("-99", self._entry().description)
+
+    def test_one_site_is_one_series(self):
+        self.assertIn("key_plot_id", self._entry().description)
 
 
 class TestNhanesProvenanceContract(unittest.TestCase):
