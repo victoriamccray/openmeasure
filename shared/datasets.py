@@ -298,11 +298,20 @@ DATASETS: tuple[RealDataset, ...] = (
             "activity conditions and the two ring designs?"
         ),
         access=ACCESS_OPEN,
-        # Openly downloadable, and deliberately not redistributed here:
-        # modules/healthring/sample_data/README.md records that decision
-        # and checks in no excerpt.
+        # The Zenodo record for RingDatasetV2.1 carries license id
+        # "cc-by-4.0", checked against the record's own API response.
+        # CC BY 4.0 permits redistribution of the dataset and of derived
+        # works with attribution, so a derived subset may be committed
+        # here as long as it travels with its attribution and says what
+        # was done to it.
+        #
+        # This entry previously recorded redistribution_permitted=False.
+        # That was wrong, and the README beside the module recorded the
+        # same mistake. The archive itself stays out of the repository
+        # for size rather than for licence: it is 2.4 GiB against
+        # Streamlit's 200 MB upload cap.
         delivery=DELIVERY_UPLOAD_ONLY,
-        redistribution_permitted=False,
+        redistribution_permitted=True,
         sources=(
             DataSource(
                 label="Zenodo record (RingDatasetV2.1)",

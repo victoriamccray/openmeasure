@@ -282,10 +282,21 @@ class TestRedistributionIsSeparateFromAccess(unittest.TestCase):
     """
 
     def test_an_open_dataset_can_still_be_non_redistributable(self):
-        healthring = next(d for d in DATASETS if d.id == "healthring")
+        """
+        The two are independent, which is the whole point of recording
+        them separately.
 
-        self.assertEqual(healthring.access, ACCESS_OPEN)
-        self.assertFalse(healthring.redistribution_permitted)
+        This used to point at HealthRing, on a reading of its terms that
+        turned out to be wrong: the Zenodo record carries cc-by-4.0. The
+        wastewater linkage is the standing example now, openly published
+        and with no licence recorded that would permit redistributing it.
+        """
+        wastewater = next(
+            d for d in DATASETS if d.id == "wastewater_surveillance_equity"
+        )
+
+        self.assertEqual(wastewater.access, ACCESS_OPEN)
+        self.assertFalse(wastewater.redistribution_permitted)
 
     def test_bundling_without_permission_is_rejected(self):
         with self.assertRaises(ValueError) as raised:
@@ -340,6 +351,10 @@ class TestRedistributionIsSeparateFromAccess(unittest.TestCase):
         "nwss_wastewater_metrics": "CDC, a US federal work not subject to domestic copyright",
         "noaa_lcd_hourly": "NOAA/NCEI, a US federal work not subject to domestic copyright",
         "openmesh_nyc": "CC BY 4.0, stated in the article data availability statement",
+        "healthring": (
+            "CC BY 4.0, license id cc-by-4.0 on Zenodo record 18426864, "
+            "checked against the record API"
+        ),
     }
 
     def test_redistribution_is_claimed_only_where_it_was_established(self):
