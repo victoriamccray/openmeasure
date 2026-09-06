@@ -353,4 +353,53 @@ DATASETS: tuple[RealDataset, ...] = (
             "https://doi.org/10.24432/C5230J"
         ),
     ),
+    RealDataset(
+        id="nhanes_dpq_phq9",
+        name="NHANES depression screener (PHQ-9), 2021-2023",
+        domain="Population health survey / measurement",
+        description=(
+            "Item-level responses from 6,337 NHANES participants to the "
+            "nine-item PHQ-9 depression screener, each item scored 0 to 3. "
+            "The instrument is freely available, so items can be shown by "
+            "their actual wording rather than by variable name. Three "
+            "things need deciding before an internal-consistency estimate "
+            "means anything: codes 7 and 9 are Refused and Don't know "
+            "rather than scores and affect 53 respondents; DPQ100 measures "
+            "functional difficulty and is not one of the nine scored "
+            "items; and pandas reads the file's zero category as a "
+            "denormalized float near 5.4e-79 rather than 0. 5,455 "
+            "respondents answered all nine items with a valid score."
+        ),
+        try_with=("Reliability",),
+        explore_question=(
+            "Do the nine items hold together well enough to be summed into "
+            "one depression score, and which of them behaves least like "
+            "the rest?"
+        ),
+        access=ACCESS_OPEN,
+        # A US federal public-use file, not subject to domestic copyright,
+        # so redistribution is established. Fetched on request anyway: the
+        # file is small, and nothing yet needs a local copy. Read with
+        # pandas.read_sas(format="xport"), which needs no dependency this
+        # project does not already have.
+        delivery=DELIVERY_REMOTE_FETCH,
+        redistribution_permitted=True,
+        sources=(
+            DataSource(
+                label="DPQ_L codebook and variable list (NCHS)",
+                url="https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2021/DataFiles/DPQ_L.htm",
+            ),
+            DataSource(
+                label="DPQ_L data file (SAS transport, .xpt)",
+                url="https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2021/DataFiles/DPQ_L.xpt",
+            ),
+        ),
+        citation=(
+            "Centers for Disease Control and Prevention, National Center "
+            "for Health Statistics. National Health and Nutrition "
+            "Examination Survey, 2021-2023: Mental Health - Depression "
+            "Screener (DPQ_L). Hyattsville, MD: U.S. Department of Health "
+            "and Human Services."
+        ),
+    ),
 )

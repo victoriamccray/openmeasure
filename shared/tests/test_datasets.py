@@ -319,6 +319,7 @@ class TestRedistributionIsSeparateFromAccess(unittest.TestCase):
     # in, it has to be argued for in this list.
     REDISTRIBUTION_ESTABLISHED = {
         "diabetes_130_hospitals": "CC BY 4.0, stated on its UCI record",
+        "nhanes_dpq_phq9": "US federal public-use file, not subject to domestic copyright",
     }
 
     def test_redistribution_is_claimed_only_where_it_was_established(self):
@@ -352,4 +353,76 @@ class TestRedistributionIsSeparateFromAccess(unittest.TestCase):
 
         self.assertTrue(diabetes.redistribution_permitted)
         self.assertEqual(diabetes.delivery, DELIVERY_REMOTE_FETCH)
+
+
+class TestNhanesProvenanceContract(unittest.TestCase):
+    """
+    The NHANES entry exists because three things about the file have to be
+    decided before an internal-consistency estimate means anything. All
+    three were found by reading the file rather than the codebook, and an
+    entry that quietly lost them would send a reader to real data with
+    none of the warnings that made it worth featuring.
+    """
+
+    @staticmethod
+    def _entry():
+        return next(d for d in DATASETS if d.id == "nhanes_dpq_phq9")
+
+    def test_it_is_fetched_rather_than_bundled(self):
+        entry = self._entry()
+
+        self.assertEqual(entry.delivery, DELIVERY_REMOTE_FETCH)
+        self.assertTrue(entry.redistribution_permitted)
+
+    def test_it_is_offered_to_the_reliability_workflow(self):
+        self.assertEqual(self._entry().try_with, ("Reliability",))
+
+    def test_the_refused_and_dont_know_codes_are_named(self):
+        """
+        7 and 9 are not scores on a 0-to-3 item. Read as scores they
+        become extreme values and corrupt alpha silently, which is the
+        failure this description exists to pre-empt.
+        """
+        description = self._entry().description
+
+        self.assertIn("7 and 9", description)
+        self.assertIn("Refused", description)
+
+    def test_the_item_that_is_not_part_of_the_scale_is_named(self):
+        """DPQ100 measures functional difficulty, not a symptom."""
+        self.assertIn("DPQ100", self._entry().description)
+
+    def test_the_zero_decoding_artifact_is_named(self):
+        """
+        pandas' xport reader returns the zero category as a denormalized
+        float rather than 0, so any equality test against 0 fails. Not a
+        property of the data, but a reader hits it either way.
+        """
+        self.assertIn("5.4e-79", self._entry().description)
+
+    def test_both_the_codebook_and_the_data_file_are_linked(self):
+        """
+        A reader needs the codebook to interpret the codes and the file to
+        read them; one without the other is not enough to act on.
+        """
+        labels = " ".join(source.label for source in self._entry().sources)
+
+        self.assertIn("codebook", labels.lower())
+        self.assertIn("data file", labels.lower())
+
+    def test_the_data_file_link_points_at_the_transport_file(self):
+        urls = [source.url for source in self._entry().sources]
+
+        self.assertTrue(any(url.endswith(".xpt") for url in urls))
+
+    def test_the_instrument_is_named_so_items_can_be_shown_by_wording(self):
+        """
+        The reason this beat Right To Play for Reliability: PHQ-9 is
+        freely available, so item diagnostics can carry actual question
+        text rather than variable names.
+        """
+        entry = self._entry()
+
+        self.assertIn("PHQ-9", entry.name)
+        self.assertIn("freely available", entry.description)
 

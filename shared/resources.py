@@ -103,6 +103,20 @@ RESOURCES: tuple[Resource, ...] = (
         url="https://openalex.org/",
     ),
     Resource(
+        name="Open Psychometrics",
+        kind="Measures Repository",
+        description=(
+            "Interactive versions of many validated personality and "
+            "attitude scales, each with the raw item-level responses "
+            "collected through it available for download. Useful for "
+            "seeing how a published scale behaves across tens of "
+            "thousands of respondents. The raw-data pages carry no stated "
+            "licence, so confirm reuse terms before redistributing "
+            "anything obtained there."
+        ),
+        url="https://openpsychometrics.org/",
+    ),
+    Resource(
         name="Neuro2.ai Neuroscience Datasets",
         kind="Dataset Directory",
         description=(
