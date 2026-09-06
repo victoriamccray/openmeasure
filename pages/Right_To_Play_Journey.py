@@ -39,7 +39,7 @@ import streamlit as st
 from modules.right_to_play.core import study
 from shared import visuals
 from shared.datasets import get_dataset
-from shared.journey_stages import StageTracker
+from shared.stage_workspace import Stage, StageWorkspace
 from shared.report import caveat, inspect_note, section_header
 
 st.set_page_config(
@@ -48,22 +48,27 @@ st.set_page_config(
     layout="centered",
 )
 
-STAGE_KEY = "rtp_stage"
-
 STAGE_QUESTION = 0
 STAGE_DESIGN = 1
 STAGE_MEASUREMENT = 2
 STAGE_ARTIFACTS = 3
 STAGE_BOUNDARY = 4
 
-TRACKER = StageTracker(
-    session_key=STAGE_KEY,
-    stage_labels=(
-        "Study question",
-        "Design",
-        "Measurement",
-        "Available artifacts",
-        "Replication boundary",
+# One stage in the workspace at a time, and the rail is how you move.
+# Reading this journey used to mean scrolling past every earlier stage,
+# which made five decisions read as five sections of a report.
+#
+# No gates. Every stage here is something to read rather than something
+# to configure, so nothing a reader does unlocks the next one, and a gate
+# would be a wizard's manners on a page with no use for them.
+WORKSPACE = StageWorkspace(
+    session_key="rtp",
+    stages=(
+        Stage("question", "Question"),
+        Stage("design", "Design"),
+        Stage("measurement", "Measurement"),
+        Stage("artifacts", "Artifacts"),
+        Stage("boundary", "Boundary"),
     ),
 )
 
@@ -448,130 +453,123 @@ st.caption(
 
 st.divider()
 
-stage = TRACKER.render_breadcrumb()
-TRACKER.render_restart_button()
-
-section_header("1. Study Question", "What this trial set out to find out")
+stage = WORKSPACE.render_rail()
+WORKSPACE.render_review_notice()
 
 dataset = get_dataset("right_to_play_baseline")
 
-st.write(dataset.explore_question)
-
-if stage < STAGE_DESIGN:
-    if st.button("Continue to the design", type="primary"):
-        TRACKER.advance_to(STAGE_DESIGN)
-    st.stop()
-
 # ---------------------------------------------------------------------
-# 2. Design
+# Study question
 # ---------------------------------------------------------------------
 
-section_header("2. Design", "What was randomized, and what came with it")
+if stage == STAGE_QUESTION:
+    section_header("Study Question", "What this trial set out to find out")
 
-st.markdown(_cluster_randomization_svg(), unsafe_allow_html=True)
-
-inspect_note(
-    "That the units in the top row are schools, not students. Randomizing "
-    "40 schools is a much smaller randomization than randomizing 1,752 "
-    "students, and it is the whole reason this trial is analysed "
-    "differently."
-)
-
-_fact_table(study.DESIGN, "What is known about the design")
-
-caveat(study.CLUSTERING_LIMIT)
-
-if stage < STAGE_MEASUREMENT:
-    if st.button("Continue to measurement", type="primary"):
-        TRACKER.advance_to(STAGE_MEASUREMENT)
-    st.stop()
+    st.write(dataset.explore_question)
 
 # ---------------------------------------------------------------------
-# 3. Measurement
+# Design
 # ---------------------------------------------------------------------
 
-section_header(
-    "3. Measurement", "The concepts, and the instruments standing in for them"
-)
+elif stage == STAGE_DESIGN:
+    section_header("Design", "What was randomized, and what came with it")
 
-st.markdown(_measurement_map_svg(study.MEASUREMENT_MAP), unsafe_allow_html=True)
+    st.markdown(_cluster_randomization_svg(), unsafe_allow_html=True)
 
-inspect_note(
-    "That peer violence is two things, not one. Being victimized and "
-    "perpetrating were measured on separate scales, which is why the "
-    "trial reports them separately."
-)
+    inspect_note(
+        "That the units in the top row are schools, not students. "
+        "Randomizing 40 schools is a much smaller randomization than "
+        "randomizing 1,752 students, and it is the whole reason this trial "
+        "is analysed differently."
+    )
 
-_fact_table(study.MEASUREMENT, "What was measured, and with what")
+    _fact_table(study.DESIGN, "What is known about the design")
 
-st.caption(
-    "Children were asked about being victimized, about perpetrating "
-    "violence, and about depression. The responses are de-identified and "
-    "were published by the authors for reuse, and a reader should know "
-    "that before opening them."
-)
-
-if stage < STAGE_ARTIFACTS:
-    if st.button("Continue to the artifacts", type="primary"):
-        TRACKER.advance_to(STAGE_ARTIFACTS)
-    st.stop()
+    caveat(study.CLUSTERING_LIMIT)
 
 # ---------------------------------------------------------------------
-# 4. Available artifacts
+# Measurement
 # ---------------------------------------------------------------------
 
-section_header(
-    "4. Available Artifacts", "What the study actually published"
-)
+elif stage == STAGE_MEASUREMENT:
+    section_header(
+        "Measurement", "The concepts, and the instruments standing in for them"
+    )
 
-st.caption(study.BASELINE_FILE_SUPPORT)
+    st.markdown(
+        _measurement_map_svg(study.MEASUREMENT_MAP), unsafe_allow_html=True
+    )
 
-for source in dataset.sources:
-    st.markdown(f"[{source.label}]({source.url})")
+    inspect_note(
+        "That peer violence is two things, not one. Being victimized and "
+        "perpetrating were measured on separate scales, which is why the "
+        "trial reports them separately."
+    )
 
-_fact_table(study.ARTIFACTS, "Each artifact, and whether it exists")
+    _fact_table(study.MEASUREMENT, "What was measured, and with what")
 
-if stage < STAGE_BOUNDARY:
-    if st.button("Continue to the replication boundary", type="primary"):
-        TRACKER.advance_to(STAGE_BOUNDARY)
-    st.stop()
+    st.caption(
+        "Children were asked about being victimized, about perpetrating "
+        "violence, and about depression. The responses are de-identified "
+        "and were published by the authors for reuse, and a reader should "
+        "know that before opening them."
+    )
 
 # ---------------------------------------------------------------------
-# 5. Replication boundary
+# Available artifacts
 # ---------------------------------------------------------------------
 
-section_header(
-    "5. Replication Boundary",
-    "What the available artifacts support, and where that stops",
-)
+elif stage == STAGE_ARTIFACTS:
+    section_header("Available Artifacts", "What the study actually published")
 
-boundary = study.replication_boundary()
+    st.caption(study.BASELINE_FILE_SUPPORT)
 
-st.markdown(_boundary_svg(boundary), unsafe_allow_html=True)
+    for source in dataset.sources:
+        st.markdown(f"[{source.label}]({source.url})")
 
-st.markdown(f"**{boundary.lesson}**")
+    _fact_table(study.ARTIFACTS, "Each artifact, and whether it exists")
 
-with st.expander("Every artifact, and which side it falls on"):
-    established_column, unresolved_column = st.columns(2)
+# ---------------------------------------------------------------------
+# Replication boundary
+# ---------------------------------------------------------------------
 
-    with established_column:
-        st.markdown("**Available**")
-        for fact in boundary.established:
-            st.markdown(f"- {fact.label}")
-            st.caption(fact.value)
+else:
+    section_header(
+        "Replication Boundary",
+        "What the available artifacts support, and where that stops",
+    )
 
-    with unresolved_column:
-        st.markdown("**Not available, or incompletely reported**")
-        for fact in boundary.unresolved:
-            st.markdown(f"- {fact.label}")
-            st.caption(fact.value)
+    boundary = study.replication_boundary()
 
-caveat(
-    "None of this is a criticism of the study. Publishing a baseline wave "
-    "under CC BY is more than most trials do, and the boundary above is "
-    "the ordinary state of published evaluation research rather than a "
-    "failure particular to this one."
-)
+    st.markdown(_boundary_svg(boundary), unsafe_allow_html=True)
+
+    st.markdown(f"**{boundary.lesson}**")
+
+    with st.expander("Every artifact, and which side it falls on"):
+        established_column, unresolved_column = st.columns(2)
+
+        with established_column:
+            st.markdown("**Available**")
+            for fact in boundary.established:
+                st.markdown(f"- {fact.label}")
+                st.caption(fact.value)
+
+        with unresolved_column:
+            st.markdown("**Not available, or incompletely reported**")
+            for fact in boundary.unresolved:
+                st.markdown(f"- {fact.label}")
+                st.caption(fact.value)
+
+    caveat(
+        "None of this is a criticism of the study. Publishing a baseline "
+        "wave under CC BY is more than most trials do, and the boundary "
+        "above is the ordinary state of published evaluation research "
+        "rather than a failure particular to this one."
+    )
+
+st.divider()
+
+WORKSPACE.render_navigation()
 
 st.caption(f"Baseline: {study.BASELINE_CITATION}")
 st.caption(f"Trial results: {study.TRIAL_CITATION}")
