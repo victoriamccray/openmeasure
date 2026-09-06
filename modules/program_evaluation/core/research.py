@@ -44,6 +44,26 @@ class ResearchRow:
     overlap_count: int
     matched_keywords: tuple[str, ...]
 
+    def shared_words_summary(self) -> str:
+        """
+        What this result has in common with the question, in words.
+
+        The words themselves rather than a count. A reader looking at a
+        result that has nothing to do with their program needs to see
+        that it arrived on "program" and "health", which a 2 in a column
+        headed Shared keywords does not tell them, and which is the whole
+        difference between a search that looks deliberate and one that
+        looks arbitrary.
+
+        Still not a relevance judgement, and phrased so it cannot be read
+        as one: it reports the overlap, and the reader decides what the
+        overlap is worth.
+        """
+        if not self.matched_keywords:
+            return "Shares no words with your question."
+
+        return "Shares with your question: " + ", ".join(self.matched_keywords)
+
     def as_display_row(self) -> dict[str, object]:
         """The flat mapping a table renders, one key per column."""
         return {

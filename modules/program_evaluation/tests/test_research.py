@@ -121,5 +121,56 @@ class TestSelectableTitles(unittest.TestCase):
         self.assertEqual(research.selectable_titles(()), [])
 
 
+class TestSharedWordsSummary(unittest.TestCase):
+    """
+    What a result shares with the question, in words rather than a count.
+    """
+
+    def _row(self, question, title, abstract=""):
+        works = [
+            {
+                "title": title,
+                "abstract_inverted_index": None,
+                "publication_year": 2020,
+                "authorships": [],
+                "primary_location": {"source": {"display_name": "A Journal"}},
+                "doi": None,
+                "id": "https://openalex.org/W1",
+                "cited_by_count": 0,
+            }
+        ]
+        rows = research.research_rows(works, question)
+        return rows[0]
+
+    def test_it_names_the_words_rather_than_counting_them(self):
+        row = self._row(
+            "Did the attendance program help", "An attendance program trial"
+        )
+        summary = row.shared_words_summary()
+
+        self.assertIn("attendance", summary)
+        self.assertIn("program", summary)
+
+    def test_no_overlap_is_said_plainly(self):
+        row = self._row("attendance program", "Thyroid nodule guidelines")
+
+        self.assertEqual(
+            row.shared_words_summary(), "Shares no words with your question."
+        )
+
+    def test_it_does_not_call_the_overlap_relevance(self):
+        """
+        The module is explicit that overlap is not a relevance ranking.
+        The sentence beside each result must not quietly upgrade it into
+        one.
+        """
+        row = self._row("attendance program", "An attendance program trial")
+        summary = row.shared_words_summary().lower()
+
+        for word in ("relevant", "relevance", "match", "best", "ranked"):
+            with self.subTest(word=word):
+                self.assertNotIn(word, summary)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1357,6 +1357,12 @@ query = st.text_input(
     value=default_query,
     key="pe_query",
 )
+st.caption(
+    "Editable, and sent as written. A question phrased as a sentence "
+    "carries words like \"did\" and \"our\" into the match, so trimming it "
+    "to the terms you would expect in a title usually returns closer "
+    "work."
+)
 
 if st.button("Search OpenAlex", disabled=not query.strip()):
     try:
@@ -1379,11 +1385,30 @@ raw_results = st.session_state.get("pe_search_results")
 if raw_results:
     rows = research.research_rows(raw_results, question_terms)
 
-    st.dataframe(
-        pd.DataFrame([row.as_display_row() for row in rows]),
-        width="stretch",
-        hide_index=True,
-    )
+    # One result per block, each saying what it shares with the question.
+    # As a table it was five columns of metadata and an overlap count,
+    # which gave a reader no way to tell a study of their program from a
+    # heavily cited guideline that happens to contain the word "program".
+    # The words behind the count answer that immediately, and they were
+    # already being computed and discarded.
+    for row in rows:
+        record = row.record
+        st.markdown(f"**[{record.title}]({record.url})**")
+
+        provenance = " · ".join(
+            part
+            for part in (record.author_summary, str(record.year or ""), record.venue)
+            if part
+        )
+        st.caption(f"{provenance}  \n{row.shared_words_summary()}")
+
+    with st.expander("All results, as a table"):
+        st.dataframe(
+            pd.DataFrame([row.as_display_row() for row in rows]),
+            width="stretch",
+            hide_index=True,
+        )
+
     st.caption(
         f"{research.OVERLAP_COLUMN} counts words your question and a "
         "result's title or abstract have in common. It is a text overlap, "
