@@ -27,7 +27,9 @@ from modules.time_series_qa.core.completeness import (
     DEFAULT_MAX_MISSING_PER_MONTH,
     DEFAULT_PERIOD_COVERAGE_THRESHOLD,
 )
+from modules.time_series_qa.core import timeline as tl
 from modules.time_series_qa.core.qa import run_time_series_qa
+from shared import visuals
 from shared.catalog import MODULE_TIME_SERIES_QA
 from shared.handoff import (
     KIND_CELLS_EMPTY,
@@ -65,8 +67,12 @@ st.set_page_config(
     layout="centered",
 )
 
-ACCENT = "#2a78d6"
-ACCENT_2 = "#c0392b"
+# The shared palette, aliased so the builders below read as they always
+# have.
+ACCENT = visuals.ACCENT
+ACCENT_2 = visuals.ACCENT_2
+INK_MUTED = visuals.INK_MUTED
+GRIDLINE = visuals.GRIDLINE
 
 st.title("Time-Series QA")
 st.subheader("Data Validation")
@@ -530,6 +536,161 @@ if temporal.n_distinct_timestamps:
 # Sampling frequency
 # ---------------------------------------------------------------------
 
+# The timeline health map. One mark per expected observation, and what
+# became of it.
+#
+# The checks were each correct and each reported separately: a gaps
+# table, a duplicate plot, a coverage table, a coverage chart, and the
+# series itself several sections later. Answering the first question
+# anyone asks of a series, where it is healthy and where it breaks, meant
+# holding five views in your head.
+#
+# Absent and empty get different marks, and that is the point rather than
+# a detail. A hollow slot has no row: nothing was recorded for that
+# moment. A half-filled slot has a row whose value is blank: something
+# was recorded and what it recorded was nothing. Those have different
+# causes and different fixes, and one "missing" mark would throw away the
+# distinction this module is built on.
+_MAP_W = 640.0
+_MAP_H = 96.0
+_MAP_AXIS_Y = 46.0
+_MAP_RADIUS = 4.2
+
+# A mark never wider than the space it has. At 121 observations the
+# spacing is about five pixels and a fixed radius of 4.2 drew a solid
+# bar with the defects buried in it, which is the one thing this figure
+# exists to prevent.
+_MAP_MARK_SHARE = 0.40
+
+
+def _timeline_map_svg(health) -> str:
+    """Every expected observation, as a mark on one axis."""
+    slots = health.slots
+    spacing = (_MAP_W - 16) / max(len(slots) - 1, 1)
+    radius = min(_MAP_RADIUS, spacing * _MAP_MARK_SHARE)
+    offset = radius * 0.72
+    marks = []
+
+    for index, slot in enumerate(slots):
+        x = 8 + index * spacing
+
+        if slot.state == tl.SLOT_ABSENT:
+            # Hollow: there is no row here.
+            marks.append(
+                f'<circle cx="{x:.1f}" cy="{_MAP_AXIS_Y}" r="{radius:.1f}" '
+                f'fill="none" stroke="{INK_MUTED}" stroke-width="1.1"/>'
+            )
+        elif slot.state == tl.SLOT_EMPTY:
+            # Half-filled: a row arrived carrying nothing.
+            marks.append(
+                f'<circle cx="{x:.1f}" cy="{_MAP_AXIS_Y}" r="{radius:.1f}" '
+                f'fill="none" stroke="{ACCENT}" stroke-width="1.1"/>'
+                f'<path d="M {x:.1f} {_MAP_AXIS_Y - radius:.1f} '
+                f'A {radius:.1f} {radius:.1f} 0 0 0 {x:.1f} '
+                f'{_MAP_AXIS_Y + radius:.1f} Z" fill="{ACCENT}"/>'
+            )
+        elif slot.state == tl.SLOT_CONFLICTING:
+            # Stacked and marked: two rows here that disagree.
+            marks.append(
+                f'<circle cx="{x:.1f}" cy="{_MAP_AXIS_Y + offset:.1f}" '
+                f'r="{radius:.1f}" fill="{ACCENT_2}" fill-opacity="0.45"/>'
+                f'<circle cx="{x:.1f}" cy="{_MAP_AXIS_Y - offset:.1f}" '
+                f'r="{radius:.1f}" fill="{ACCENT_2}"/>'
+                f'<line x1="{x:.1f}" y1="{_MAP_AXIS_Y - offset - 12:.1f}" '
+                f'x2="{x:.1f}" y2="{_MAP_AXIS_Y - offset - 5:.1f}" '
+                f'stroke="{ACCENT_2}" stroke-width="1.5"/>'
+            )
+        elif slot.state == tl.SLOT_DUPLICATE:
+            # Stacked: two rows here that agree.
+            marks.append(
+                f'<circle cx="{x:.1f}" cy="{_MAP_AXIS_Y + offset:.1f}" '
+                f'r="{radius:.1f}" fill="{ACCENT}" fill-opacity="0.45"/>'
+                f'<circle cx="{x:.1f}" cy="{_MAP_AXIS_Y - offset:.1f}" '
+                f'r="{radius:.1f}" fill="{ACCENT}"/>'
+            )
+        else:
+            marks.append(
+                f'<circle cx="{x:.1f}" cy="{_MAP_AXIS_Y}" r="{radius:.1f}" '
+                f'fill="{ACCENT}" fill-opacity="0.8"/>'
+            )
+
+    first = health.slots[0].start.strftime("%Y-%m-%d")
+    last = health.slots[-1].end.strftime("%Y-%m-%d")
+
+    axis = (
+        f'<line x1="8" y1="{_MAP_AXIS_Y + 22:.0f}" x2="{_MAP_W - 8:.0f}" '
+        f'y2="{_MAP_AXIS_Y + 22:.0f}" stroke="{GRIDLINE}" stroke-width="1"/>'
+        f'<text x="8" y="{_MAP_AXIS_Y + 38:.0f}" font-size="12" '
+        f'fill="{INK_MUTED}">{first}</text>'
+        f'<text x="{_MAP_W - 8:.0f}" y="{_MAP_AXIS_Y + 38:.0f}" font-size="12" '
+        f'fill="{INK_MUTED}" text-anchor="end">{last}</text>'
+        f'<text x="8" y="20" font-size="12" fill="{INK_MUTED}">'
+        f"{len(slots)} expected observations"
+        + (
+            f", {health.observations_per_slot} per mark"
+            if health.binned
+            else ""
+        )
+        + "</text>"
+    )
+
+    return visuals.figure(
+        axis + "".join(marks),
+        width=_MAP_W,
+        height=_MAP_H,
+        label=(
+            f"Every expected observation between {first} and {last}. "
+            + ", ".join(health.summary_parts())
+            + ". A filled mark is present, a hollow one has no row, a "
+            "half-filled one has a row whose value is blank, and stacked "
+            "marks are a duplicated timestamp."
+        ),
+    )
+
+
+def _timeline_key() -> str:
+    """What each mark means, drawn rather than described."""
+    entries = (
+        ("present", f'<circle cx="8" cy="12" r="4.2" fill="{ACCENT}" '
+                    f'fill-opacity="0.8"/>'),
+        ("no row", f'<circle cx="8" cy="12" r="4.2" fill="none" '
+                   f'stroke="{INK_MUTED}" stroke-width="1.3"/>'),
+        ("row, blank value",
+         f'<circle cx="8" cy="12" r="4.2" fill="none" stroke="{ACCENT}" '
+         f'stroke-width="1.3"/><path d="M 8 7.8 A 4.2 4.2 0 0 0 8 16.2 Z" '
+         f'fill="{ACCENT}"/>'),
+        ("duplicate",
+         f'<circle cx="8" cy="15" r="4.2" fill="{ACCENT}" '
+         f'fill-opacity="0.45"/><circle cx="8" cy="9" r="4.2" '
+         f'fill="{ACCENT}"/>'),
+        ("duplicate, values disagree",
+         f'<circle cx="8" cy="15" r="4.2" fill="{ACCENT_2}" '
+         f'fill-opacity="0.45"/><circle cx="8" cy="9" r="4.2" '
+         f'fill="{ACCENT_2}"/>'),
+    )
+
+    parts, x = [], 0.0
+    for label, mark in entries:
+        width = 24 + len(label) * 6.6
+        parts.append(
+            f'<g transform="translate({x:.0f},0)">{mark}'
+            f'<text x="20" y="16" font-size="12" fill="{INK_MUTED}">'
+            f"{label}</text></g>"
+        )
+        x += width
+
+    return visuals.figure(
+        "".join(parts),
+        width=max(x, 640.0),
+        height=26,
+        label=(
+            "Key: filled is present, hollow has no row, half-filled has a "
+            "row whose value is blank, stacked is a duplicated timestamp, "
+            "and a stacked pair in the second colour disagrees."
+        ),
+    )
+
+
 section_header(
     "Sampling Frequency",
     "Every gap and coverage figure below depends on this",
@@ -589,7 +750,39 @@ if frequency.is_calendar_anchored and frequency.offset is not None:
 # Temporal integrity
 # ---------------------------------------------------------------------
 
-section_header("Temporal Integrity", "Is the time axis itself trustworthy?")
+section_header(
+    "Temporal Integrity",
+    "Where the series holds, and where it breaks",
+)
+
+# The map first, then the counts, then the checks behind them.
+#
+# Every figure below was already correct and each arrived in its own
+# table or chart, so seeing where a series breaks meant assembling five
+# views. The map answers that directly, and the checks stay underneath
+# for the reader who wants the reasoning.
+health = tl.build_timeline(result)
+
+if health.is_assessable:
+    st.markdown(_timeline_map_svg(health), unsafe_allow_html=True)
+    st.markdown(_timeline_key(), unsafe_allow_html=True)
+    st.markdown("**" + "  ·  ".join(health.summary_parts()) + "**")
+
+    inspect_note(
+        "Hollow marks against half-filled ones. A hollow mark has no row "
+        "for that time and a half-filled one has a row whose value is "
+        "blank, which are different problems with different causes."
+    )
+
+    if health.binned:
+        caveat(
+            f"The series is longer than the axis can draw one mark for, so "
+            f"each mark covers {health.observations_per_slot} expected "
+            "observations and reports the most serious thing in it. The "
+            "counts above are exact."
+        )
+else:
+    st.info(health.reason_not_assessable)
 
 if temporal.gaps_assessable:
     metric_one, metric_two, metric_three = st.columns(3)
