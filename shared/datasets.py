@@ -507,4 +507,50 @@ DATASETS: tuple[RealDataset, ...] = (
             "Surveillance System, data.cdc.gov dataset 2ew6-ywp6."
         ),
     ),
+    RealDataset(
+        id="noaa_lcd_hourly",
+        name="NOAA Local Climatological Data, hourly station observations",
+        domain="Weather observation / sensor time series",
+        description=(
+            "Hourly surface weather observations from a single NOAA "
+            "station, fetched for a chosen station and date range. The "
+            "irregularity here is the measurement process rather than "
+            "anything added: a quarter of observations from station "
+            "70026027502 contains 43 gaps longer than 90 minutes, the "
+            "longest 10 hours, alongside genuine jitter in observation "
+            "times at 58 and 62 minutes rather than an exact hourly grid. "
+            "Each file interleaves four report types, FM-15 hourly, FM-16 "
+            "special, SOD daily summary and SOM monthly, so deciding which "
+            "rows form the series is the reader's first step and the "
+            "totals mean nothing until it is made."
+        ),
+        try_with=("Time-Series QA",),
+        explore_question=(
+            "Where did this station stop reporting, and can you tell an "
+            "instrument outage from a period that was never scheduled to "
+            "be observed?"
+        ),
+        access=ACCESS_OPEN,
+        # NOAA/NCEI data, a US federal work not subject to domestic
+        # copyright. Fetched on request per station and date range, which
+        # is how the access service is designed; there is no single file
+        # to bundle.
+        delivery=DELIVERY_REMOTE_FETCH,
+        redistribution_permitted=True,
+        sources=(
+            DataSource(
+                label="Local Climatological Data product page (NCEI)",
+                url="https://www.ncei.noaa.gov/products/land-based-station/local-climatological-data",
+            ),
+            DataSource(
+                label="NCEI access service, filterable by station and date",
+                url="https://www.ncei.noaa.gov/access/services/data/v1",
+            ),
+        ),
+        citation=(
+            "NOAA National Centers for Environmental Information. Local "
+            "Climatological Data (LCD). Asheville, NC: U.S. Department of "
+            "Commerce, National Oceanic and Atmospheric Administration."
+        ),
+    ),
 )

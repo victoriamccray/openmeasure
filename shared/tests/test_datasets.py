@@ -322,6 +322,7 @@ class TestRedistributionIsSeparateFromAccess(unittest.TestCase):
         "nhanes_dpq_phq9": "US federal public-use file, not subject to domestic copyright",
         "right_to_play_baseline": "CC BY 4.0, PLOS applies it to the works it publishes",
         "nwss_wastewater_metrics": "CDC, a US federal work not subject to domestic copyright",
+        "noaa_lcd_hourly": "NOAA/NCEI, a US federal work not subject to domestic copyright",
     }
 
     def test_redistribution_is_claimed_only_where_it_was_established(self):
