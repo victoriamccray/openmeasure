@@ -29,6 +29,8 @@ class DesignOption:
     """One study design, as a reader meets it before choosing."""
 
     id: str
+    # Rendered as a heading, so it follows OpenMeasure's title case
+    # rather than sentence case.
     label: str
     # Three short cells, one short sentence each, so a reader can compare
     # the designs by scanning a row rather than by reading three
@@ -87,7 +89,7 @@ class DesignOption:
 DESIGN_OPTIONS: tuple[DesignOption, ...] = (
     DesignOption(
         id="two_or_more_groups",
-        label="Two or more groups",
+        label="Two or More Groups",
         compares_template="An outcome across groups, each measured once.",
         needs_template=(
             "An outcome column, and a column saying which group each "
@@ -109,7 +111,7 @@ DESIGN_OPTIONS: tuple[DesignOption, ...] = (
     ),
     DesignOption(
         id="pre_post",
-        label="Pre/post, same participants",
+        label="Pre/Post, Same Participants",
         compares_template=(
             "One group before and after, each {unit} against its own "
             "baseline."
@@ -128,7 +130,7 @@ DESIGN_OPTIONS: tuple[DesignOption, ...] = (
     ),
     DesignOption(
         id="difference_in_differences",
-        label="Two groups, before and after",
+        label="Two Groups, Before and After",
         compares_template=(
             "How much the treated group changed, against how much the "
             "{comparison} changed."

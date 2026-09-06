@@ -74,9 +74,13 @@ def unit_cluster(
     twice looks the same, and a reader moving a control does not see the
     cluster reshuffle and read that as the data changing.
     """
+    # Offsets are expressed in units of the radius, so a cluster keeps
+    # its shape at any size. Tuning them for one radius made the
+    # primitive usable at exactly one scale, which is the opposite of
+    # what a primitive is for: at pictograph size the units overlapped.
     offsets = (
-        (-7.0, -7.0), (7.0, -6.0), (0.0, 0.0), (-8.0, 7.0), (8.0, 8.0),
-        (-3.0, -12.0), (11.0, 1.0), (-12.0, 0.0), (4.0, 13.0), (12.0, -11.0),
+        (-2.3, -2.3), (2.3, -1.9), (0.0, 0.0), (-2.6, 2.3), (2.6, 2.6),
+        (-1.0, -3.9), (3.5, 0.3), (-3.9, 0.0), (1.3, 4.2), (3.9, -3.5),
     )
 
     if not 1 <= count <= len(offsets):
@@ -87,8 +91,8 @@ def unit_cluster(
         )
 
     return "".join(
-        f'<circle cx="{x + dx:.1f}" cy="{y + dy:.1f}" r="{radius}" '
-        f'fill="{color}" fill-opacity="{opacity}"/>'
+        f'<circle cx="{x + dx * radius:.1f}" cy="{y + dy * radius:.1f}" '
+        f'r="{radius}" fill="{color}" fill-opacity="{opacity}"/>'
         for dx, dy in offsets[:count]
     )
 
@@ -138,9 +142,17 @@ def figure(inner: str, *, width: float, height: float, label: str) -> str:
             "readable without being seen."
         )
 
+    # Sized by the viewBox aspect ratio rather than a pixel height. A
+    # fixed height alongside width="100%" and preserveAspectRatio="meet"
+    # scales the drawing by min(container/viewBox_w, height/viewBox_h),
+    # which pins it to 1:1 whenever the height matches the viewBox: the
+    # art renders at native size, centred in a much wider empty box, with
+    # hairline strokes. Letting height follow the aspect ratio lets a
+    # figure fill the column it is given, so strokes and labels grow with
+    # it instead of staying small in a large space.
     return (
-        f'<svg width="100%" height="{height:.0f}" '
-        f'viewBox="0 0 {width:.0f} {height:.0f}" '
+        f'<svg viewBox="0 0 {width:.0f} {height:.0f}" '
+        f'style="width:100%;height:auto;display:block" '
         f'preserveAspectRatio="xMidYMid meet" role="img" '
         f'aria-label="{label}">{inner}</svg>'
     )

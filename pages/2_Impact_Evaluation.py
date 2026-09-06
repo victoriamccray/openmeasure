@@ -33,6 +33,7 @@ from modules.program_evaluation.core import recommend as rec
 from modules.program_evaluation.core import research
 from modules.program_evaluation.core import teaching
 from modules.program_evaluation.core import transformation
+from shared import visuals
 from shared.catalog import MODULE_PROGRAM_EVALUATION
 from shared.handoff import (
     KIND_ROWS_DROPPED,
@@ -99,14 +100,13 @@ def render_sensitivity_sub_result(sub_result) -> None:
         m2.metric("p-value", f"{sub_result.p_value:.4f}")
 
 
-# The same page-local SVG palette used by Method Selection, fMRI QC,
-# HealthRing, and GAIA. Repeated here rather than imported because no
-# shared palette module exists yet; extracting one would touch six other
-# pages, which is a wider change than this feature.
-INK_MUTED = "#898781"
-GRIDLINE = "#e1e0d9"
-ACCENT = "#2a78d6"
-ACCENT_2 = "#c0392b"
+# The shared palette, aliased so the builders below read as they always
+# have. Imported rather than restated: this page was one of the twelve
+# copies that made extracting shared/visuals.py worth doing.
+INK_MUTED = visuals.INK_MUTED
+GRIDLINE = visuals.GRIDLINE
+ACCENT = visuals.ACCENT
+ACCENT_2 = visuals.ACCENT_2
 
 # Fixed y-window for the teaching diagram, wide enough to contain every
 # value the slider can produce. Fixed rather than fitted to the current
@@ -159,7 +159,7 @@ def _did_teaching_svg(scenario, outcome) -> str:
     gap_label_y = (y_post_treated + y_counterfactual) / 2 + 3
 
     return f"""
-    <svg width="100%" height="185" viewBox="0 0 360 185"
+    <svg viewBox="0 0 360 185" style="width:100%;height:auto;display:block"
          preserveAspectRatio="xMidYMid meet" role="img"
          aria-label="{scenario.outcome_label.capitalize()} for
          {scenario.treated_label} and {scenario.comparison_label} before and
@@ -345,7 +345,7 @@ def _transformation_svg(view, stage_index: int) -> str:
         .xf-new {{ animation: none; }}
       }}
     </style>
-    <svg width="100%" height="185" viewBox="0 0 400 185"
+    <svg viewBox="0 0 400 185" style="width:100%;height:auto;display:block"
          preserveAspectRatio="xMidYMid meet" role="img"
          aria-label="{view.label_a} and {view.label_b} observations, their
          group averages, the difference between those averages, and that
@@ -388,35 +388,67 @@ def render_effect_size_transformation(view) -> None:
         )
 
 
-# Mini design diagrams. Structure, so a diagram rather than a chart: what
-# each design observes, and when. Deliberately schematic and identically
-# scaled, so the three can be compared at a glance rather than read one at
-# a time. A dot is a unit, a column of dots is a group, and horizontal
-# distance is time.
-_DESIGN_W, _DESIGN_H = 300.0, 104.0
-_DESIGN_LEFT, _DESIGN_RIGHT = 46.0, 236.0
+# Design diagrams, drawn to be read rather than glanced at. Structure,
+# so a diagram rather than a chart: what each design observes, and when.
+# A dot is a unit, a cluster is a group, and horizontal distance is time.
+#
+# One design per card means the figure gets a column's width instead of a
+# third of one, and everything is sized for that: five units are legible
+# as five, and labels are set close to body text. Three thumbnails with
+# eight-point type were a picture of the idea rather than the idea.
+#
+# Arrows here are solid. An arrow marks an observation the design
+# actually makes, and the shared grammar reserves dashed for what is
+# assumed or unestablished, which the earlier dashed time arrow was
+# quietly contradicting.
+_DESIGN_W = 320.0
+_DESIGN_COL_A, _DESIGN_COL_B = 108.0, 254.0
+_DESIGN_UNIT_R = 8.5
+
+# Two heights, not one. Pre/post observes a single group, and giving it
+# the two-row height would render a band of empty space that reads as a
+# missing element rather than as a simpler design.
+_DESIGN_H_ONE_ROW, _DESIGN_H_TWO_ROW = 154.0, 258.0
 
 
-def _unit_cluster(x: float, y: float, color: str) -> str:
-    """One group, drawn as a small cluster of units."""
-    offsets = ((-7, -7), (7, -6), (0, 0), (-8, 7), (8, 8))
-    return "".join(
-        f'<circle cx="{x + dx:.0f}" cy="{y + dy:.0f}" r="3.1" fill="{color}" '
-        f'fill-opacity="0.75"/>'
-        for dx, dy in offsets
+def _design_group_label(y: float, text: str) -> str:
+    """A group's name, set above the row of observations it names."""
+    return (
+        f'<text x="12" y="{y:.0f}" font-size="13" fill="{INK_MUTED}">'
+        f"{text}</text>"
     )
 
 
-def _time_arrow(y: float, label: str) -> str:
-    """A left-to-right arrow marking that time passes between observations."""
+def _design_time_label(x: float, y: float, text: str) -> str:
+    """When an observation was taken, set under the column it labels."""
     return (
-        f'<line x1="{_DESIGN_LEFT + 30}" y1="{y}" x2="{_DESIGN_RIGHT - 30}" '
-        f'y2="{y}" stroke="{INK_MUTED}" stroke-width="1" '
-        f'stroke-dasharray="3,3"/>'
-        f'<polygon points="{_DESIGN_RIGHT - 30},{y} {_DESIGN_RIGHT - 37},{y - 3.5} '
-        f'{_DESIGN_RIGHT - 37},{y + 3.5}" fill="{INK_MUTED}"/>'
-        f'<text x="{(_DESIGN_LEFT + _DESIGN_RIGHT) / 2:.0f}" y="{y - 6}" '
-        f'font-size="8" fill="{INK_MUTED}" text-anchor="middle">{label}</text>'
+        f'<text x="{x:.0f}" y="{y:.0f}" font-size="13" fill="{INK_MUTED}" '
+        f'text-anchor="middle">{text}</text>'
+    )
+
+
+def _design_row(y: float, color: str, *, observed_twice: bool) -> str:
+    """One group's observations: a single cluster, or two and an arrow."""
+    # A single observation sits in the first column rather than
+    # centred. Reading down the three cards, the columns then line up,
+    # and the difference-in-differences card is visibly the first two
+    # laid over each other. Centring it put the lone column between the
+    # other two and lost exactly that.
+    if not observed_twice:
+        return visuals.unit_cluster(
+            _DESIGN_COL_A, y, color, count=5, radius=_DESIGN_UNIT_R
+        )
+
+    return (
+        visuals.unit_cluster(
+            _DESIGN_COL_A, y, color, count=5, radius=_DESIGN_UNIT_R
+        )
+        + visuals.arrow(
+            _DESIGN_COL_A + 44, y, _DESIGN_COL_B - 44, y, head=6.0
+        )
+        + visuals.unit_cluster(
+            _DESIGN_COL_B, y, color, count=5, radius=_DESIGN_UNIT_R
+        )
     )
 
 
@@ -425,50 +457,52 @@ def _design_diagram_svg(design_id: str, treated: str, comparison: str) -> str:
     What one design actually observes, as a schematic.
 
     Three shapes for three designs: two groups seen once, one group seen
-    twice, and two groups each seen twice. Reading them side by side is
-    what makes the difference-in-differences design look like what it is,
-    the other two combined, rather than a third unrelated method.
+    twice, and two groups each seen twice. Read down the cards, the
+    difference-in-differences design looks like the other two combined,
+    which is what it is and what three parallel paragraphs of prose kept
+    failing to say.
     """
-    if design_id == "two_or_more_groups":
-        body = (
-            _unit_cluster(96, 34, ACCENT_2)
-            + _unit_cluster(96, 74, ACCENT)
-            + f'<text x="8" y="37" font-size="8" fill="{INK_MUTED}">{treated}</text>'
-            + f'<text x="8" y="77" font-size="8" fill="{INK_MUTED}">{comparison}</text>'
-            + f'<text x="150" y="58" font-size="8" fill="{INK_MUTED}">'
-            "measured once</text>"
+    if design_id == "pre_post":
+        inner = (
+            _design_group_label(30, treated)
+            + _design_row(76, ACCENT_2, observed_twice=True)
+            + _design_time_label(_DESIGN_COL_A, 140, "before")
+            + _design_time_label(_DESIGN_COL_B, 140, "after")
         )
-    elif design_id == "pre_post":
-        body = (
-            _unit_cluster(_DESIGN_LEFT + 14, 62, ACCENT_2)
-            + _unit_cluster(_DESIGN_RIGHT - 14, 62, ACCENT_2)
-            + _time_arrow(62, "same units, later")
-            + f'<text x="8" y="30" font-size="8" fill="{INK_MUTED}">{treated}</text>'
+        described = "one group, observed before and after"
+        height = _DESIGN_H_ONE_ROW
+    elif design_id == "two_or_more_groups":
+        inner = (
+            _design_group_label(30, treated)
+            + _design_row(76, ACCENT_2, observed_twice=False)
+            + _design_group_label(156, comparison)
+            + _design_row(202, ACCENT, observed_twice=False)
+            + _design_time_label(_DESIGN_COL_A, 248, "observed once")
         )
+        described = "two groups, each observed once"
+        height = _DESIGN_H_TWO_ROW
     else:
-        body = (
-            _unit_cluster(_DESIGN_LEFT + 14, 34, ACCENT_2)
-            + _unit_cluster(_DESIGN_RIGHT - 14, 34, ACCENT_2)
-            + _time_arrow(34, "")
-            + _unit_cluster(_DESIGN_LEFT + 14, 82, ACCENT)
-            + _unit_cluster(_DESIGN_RIGHT - 14, 82, ACCENT)
-            + _time_arrow(82, "")
-            + f'<text x="8" y="14" font-size="8" fill="{INK_MUTED}">{treated}</text>'
-            + f'<text x="8" y="62" font-size="8" fill="{INK_MUTED}">{comparison}</text>'
-            + f'<text x="{(_DESIGN_LEFT + _DESIGN_RIGHT) / 2:.0f}" y="58" '
-            f'font-size="8" fill="{INK_MUTED}" text-anchor="middle">'
-            "both change, one was treated</text>"
+        inner = (
+            _design_group_label(30, treated)
+            + _design_row(76, ACCENT_2, observed_twice=True)
+            + _design_group_label(156, comparison)
+            + _design_row(202, ACCENT, observed_twice=True)
+            + _design_time_label(_DESIGN_COL_A, 248, "before")
+            + _design_time_label(_DESIGN_COL_B, 248, "after")
         )
+        described = "two groups, each observed before and after"
+        height = _DESIGN_H_TWO_ROW
 
-    return f"""
-    <svg width="100%" height="{_DESIGN_H:.0f}" viewBox="0 0 {_DESIGN_W:.0f} {_DESIGN_H:.0f}"
-         preserveAspectRatio="xMidYMid meet" role="img"
-         aria-label="Schematic of the {design_id.replace('_', ' ')} design:
-         each dot is a unit, each cluster a group, and horizontal distance
-         is time between observations.">
-      {body}
-    </svg>
-    """
+    return visuals.figure(
+        inner,
+        width=_DESIGN_W,
+        height=height,
+        label=(
+            f"A schematic of {described}. Each dot is a unit, each cluster "
+            "a group, and horizontal distance is time between "
+            "observations."
+        ),
+    )
 
 
 # The support boundary. Evidence states, so neither a chart nor a
@@ -508,7 +542,7 @@ def _support_boundary_svg(established: str, unresolved: str, conditions: tuple) 
         )
 
     return f"""
-    <svg width="100%" height="{_BOUND_H:.0f}" viewBox="0 0 {_BOUND_W:.0f} {_BOUND_H:.0f}"
+    <svg viewBox="0 0 {_BOUND_W:.0f} {_BOUND_H:.0f}" style="width:100%;height:auto;display:block"
          preserveAspectRatio="xMidYMid meet" role="img"
          aria-label="This analysis establishes that {established}. Whether
          {unresolved} does not follow from it, and depends on conditions
@@ -1094,15 +1128,21 @@ if selected_studies:
             "answers and your data's shape, not on what these studies did."
         )
 
-# Structure first, detail second. The diagrams say what each design
-# observes and when; the table below says what each needs and leaves
-# open. Reading them side by side is what makes difference-in-differences
-# look like the other two combined rather than a third unrelated method.
-design_columns = st.columns(len(designs.DESIGN_OPTIONS))
+# One large card per design, instead of three thumbnails above a
+# three-column table. The diagram is the explanation here rather than an
+# illustration beside one: a reader who sees what a design observes
+# already knows why it leaves what it leaves open, and the table was
+# asking them to reconstruct that from three cells of prose.
+st.caption(
+    "Each dot is a unit, each cluster a group, and horizontal distance is "
+    "time between observations."
+)
 
-for column, design in zip(design_columns, designs.DESIGN_OPTIONS):
-    with column:
-        st.caption(design.label)
+for design in designs.DESIGN_OPTIONS:
+    st.markdown(f"#### {design.label}")
+    diagram_column, detail_column = st.columns([1, 1])
+
+    with diagram_column:
         st.markdown(
             _design_diagram_svg(
                 design.id,
@@ -1112,36 +1152,25 @@ for column, design in zip(design_columns, designs.DESIGN_OPTIONS):
             unsafe_allow_html=True,
         )
 
-st.caption(
-    "Each dot is a unit, each cluster a group, and horizontal distance is "
-    "time between observations."
-)
+    with detail_column:
+        # Rendered from cells_for() rather than restated, so the words
+        # beside the diagram are the same ones the module tests hold to
+        # one short sentence each.
+        for heading, cell in design.cells_for(selected_domain).items():
+            st.markdown(f"**{heading}**  \n{cell}")
 
-# One row per design rather than three structurally identical
-# paragraphs. The same three facts about each design read as a comparison
-# when they line up in columns, and as a wall when they do not.
-st.dataframe(
-    pd.DataFrame(
-        [
-            {"Design": design.label, **design.cells_for(selected_domain)}
-            for design in designs.DESIGN_OPTIONS
-        ]
-    ),
-    width="stretch",
-    hide_index=True,
-)
+        # The published example sits inside the card it is about. Placed
+        # after the cards, as a list of three, it read as a reading list;
+        # placed here it is evidence about this design, at the point
+        # someone is weighing it.
+        if design.case_study_key:
+            case_study_note(design.case_study_key, design.case_study_connection)
 
 inspect_note(
-    "The last column. Every design leaves something open, and which of "
-    "those you can live with is usually what decides between them."
+    "What each design leaves open. Every design leaves something, and "
+    "which of those you can live with is usually what decides between "
+    "them."
 )
-
-for design in designs.DESIGN_OPTIONS:
-    if not design.case_study_key:
-        continue
-
-    st.caption(f"A published example, on {design.label.lower()}:")
-    case_study_note(design.case_study_key, design.case_study_connection)
 
 implications(designs.DESIGN_CHOICE_IMPLICATION)
 

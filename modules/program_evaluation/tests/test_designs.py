@@ -24,7 +24,7 @@ class TestDesignCatalogue(unittest.TestCase):
 
     def test_get_design_returns_the_requested_one(self):
         self.assertEqual(
-            designs.get_design("pre_post").label, "Pre/post, same participants"
+            designs.get_design("pre_post").label, "Pre/Post, Same Participants"
         )
 
     def test_unknown_design_raises_and_names_the_known_ones(self):
@@ -66,6 +66,25 @@ class TestDesignCatalogue(unittest.TestCase):
         labels = [design.label for design in designs.DESIGN_OPTIONS]
 
         self.assertEqual(len(labels), len(set(labels)))
+
+    def test_labels_are_title_case(self):
+        """
+        A page renders these as card headings, and OpenMeasure headings
+        capitalize every word but the short connectives. Pinned here
+        because sentence case looks correct in isolation and only reads
+        as wrong beside the rest of the page.
+        """
+        lowercase_allowed = {
+            "a", "an", "the", "and", "but", "or", "nor", "for", "so", "yet",
+        }
+
+        for design in designs.DESIGN_OPTIONS:
+            words = design.label.replace("/", " ").replace(",", "").split()
+            for position, word in enumerate(words):
+                if position and word.lower() in lowercase_allowed:
+                    continue
+                with self.subTest(design=design.id, word=word):
+                    self.assertTrue(word[0].isupper(), design.label)
 
 
 class TestDomainVocabulary(unittest.TestCase):

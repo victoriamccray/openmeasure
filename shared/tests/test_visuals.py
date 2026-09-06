@@ -48,6 +48,32 @@ class TestUnitCluster(unittest.TestCase):
         self.assertTrue(all(abs(x - 100) <= 15 for x in xs))
         self.assertTrue(all(abs(y - 60) <= 15 for y in ys))
 
+    def test_a_cluster_keeps_its_shape_at_any_size(self):
+        """
+        Offsets scale with the radius, so the primitive works at dot size
+        and at pictograph size. Fixed offsets made it usable at exactly
+        one scale, and units overlapped when drawn large.
+        """
+        small = unit_cluster(0, 0, ACCENT, count=5, radius=3.0)
+        large = unit_cluster(0, 0, ACCENT, count=5, radius=12.0)
+
+        def spread(svg):
+            xs = [float(v) for v in re.findall(r'cx="([-\d.]+)"', svg)]
+            return max(xs) - min(xs)
+
+        self.assertAlmostEqual(spread(large) / spread(small), 4.0, places=1)
+
+    def test_units_do_not_overlap_when_drawn_large(self):
+        svg = unit_cluster(200, 100, ACCENT, count=5, radius=12.0)
+        pts = list(zip(
+            (float(v) for v in re.findall(r'cx="([-\d.]+)"', svg)),
+            (float(v) for v in re.findall(r'cy="([-\d.]+)"', svg)),
+        ))
+        for i, a in enumerate(pts):
+            for b in pts[i + 1:]:
+                gap = ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
+                self.assertGreater(gap, 12.0, "units overlap at pictograph size")
+
     def test_a_count_too_large_to_be_countable_is_rejected(self):
         """
         A pictograph of forty dots is a texture, not a count, and being
