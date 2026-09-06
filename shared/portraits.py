@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from modules.data_profile.core.profile import ROLES, DataProfile
 from shared import visuals
+from shared.datasets import RealDataset
 
 
 # The dataset portrait. A reader about to map columns onto roles is
@@ -206,4 +207,107 @@ def dataset_portrait_svg(
             )
             + ". Each bar shows how much of a column is present."
         ),
+    )
+
+
+# The catalog portrait. Deliberately a different builder from the one
+# above, taking a RealDataset rather than a DataProfile.
+#
+# The two describe different things and conflating them would erase the
+# distinction the catalog exists to hold: a DataProfile is measured from
+# a file someone has, and a catalog entry describes a dataset most
+# readers have not obtained and several cannot be handed. Six of the nine
+# entries here cannot be opened by OpenMeasure at all. Drawing both from
+# one builder would mean either inventing a profile for a file nobody
+# has, or dropping the entries that are only ever descriptions.
+#
+# So this draws only what the catalog knows: a few verified facts about
+# the dataset's size and shape, as a strip. Every fact comes from the
+# entry's own description.
+_STRIP_W = 640.0
+_STRIP_H = 46.0
+_STRIP_TEXT_Y = 30.0
+
+_STRIP_FONT = 15.0
+_STRIP_GAP = 34.0
+_STRIP_MAX_FACTS = 3
+
+# SVG cannot measure text, so a strip laid out left to right has to
+# estimate how wide each fact is before placing the arrow after it. One
+# flat width per character is not good enough: "837,382 rows" and "One
+# station at a time" are the same length in characters and visibly
+# different in pixels, so the arrows landed against one fact and adrift
+# from another.
+#
+# Three buckets, as fractions of the font size. Approximate, but wrong by
+# a character or two rather than by a word, which is the difference
+# between arrows that look evenly spaced and arrows that do not.
+_NARROW_CHARACTERS = "ijl.,'!|:;() "
+_WIDE_CHARACTERS = "mwMW@ABCDEFGHIJKLNOPQRSTUVXYZ"
+# Digits are tabular in the faces this renders in, so they are all one
+# width and a little wider than lowercase. Counts are most of what a
+# scale fact contains, so getting them wrong showed up immediately as
+# arrows pressed against the text after them.
+_DIGITS = "0123456789"
+_NARROW_RATIO, _NORMAL_RATIO, _WIDE_RATIO = 0.28, 0.53, 0.72
+_DIGIT_RATIO = 0.56
+
+
+def _text_width(text: str, font_size: float) -> float:
+    """Roughly how wide a string renders, for laying figures out."""
+    total = 0.0
+
+    for character in text:
+        if character in _NARROW_CHARACTERS:
+            total += _NARROW_RATIO
+        elif character in _DIGITS:
+            total += _DIGIT_RATIO
+        elif character in _WIDE_CHARACTERS:
+            total += _WIDE_RATIO
+        else:
+            total += _NORMAL_RATIO
+
+    return total * font_size
+
+
+def catalog_portrait_svg(dataset: RealDataset) -> str:
+    """
+    A catalogued dataset's shape, as a strip of facts.
+
+    Returns an empty string when the entry states no verified counts,
+    which several do not. An empty strip is the honest rendering of that:
+    an estimate drawn in the same place as a verified figure would be
+    indistinguishable from one.
+
+    Facts are drawn left to right with arrows between them, since they
+    read as a narrowing (people, then items, then the ones with complete
+    answers) rather than as an unordered set.
+    """
+    facts = tuple(dataset.scale[:_STRIP_MAX_FACTS])
+
+    if not facts:
+        return ""
+
+    x = 58.0
+    parts = [visuals.unit_cluster(24, 23, visuals.ACCENT, count=5, radius=5.5)]
+
+    for index, fact in enumerate(facts):
+        if index:
+            parts.append(
+                visuals.arrow(x, _STRIP_TEXT_Y - 5, x + _STRIP_GAP - 10, _STRIP_TEXT_Y - 5)
+            )
+            x += _STRIP_GAP
+
+        parts.append(
+            f'<text x="{x:.0f}" y="{_STRIP_TEXT_Y:.0f}" '
+            f'font-size="{_STRIP_FONT:.0f}" '
+            f'fill="{visuals.INK_MUTED}">{fact}</text>'
+        )
+        x += _text_width(fact, _STRIP_FONT)
+
+    return visuals.figure(
+        "".join(parts),
+        width=_STRIP_W,
+        height=_STRIP_H,
+        label=f"{dataset.name}: " + ", then ".join(facts) + ".",
     )

@@ -26,7 +26,9 @@ if str(ROOT) not in sys.path:
 import streamlit as st
 
 from shared.catalog import WORKFLOWS
+from shared.dataset_loaders import can_load
 from shared.datasets import DATASETS
+from shared.portraits import catalog_portrait_svg
 
 st.set_page_config(
     page_title="OpenMeasure - Explore Real Data",
@@ -50,10 +52,10 @@ inquiries, such as evaluating whether a model or measurement
 demonstrates consistency across different methods, conditions, or
 groups.
 
-Each dataset below names one open-ended question worth asking of it.
-Deciding how to approach the data, and what its answer would actually
-support, is the exercise. They are grouped by the workflow they suit; a
-dataset that suits two appears under both.
+Each dataset below leads with one open-ended question worth asking of
+it. Deciding how to approach the data, and what its answer would
+actually support, is the exercise. Browse by the workflow a dataset
+suits, by its field, by how it was measured, or by how it is arranged.
 """
 )
 
@@ -61,65 +63,119 @@ st.divider()
 
 _PAGE_BY_WORKFLOW = {item.workflow: item.page for item in WORKFLOWS}
 
+# What a reader is browsing by. Workflow was the only lens, which assumes
+# they already know which analysis they want; someone looking for what a
+# wearable study or a repeated-measures file actually looks like was left
+# scrolling. Each lens reads a different field of the same entries, so no
+# dataset can appear under one lens and vanish under another.
+LENS_WORKFLOW = "Workflow"
+LENS_DOMAIN = "Domain"
+LENS_MODALITY = "How it was measured"
+LENS_STRUCTURE = "How it is arranged"
+
+_LENS_FIELDS = {
+    LENS_DOMAIN: lambda dataset: (dataset.domain,),
+    LENS_MODALITY: lambda dataset: (dataset.modality,),
+    LENS_STRUCTURE: lambda dataset: (dataset.structure,),
+    LENS_WORKFLOW: lambda dataset: dataset.try_with,
+}
+
 
 def render_dataset(dataset, shown_under: str) -> None:
     """
-    One dataset card.
+    One dataset, led by the question it is worth asking.
 
-    Access and delivery are shown together because they answer different
-    questions and are easy to conflate: access is whether a reader may
-    obtain the data, delivery is how it would reach a workflow. A dataset
-    can be openly downloadable and still be one OpenMeasure will not keep
-    a copy of.
+    The question is what a reader is actually choosing between, and it
+    used to sit below the description under a small "Explore:" caption.
+    Everything that describes rather than invites, the prose, the access
+    terms, the links and the citation, moves into Inspect. None of it is
+    removed: the hierarchy changes, the content does not.
     """
     with st.container(border=True):
         st.markdown(f"**{dataset.name}**")
-        st.badge(dataset.domain)
-        st.write(dataset.description)
 
-        # Grouping by workflow means a card no longer lists every
-        # workflow it suits, only the one it is filed under. Naming the
-        # others here keeps that from being something a reader can only
-        # learn by scrolling to a different section.
-        elsewhere = [w for w in dataset.try_with if w != shown_under]
-        if elsewhere:
-            st.caption(f"Also suits: {', '.join(elsewhere)}")
+        strip = catalog_portrait_svg(dataset)
+        if strip:
+            st.markdown(strip, unsafe_allow_html=True)
 
-        st.caption("Explore:")
         st.write(dataset.explore_question)
 
-        st.caption(
-            f"Access: {dataset.access}  ·  How you get it: {dataset.delivery}"
-        )
+        # The facets, including whichever one this dataset is filed
+        # under. Shown whole rather than minus the current lens, so a
+        # card carries the same description wherever it is read.
+        chips = st.columns(4)
+        for column, value in zip(
+            chips,
+            (
+                dataset.domain,
+                dataset.modality,
+                dataset.structure,
+                ", ".join(dataset.try_with),
+            ),
+        ):
+            with column:
+                st.badge(value)
 
-        for source in dataset.sources:
-            st.markdown(f"[{source.label}]({source.url})")
+        with st.expander("Inspect dataset"):
+            st.write(dataset.description)
 
-        if dataset.citation:
-            with st.expander("Citation"):
+            # Access and delivery answer different questions and are easy
+            # to conflate: access is whether a reader may obtain the
+            # data, delivery is how it would reach a workflow. A dataset
+            # can be openly downloadable and still be one OpenMeasure
+            # will not keep a copy of.
+            st.caption(
+                f"Access: {dataset.access}  ·  "
+                f"How you get it: {dataset.delivery}"
+            )
+
+            if can_load(dataset.id):
+                st.caption(
+                    "OpenMeasure can open this one directly. The rest are "
+                    "catalogued for you to obtain yourself."
+                )
+
+            for source in dataset.sources:
+                st.markdown(f"[{source.label}]({source.url})")
+
+            if dataset.citation:
                 st.caption(dataset.citation)
 
+        for workflow in dataset.try_with:
+            st.page_link(
+                _PAGE_BY_WORKFLOW[workflow],
+                label=f"Open {workflow}",
+                icon=":material/arrow_forward:",
+            )
 
-# Grouped by the workflow each dataset suits, rather than listed flat.
-# The page's whole framing is "try this against a workflow", so that is
-# what a reader is scanning for, and a flat list buried the newest
-# entries at the bottom once the catalog grew past a handful. A dataset
-# suiting two workflows appears under both, because it genuinely does.
-for workflow in WORKFLOWS:
-    matching = [d for d in DATASETS if workflow.workflow in d.try_with]
+
+lens = st.radio(
+    "Browse by",
+    options=(LENS_WORKFLOW, LENS_DOMAIN, LENS_MODALITY, LENS_STRUCTURE),
+    horizontal=True,
+)
+
+# Groups come from the datasets themselves under every lens except
+# workflow, which uses the catalog's own order so the sections match the
+# navigation. A dataset suiting two workflows appears under both, because
+# it genuinely does.
+if lens == LENS_WORKFLOW:
+    groups = [item.workflow for item in WORKFLOWS]
+else:
+    groups = sorted(
+        {value for dataset in DATASETS for value in _LENS_FIELDS[lens](dataset)}
+    )
+
+for group in groups:
+    matching = [d for d in DATASETS if group in _LENS_FIELDS[lens](d)]
 
     if not matching:
         continue
 
-    st.markdown(f"#### For {workflow.workflow}")
-    st.page_link(
-        _PAGE_BY_WORKFLOW[workflow.workflow],
-        label=f"Open {workflow.workflow}",
-        icon=":material/arrow_forward:",
-    )
+    st.markdown(f"#### {group}")
 
     for dataset in matching:
-        render_dataset(dataset, workflow.workflow)
+        render_dataset(dataset, group)
 
 st.divider()
 

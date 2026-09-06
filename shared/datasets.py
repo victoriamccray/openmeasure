@@ -65,6 +65,54 @@ DELIVERY_MODES: frozenset[str] = frozenset(
     }
 )
 
+# How the data was observed, and how it is arranged. Two facets rather
+# than one, because they answer different questions and a reader looking
+# for a dataset is usually holding one of them: "what does a wearable
+# study look like" is a different search from "what does a repeated-
+# measures file look like".
+#
+# Closed sets, so browsing by a facet cannot silently miss a dataset
+# filed under a near-synonym. Both are classifications drawn from each
+# dataset's own description, not measurements of the file.
+MODALITY_SURVEY = "Survey or questionnaire"
+MODALITY_WEARABLE = "Wearable sensor"
+MODALITY_FIXED_SENSOR = "Fixed sensor"
+MODALITY_ENVIRONMENTAL = "Environmental sampling"
+MODALITY_CLINICAL_RECORDS = "Clinical records"
+MODALITY_IMAGING = "Imaging"
+
+MODALITIES: frozenset[str] = frozenset(
+    {
+        MODALITY_SURVEY,
+        MODALITY_WEARABLE,
+        MODALITY_FIXED_SENSOR,
+        MODALITY_ENVIRONMENTAL,
+        MODALITY_CLINICAL_RECORDS,
+        MODALITY_IMAGING,
+    }
+)
+
+STRUCTURE_CROSS_SECTIONAL = "Cross-sectional"
+STRUCTURE_TIME_SERIES = "Time series"
+STRUCTURE_REPEATED_MEASURES = "Repeated measures"
+STRUCTURE_RANDOMIZED_TRIAL = "Randomized trial"
+STRUCTURE_LINKED_SOURCES = "Linked sources"
+
+STRUCTURES: frozenset[str] = frozenset(
+    {
+        STRUCTURE_CROSS_SECTIONAL,
+        STRUCTURE_TIME_SERIES,
+        STRUCTURE_REPEATED_MEASURES,
+        STRUCTURE_RANDOMIZED_TRIAL,
+        STRUCTURE_LINKED_SOURCES,
+    }
+)
+
+# The longest a scale fact can be and still fit the strip that draws it.
+# SVG text does not wrap, so a longer one is lost off the canvas rather
+# than clipped.
+SCALE_FACT_LIMIT = 30
+
 # The two modes that put a copy somewhere other than the reader's own
 # machine, and therefore require permission to redistribute. A runtime
 # cache is included deliberately: on a hosted deployment one fetch serves
@@ -125,6 +173,22 @@ class RealDataset:
     delivery: str
     redistribution_permitted: bool
 
+    # How the data was observed and how it is arranged, so the catalog
+    # can be browsed by something other than which workflow suits it.
+    modality: str
+    structure: str
+
+    # A few short facts about this dataset's size and shape, drawn as a
+    # strip above its question. Every one is already stated in the
+    # description above it and was verified against the source when the
+    # entry was written; this promotes them into a slot that can be
+    # drawn, and adds nothing.
+    #
+    # Empty is a legitimate value. Several entries state no counts,
+    # because none were verified, and an empty strip says that more
+    # honestly than an estimate would.
+    scale: tuple[str, ...] = ()
+
     citation: str = ""
 
     def __post_init__(self) -> None:
@@ -177,6 +241,30 @@ class RealDataset:
                 "record permission explicitly."
             )
 
+        if self.modality not in MODALITIES:
+            raise ValueError(
+                f"{self.id} has modality '{self.modality}', which is not "
+                f"one of the declared modalities: "
+                f"{', '.join(sorted(MODALITIES))}."
+            )
+
+        if self.structure not in STRUCTURES:
+            raise ValueError(
+                f"{self.id} has structure '{self.structure}', which is not "
+                f"one of the declared structures: "
+                f"{', '.join(sorted(STRUCTURES))}."
+            )
+
+        for fact in self.scale:
+            if not fact.strip():
+                raise ValueError(f"{self.id} has an empty scale fact.")
+            if len(fact) > SCALE_FACT_LIMIT:
+                raise ValueError(
+                    f"{self.id}'s scale fact '{fact}' is longer than "
+                    f"{SCALE_FACT_LIMIT} characters and would run off the "
+                    "strip that draws it."
+                )
+
         if not self.sources:
             raise ValueError(f"{self.id} lists no sources.")
 
@@ -184,6 +272,13 @@ class RealDataset:
 DATASETS: tuple[RealDataset, ...] = (
     RealDataset(
         id="healthring",
+        modality=MODALITY_WEARABLE,
+        structure=STRUCTURE_TIME_SERIES,
+        scale=(
+            "54 adults",
+            "PPG and accelerometer",
+            "4 activity scenarios",
+        ),
         name="HealthRing (RingDatasetV2.1)",
         domain="Wearable sensing / digital health",
         description=(
@@ -223,6 +318,12 @@ DATASETS: tuple[RealDataset, ...] = (
     ),
     RealDataset(
         id="portable_mri_volumetrics",
+        modality=MODALITY_IMAGING,
+        structure=STRUCTURE_REPEATED_MEASURES,
+        scale=(
+            "Repeated sessions",
+            "2 software versions",
+        ),
         name="Ultra-low-field portable MRI volumetrics",
         domain="Neuroimaging / measurement validation",
         description=(
@@ -257,6 +358,12 @@ DATASETS: tuple[RealDataset, ...] = (
     ),
     RealDataset(
         id="wastewater_surveillance_equity",
+        modality=MODALITY_ENVIRONMENTAL,
+        structure=STRUCTURE_LINKED_SOURCES,
+        scale=(
+            "Sewershed and county level",
+            "Pairs with SVI and EJI",
+        ),
         name="NY State wastewater surveillance, linked to social vulnerability",
         domain="Public health surveillance / environmental equity",
         description=(
@@ -310,6 +417,13 @@ DATASETS: tuple[RealDataset, ...] = (
     ),
     RealDataset(
         id="diabetes_130_hospitals",
+        modality=MODALITY_CLINICAL_RECORDS,
+        structure=STRUCTURE_CROSS_SECTIONAL,
+        scale=(
+            "101,766 encounters",
+            "130 hospitals",
+            "47 features",
+        ),
         name="Diabetes 130-US hospitals, 1999-2008",
         domain="Clinical care / health services",
         description=(
@@ -355,6 +469,13 @@ DATASETS: tuple[RealDataset, ...] = (
     ),
     RealDataset(
         id="nhanes_dpq_phq9",
+        modality=MODALITY_SURVEY,
+        structure=STRUCTURE_CROSS_SECTIONAL,
+        scale=(
+            "6,337 participants",
+            "9 items scored 0 to 3",
+            "5,455 complete cases",
+        ),
         name="NHANES depression screener (PHQ-9), 2021-2023",
         domain="Population health survey / measurement",
         description=(
@@ -404,6 +525,13 @@ DATASETS: tuple[RealDataset, ...] = (
     ),
     RealDataset(
         id="right_to_play_baseline",
+        modality=MODALITY_SURVEY,
+        structure=STRUCTURE_RANDOMIZED_TRIAL,
+        scale=(
+            "1,752 students",
+            "40 schools",
+            "350 variables",
+        ),
         name="Right To Play Pakistan cluster RCT, baseline",
         domain="Violence prevention / school-based intervention",
         description=(
@@ -461,6 +589,12 @@ DATASETS: tuple[RealDataset, ...] = (
     ),
     RealDataset(
         id="nwss_wastewater_metrics",
+        modality=MODALITY_ENVIRONMENTAL,
+        structure=STRUCTURE_TIME_SERIES,
+        scale=(
+            "837,382 rows",
+            "One site, one series",
+        ),
         name="CDC NWSS public SARS-CoV-2 wastewater metrics",
         domain="Public health surveillance",
         description=(
@@ -509,6 +643,12 @@ DATASETS: tuple[RealDataset, ...] = (
     ),
     RealDataset(
         id="noaa_lcd_hourly",
+        modality=MODALITY_FIXED_SENSOR,
+        structure=STRUCTURE_TIME_SERIES,
+        scale=(
+            "One station at a time",
+            "4 report types interleaved",
+        ),
         name="NOAA Local Climatological Data, hourly station observations",
         domain="Weather observation / sensor time series",
         description=(
@@ -555,6 +695,12 @@ DATASETS: tuple[RealDataset, ...] = (
     ),
     RealDataset(
         id="openmesh_nyc",
+        modality=MODALITY_FIXED_SENSOR,
+        structure=STRUCTURE_TIME_SERIES,
+        scale=(
+            "NetCDF",
+            "Outages documented at source",
+        ),
         name="OpenMesh urban weather sensing, New York City",
         domain="Urban sensing / wireless signal time series",
         description=(
