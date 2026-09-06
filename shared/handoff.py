@@ -33,7 +33,7 @@ import pandas as pd
 
 # Bumped when the shape of a stored record changes. Records written by an
 # older version are discarded on read rather than misinterpreted.
-HANDOFF_SCHEMA_VERSION = 1
+HANDOFF_SCHEMA_VERSION = 2
 
 # Where records live inside the mapping.
 STORE_KEY = "openmeasure_handoff"
@@ -194,6 +194,92 @@ class ExclusionAccount:
         return self.n_input_rows - self.n_retained_rows
 
 
+# What kind of quantity a finding reports.
+#
+# A closed set, because whether two findings can be set beside each other
+# at all depends on this and on nothing else available here. An
+# internal-consistency coefficient and a difference in change scores are
+# both numbers, and they are not the same kind of number. Recording the
+# kind is what lets a comparison say "not directly comparable" instead of
+# quietly putting them in the same column.
+QUANTITY_INTERNAL_CONSISTENCY = "Internal consistency"
+QUANTITY_GROUP_DIFFERENCE = "Difference between groups"
+QUANTITY_RATE_DISPARITY = "Disparity in rates across groups"
+QUANTITY_SCHEDULE_COVERAGE = "Coverage of an expected schedule"
+
+QUANTITIES: frozenset[str] = frozenset(
+    {
+        QUANTITY_INTERNAL_CONSISTENCY,
+        QUANTITY_GROUP_DIFFERENCE,
+        QUANTITY_RATE_DISPARITY,
+        QUANTITY_SCHEDULE_COVERAGE,
+    }
+)
+
+
+@dataclass(frozen=True)
+class Finding:
+    """
+    What one analysis found, in a form another analysis can be set
+    beside.
+
+    ``reading`` is the recording module's own short categorical summary,
+    not something computed here. Each module owns the interpretation of
+    its own statistic, including which convention it read the number
+    against, and a cross-analysis view that re-derived those readings
+    would be a second opinion competing with the first.
+
+    ``statement`` is the module's own sentence. Kept alongside the number
+    so a comparison never has to paraphrase a result into a shorter
+    claim than the one that was made.
+    """
+
+    label: str
+    quantity: str
+    value: float
+    reading: str
+    statement: str
+
+    def __post_init__(self) -> None:
+        for field_name in ("label", "quantity", "reading", "statement"):
+            if not getattr(self, field_name):
+                raise ValueError(
+                    f"{self.label or 'A finding'} is missing a value for "
+                    f"'{field_name}'."
+                )
+
+        if self.quantity not in QUANTITIES:
+            raise ValueError(
+                f"{self.label} reports quantity '{self.quantity}', which is "
+                f"not one of the declared quantities: "
+                f"{', '.join(sorted(QUANTITIES))}. A comparison cannot "
+                "place a quantity it does not know."
+            )
+
+
+@dataclass(frozen=True)
+class AssumptionRecord:
+    """
+    One condition a recorded result rests on, and what became of it.
+
+    Deliberately thinner than a module's own assumption objects, which
+    carry statements and citations. What a cross-analysis view needs is
+    which conditions two results depend on and where those differ; the
+    full statement stays on the page that made the result.
+    """
+
+    name: str
+    status: str
+
+    def __post_init__(self) -> None:
+        for field_name in ("name", "status"):
+            if not getattr(self, field_name):
+                raise ValueError(
+                    f"{self.name or 'An assumption'} is missing a value for "
+                    f"'{field_name}'."
+                )
+
+
 @dataclass(frozen=True)
 class HandoffEntry:
     """One module's recorded analysis."""
@@ -202,6 +288,14 @@ class HandoffEntry:
     fingerprint: DatasetFingerprint
     exclusion: ExclusionAccount
     primary_statistics: Mapping[str, float] = field(default_factory=dict)
+
+    # What this analysis found and what it rests on. Both default empty:
+    # a module that has not been wired to record them yet is a module
+    # with nothing to compare, which a cross-analysis view should show as
+    # absent rather than infer around.
+    findings: tuple[Finding, ...] = ()
+    assumptions: tuple[AssumptionRecord, ...] = ()
+
     schema_version: int = HANDOFF_SCHEMA_VERSION
     recorded_at: str = ""
     sequence: int = 0
@@ -268,6 +362,8 @@ class HandoffStore:
         fingerprint: DatasetFingerprint,
         exclusion: ExclusionAccount,
         primary_statistics: Mapping[str, float] | None = None,
+        findings: tuple[Finding, ...] = (),
+        assumptions: tuple[AssumptionRecord, ...] = (),
     ) -> HandoffEntry:
         """Record one module's analysis, replacing any earlier record."""
 
@@ -278,6 +374,8 @@ class HandoffStore:
             fingerprint=fingerprint,
             exclusion=exclusion,
             primary_statistics=dict(primary_statistics or {}),
+            findings=tuple(findings),
+            assumptions=tuple(assumptions),
             schema_version=HANDOFF_SCHEMA_VERSION,
             recorded_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
             sequence=self._next_sequence(entries),

@@ -25,6 +25,7 @@ if str(ROOT) not in sys.path:
 import pandas as pd
 import streamlit as st
 
+from modules.cross_analysis.core import compare
 from modules.validation_chain.core.retention import summarize_retention
 from shared.handoff import (
     KIND_CELLS_EMPTY,
@@ -33,6 +34,7 @@ from shared.handoff import (
     HandoffStore,
     group_by_dataset,
 )
+from shared import visuals
 from shared.report import (
     caveat,
     implications,
@@ -59,6 +61,98 @@ st.caption(
 st.divider()
 
 render_lifecycle_tracker(current_workflow="Cross-Analysis Implications")
+
+
+# The convergence diagram. Two findings and what can be said about the
+# pair, which is the relationship this page is named for and had never
+# drawn.
+#
+# Solid when the two can be set beside each other, dashed when they
+# cannot, the same rule used elsewhere for established and not. A pair
+# that is not comparable still gets drawn: it is a fact about the two
+# analyses, and hiding it would leave a reader unable to tell a
+# comparison that was attempted and could not be made from one that was
+# never attempted.
+_PAIR_W, _PAIR_H = 640.0, 160.0
+_PAIR_BOX_W, _PAIR_BOX_H = 292.0, 54.0
+_PAIR_TOP_Y, _PAIR_BOTTOM_Y = 16.0, 90.0
+_PAIR_OUT_X, _PAIR_OUT_W = 412.0, 228.0
+
+# SVG text does not wrap, so a label longer than this is shortened here
+# and read in full in the table underneath.
+_PAIR_MAX_LABEL = 38
+
+
+def _pair_text(value: str) -> str:
+    """A label short enough to sit inside a box."""
+    if len(value) <= _PAIR_MAX_LABEL:
+        return value
+
+    return value[: _PAIR_MAX_LABEL - 1] + "…"
+
+
+def _pair_box(y: float, module: str, reading: str, *, solid: bool) -> str:
+    """One analysis and how it read, as one side of a comparison."""
+    stroke = visuals.ACCENT if solid else visuals.INK_MUTED
+    dash = "" if solid else f' stroke-dasharray="{visuals.DASH_UNESTABLISHED}"'
+
+    return (
+        f'<rect x="0" y="{y:.0f}" width="{_PAIR_BOX_W:.0f}" '
+        f'height="{_PAIR_BOX_H:.0f}" rx="5" fill="none" stroke="{stroke}" '
+        f'stroke-width="1.5"{dash}/>'
+        f'<text x="14" y="{y + 22:.0f}" font-size="13" fill="{stroke}">'
+        f"{_pair_text(module)}</text>"
+        f'<text x="14" y="{y + 42:.0f}" font-size="13" '
+        f'fill="{visuals.INK_MUTED}">{_pair_text(reading)}</text>'
+    )
+
+
+def _convergence_svg(pair) -> str:
+    """
+    Two findings, and what their pairing does and does not support.
+
+    Nothing here scores the pair. The diagram shows two readings meeting
+    at a junction and names what the junction is; whether that is worth
+    anything depends on knowing what the two analyses are, which is the
+    reader's to bring.
+    """
+    solid = pair.comparison != compare.NOT_COMPARABLE
+    stroke = visuals.ACCENT if solid else visuals.INK_MUTED
+    dash = "" if solid else f' stroke-dasharray="{visuals.DASH_UNESTABLISHED}"'
+
+    top_mid = _PAIR_TOP_Y + _PAIR_BOX_H / 2
+    bottom_mid = _PAIR_BOTTOM_Y + _PAIR_BOX_H / 2
+    junction_y = (top_mid + bottom_mid) / 2
+
+    joins = (
+        f'<path d="M {_PAIR_BOX_W + 6:.0f} {top_mid:.0f} '
+        f'H 350 V {junction_y:.0f}" fill="none" stroke="{stroke}" '
+        f'stroke-width="1"{dash}/>'
+        f'<path d="M {_PAIR_BOX_W + 6:.0f} {bottom_mid:.0f} '
+        f'H 350 V {junction_y:.0f}" fill="none" stroke="{stroke}" '
+        f'stroke-width="1"{dash}/>'
+    )
+
+    return visuals.figure(
+        _pair_box(_PAIR_TOP_Y, pair.module_a, pair.reading_a, solid=solid)
+        + _pair_box(_PAIR_BOTTOM_Y, pair.module_b, pair.reading_b, solid=solid)
+        + joins
+        + visuals.arrow(
+            350, junction_y, _PAIR_OUT_X - 8, junction_y, established=solid
+        )
+        + f'<rect x="{_PAIR_OUT_X:.0f}" y="{junction_y - 27:.0f}" '
+        f'width="{_PAIR_OUT_W:.0f}" height="{_PAIR_BOX_H:.0f}" rx="5" '
+        f'fill="none" stroke="{stroke}" stroke-width="1.5"{dash}/>'
+        + f'<text x="{_PAIR_OUT_X + 16:.0f}" y="{junction_y + 5:.0f}" '
+        f'font-size="14" fill="{stroke}">{pair.comparison}</text>',
+        width=_PAIR_W,
+        height=_PAIR_H,
+        label=(
+            f"{pair.module_a} read as {pair.reading_a}. {pair.module_b} read "
+            f"as {pair.reading_b}. Together: {pair.comparison.lower()}. "
+            f"{pair.explanation}"
+        ),
+    )
 
 
 KIND_LABELS = {
@@ -130,7 +224,9 @@ this page will show how many participants each one kept.
 """
     )
 
-    show_case_studies("data_validation")
+    with st.expander("Examples"):
+        show_case_studies("data_validation")
+
     st.stop()
 
 
@@ -195,7 +291,7 @@ if summary.n_datasets > 1:
 
 for dataset in summary.datasets:
     section_header(
-        f"Retention: {dataset.fingerprint.filename}",
+        f"1. Data Used: {dataset.fingerprint.filename}",
         f"{dataset.fingerprint.n_rows} rows uploaded, "
         f"digest {dataset.fingerprint.short_digest}",
     )
@@ -209,7 +305,10 @@ for dataset in summary.datasets:
         if account.n_retained_rows is not None
     ]
 
-    if plottable:
+    # A bar chart of one analysis is not a comparison. With a single
+    # recorded analysis the table below is the whole record, and a chart
+    # of one bar implies a comparison that is not there.
+    if len(plottable) > 1:
         st.bar_chart(
             pd.DataFrame(
                 [
@@ -307,19 +406,133 @@ for dataset in summary.datasets:
     ]
 
     if stat_rows:
-        st.markdown("**Other recorded signals on this dataset**")
-        st.dataframe(pd.DataFrame(stat_rows), width="stretch", hide_index=True)
-        inspect_note(
-            "Whether a signal here (e.g. a fairness disparity measure) "
-            "co-occurs with heavy exclusion above, on the same dataset."
+        with st.expander("Other recorded signals on this dataset"):
+            st.dataframe(
+                pd.DataFrame(stat_rows), width="stretch", hide_index=True
+            )
+            caveat(
+                "Each analysis's own recorded number, shown as-is: not "
+                "compared, combined, or flagged against a threshold. A "
+                "Reliability alpha and a Fairness disparity measure "
+                "different things and have no shared scale, and "
+                "co-occurring with exclusion does not establish that one "
+                "caused the other."
+            )
+
+    # -----------------------------------------------------------------
+    # 2, 3 and 4. What each analysis found, what it rests on, and how the
+    # findings stand to each other.
+    #
+    # This page meant one thing by cross-analysis, which was how many
+    # rows each module kept from the same file. That is worth knowing and
+    # it is not what the name promises. These three views are the rest of
+    # it, and they are empty until a module records what it found, which
+    # is why a module that has not been wired for that is named rather
+    # than silently absent.
+    # -----------------------------------------------------------------
+
+    across = compare.read_across(dataset_entries)
+
+    section_header("2. Results", "What each analysis found, side by side")
+
+    finding_rows = [
+        {
+            "Module": entry.module,
+            "Found": finding.label,
+            "Value": f"{finding.value:.3f}",
+            "Reads as": finding.reading,
+            "In the module's words": finding.statement,
+        }
+        for entry in dataset_entries
+        for finding in entry.findings
+    ]
+
+    if finding_rows:
+        st.dataframe(
+            pd.DataFrame(finding_rows), width="stretch", hide_index=True
         )
         caveat(
-            "Each analysis's own recorded number, shown as-is: not "
-            "compared, combined, or flagged against a threshold. A "
-            "Reliability alpha and a Fairness disparity measure different "
-            "things and have no shared scale, and co-occurring with "
-            "exclusion does not establish that one caused the other."
+            "Each reading is the recording module's own, against the "
+            "convention that module states. Nothing here re-reads another "
+            "module's number."
         )
+    else:
+        st.info(
+            "None of the analyses on this dataset recorded a finding yet."
+        )
+
+    if across.modules_without_findings:
+        st.caption(
+            "Recorded retention but not a finding: "
+            + ", ".join(across.modules_without_findings)
+            + ". Those modules are not yet wired to record what they "
+            "found, so they are absent from the comparison below."
+        )
+
+    section_header(
+        "3. Assumptions", "What each result depends on, and where those meet"
+    )
+
+    if across.assumptions:
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    {
+                        "Condition": item.name,
+                        "Rests on it": ", ".join(item.modules),
+                        "Shared": "yes" if item.shared else "no",
+                    }
+                    for item in across.assumptions
+                ]
+            ),
+            width="stretch",
+            hide_index=True,
+        )
+        inspect_note(
+            "The shared rows. A condition two results both rest on is the "
+            "one whose failure would move both of them at once."
+        )
+    else:
+        st.info(
+            "None of the analyses on this dataset recorded the conditions "
+            "its result rests on."
+        )
+
+    section_header(
+        "4. Convergence",
+        "Where findings point the same way, point differently, or cannot "
+        "be set beside each other",
+    )
+
+    if across.pairs:
+        for pair in across.pairs:
+            st.markdown(
+                f"**{pair.label_a}** and **{pair.label_b}**"
+            )
+            st.markdown(_convergence_svg(pair), unsafe_allow_html=True)
+            st.caption(pair.explanation)
+            st.caption(
+                compare.RETENTION_MATCHES_NOTE
+                if pair.same_retained_count
+                else compare.RETENTION_DIFFERS_NOTE
+            )
+
+        if not across.has_comparable_pair:
+            caveat(
+                "No two of these findings report the same kind of quantity, "
+                "so none of them can be read as agreeing or disagreeing. "
+                "That is a property of the analyses run, not of the data."
+            )
+    else:
+        st.info(
+            "A comparison needs findings from two analyses of this dataset."
+        )
+
+    caveat(
+        "This page does not score agreement. Whether two analyses pointing "
+        "the same way strengthens a claim depends on what the analyses are "
+        "and what they share, which is yours to judge."
+    )
 
 
 # ---------------------------------------------------------------------
@@ -358,4 +571,5 @@ if st.button("Clear recorded results"):
     st.rerun()
 
 
-show_case_studies("data_validation")
+with st.expander("Examples"):
+    show_case_studies("data_validation")

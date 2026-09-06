@@ -38,6 +38,9 @@ from shared import visuals
 from shared.catalog import MODULE_PROGRAM_EVALUATION
 from shared.handoff import (
     KIND_ROWS_DROPPED,
+    QUANTITY_GROUP_DIFFERENCE,
+    AssumptionRecord,
+    Finding,
     ExclusionAccount,
     HandoffStore,
     RetentionItem,
@@ -968,11 +971,45 @@ def record_comparison(frame, source_name, analysis_context, recommendation, resu
         if isinstance(value, (int, float)):
             statistics[name] = float(value)
 
+    # What this analysis found, in a form the comparison page can set
+    # beside another module's. The reading follows the same convention
+    # the interpretation stage prints, so the two cannot disagree.
+    findings = ()
+    p_value = statistics.get("p_value")
+    if p_value is not None:
+        effect = statistics.get("did_estimate", statistics.get("cohens_d"))
+        detected = p_value < interpret.CONVENTIONAL_ALPHA
+        findings = (
+            Finding(
+                label=recommendation.display_name,
+                quantity=QUANTITY_GROUP_DIFFERENCE,
+                value=float(effect) if effect is not None else float(p_value),
+                reading=(
+                    "Difference detected at the conventional threshold"
+                    if detected
+                    else "No difference detected at this sample size"
+                ),
+                statement=(
+                    f"{recommendation.display_name} on "
+                    f"{', '.join(account.columns_considered)}, "
+                    f"p = {p_value:.4f} against a threshold of "
+                    f"{interpret.CONVENTIONAL_ALPHA}."
+                ),
+            ),
+        )
+
+    assumptions = tuple(
+        AssumptionRecord(name=name, status="Stated, not tested by this design")
+        for name in interpret.support_boundary_conditions(recommendation.method)
+    )
+
     HandoffStore(st.session_state).record(
         module=MODULE_PROGRAM_EVALUATION,
         fingerprint=fingerprint_dataframe(frame, source_name),
         exclusion=account,
         primary_statistics=statistics,
+        findings=findings,
+        assumptions=assumptions,
     )
 
 st.set_page_config(page_title="OpenMeasure · Program Evaluation", page_icon=":material/monitoring:", layout="centered")

@@ -584,7 +584,15 @@ class TestCrossAnalysisOtherRecordedSignals(unittest.TestCase):
 
         self.assertFalse(app.exception)
 
-        rendered = " ".join(str(item.value) for item in app.markdown)
+        # Surfaced, not necessarily at the top level. These are each
+        # analysis's own raw numbers with no shared scale, and the
+        # findings comparison above them is what a reader acts on, so the
+        # section sits behind an expander. The requirement is that it is
+        # reachable and labelled, which is what this checks.
+        rendered = " ".join(
+            [str(item.value) for item in app.markdown]
+            + [expander.label for expander in app.expander]
+        )
         self.assertIn("Other recorded signals", rendered)
 
         dataframe_values = [

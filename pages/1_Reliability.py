@@ -35,6 +35,9 @@ from shared.upload import (
     render_dataset_portrait,
 )
 from shared.handoff import (
+    QUANTITY_INTERNAL_CONSISTENCY,
+    AssumptionRecord,
+    Finding,
     KIND_CELLS_EMPTY,
     KIND_ROWS_DROPPED,
     ExclusionAccount,
@@ -84,6 +87,34 @@ def record_reliability(frame, source_name, columns, result) -> None:
             ),
         ),
         primary_statistics={"cronbach_alpha": float(result.cronbach_alpha)},
+        # The reading is this module's own, from interpret_alpha, rather
+        # than one the comparison page re-derives. Each module owns the
+        # convention it read its number against, and a cross-analysis
+        # view computing its own reading would be a second opinion
+        # competing with the first.
+        findings=(
+            Finding(
+                label="Cronbach's alpha",
+                quantity=QUANTITY_INTERNAL_CONSISTENCY,
+                value=float(result.cronbach_alpha),
+                reading=interp.interpret_alpha(result.cronbach_alpha),
+                statement=(
+                    f"{len(columns)} items scored alpha = "
+                    f"{result.cronbach_alpha:.2f} over "
+                    f"{result.n_complete_cases} complete cases."
+                ),
+            ),
+        ),
+        assumptions=(
+            AssumptionRecord(
+                name="Items measure one construct",
+                status="Not established by this analysis",
+            ),
+            AssumptionRecord(
+                name="Complete cases are not systematically different",
+                status="Not testable from the retained rows alone",
+            ),
+        ),
     )
 
 st.set_page_config(page_title="OpenMeasure · Reliability", page_icon=":material/verified:", layout="centered")
