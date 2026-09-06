@@ -90,6 +90,7 @@ KIND_BIOLOGICAL_STATE = "A molecular or cellular state"
 KIND_SYSTEM_OUTPUT = "Something a computational system produces"
 KIND_SETTING = "A condition of the environment or setting"
 KIND_RECORDED_EVENT = "Something an organization already recorded"
+KIND_ECONOMIC_STATE = "An economic or material state"
 
 CONCEPT_KINDS: tuple[str, ...] = (
     KIND_EXPERIENCE,
@@ -101,6 +102,7 @@ CONCEPT_KINDS: tuple[str, ...] = (
     KIND_SYSTEM_OUTPUT,
     KIND_SETTING,
     KIND_RECORDED_EVENT,
+    KIND_ECONOMIC_STATE,
 )
 
 
@@ -384,6 +386,76 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established environmental monitoring approach",
         search_terms="environmental sensor exposure measurement error",
+    ),
+    Measure(
+        name="Income or earnings record",
+        observes=(KIND_ECONOMIC_STATE, KIND_RECORDED_EVENT),
+        modality=MODALITY_ADMINISTRATIVE,
+        captures="What was actually paid, as an employer or agency recorded it",
+        produces="Amounts per period, per person or household",
+        burden="No participant burden, access negotiation instead",
+        limitation=(
+            "Covers formal recorded income, so cash work, irregular hours "
+            "and household sharing are invisible to it"
+        ),
+        documented_as="An established administrative-data source type",
+        search_terms="administrative earnings records research validity",
+    ),
+    Measure(
+        name="Assets and savings inventory",
+        observes=(KIND_ECONOMIC_STATE,),
+        modality=MODALITY_SELF_REPORT,
+        captures="What a household could draw on if income stopped",
+        produces="Reported balances or bracketed amounts",
+        burden="Sensitive questions, moderate refusal rates",
+        limitation=(
+            "Amounts are recalled rather than looked up, and refusal is "
+            "patterned by how much someone has"
+        ),
+        documented_as="An established household-finance survey module",
+        search_terms="household assets savings survey measurement nonresponse",
+    ),
+    Measure(
+        name="Debt burden measure",
+        observes=(KIND_ECONOMIC_STATE,),
+        modality=MODALITY_SELF_REPORT,
+        captures="What is owed, relative to what comes in",
+        produces="Ratios, or reported balances by debt type",
+        burden="Sensitive questions, recall across several accounts",
+        limitation=(
+            "A ratio treats debts with very different terms as the same "
+            "quantity, and informal debt is rarely reported at all"
+        ),
+        documented_as="An established household-finance survey module",
+        search_terms="debt burden ratio household survey measurement",
+    ),
+    Measure(
+        name="Material hardship indicators",
+        observes=(KIND_ECONOMIC_STATE,),
+        modality=MODALITY_SELF_REPORT,
+        captures="Whether specific needs went unmet, rather than income",
+        produces="Yes/no items, often summed to a count",
+        burden="Short to administer, sensitive to ask",
+        limitation=(
+            "Reports what a household went without, which reflects their "
+            "priorities and coping as well as their resources"
+        ),
+        documented_as="An established hardship-measurement item set",
+        search_terms="material hardship measurement items poverty survey",
+    ),
+    Measure(
+        name="Financial well-being scale",
+        observes=(KIND_ECONOMIC_STATE, KIND_EXPERIENCE),
+        modality=MODALITY_SELF_REPORT,
+        captures="How secure a person feels about their finances",
+        produces="A scale score per respondent",
+        burden="Short to administer",
+        limitation=(
+            "Measures perceived security, which can move with expectations "
+            "while resources stay the same"
+        ),
+        documented_as="An established financial well-being instrument type",
+        search_terms="financial well-being scale validation measurement",
     ),
     Measure(
         name="Model evaluation on held-out data",

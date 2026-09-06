@@ -196,5 +196,91 @@ class TestAStructurallyDifferentStudy(unittest.TestCase):
                 self.assertNotIn(leaked, names)
 
 
+class TestTheQuestionDrivesWhatIsOffered(unittest.TestCase):
+    """
+    The acceptance test in one sentence: enter a question that is not
+    about pain, load no example, and get plausible, question-relevant
+    measures to assemble.
+
+    Driven through the page rather than the library, because the library
+    was already right when the page was still showing everyone one
+    study's measures.
+    """
+
+    def _with_question(self, question: str) -> AppTest:
+        app = _plan_a_study()
+
+        for area in app.text_area:
+            if "question" in str(area.label).lower():
+                area.set_value(question).run()
+                break
+
+        return app
+
+    def test_a_financial_security_question_recognises_its_concept(self):
+        app = self._with_question(
+            "Does the program increase financial security among adults?"
+        )
+        rendered = _rendered_text(app)
+
+        self.assertFalse(app.exception)
+        self.assertIn("financial security", rendered)
+        self.assertIn("economic or material state", rendered)
+
+    def test_it_offers_the_concept_rather_than_adding_it(self):
+        """
+        The rule the lexicon exists to keep. A recognised concept is
+        offered as a button; nothing enters the study until it is
+        clicked.
+        """
+        app = self._with_question(
+            "Does the program increase financial security among adults?"
+        )
+        labels = " ".join(str(item.label).lower() for item in app.button)
+
+        self.assertIn("add financial security", labels)
+
+    def test_confirming_it_surfaces_measures_that_fit(self):
+        app = self._with_question(
+            "Does the program increase financial security among adults?"
+        )
+
+        for button in app.button:
+            if str(button.label).lower().startswith("add financial security"):
+                button.click()
+                app.run()
+                break
+
+        rendered = _rendered_text(app)
+
+        self.assertFalse(app.exception)
+        self.assertIn("material hardship indicators", rendered)
+        self.assertIn("financial well-being scale", rendered)
+
+    def test_and_still_none_of_the_worked_examples_measures(self):
+        app = self._with_question(
+            "Does the program increase financial security among adults?"
+        )
+
+        for button in app.button:
+            if str(button.label).lower().startswith("add financial security"):
+                button.click()
+                app.run()
+                break
+
+        rendered = _rendered_text(app)
+
+        for leaked in ("body map", "electrodermal", "heart-rate variability"):
+            with self.subTest(measure=leaked):
+                self.assertNotIn(leaked, rendered)
+
+    def test_an_unrecognised_question_says_so_rather_than_guessing(self):
+        app = self._with_question("Something entirely novel about widgets")
+        rendered = _rendered_text(app)
+
+        self.assertFalse(app.exception)
+        self.assertIn("no concept in openmeasure's list was recognised", rendered)
+
+
 if __name__ == "__main__":
     unittest.main()

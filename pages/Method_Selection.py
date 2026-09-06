@@ -60,7 +60,7 @@ import streamlit.components.v1 as components
 
 from modules.data_profile.core.profile import profile_dataframe
 from modules.data_profile.core.suggest import WorkflowSuggestion, suggest_workflows
-from modules.research_design.core import assembly, examples, ontology
+from modules.research_design.core import assembly, examples, lexicon, ontology
 from modules.research_design.core.design import DesignAssumptions
 from modules.research_design.core.estimate import estimate_coupling_difference
 from modules.research_design.core.inspect_rules import (
@@ -1130,6 +1130,49 @@ else:
         "approaches are even applicable; your field does not restrict "
         "them, so a study can draw on several kinds of evidence at once."
     )
+
+    # Recognised, never generated. A phrase in OpenMeasure's list is
+    # matched and a phrase outside it is not guessed at, so a construct
+    # nobody chose cannot enter a study looking as though they had.
+    # Adding a suggestion is a click, which is the confirmation step: the
+    # question can suggest concepts, and only confirmed concepts enter
+    # the study.
+    question_text = " ".join(
+        part for part in (hypothesis, outcomes, exposure) if part
+    )
+    suggested = lexicon.suggest_concepts(question_text) if question_text else ()
+
+    if question_text:
+        st.markdown("**Concepts recognised in your question**")
+
+        if suggested:
+            already = {
+                str(row.get("Concept", "")).strip()
+                for row in st.session_state.get("planner_concepts", [])
+            }
+            suggestion_cols = st.columns(min(len(suggested), 3))
+
+            for index, suggestion in enumerate(suggested):
+                with suggestion_cols[index % len(suggestion_cols)]:
+                    st.caption(f"from \"{suggestion.matched_phrase}\"")
+                    if st.button(
+                        f"Add {suggestion.concept}",
+                        key=f"add_concept_{suggestion.concept}",
+                        disabled=suggestion.concept in already,
+                    ):
+                        rows = list(st.session_state.get("planner_concepts", []))
+                        rows.append(
+                            {
+                                "Concept": suggestion.concept,
+                                "What sort of thing is it?": suggestion.kind,
+                            }
+                        )
+                        st.session_state["planner_concepts"] = rows
+                        st.session_state.pop("planner_concept_editor", None)
+                        st.rerun()
+                    st.caption(suggestion.kind)
+        else:
+            st.caption(lexicon.NOTHING_RECOGNISED)
 
     concept_rows = st.data_editor(
         pd.DataFrame(
