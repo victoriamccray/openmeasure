@@ -49,8 +49,15 @@ from shared.report import (
     section_header,
     show_case_studies,
 )
-from shared.upload import render_data_entry, render_data_profile
-from modules.data_profile.core.profile import ROLE_DATETIME
+from shared.upload import (
+    render_data_entry,
+    render_data_profile,
+    render_dataset_portrait,
+)
+from modules.data_profile.core.profile import (
+    ROLE_DATETIME,
+    profile_dataframe,
+)
 
 
 st.set_page_config(
@@ -295,7 +302,19 @@ if frame.empty or len(frame.columns) < 2:
     )
     st.stop()
 
-profile = render_data_profile(frame)
+profile = profile_dataframe(frame)
+
+# Which column is the timestamp and which is the value is the next
+# question, and the portrait's role grouping is where a reader looks for
+# the answer.
+render_dataset_portrait(
+    profile, source_name=loaded.name, is_sample=loaded.is_sample
+)
+
+with st.expander("The first rows, as loaded"):
+    st.dataframe(frame.head(), width="stretch")
+
+render_data_profile(frame, profile=profile)
 
 # ---------------------------------------------------------------------
 # Configure

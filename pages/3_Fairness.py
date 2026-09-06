@@ -50,7 +50,11 @@ from shared.report import (
     section_header,
     show_case_studies,
 )
-from shared.upload import render_data_entry, render_data_profile
+from shared.upload import (
+    render_data_entry,
+    render_data_profile,
+    render_dataset_portrait,
+)
 
 FAIRNESS_ACCENT = "#2a78d6"
 
@@ -429,7 +433,18 @@ else:
     df = loaded.frame
 
     if df is not None:
-        profile = render_data_profile(df)
+        profile = profile_dataframe(df)
+
+        # Before four dropdowns ask which column is the group, the
+        # observed label, and the model's decision, the portrait says
+        # what shape each column is. The defaults below are drawn from
+        # the same profile, so what a reader is shown and what a picker
+        # opens on are one reading of the data rather than two.
+        render_dataset_portrait(
+            profile, source_name=loaded.name, is_sample=loaded.is_sample
+        )
+
+        render_data_profile(df, profile=profile)
 
         # Where each picker opens. Every selectbox below took no index,
         # so each one opened on the first column left in file order, and

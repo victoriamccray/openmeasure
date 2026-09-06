@@ -24,9 +24,16 @@ import streamlit as st
 
 from modules.reliability.core import reliability as rel
 from modules.reliability.core import interpret as interp
-from modules.data_profile.core.profile import ROLE_IDENTIFIER
+from modules.data_profile.core.profile import (
+    ROLE_IDENTIFIER,
+    profile_dataframe,
+)
 from shared.catalog import MODULE_RELIABILITY
-from shared.upload import render_data_entry, render_data_profile
+from shared.upload import (
+    render_data_entry,
+    render_data_profile,
+    render_dataset_portrait,
+)
 from shared.handoff import (
     KIND_CELLS_EMPTY,
     KIND_ROWS_DROPPED,
@@ -193,9 +200,19 @@ if loaded is None:
     st.stop()
 
 df = loaded.frame
-profile = render_data_profile(df)
-st.write(f"Loaded **{df.shape[0]} rows** and **{df.shape[1]} columns**.")
-st.dataframe(df.head(), width="stretch")
+profile = profile_dataframe(df)
+
+# The portrait leads. Selecting scale items is the next thing asked for,
+# and which columns are candidates is a question about their shape, which
+# a row count and five rows of values do not answer.
+render_dataset_portrait(
+    profile, source_name=loaded.name, is_sample=loaded.is_sample
+)
+
+with st.expander("The first rows, as loaded"):
+    st.dataframe(df.head(), width="stretch")
+
+render_data_profile(df, profile=profile)
 
 section_header("2. Select Columns")
 

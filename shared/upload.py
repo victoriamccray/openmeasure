@@ -26,8 +26,13 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from modules.data_profile.core.profile import DataProfile, profile_dataframe
+from modules.data_profile.core.profile import (
+    LOW_CARDINALITY_NOTE,
+    DataProfile,
+    profile_dataframe,
+)
 from modules.data_profile.core.quality import SEVERITY_WARNING, quality_flags
+from shared.portraits import dataset_portrait_svg
 from shared.catalog import (
     MODULE_FAIRNESS,
     MODULE_PROGRAM_EVALUATION,
@@ -206,6 +211,31 @@ def render_data_entry(
             )
 
     return None
+
+
+def render_dataset_portrait(
+    profile: DataProfile, *, source_name: str, is_sample: bool
+) -> None:
+    """
+    Draw a dataset's portrait, with the caveat that belongs beside it.
+
+    One call rather than two, so the portrait and the sentence saying its
+    role grouping is a guess cannot end up on a page apart from each
+    other. Grouping columns by role makes the guess look like a ruling on
+    where each column may go, and every page that shows the grouping owes
+    a reader the same correction.
+
+    Pair this with the raw rows and the profile table rather than
+    replacing them: a portrait says what shape the data is, not what is
+    in it.
+    """
+    st.markdown(
+        dataset_portrait_svg(
+            profile, source_name=source_name, is_sample=is_sample
+        ),
+        unsafe_allow_html=True,
+    )
+    st.caption(LOW_CARDINALITY_NOTE)
 
 
 def render_data_profile(

@@ -58,6 +58,7 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
+from modules.data_profile.core.profile import profile_dataframe
 from modules.data_profile.core.suggest import WorkflowSuggestion, suggest_workflows
 from modules.research_design.core.design import DesignAssumptions
 from modules.research_design.core.estimate import estimate_coupling_difference
@@ -77,7 +78,7 @@ from shared.journey_stages import StageTracker
 from shared.method_guide import BRANCHES
 from shared.report import caveat, implications, inspect_note, interpretation_note, section_header
 from shared.research_journeys import JOURNEYS
-from shared.upload import render_data_profile
+from shared.upload import render_data_profile, render_dataset_portrait
 
 st.set_page_config(
     page_title="OpenMeasure - Method Selection",
@@ -720,7 +721,17 @@ if mode == MODE_ANALYSIS:
 
     if uploaded is not None:
         upload_df = pd.read_csv(uploaded)
-        upload_profile = render_data_profile(upload_df)
+        upload_profile = profile_dataframe(upload_df)
+
+        # What is in the file, before what it might be for. The
+        # suggestions below are drawn from the same column shapes the
+        # portrait shows, so a reader can see why a workflow was named
+        # rather than take the naming on trust.
+        render_dataset_portrait(
+            upload_profile, source_name=uploaded.name, is_sample=False
+        )
+        render_data_profile(upload_df, profile=upload_profile)
+
         suggestions = suggest_workflows(upload_profile)
         _render_workflow_suggestions(suggestions)
 
