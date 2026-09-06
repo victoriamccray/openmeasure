@@ -77,7 +77,7 @@ from modules.research_design.core.simulate import generate_naturalistic_pain_stu
 from shared import visuals
 from shared.measure_visuals import measure_visual_svg
 from shared.catalog import WORKFLOWS
-from shared.journey_stages import StageTracker
+from shared.stage_workspace import Gate, Stage, StageWorkspace
 from shared.method_guide import BRANCHES
 from shared.report import caveat, implications, inspect_note, interpretation_note, section_header
 from shared.research_journeys import JOURNEYS
@@ -795,20 +795,105 @@ else:
     STAGE_SIMULATE = 3
     STAGE_IMPLICATIONS = 4
 
-    DESIGN_STAGE_LABELS = (
-        "Research question",
-        "Explore & assemble measures",
-        "Timing & synchronization",
-        "Simulate the design",
-        "Reveal terminology & implications",
+    # What the planner has assembled, read before any stage renders.
+    #
+    # It has to be available to every stage rather than only to the one
+    # that built it, because the timing, the simulation and the record
+    # all describe it, and in a workspace those are separate screens.
+    # Session state carries it, so nothing recomputes.
+    planner_state = st.session_state.get("planner_study")
+    planner_measures = (
+        tuple(planner_state.selected_measures) if planner_state is not None else ()
+    )
+    planner_concepts = (
+        tuple(concept.name for concept in planner_state.concepts)
+        if planner_state is not None
+        else ()
     )
 
-    design_tracker = StageTracker(
-        session_key="research_design_stage", stage_labels=DESIGN_STAGE_LABELS
+    # Gates. The simulation needs something it can model; the rest is
+    # reading and choosing, which nothing has to unlock.
+    #
+    # Population and setting are optional rather than required. A page
+    # that treated them the same as a measure would make a researcher
+    # invent a population to reach the next screen, which is the opposite
+    # of what this toolkit is for.
+    design_workspace = StageWorkspace(
+        session_key="design",
+        stages=(
+            Stage("question", "Question"),
+            Stage("measures", "Measures"),
+            Stage("timing", "Timing"),
+            Stage("simulate", "Simulation"),
+            Stage("record", "Design Record"),
+        ),
+        gates={
+            "timing": Gate(
+                satisfied=bool(planner_measures),
+                requirement="Assemble at least one measure to continue",
+            ),
+            "question": Gate(
+                satisfied=bool(st.session_state.get("rq_population")),
+                requirement="Population not stated",
+                optional=True,
+            ),
+        },
     )
 
-    design_stage = design_tracker.render_breadcrumb()
-    design_tracker.render_restart_button()
+    # Read before any stage renders. Whether the worked example is loaded
+    # decides what the timing, simulation and record stages show, and in
+    # a workspace each of those is a separate run that never executes the
+    # question stage where the button lives.
+    worked_example_loaded = bool(
+        st.session_state.get("worked_example_loaded", False)
+    )
+
+    # Which assembled measures this page's simulation has a channel for,
+    # and which it does not. Derived here rather than in the stage that
+    # displays it, because timing, the simulation and the record all
+    # describe the same selection and each is a separate run.
+    assembled_measures = list(
+        dict.fromkeys(
+            _LIBRARY_TO_SIMULATION[name]
+            for name in planner_measures
+            if name in _LIBRARY_TO_SIMULATION
+        )
+    )
+    unsimulated = [
+        name for name in planner_measures if name not in _LIBRARY_TO_SIMULATION
+    ]
+
+    # The generic types the deterministic rule engine reasons over.
+    # Derived from the same selection, so the record and the inspections
+    # describe what was assembled whichever stage is on screen.
+    measurement_types = tuple(
+        sorted(
+            {
+                item["generic_type"]
+                for item in _MEASURE_GALLERY
+                if item["key"] in assembled_measures
+            }
+        )
+    )
+
+    # Timing choices are made in one stage and used in the next, and a
+    # widget that is not rendered has no value, so they are held by name.
+    n_participants = design_workspace.kept("n_participants")
+    observations_per_day = design_workspace.kept("observations_per_day")
+    duration_days = design_workspace.kept("duration_days")
+    temporal_misalignment_minutes = design_workspace.kept("misalignment", 10)
+
+    # What the researcher typed about their own question, held by name so
+    # the record can print it from a stage that never renders the fields.
+    entered = design_workspace.kept("entered", {})
+    hypothesis = entered.get("hypothesis", "")
+    population = entered.get("population", "")
+    exposure = entered.get("exposure", "")
+    outcomes = entered.get("outcomes", "")
+    setting = entered.get("setting", "")
+
+    design_stage = design_workspace.render_rail()
+    design_workspace.render_review_notice()
 
     st.divider()
 
@@ -816,109 +901,127 @@ else:
     # 0. Research question
     # -------------------------------------------------------------
 
-    section_header("Research Question", "Enter your own, or load the built-in example")
+    if design_stage == STAGE_QUESTION:
+        section_header("Research Question", "Enter your own, or load the built-in example")
 
-    PAIN_EXAMPLE = {
-        "rq_hypothesis": (
-            "The coupling between subjective pain and physiological "
-            "signals (electrodermal activity and heart rate/heart-rate "
-            "variability) changes when chronic pain is localized versus "
-            "spatially distributed, referred, or radiating."
-        ),
-        "rq_population": "Adults with chronic pain, observed in daily life.",
-        "rq_exposure": "Spatial pain state: localized vs. distributed/referred/radiating.",
-        "rq_outcomes": "Within-person coupling between pain rating and a wearable physiological signal.",
-        "rq_setting": "Naturalistic: participants' everyday environments, not a lab visit.",
-        "study_compares_subgroups": False,
-    }
+        PAIN_EXAMPLE = {
+            "rq_hypothesis": (
+                "The coupling between subjective pain and physiological "
+                "signals (electrodermal activity and heart rate/heart-rate "
+                "variability) changes when chronic pain is localized versus "
+                "spatially distributed, referred, or radiating."
+            ),
+            "rq_population": "Adults with chronic pain, observed in daily life.",
+            "rq_exposure": "Spatial pain state: localized vs. distributed/referred/radiating.",
+            "rq_outcomes": "Within-person coupling between pain rating and a wearable physiological signal.",
+            "rq_setting": "Naturalistic: participants' everyday environments, not a lab visit.",
+            "study_compares_subgroups": False,
+        }
 
-    # Loading the example fills the same workspace a researcher plans in,
-    # rather than switching the page into a different mode. Everything it
-    # sets can then be changed, which is what makes it teach the planner
-    # instead of replacing it.
-    worked = examples.CHRONIC_PAIN
+        # Loading the example fills the same workspace a researcher plans in,
+        # rather than switching the page into a different mode. Everything it
+        # sets can then be changed, which is what makes it teach the planner
+        # instead of replacing it.
+        worked = examples.CHRONIC_PAIN
 
-    rq_button_cols = st.columns([2, 1, 3])
-    with rq_button_cols[0]:
-        if st.button(f"Load worked example: {worked.title}"):
-            for key, value in PAIN_EXAMPLE.items():
-                st.session_state[key] = value
-            st.session_state["planner_concepts"] = [
-                {
-                    "Concept": concept.name,
-                    "What sort of thing is it?": concept.kind,
-                }
-                for concept in worked.study.concepts
-            ]
-            # The editor keeps its own copy once touched, so it has to be
-            # dropped for the rows above to take.
-            st.session_state.pop("planner_concept_editor", None)
-            for concept in worked.study.concepts:
-                st.session_state[f"planner_measures_{concept.name}"] = [
-                    name
-                    for name in worked.study.selected_measures
-                    if concept.kind in ontology.get_measure(name).observes
+        rq_button_cols = st.columns([2, 1, 3])
+        with rq_button_cols[0]:
+            if st.button(f"Load worked example: {worked.title}"):
+                for key, value in PAIN_EXAMPLE.items():
+                    st.session_state[key] = value
+                st.session_state["planner_concepts"] = [
+                    {
+                        "Concept": concept.name,
+                        "What sort of thing is it?": concept.kind,
+                    }
+                    for concept in worked.study.concepts
                 ]
-            st.session_state["worked_example_loaded"] = True
-            st.rerun()
-    with rq_button_cols[1]:
-        if st.button("Clear"):
-            for key in PAIN_EXAMPLE:
-                st.session_state.pop(key, None)
-            for key in list(st.session_state):
-                if str(key).startswith("planner_"):
+                # The editor keeps its own copy once touched, so it has to be
+                # dropped for the rows above to take.
+                st.session_state.pop("planner_concept_editor", None)
+                for concept in worked.study.concepts:
+                    st.session_state[f"planner_measures_{concept.name}"] = [
+                        name
+                        for name in worked.study.selected_measures
+                        if concept.kind in ontology.get_measure(name).observes
+                    ]
+                st.session_state["worked_example_loaded"] = True
+                st.rerun()
+        with rq_button_cols[1]:
+            if st.button("Clear"):
+                for key in PAIN_EXAMPLE:
                     st.session_state.pop(key, None)
-            st.session_state.pop("worked_example_loaded", None)
-            st.rerun()
+                for key in list(st.session_state):
+                    if str(key).startswith("planner_"):
+                        st.session_state.pop(key, None)
+                st.session_state.pop("worked_example_loaded", None)
+                st.rerun()
 
-    worked_example_loaded = bool(
-        st.session_state.get("worked_example_loaded", False)
-    )
+        if worked_example_loaded:
+            st.caption(
+                f"The {worked.title} worked example is loaded. Everything below "
+                "is its study, and every part of it can be changed. Its "
+                "simulation models this one scenario, so the simulated results "
+                "further down describe it rather than a study you describe "
+                "yourself."
+            )
 
-    if worked_example_loaded:
-        st.caption(
-            f"The {worked.title} worked example is loaded. Everything below "
-            "is its study, and every part of it can be changed. Its "
-            "simulation models this one scenario, so the simulated results "
-            "further down describe it rather than a study you describe "
-            "yourself."
+        hypothesis = st.text_area(
+            "Research question / hypothesis", key="rq_hypothesis", height=100
         )
 
-    hypothesis = st.text_area(
-        "Research question / hypothesis", key="rq_hypothesis", height=100
-    )
+        question_cols = st.columns(2)
+        with question_cols[0]:
+            population = st.text_input("Population", key="rq_population")
+            exposure = st.text_input("Exposure / intervention", key="rq_exposure")
+        with question_cols[1]:
+            outcomes = st.text_input("Outcomes", key="rq_outcomes")
+            setting = st.text_input("Setting", key="rq_setting")
 
-    question_cols = st.columns(2)
-    with question_cols[0]:
-        population = st.text_input("Population", key="rq_population")
-        exposure = st.text_input("Exposure / intervention", key="rq_exposure")
-    with question_cols[1]:
-        outcomes = st.text_input("Outcomes", key="rq_outcomes")
-        setting = st.text_input("Setting", key="rq_setting")
+            caveat(
+            "These fields describe your question and go into the Design "
+            "Record."
+        )
 
-    caveat("These fields describe your question and go into the Design Record below.")
+        design_workspace.keep(
+            "entered",
+            {
+                "hypothesis": hypothesis,
+                "population": population,
+                "exposure": exposure,
+                "outcomes": outcomes,
+                "setting": setting,
+            },
+        )
 
-    # -------------------------------------------------------------
-    # Concepts, and how they could be observed
-    # -------------------------------------------------------------
-    #
-    # This stage is the answer to the cold-test failure that produced it:
-    # a researcher asking about mental models in implementation research
-    # was offered pain ratings, body maps and electrodermal activity,
-    # because the measures on this page belonged to one worked example
-    # and the example was the planner.
-    #
-    # The join here is the kind of thing a concept is, never the field it
-    # belongs to. Naming "mental-model structure" as something a person
-    # organizes in their head surfaces card sorting and causal mapping;
-    # naming "autonomic arousal" as a bodily process surfaces EDA. Same
-    # component, same library, different study.
-    #
-    # Nothing is generated from the wording of the question. The library
-    # in modules/research_design/core/ontology.py is curated and finite,
-    # and a measure it lacks is a gap to add deliberately.
+        design_workspace.record_input(
+            "question",
+            [hypothesis, population, exposure, outcomes, setting],
+            affects=("record",),
+            label="Research question",
+        )
 
-    # -------------------------------------------------------------
+        # -------------------------------------------------------------
+        # Concepts, and how they could be observed
+        # -------------------------------------------------------------
+        #
+        # This stage is the answer to the cold-test failure that produced it:
+        # a researcher asking about mental models in implementation research
+        # was offered pain ratings, body maps and electrodermal activity,
+        # because the measures on this page belonged to one worked example
+        # and the example was the planner.
+        #
+        # The join here is the kind of thing a concept is, never the field it
+        # belongs to. Naming "mental-model structure" as something a person
+        # organizes in their head surfaces card sorting and causal mapping;
+        # naming "autonomic arousal" as a bodily process surfaces EDA. Same
+        # component, same library, different study.
+        #
+        # Nothing is generated from the wording of the question. The library
+        # in modules/research_design/core/ontology.py is curated and finite,
+        # and a measure it lacks is a gap to add deliberately.
+
+        # -------------------------------------------------------------
     # Drawing the assembled study
     # -------------------------------------------------------------
     #
@@ -1137,187 +1240,201 @@ else:
         assembly.VIEW_ARMS: _arms_svg,
     }
 
-    section_header(
-        "Concepts And How To Observe Them",
-        "What has to be observed, and what could observe it",
-    )
-
-    st.caption(
-        "Name each thing your study has to observe, and say what sort of "
-        "thing it is. The sort is what decides which measurement "
-        "approaches are even applicable; your field does not restrict "
-        "them, so a study can draw on several kinds of evidence at once."
-    )
-
-    # Recognised, never generated. A phrase in OpenMeasure's list is
-    # matched and a phrase outside it is not guessed at, so a construct
-    # nobody chose cannot enter a study looking as though they had.
-    # Adding a suggestion is a click, which is the confirmation step: the
-    # question can suggest concepts, and only confirmed concepts enter
-    # the study.
-    question_text = " ".join(
-        part for part in (hypothesis, outcomes, exposure) if part
-    )
-    suggested = lexicon.suggest_concepts(question_text) if question_text else ()
-
-    if question_text:
-        st.markdown("**Concepts recognised in your question**")
-
-        if suggested:
-            already = {
-                str(row.get("Concept", "")).strip()
-                for row in st.session_state.get("planner_concepts", [])
-            }
-            suggestion_cols = st.columns(min(len(suggested), 3))
-
-            for index, suggestion in enumerate(suggested):
-                with suggestion_cols[index % len(suggestion_cols)]:
-                    st.caption(f"from \"{suggestion.matched_phrase}\"")
-                    if st.button(
-                        f"Add {suggestion.concept}",
-                        key=f"add_concept_{suggestion.concept}",
-                        disabled=suggestion.concept in already,
-                    ):
-                        rows = list(st.session_state.get("planner_concepts", []))
-                        rows.append(
-                            {
-                                "Concept": suggestion.concept,
-                                "What sort of thing is it?": suggestion.kind,
-                            }
-                        )
-                        st.session_state["planner_concepts"] = rows
-                        st.session_state.pop("planner_concept_editor", None)
-                        st.rerun()
-                    st.caption(suggestion.kind)
-        else:
-            st.caption(lexicon.NOTHING_RECOGNISED)
-
-    concept_rows = st.data_editor(
-        pd.DataFrame(
-            st.session_state.get(
-                "planner_concepts",
-                [{"Concept": "", "What sort of thing is it?": ontology.CONCEPT_KINDS[0]}],
-            )
-        ),
-        column_config={
-            "What sort of thing is it?": st.column_config.SelectboxColumn(
-                options=list(ontology.CONCEPT_KINDS), required=True
-            )
-        },
-        num_rows="dynamic",
-        width="stretch",
-        hide_index=True,
-        key="planner_concept_editor",
-    )
-
-    named_concepts = tuple(
-        assembly.Concept(str(row["Concept"]).strip(), str(row["What sort of thing is it?"]))
-        for _, row in concept_rows.iterrows()
-        if str(row.get("Concept", "")).strip()
-    )
-
-    selected_measure_names: list[str] = []
-
-    if named_concepts:
-        # The visual explorer, for every concept rather than for one
-        # worked example. Choose a measure, see the shape of what it
-        # produces, read what it captures and what it costs. The
-        # chronic-pain gallery had this interaction and it was
-        # pain-specific, so every other study got a list of names.
-        #
-        # Candidates are narrowed to the concept where OpenMeasure has a
-        # narrowed list, and fall back to everything its kind can observe
-        # where it does not. Which of the two a reader is looking at is
-        # said, because a broad list is a different answer rather than a
-        # worse one.
-        for concept in named_concepts:
-            candidates, narrowed = lexicon.measures_for_concept(
-                concept.name, concept.kind
-            )
-
-            st.markdown(f"**{concept.name}**")
-            st.caption(concept.kind)
-
-            columns = st.columns(min(len(candidates), 4) or 1)
-            for index, measure in enumerate(candidates):
-                with columns[index % len(columns)]:
-                    st.markdown(
-                        measure_visual_svg(measure), unsafe_allow_html=True
-                    )
-                    st.caption(f"**{measure.name}**")
-                    st.caption(measure.modality)
-
-            chosen = st.multiselect(
-                f"Ways to observe {concept.name}",
-                options=[measure.name for measure in candidates],
-                key=f"planner_measures_{concept.name}",
-                label_visibility="collapsed",
-                placeholder=f"Add measures for {concept.name}",
-            )
-            selected_measure_names.extend(chosen)
-
-            st.caption(
-                lexicon.NARROWED_CANDIDATES_NOTE
-                if narrowed
-                else lexicon.BROAD_CANDIDATES_NOTE
-            )
-
-            with st.expander(f"Inspect these {len(candidates)} measures"):
-                for measure in candidates:
-                    st.markdown(f"**{measure.name}**")
-                    st.caption(
-                        f"Captures {measure.captures.lower()}. Produces "
-                        f"{measure.produces.lower()}."
-                    )
-                    st.caption(f"Modality: {measure.modality}")
-                    st.caption(f"Burden: {measure.burden}")
-                    st.caption(f"Limitation: {measure.limitation}")
-                    st.caption(
-                        f"{measure.documented_as}. Search: "
-                        f"`{measure.search_terms}`"
-                    )
-    else:
-        st.info("Name at least one concept above to see how it could be observed.")
-
-    planner_study = assembly.AssembledStudy(
-        concepts=named_concepts,
-        selected_measures=tuple(dict.fromkeys(selected_measure_names)),
-    )
-    st.session_state["planner_study"] = planner_study
-
-    if planner_study.selected_measures:
-        st.markdown("**Your study, as assembled**")
-
-        for view in planner_study.applicable_views:
-            st.caption(view)
-            st.markdown(
-                _VIEW_BUILDERS[view](planner_study), unsafe_allow_html=True
-            )
-
-        st.caption(
-            f"Kinds of evidence: {', '.join(planner_study.modalities)}. "
-            f"Shape: {planner_study.shape}."
+    if design_stage == STAGE_MEASURES:
+        section_header(
+            "Concepts And How To Observe Them",
+            "What has to be observed, and what could observe it",
         )
 
-        if planner_study.unobserved:
-            inspect_note(
-                "The concepts nothing selected reaches. They are not "
-                "errors; they are what this design would leave to another "
-                "study, and stating them is the point of listing concepts "
-                "separately from measures."
+        st.caption(
+            "Name each thing your study has to observe, and say what sort of "
+            "thing it is. The sort is what decides which measurement "
+            "approaches are even applicable; your field does not restrict "
+            "them, so a study can draw on several kinds of evidence at once."
+        )
+
+        # Recognised, never generated. A phrase in OpenMeasure's list is
+        # matched and a phrase outside it is not guessed at, so a construct
+        # nobody chose cannot enter a study looking as though they had.
+        # Adding a suggestion is a click, which is the confirmation step: the
+        # question can suggest concepts, and only confirmed concepts enter
+        # the study.
+        question_text = " ".join(
+            part for part in (hypothesis, outcomes, exposure) if part
+        )
+        suggested = lexicon.suggest_concepts(question_text) if question_text else ()
+
+        if question_text:
+            st.markdown("**Concepts recognised in your question**")
+
+            if suggested:
+                already = {
+                    str(row.get("Concept", "")).strip()
+                    for row in st.session_state.get("planner_concepts", [])
+                }
+                suggestion_cols = st.columns(min(len(suggested), 3))
+
+                for index, suggestion in enumerate(suggested):
+                    with suggestion_cols[index % len(suggestion_cols)]:
+                        st.caption(f"from \"{suggestion.matched_phrase}\"")
+                        if st.button(
+                            f"Add {suggestion.concept}",
+                            key=f"add_concept_{suggestion.concept}",
+                            disabled=suggestion.concept in already,
+                        ):
+                            rows = list(st.session_state.get("planner_concepts", []))
+                            rows.append(
+                                {
+                                    "Concept": suggestion.concept,
+                                    "What sort of thing is it?": suggestion.kind,
+                                }
+                            )
+                            st.session_state["planner_concepts"] = rows
+                            st.session_state.pop("planner_concept_editor", None)
+                            st.rerun()
+                        st.caption(suggestion.kind)
+            else:
+                st.caption(lexicon.NOTHING_RECOGNISED)
+
+        concept_rows = st.data_editor(
+            pd.DataFrame(
+                st.session_state.get(
+                    "planner_concepts",
+                    [{"Concept": "", "What sort of thing is it?": ontology.CONCEPT_KINDS[0]}],
+                )
+            ),
+            column_config={
+                "What sort of thing is it?": st.column_config.SelectboxColumn(
+                    options=list(ontology.CONCEPT_KINDS), required=True
+                )
+            },
+            num_rows="dynamic",
+            width="stretch",
+            hide_index=True,
+            key="planner_concept_editor",
+        )
+
+        named_concepts = tuple(
+            assembly.Concept(str(row["Concept"]).strip(), str(row["What sort of thing is it?"]))
+            for _, row in concept_rows.iterrows()
+            if str(row.get("Concept", "")).strip()
+        )
+
+        selected_measure_names: list[str] = []
+
+        if named_concepts:
+            # The visual explorer, for every concept rather than for one
+            # worked example. Choose a measure, see the shape of what it
+            # produces, read what it captures and what it costs. The
+            # chronic-pain gallery had this interaction and it was
+            # pain-specific, so every other study got a list of names.
+            #
+            # Candidates are narrowed to the concept where OpenMeasure has a
+            # narrowed list, and fall back to everything its kind can observe
+            # where it does not. Which of the two a reader is looking at is
+            # said, because a broad list is a different answer rather than a
+            # worse one.
+            for concept in named_concepts:
+                candidates, narrowed = lexicon.measures_for_concept(
+                    concept.name, concept.kind
+                )
+
+                st.markdown(f"**{concept.name}**")
+                st.caption(concept.kind)
+
+                columns = st.columns(min(len(candidates), 4) or 1)
+                for index, measure in enumerate(candidates):
+                    with columns[index % len(columns)]:
+                        st.markdown(
+                            measure_visual_svg(measure), unsafe_allow_html=True
+                        )
+                        st.caption(f"**{measure.name}**")
+                        st.caption(measure.modality)
+
+                chosen = st.multiselect(
+                    f"Ways to observe {concept.name}",
+                    options=[measure.name for measure in candidates],
+                    key=f"planner_measures_{concept.name}",
+                    label_visibility="collapsed",
+                    placeholder=f"Add measures for {concept.name}",
+                )
+                selected_measure_names.extend(chosen)
+
+                st.caption(
+                    lexicon.NARROWED_CANDIDATES_NOTE
+                    if narrowed
+                    else lexicon.BROAD_CANDIDATES_NOTE
+                )
+
+                with st.expander(f"Inspect these {len(candidates)} measures"):
+                    for measure in candidates:
+                        st.markdown(f"**{measure.name}**")
+                        st.caption(
+                            f"Captures {measure.captures.lower()}. Produces "
+                            f"{measure.produces.lower()}."
+                        )
+                        st.caption(f"Modality: {measure.modality}")
+                        st.caption(f"Burden: {measure.burden}")
+                        st.caption(f"Limitation: {measure.limitation}")
+                        st.caption(
+                            f"{measure.documented_as}. Search: "
+                            f"`{measure.search_terms}`"
+                        )
+        else:
+            st.info("Name at least one concept above to see how it could be observed.")
+
+        planner_study = assembly.AssembledStudy(
+            concepts=named_concepts,
+            selected_measures=tuple(dict.fromkeys(selected_measure_names)),
+        )
+        st.session_state["planner_study"] = planner_study
+
+        # The measures reach timing, the simulation and the record: all
+        # three describe what was assembled. The concepts reach the
+        # record alone, since naming one more thing to observe does not
+        # change how often anything is sampled.
+        design_workspace.record_input(
+            "measures",
+            list(planner_study.selected_measures),
+            affects=("timing", "simulate", "record"),
+            label="Measures",
+        )
+        design_workspace.record_input(
+            "concepts",
+            [concept.name for concept in planner_study.concepts],
+            affects=("record",),
+            label="Concepts",
+        )
+
+        if planner_study.selected_measures:
+            st.markdown("**Your study, as assembled**")
+
+            for view in planner_study.applicable_views:
+                st.caption(view)
+                st.markdown(
+                    _VIEW_BUILDERS[view](planner_study), unsafe_allow_html=True
+                )
+
+            st.caption(
+                f"Kinds of evidence: {', '.join(planner_study.modalities)}. "
+                f"Shape: {planner_study.shape}."
             )
 
-    if design_stage < STAGE_MEASURES:
-        if st.button("Continue to explore measures", type="primary"):
-            design_tracker.advance_to(STAGE_MEASURES)
+            if planner_study.unobserved:
+                inspect_note(
+                    "The concepts nothing selected reaches. They are not "
+                    "errors; they are what this design would leave to another "
+                    "study, and stating them is the point of listing concepts "
+                    "separately from measures."
+                )
+
 
     # -------------------------------------------------------------
     # 1. Explore & assemble measures
     # -------------------------------------------------------------
 
-    n_participants = observations_per_day = duration_days = None
 
-    if design_stage >= STAGE_MEASURES and worked_example_loaded:
+    if design_stage == STAGE_MEASURES and worked_example_loaded:
         # Illustrations, not assembly. Assembly happens once, in the
         # planner above; this stage draws the example's own measures in
         # more detail than the shared primitives do, which is what made it
@@ -1454,22 +1571,6 @@ else:
         # assembled in the planner instead.
         st.markdown("**What The Simulation Will Model**")
 
-        planner_selected = ()
-        planner_state = st.session_state.get("planner_study")
-        if planner_state is not None:
-            planner_selected = planner_state.selected_measures
-
-        assembled_measures = list(
-            dict.fromkeys(
-                _LIBRARY_TO_SIMULATION[name]
-                for name in planner_selected
-                if name in _LIBRARY_TO_SIMULATION
-            )
-        )
-        unsimulated = [
-            name for name in planner_selected if name not in _LIBRARY_TO_SIMULATION
-        ]
-
         st.caption(
             "Taken from the measures you assembled above. Change them "
             "there and this changes with them."
@@ -1515,21 +1616,13 @@ else:
         else:
             st.info("Add at least one measure above to continue.")
 
-        measurement_types = tuple(
-            sorted({
-                m["generic_type"] for m in _MEASURE_GALLERY if m["key"] in assembled_measures
-            })
-        )
 
-        if design_stage < STAGE_TIMING and assembled_measures:
-            if st.button("Continue to timing & synchronization", type="primary"):
-                design_tracker.advance_to(STAGE_TIMING)
 
     # -------------------------------------------------------------
     # 2. Timing & synchronization
     # -------------------------------------------------------------
 
-    if design_stage >= STAGE_TIMING and worked_example_loaded:
+    if design_stage == STAGE_TIMING and worked_example_loaded:
         section_header(
             "Timing & Synchronization",
             "When are measures collected, and how closely aligned are they?",
@@ -1537,11 +1630,30 @@ else:
 
         sample_cols = st.columns(3)
         with sample_cols[0]:
-            n_participants = st.slider("Number of participants", 5, 100, 30)
+            n_participants = st.slider(
+                "Number of participants",
+                5,
+                100,
+                design_workspace.kept("n_participants", 30),
+            )
         with sample_cols[1]:
-            observations_per_day = st.slider("Measurement frequency (per day)", 1, 10, 4)
+            observations_per_day = st.slider(
+                "Measurement frequency (per day)",
+                1,
+                10,
+                design_workspace.kept("observations_per_day", 4),
+            )
         with sample_cols[2]:
-            duration_days = st.slider("Study duration (days)", 3, 30, 7)
+            duration_days = st.slider(
+                "Study duration (days)",
+                3,
+                30,
+                design_workspace.kept("duration_days", 7),
+            )
+
+        design_workspace.keep("n_participants", n_participants)
+        design_workspace.keep("observations_per_day", observations_per_day)
+        design_workspace.keep("duration_days", duration_days)
 
         # The living study diagram: a single reactive summary line, not a
         # static description - every value in it comes from the choices
@@ -1566,7 +1678,25 @@ else:
 
         st.markdown("**How Are the Two Streams Aligned?**")
         temporal_misalignment_minutes = st.slider(
-            "Temporal misalignment between rating and wearable (minutes)", 0, 60, 10
+            "Temporal misalignment between rating and wearable (minutes)",
+            0,
+            60,
+            design_workspace.kept("misalignment", 10),
+        )
+        design_workspace.keep("misalignment", temporal_misalignment_minutes)
+
+        # The timing choices reach the simulation and the record, which
+        # both report them.
+        design_workspace.record_input(
+            "timing",
+            [
+                n_participants,
+                observations_per_day,
+                duration_days,
+                temporal_misalignment_minutes,
+            ],
+            affects=("simulate", "record"),
+            label="Timing",
         )
         st.markdown(
             _synchronization_svg(float(temporal_misalignment_minutes)),
@@ -1584,20 +1714,20 @@ else:
             "adjustable assumption in the next stage."
         )
 
-        if design_stage < STAGE_SIMULATE:
-            if st.button("Continue to simulate the design", type="primary"):
-                design_tracker.advance_to(STAGE_SIMULATE)
 
     # -------------------------------------------------------------
     # 3. Simulate the design
     # -------------------------------------------------------------
 
-    assumptions: DesignAssumptions | None = None
-    study = None
-    estimate = None
+    # The simulation's outputs, held across the boundary between the
+    # stage that produces them and the record that reports them. They are
+    # frozen dataclasses, so session state carries them as they are.
+    assumptions: DesignAssumptions | None = design_workspace.kept("assumptions")
+    study = design_workspace.kept("study")
+    estimate = design_workspace.kept("estimate")
 
     if (
-        design_stage >= STAGE_SIMULATE
+        design_stage == STAGE_SIMULATE
         and worked_example_loaded
         and n_participants is not None
     ):
@@ -1688,6 +1818,8 @@ else:
         )
 
         study = generate_naturalistic_pain_study(assumptions)
+        design_workspace.keep("assumptions", assumptions)
+        design_workspace.keep("study", study)
 
         st.caption(
             f"{study.n_observations_retained:,} of "
@@ -1819,6 +1951,7 @@ else:
         )
 
         estimate = estimate_coupling_difference(study)
+        design_workspace.keep("estimate", estimate)
 
         metric_cols = st.columns(3)
         metric_cols[0].metric(
@@ -1848,15 +1981,12 @@ else:
             "analysis for a real version of this study."
         )
 
-        if design_stage < STAGE_IMPLICATIONS:
-            if st.button("Continue to reveal terminology & implications", type="primary"):
-                design_tracker.advance_to(STAGE_IMPLICATIONS)
 
     # -------------------------------------------------------------
     # 4. Reveal terminology & implications
     # -------------------------------------------------------------
 
-    if design_stage >= STAGE_IMPLICATIONS and study is not None and estimate is not None:
+    if design_stage == STAGE_IMPLICATIONS and study is not None and estimate is not None:
         section_header("Interpretation", "What you built, named, and what it does and does not support")
 
         interpretation_note(
@@ -2089,3 +2219,8 @@ not yet built.
                 file_name="openmeasure_research_design_record.txt",
                 mime="text/plain",
             )
+
+    st.divider()
+
+    design_workspace.render_navigation()
+    design_workspace.render_optional_gaps()

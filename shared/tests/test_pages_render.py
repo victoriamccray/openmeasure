@@ -851,18 +851,25 @@ class TestMethodSelectionPage(unittest.TestCase):
         self.assertIn("coupling", hypothesis_field.value.lower())
 
     def test_design_mode_reaches_the_method_selection_handoff(self):
-        # Walks Research question -> ... -> Simulate the design, where
-        # the simulated measurement plan is handed to the same
-        # suggest_workflows() the upload branch above uses.
+        """
+        The simulated measurement plan is handed to the same
+        suggest_workflows() the upload branch above uses.
+
+        Driven by setting the workspace's position rather than by
+        clicking through it. go_to() reruns mid-script, and AppTest
+        accumulates the widgets from both passes, so clicking lands on
+        stale instances; the navigation itself is covered in
+        shared/tests/test_stage_workspace.py.
+        """
         app = self._run_method_selection_page()
 
         app.radio[0].set_value("design")
         app.run()
 
-        # The measure gallery, the timing controls and the simulation all
-        # belong to the chronic-pain worked example, so reaching them
-        # means loading it. That is the point of the gating: a researcher
-        # who has not asked for the example never meets its stages.
+        # The timing controls and the simulation belong to the
+        # chronic-pain worked example, so reaching them means loading it.
+        # A researcher who has not asked for the example never meets its
+        # stages.
         load_example = [
             b for b in app.button if str(b.label).startswith("Load worked example")
         ]
@@ -870,18 +877,23 @@ class TestMethodSelectionPage(unittest.TestCase):
         load_example[0].click()
         app.run()
 
-        continue_labels = (
-            "Continue to explore measures",
-            "Continue to timing & synchronization",
-            "Continue to simulate the design",
-            "Continue to reveal terminology & implications",
-        )
-        for label in continue_labels:
-            matches = [b for b in app.button if b.label == label]
-            self.assertEqual(len(matches), 1, f"Expected exactly one '{label}' button.")
-            matches[0].click()
-            app.run()
-            self.assertFalse(app.exception)
+        # Timing, so the simulation has participant counts to run on.
+        app.session_state["design_current"] = 2
+        app.session_state["design_furthest"] = 2
+        app.run()
+        self.assertFalse(app.exception)
+
+        app.session_state["design_current"] = 3
+        app.session_state["design_furthest"] = 3
+        app.run()
+        self.assertFalse(app.exception)
+
+        # The record reports what the simulation produced, so it is the
+        # stage the workflow handoff lands in.
+        app.session_state["design_current"] = 4
+        app.session_state["design_furthest"] = 4
+        app.run()
+        self.assertFalse(app.exception)
 
         rendered = " ".join(str(item.value) for item in app.markdown)
         self.assertIn("Time-Series QA", rendered)

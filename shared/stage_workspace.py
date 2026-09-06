@@ -28,6 +28,16 @@ and it is not unreached either. It needs review, which is a third thing,
 and a page that silently kept it green would be asserting that changing
 a measure cannot affect the timing chosen for it.
 
+Which downstream stages a change reaches is declared, not assumed.
+Everything after the edit is the wrong answer: rewording a research
+question does not invalidate a timing decision, and a page that said it
+did would train a reader to dismiss the flag. So a recorded input names
+the stages it actually feeds.
+
+A flag also carries what caused it. "Something changed" is not enough to
+act on once a study has several inputs; "Measures changed" tells a reader
+what to look at.
+
 Nothing here erases a downstream selection when an upstream one changes.
 Erasing would be a decision about the reader's work; flagging leaves it
 to them.
@@ -162,56 +172,88 @@ class StageWorkspace:
 
     # -- what changed ------------------------------------------------
 
-    def _review(self) -> set:
-        return set(st.session_state.get(self._name("review"), set()))
+    def _review(self) -> dict:
+        """Stage index -> the labels of the inputs that changed under it."""
+        return dict(st.session_state.get(self._name("review"), {}))
 
-    def record_inputs(self, index: int, value) -> None:
+    def _index_of(self, key: str) -> int:
+        for index, stage in enumerate(self.stages):
+            if stage.key == key:
+                return index
+
+        raise ValueError(
+            f"'{key}' is not a stage in this workspace. Known: "
+            f"{', '.join(stage.key for stage in self.stages)}."
+        )
+
+    def record_input(
+        self, name: str, value, *, affects: tuple[str, ...], label: str
+    ) -> None:
         """
-        Record what a stage's later stages depend on.
+        Record something later stages depend on, and which ones.
 
-        When this changes and later stages have already been visited,
-        those stages are marked for review. They are not cleared: a
-        researcher who removes one measure has not withdrawn the timing
-        they chose, and deciding whether it still applies is theirs.
+        ``affects`` is the specific list of stage keys this input feeds.
+        Flagging everything downstream would be the wrong answer:
+        rewording a research question does not invalidate a timing
+        decision, and a page that said it did would train a reader to
+        dismiss the flag.
+
+        ``label`` is what the flag says it was, because "something
+        changed" is not enough to act on once a study has several inputs.
+
+        Only stages already visited are flagged. A stage nobody has
+        reached is not stale, it is unreached.
 
         Reruns when it newly flags something, because a page records its
         inputs inside the stage that produced them, which is below the
         rail. Without the rerun the rail would show the previous run's
-        marks and a reader would have to click something else before
-        seeing that anything needed review.
+        marks.
         """
+        for key in affects:
+            self._index_of(key)
+
         digest = hashlib.sha256(
             json.dumps(value, sort_keys=True, default=str).encode("utf-8")
         ).hexdigest()
 
-        name = self._name(f"inputs_{index}")
-        previous = st.session_state.get(name)
-        st.session_state[name] = digest
+        slot = self._name(f"input_{name}")
+        previous = st.session_state.get(slot)
+        st.session_state[slot] = digest
 
         if previous is None or previous == digest:
             return
 
         review = self._review()
-        newly_flagged = {
-            later
-            for later in range(index + 1, len(self.stages))
-            if later <= self.furthest and later not in review
-        }
+        changed = False
 
-        if not newly_flagged:
+        for key in affects:
+            index = self._index_of(key)
+            if index > self.furthest:
+                continue
+
+            causes = set(review.get(index, ()))
+            if label not in causes:
+                review[index] = sorted(causes | {label})
+                changed = True
+
+        if not changed:
             return
 
-        st.session_state[self._name("review")] = review | newly_flagged
+        st.session_state[self._name("review")] = review
         st.rerun()
 
     def clear_review(self, index: int) -> None:
         """Mark a reviewed stage as settled again."""
         review = self._review()
-        review.discard(index)
+        review.pop(index, None)
         st.session_state[self._name("review")] = review
 
     def needs_review(self, index: int) -> bool:
         return index in self._review()
+
+    def review_causes(self, index: int) -> tuple[str, ...]:
+        """What changed upstream of a flagged stage."""
+        return tuple(self._review().get(index, ()))
 
     # -- state -------------------------------------------------------
 
@@ -289,7 +331,10 @@ class StageWorkspace:
                     st.rerun()
 
                 if state == STATE_NEEDS_REVIEW:
-                    st.caption("Review")
+                    causes = self.review_causes(index)
+                    st.caption(
+                        f"{', '.join(causes)} changed" if causes else "Review"
+                    )
                 elif not reachable:
                     st.caption(reason)
 
@@ -300,9 +345,12 @@ class StageWorkspace:
         if not self.needs_review(self.current):
             return
 
+        causes = self.review_causes(self.current)
+        named = " and ".join(causes) if causes else "Something upstream"
+
         st.warning(
-            "Something this stage depends on changed after you configured "
-            "it. Check whether these settings still apply."
+            f"{named} changed since this stage was last reviewed. Check "
+            "whether these settings still apply."
         )
 
         if st.button("These still apply", key=self._name("settle")):

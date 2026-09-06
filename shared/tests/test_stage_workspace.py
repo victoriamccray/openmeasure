@@ -54,12 +54,62 @@ elif stage == 1:
     if st.button("Pick another"):
         st.session_state["picked"] = ["one", "two"]
         st.rerun()
-    workspace.record_inputs(1, st.session_state.get("picked", []))
+    workspace.record_input(
+        "measures",
+        st.session_state.get("picked", []),
+        affects=("timing",),
+        label="Measures",
+    )
 else:
     st.write("TIMING STAGE")
 
 workspace.render_navigation()
 st.write(f"STATES {[workspace.state_of(i) for i in range(3)]}")
+"""
+
+
+_SPECIFIC = """
+import streamlit as st
+from shared.stage_workspace import Stage, StageWorkspace
+
+workspace = StageWorkspace(
+    session_key="dep",
+    stages=(
+        Stage("question", "Question"),
+        Stage("measures", "Measures"),
+        Stage("timing", "Timing"),
+        Stage("record", "Record"),
+    ),
+)
+
+stage = workspace.render_rail()
+workspace.render_review_notice()
+
+if stage == 0:
+    if st.button("Reword the question"):
+        st.session_state["wording"] = "different"
+        st.rerun()
+    # Wording feeds the record and nothing else.
+    workspace.record_input(
+        "wording",
+        st.session_state.get("wording", "original"),
+        affects=("record",),
+        label="Research question",
+    )
+elif stage == 1:
+    if st.button("Drop a measure"):
+        st.session_state["chosen"] = ["one"]
+        st.rerun()
+    workspace.record_input(
+        "measures",
+        st.session_state.get("chosen", ["one", "two"]),
+        affects=("timing", "record"),
+        label="Measures",
+    )
+
+workspace.render_navigation()
+st.write(f"STATES {[workspace.state_of(i) for i in range(4)]}")
+st.write(f"CAUSES {[list(workspace.review_causes(i)) for i in range(4)]}")
 """
 
 
@@ -192,6 +242,84 @@ class TestNeedsReview(unittest.TestCase):
         app = _click(app, "Pick another")
 
         self.assertEqual(_states(app)[2], STATE_NOT_REACHED)
+
+
+class TestTheDependencyGraphIsSpecific(unittest.TestCase):
+    """
+    Flagging everything downstream is the wrong answer. Rewording a
+    research question does not invalidate a timing decision, and a page
+    that said it did would train a reader to dismiss the flag.
+    """
+
+    def _walked(self) -> AppTest:
+        app = AppTest.from_string(_SPECIFIC)
+        app.run()
+        for _ in range(3):
+            app = _click(app, "Continue to")
+        return app
+
+    def _causes(self, app: AppTest) -> list:
+        line = next(
+            str(item.value) for item in app.markdown
+            if str(item.value).startswith("CAUSES")
+        )
+        return eval(line[len("CAUSES "):])
+
+    def _states_of(self, app: AppTest) -> list:
+        line = next(
+            str(item.value) for item in app.markdown
+            if str(item.value).startswith("STATES")
+        )
+        return eval(line[len("STATES "):])
+
+    def test_rewording_the_question_leaves_timing_alone(self):
+        app = self._walked()
+        app = _click(app, "● Question")
+        app = _click(app, "Reword the question")
+        states = self._states_of(app)
+
+        self.assertEqual(states[2], STATE_COMPLETE)
+        self.assertEqual(states[3], STATE_NEEDS_REVIEW)
+
+    def test_dropping_a_measure_reaches_both_stages_it_feeds(self):
+        app = self._walked()
+        app = _click(app, "● Measures")
+        app = _click(app, "Drop a measure")
+        states = self._states_of(app)
+
+        self.assertEqual(states[2], STATE_NEEDS_REVIEW)
+        self.assertEqual(states[3], STATE_NEEDS_REVIEW)
+
+    def test_the_flag_names_what_changed(self):
+        """
+        "Something changed" is not enough to act on once a study has
+        several inputs.
+        """
+        app = self._walked()
+        app = _click(app, "● Measures")
+        app = _click(app, "Drop a measure")
+
+        self.assertEqual(self._causes(app)[2], ["Measures"])
+
+    def test_a_different_input_names_itself(self):
+        app = self._walked()
+        app = _click(app, "● Question")
+        app = _click(app, "Reword the question")
+
+        self.assertEqual(self._causes(app)[3], ["Research question"])
+
+    def test_an_unknown_stage_key_raises(self):
+        from shared.stage_workspace import StageWorkspace
+
+        workspace = StageWorkspace(
+            session_key="x",
+            stages=(Stage("a", "A"), Stage("b", "B")),
+        )
+
+        with self.assertRaises(ValueError) as raised:
+            workspace._index_of("nowhere")
+
+        self.assertIn("not a stage in this workspace", str(raised.exception))
 
 
 class TestValidation(unittest.TestCase):
