@@ -332,3 +332,107 @@ class TestDefaultPrePostColumns(unittest.TestCase):
         self.assertEqual(
             suggest.default_prepost_columns(prof, ["only"]), ("only", None)
         )
+
+
+class TestDefaultBinaryColumn(unittest.TestCase):
+    """
+    Where a two-valued-label picker opens.
+
+    The mirror image of default_outcome_column: a fairness label is a
+    decision with exactly two values, not a quantity to compare.
+    """
+
+    def test_a_two_valued_column_is_preferred_over_a_probability(self):
+        """
+        The fairness sample's own shape. With no default the picker
+        opened on whichever column was first in file order, and a
+        130-value probability column was offered as the model's decision.
+        """
+        frame = pd.DataFrame(
+            {
+                "predicted_probability": [i / 100 for i in range(100)],
+                "predicted_label": [i % 2 for i in range(100)],
+            }
+        )
+        built = profile.profile_dataframe(frame)
+
+        self.assertEqual(
+            suggest.default_binary_column(built, list(frame.columns)),
+            "predicted_label",
+        )
+
+    def test_it_does_not_prefer_an_identifier(self):
+        frame = pd.DataFrame(
+            {
+                "participant_id": range(1, 41),
+                "approved": [i % 2 for i in range(40)],
+            }
+        )
+        built = profile.profile_dataframe(frame)
+
+        self.assertEqual(
+            suggest.default_binary_column(built, list(frame.columns)), "approved"
+        )
+
+    def test_a_low_cardinality_column_is_the_fallback(self):
+        """
+        Nothing has exactly two values, so the next best shape wins
+        rather than the first column in the file.
+        """
+        frame = pd.DataFrame(
+            {
+                "score": [float(i) for i in range(40)],
+                "rating": [(i % 4) + 1 for i in range(40)],
+            }
+        )
+        built = profile.profile_dataframe(frame)
+
+        self.assertEqual(
+            suggest.default_binary_column(built, list(frame.columns)), "rating"
+        )
+
+    def test_it_returns_none_for_no_options(self):
+        frame = pd.DataFrame({"a": [1, 2, 3]})
+
+        self.assertIsNone(
+            suggest.default_binary_column(profile.profile_dataframe(frame), [])
+        )
+
+
+class TestFairnessSampleDefaultsCascade(unittest.TestCase):
+    """
+    The three fairness pickers in sequence, each excluding what the
+    previous one took.
+
+    Pinned as a sequence because the defect was a cascade: one
+    meaningless default made the next one impossible, and each picker
+    looked defensible on its own.
+    """
+
+    def test_the_fairness_sample_maps_to_its_obvious_roles(self):
+        frame = pd.DataFrame(
+            {
+                "true_label": [i % 2 for i in range(60)],
+                "predicted_label": [(i + 1) % 2 for i in range(60)],
+                "predicted_probability": [i / 60 for i in range(60)],
+                "sex": ["Female", "Male"] * 30,
+            }
+        )
+        built = profile.profile_dataframe(frame)
+        columns = list(frame.columns)
+
+        label = suggest.default_binary_column(built, columns)
+        group = suggest.default_group_column(
+            built, [c for c in columns if c != label]
+        )
+        predicted = suggest.default_binary_column(
+            built, [c for c in columns if c not in (label, group)]
+        )
+
+        self.assertEqual(label, "true_label")
+        self.assertEqual(group, "sex")
+        self.assertEqual(predicted, "predicted_label")
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -252,6 +252,30 @@ def default_outcome_column(
     )
 
 
+def default_binary_column(
+    profile: DataProfile, options: Sequence[str]
+) -> str | None:
+    """
+    Which column a two-valued-label picker should open on.
+
+    The mirror image of default_outcome_column, which prefers a column
+    with enough distinct values to compare as a quantity. A fairness
+    label is the opposite: an approved/denied, readmitted/not decision
+    with exactly two values, and a picker that opened on a 130-value
+    probability column was offering a choice the analysis then rejected.
+
+    Prefers exactly two distinct values, then a low-cardinality column,
+    then any non-identifier column. An identifier is never preferred and
+    always still selectable.
+    """
+    return _pick(
+        profile,
+        options,
+        lambda column: column.n_unique == BINARY_OUTCOME_MAX_UNIQUE,
+        lambda column: 2 <= column.n_unique <= MAX_GROUP_LEVELS,
+    )
+
+
 def default_group_column(
     profile: DataProfile, options: Sequence[str]
 ) -> str | None:

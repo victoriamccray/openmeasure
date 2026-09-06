@@ -54,6 +54,7 @@ from shared.report import (
     implications,
     inspect_note,
     interpretation_note,
+    default_index,
     render_formula,
     render_lifecycle_tracker,
 )
@@ -1572,11 +1573,6 @@ render_data_profile(df, profile=profile)
 # example opened with participant_id as its outcome, produced a
 # technically valid but meaningless comparison, and only warned about it
 # two steps later.
-def index_of(options, chosen):
-    """Where a picker should open, as an index into its own options."""
-    return options.index(chosen) if chosen in options else 0
-
-
 DESIGN_GROUPS = "Two or more groups"
 DESIGN_PRE_POST = "Pre/post (same participants)"
 DESIGN_DID = "Two groups, each measured before and after"
@@ -1595,13 +1591,13 @@ if design == DESIGN_GROUPS:
     outcome_col = st.selectbox(
         "Outcome column",
         options=outcome_options,
-        index=index_of(outcome_options, default_outcome_column(profile, outcome_options)),
+        index=default_index(outcome_options, default_outcome_column(profile, outcome_options)),
     )
     group_options = [c for c in df.columns if c != outcome_col]
     group_col = st.selectbox(
         "Group column",
         options=group_options,
-        index=index_of(group_options, default_group_column(profile, group_options)),
+        index=default_index(group_options, default_group_column(profile, group_options)),
     )
     is_multiselect = st.checkbox(
         "This group column allows multiple selections per participant "
@@ -1638,13 +1634,13 @@ elif design == DESIGN_PRE_POST:
     pre_col = st.selectbox(
         "Pre (baseline) column",
         options=pre_options,
-        index=index_of(pre_options, default_pre),
+        index=default_index(pre_options, default_pre),
     )
     post_options = [c for c in df.columns if c != pre_col]
     post_col = st.selectbox(
         "Post (follow-up) column",
         options=post_options,
-        index=index_of(post_options, default_post),
+        index=default_index(post_options, default_post),
     )
     context = {"pre_col": pre_col, "post_col": post_col}
 
@@ -1666,20 +1662,20 @@ else:
     group_col = st.selectbox(
         "Group column (which units were treated)",
         options=group_options,
-        index=index_of(group_options, default_group_column(profile, group_options)),
+        index=default_index(group_options, default_group_column(profile, group_options)),
     )
     remaining = [c for c in df.columns if c != group_col]
     default_pre, default_post = default_prepost_columns(profile, remaining)
     pre_col = st.selectbox(
         "Pre (baseline) column",
         options=remaining,
-        index=index_of(remaining, default_pre),
+        index=default_index(remaining, default_pre),
     )
     post_options = [c for c in remaining if c != pre_col]
     post_col = st.selectbox(
         "Post (follow-up) column",
         options=post_options,
-        index=index_of(post_options, default_post),
+        index=default_index(post_options, default_post),
     )
 
     group_values = sorted(df[group_col].dropna().unique().tolist(), key=str)

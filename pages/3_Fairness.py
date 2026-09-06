@@ -24,6 +24,11 @@ if str(ROOT) not in sys.path:
 import pandas as pd
 import streamlit as st
 
+from modules.data_profile.core.profile import profile_dataframe
+from modules.data_profile.core.suggest import (
+    default_binary_column,
+    default_group_column,
+)
 from modules.fairness.core import post_model_metrics as pmm
 from modules.fairness.core import pre_model_metrics as pm
 from modules.fairness.core.recommend import recommend_fairness_metric
@@ -38,6 +43,7 @@ from shared.handoff import (
 from shared.data_handling import disclosure_for, render_data_handling_summary
 from shared.report import (
     caveat,
+    default_index,
     flagged_item_note,
     inspect_note,
     render_lifecycle_tracker,
@@ -423,7 +429,24 @@ else:
     df = loaded.frame
 
     if df is not None:
-        render_data_profile(df)
+        profile = render_data_profile(df)
+
+        # Where each picker opens. Every selectbox below took no index,
+        # so each one opened on the first column left in file order, and
+        # the wrong answer cascaded: this sample's group picker excluded
+        # true_label and landed on predicted_label, which left
+        # predicted_probability as the first candidate for the model's
+        # decision, which the analysis then rejected for having 130
+        # distinct values. Nothing was structurally invalid; the defaults
+        # were just meaningless, and a reader had to notice that before
+        # the error told them.
+        #
+        # Every column stays selectable. These are the shapes each role
+        # takes, not a claim about what any column means.
+        default_label = default_binary_column(profile, list(df.columns))
+        default_group = default_group_column(
+            profile, [column for column in df.columns if column != default_label]
+        )
 
         st.write(
             f"Loaded **{df.shape[0]} rows** and "
@@ -442,9 +465,11 @@ else:
 
         section_header("3. Configure The Pre-Model Analysis")
 
+        label_options = list(df.columns)
         label_col = st.selectbox(
             "Observed label or outcome column",
-            options=list(df.columns),
+            options=label_options,
+            index=default_index(label_options, default_label),
             help=(
                 "Select the observed binary outcome. Do not select a "
                 "participant identifier or continuous probability column."
@@ -460,6 +485,7 @@ else:
         group_col = st.selectbox(
             "Group column",
             options=possible_group_columns,
+            index=default_index(possible_group_columns, default_group),
             help=(
                 "Select a demographic, clinical, geographic, or other "
                 "grouping variable relevant to the evaluation."
@@ -797,6 +823,10 @@ else:
                 "Predicted label column (the model's decision, not a "
                 "continuous probability or risk score)",
                 options=remaining_columns,
+                index=default_index(
+                    remaining_columns,
+                    default_binary_column(profile, remaining_columns),
+                ),
                 help=(
                     "Should use the same two values as the observed label "
                     "column above, one of which is the favorable label "

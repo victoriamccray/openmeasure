@@ -442,3 +442,18 @@ def render_lifecycle_tracker(
             label="Not sure this is the right workflow? Open Method Selection",
             icon=":material/alt_route:",
         )
+
+
+def default_index(options, chosen) -> int:
+    """
+    Where a picker should open, as an index into its own options.
+
+    Falls back to the first option when the suggested column is not among
+    them, so a suggestion drawn from a previous dataset cannot raise
+    after a different file is loaded.
+
+    Every option stays selectable either way. This decides what a reader
+    sees first, never what they are allowed to choose, which is the whole
+    reason a suggestion drawn from column shapes is safe to act on.
+    """
+    return options.index(chosen) if chosen in options else 0
