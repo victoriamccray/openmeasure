@@ -212,6 +212,33 @@ class TestCoverage(unittest.TestCase):
             "Structured observation", by_name["Observed behaviour"].measures
         )
 
+    def test_coverage_matches_what_the_explorer_would_have_offered(self):
+        """
+        Kind alone counts a body map as observing pain experience,
+        because both are things a person experiences. The narrowed list
+        knows it is for the spatial pattern, and a measure the explorer
+        would not have offered for a concept must not count as observing
+        it.
+        """
+        study = assembly.AssembledStudy(
+            concepts=(
+                assembly.Concept("Pain experience", ontology.KIND_EXPERIENCE),
+                assembly.Concept("Spatial pain pattern", ontology.KIND_EXPERIENCE),
+            ),
+            selected_measures=(
+                "Rating scale, repeated in daily life",
+                "Body map or pain drawing",
+            ),
+        )
+        by_name = {row.concept.name: row.measures for row in study.coverage}
+
+        self.assertEqual(
+            by_name["Pain experience"], ("Rating scale, repeated in daily life",)
+        )
+        self.assertEqual(
+            by_name["Spatial pain pattern"], ("Body map or pain drawing",)
+        )
+
     def test_coverage_keeps_the_order_the_concepts_were_named_in(self):
         study = assembly.AssembledStudy(
             concepts=self.concepts, selected_measures=("Card sorting",)

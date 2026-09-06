@@ -157,11 +157,18 @@ class AssembledStudy:
         """
         rows = []
 
+        # Matched the way the explorer offered them. Kind alone counts a
+        # body map as observing pain experience, because both are things
+        # a person experiences; the narrowed list knows it is for the
+        # spatial pattern. A measure the explorer would not have offered
+        # for a concept must not count as observing it.
+        from .lexicon import measures_for_concept
+
         for concept in self.concepts:
+            applicable, _ = measures_for_concept(concept.name, concept.kind)
+            names = {measure.name for measure in applicable}
             reaching = tuple(
-                measure.name
-                for measure in self.measures
-                if concept.kind in measure.observes
+                measure.name for measure in self.measures if measure.name in names
             )
             rows.append(
                 ConceptCoverage(

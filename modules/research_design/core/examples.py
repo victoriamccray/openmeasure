@@ -79,6 +79,7 @@ CHRONIC_PAIN = WorkedExample(
         ),
         selected_measures=(
             "Rating scale, repeated in daily life",
+            "Body map or pain drawing",
             "Electrodermal activity",
             "Heart rate and heart-rate variability",
         ),

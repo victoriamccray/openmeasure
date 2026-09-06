@@ -408,6 +408,24 @@ _MEASURE_GALLERY = (
 _MEASURE_LABEL_BY_KEY = {m["key"]: m["label"] for m in _MEASURE_GALLERY}
 _ALL_MEASURE_KEYS = [m["key"] for m in _MEASURE_GALLERY]
 
+# Which library measures this page's simulation can actually model.
+#
+# The planner is where measures are chosen; this says which of those
+# choices the chronic-pain simulation has a channel for. Heart rate and
+# HRV map to the same key deliberately, because simulate.py collapses
+# every wearable channel into one physio_signal column, and pretending
+# otherwise here would imply two columns the simulation does not produce.
+#
+# A selection absent from this mapping is not dropped silently. It is
+# named as something the simulation cannot model, which is a limit of
+# this worked example rather than of the measure.
+_LIBRARY_TO_SIMULATION = {
+    "Rating scale, repeated in daily life": "pain_rating",
+    "Body map or pain drawing": "body_map",
+    "Electrodermal activity": "eda",
+    "Heart rate and heart-rate variability": "heart_rate",
+}
+
 _MEASURE_COLUMN_INFO = {
     "pain_rating": ("Pain intensity", "pain_rating"),
     "body_map": ("Spatial pain pattern", "pain_state"),
@@ -811,7 +829,6 @@ else:
         "rq_exposure": "Spatial pain state: localized vs. distributed/referred/radiating.",
         "rq_outcomes": "Within-person coupling between pain rating and a wearable physiological signal.",
         "rq_setting": "Naturalistic: participants' everyday environments, not a lab visit.",
-        "assembled_measures": list(_ALL_MEASURE_KEYS),
         "study_compares_subgroups": False,
     }
 
@@ -1301,9 +1318,14 @@ else:
     n_participants = observations_per_day = duration_days = None
 
     if design_stage >= STAGE_MEASURES and worked_example_loaded:
+        # Illustrations, not assembly. Assembly happens once, in the
+        # planner above; this stage draws the example's own measures in
+        # more detail than the shared primitives do, which is what made it
+        # worth keeping rather than replacing.
         section_header(
-            "Explore & Assemble Measures",
-            "How could we observe pain in everyday life? Tap a measure to see what it captures.",
+            "A Closer Look At These Measures",
+            "The worked example's own measures, drawn in detail. Choosing "
+            "what the study includes happens in the planner above.",
         )
 
         lesson_choice = st.radio(
@@ -1425,20 +1447,50 @@ else:
         # underneath them are the chronic-pain scenario; calling the
         # selection "this study" made them read as the reader's own,
         # whatever question they had typed above.
-        st.markdown("**Assemble The Worked Example's Measurement System**")
+        # One selector, upstream. This stage used to hold a second
+        # measure picker of its own, so loading the worked example showed
+        # the generalized explorer and then a parallel list that did the
+        # same job with different names. The simulation reads what was
+        # assembled in the planner instead.
+        st.markdown("**What The Simulation Will Model**")
+
+        planner_selected = ()
+        planner_state = st.session_state.get("planner_study")
+        if planner_state is not None:
+            planner_selected = planner_state.selected_measures
+
+        assembled_measures = list(
+            dict.fromkeys(
+                _LIBRARY_TO_SIMULATION[name]
+                for name in planner_selected
+                if name in _LIBRARY_TO_SIMULATION
+            )
+        )
+        unsimulated = [
+            name for name in planner_selected if name not in _LIBRARY_TO_SIMULATION
+        ]
+
         st.caption(
-            "Choose which of the measures above the chronic-pain "
-            "simulation includes. These are the example's measures, not "
-            "measures derived from the question you entered."
+            "Taken from the measures you assembled above. Change them "
+            "there and this changes with them."
         )
 
-        assembled_measures = st.multiselect(
-            "Measures included in the worked example",
-            options=_ALL_MEASURE_KEYS,
-            format_func=lambda k: _MEASURE_LABEL_BY_KEY[k],
-            default=st.session_state.get("assembled_measures", list(_ALL_MEASURE_KEYS)),
-            key="assembled_measures",
-        )
+        if unsimulated:
+            st.caption(
+                "Selected and not modelled here: "
+                + ", ".join(unsimulated)
+                + ". This simulation has channels for the chronic-pain "
+                "example's measures only, which is a limit of the example "
+                "rather than of those measures."
+            )
+
+        if not assembled_measures:
+            st.info(
+                "None of the measures assembled above can be modelled by "
+                "this simulation. Add one of the worked example's own "
+                "measures to run it, or read the stages below as a "
+                "description of what it would do."
+            )
 
         if assembled_measures:
             measurement_rows = pd.DataFrame(
