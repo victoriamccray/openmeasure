@@ -138,6 +138,18 @@ JOURNEYS: tuple[ResearchJourney, ...] = (
         page="pages/FMRI_QC_Worked_Example.py",
     ),
     ResearchJourney(
+        title="Right To Play",
+        domain="Social Impact Evaluation",
+        subdomain="School-based violence prevention",
+        summary=(
+            "How a real cluster randomized trial was designed and "
+            "measured, and where its public artifacts stop: the baseline "
+            "microdata are open and the reported effect cannot be "
+            "recomputed from them."
+        ),
+        page="pages/Right_To_Play_Journey.py",
+    ),
+    ResearchJourney(
         title="Portfolio Impact Analysis",
         domain="Social Impact Evaluation",
         subdomain="Grantmaking portfolio analysis",
