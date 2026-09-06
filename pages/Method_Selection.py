@@ -60,6 +60,7 @@ import streamlit.components.v1 as components
 
 from modules.data_profile.core.profile import profile_dataframe
 from modules.data_profile.core.suggest import WorkflowSuggestion, suggest_workflows
+from modules.research_design.core import assembly, ontology
 from modules.research_design.core.design import DesignAssumptions
 from modules.research_design.core.estimate import estimate_coupling_difference
 from modules.research_design.core.inspect_rules import (
@@ -835,6 +836,124 @@ else:
 
     caveat("These fields describe your question and go into the Design Record below.")
 
+    # -------------------------------------------------------------
+    # Concepts, and how they could be observed
+    # -------------------------------------------------------------
+    #
+    # This stage is the answer to the cold-test failure that produced it:
+    # a researcher asking about mental models in implementation research
+    # was offered pain ratings, body maps and electrodermal activity,
+    # because the measures on this page belonged to one worked example
+    # and the example was the planner.
+    #
+    # The join here is the kind of thing a concept is, never the field it
+    # belongs to. Naming "mental-model structure" as something a person
+    # organizes in their head surfaces card sorting and causal mapping;
+    # naming "autonomic arousal" as a bodily process surfaces EDA. Same
+    # component, same library, different study.
+    #
+    # Nothing is generated from the wording of the question. The library
+    # in modules/research_design/core/ontology.py is curated and finite,
+    # and a measure it lacks is a gap to add deliberately.
+
+    section_header(
+        "Concepts And How To Observe Them",
+        "What has to be observed, and what could observe it",
+    )
+
+    st.caption(
+        "Name each thing your study has to observe, and say what sort of "
+        "thing it is. The sort is what decides which measurement "
+        "approaches are even applicable; your field does not restrict "
+        "them, so a study can draw on several kinds of evidence at once."
+    )
+
+    concept_rows = st.data_editor(
+        pd.DataFrame(
+            st.session_state.get(
+                "planner_concepts",
+                [{"Concept": "", "What sort of thing is it?": ontology.CONCEPT_KINDS[0]}],
+            )
+        ),
+        column_config={
+            "What sort of thing is it?": st.column_config.SelectboxColumn(
+                options=list(ontology.CONCEPT_KINDS), required=True
+            )
+        },
+        num_rows="dynamic",
+        width="stretch",
+        hide_index=True,
+        key="planner_concept_editor",
+    )
+
+    named_concepts = tuple(
+        assembly.Concept(str(row["Concept"]).strip(), str(row["What sort of thing is it?"]))
+        for _, row in concept_rows.iterrows()
+        if str(row.get("Concept", "")).strip()
+    )
+
+    selected_measure_names: list[str] = []
+
+    if named_concepts:
+        for concept in named_concepts:
+            candidates = ontology.measures_for(concept.kind)
+
+            st.markdown(f"**{concept.name}**")
+            st.caption(concept.kind)
+
+            chosen = st.multiselect(
+                f"Ways to observe {concept.name}",
+                options=[measure.name for measure in candidates],
+                key=f"planner_measures_{concept.name}",
+                label_visibility="collapsed",
+            )
+            selected_measure_names.extend(chosen)
+
+            with st.expander(f"Inspect the {len(candidates)} candidates"):
+                for measure in candidates:
+                    st.markdown(f"**{measure.name}**  ")
+                    st.caption(
+                        f"{measure.modality}. Captures {measure.captures.lower()}. "
+                        f"Produces {measure.produces.lower()}."
+                    )
+                    st.caption(f"Burden: {measure.burden}")
+                    st.caption(f"Limitation: {measure.limitation}")
+                    st.caption(
+                        f"{measure.documented_as}. Search: "
+                        f"`{measure.search_terms}`"
+                    )
+    else:
+        st.info("Name at least one concept above to see how it could be observed.")
+
+    planner_study = assembly.AssembledStudy(
+        concepts=named_concepts,
+        selected_measures=tuple(dict.fromkeys(selected_measure_names)),
+    )
+    st.session_state["planner_study"] = planner_study
+
+    if planner_study.selected_measures:
+        st.markdown("**What this would observe**")
+
+        for row in planner_study.coverage:
+            marker = "filled" if row.observed else "hollow"
+            st.markdown(
+                f"- {row.concept.name}: {row.status}"
+                + (f" ({', '.join(row.measures)})" if row.measures else "")
+            )
+
+        st.caption(
+            f"Kinds of evidence: {', '.join(planner_study.modalities)}. "
+            f"Shape: {planner_study.shape}."
+        )
+
+        if planner_study.unobserved:
+            inspect_note(
+                "The concepts nothing selected reaches. They are not "
+                "errors; they are what this design would leave to another "
+                "study, and stating them is the point of listing concepts "
+                "separately from measures."
+            )
+
     if design_stage < STAGE_MEASURES:
         if st.button("Continue to explore measures", type="primary"):
             design_tracker.advance_to(STAGE_MEASURES)
@@ -1472,6 +1591,30 @@ not an integration.
 
         not_stated = "not stated"
 
+        # The measurement strategy this researcher assembled, from their
+        # own concepts. Rendered through the same function the module
+        # tests hold to printing "not established" for anything unset, so
+        # nothing from the worked example can reach this half of the
+        # record.
+        planner_study = st.session_state.get("planner_study")
+        if planner_study is not None and planner_study.concepts:
+            planner_section = "\n".join(
+                assembly.design_record_lines(
+                    planner_study,
+                    entered={
+                        "question": hypothesis,
+                        "population": population,
+                        "setting": setting,
+                    },
+                )[4:]
+            )
+        else:
+            planner_section = (
+                "Concepts to observe\n"
+                f"- {assembly.UNSET}. No concepts were named in "
+                "Concepts And How To Observe Them above."
+            )
+
         record_text = f"""OpenMeasure Research Design Record
 ===================================
 
@@ -1480,13 +1623,15 @@ first is what you entered. The second describes the chronic-pain worked
 example, a fixed scenario this page simulates to demonstrate the
 workflow. Nothing in the second part was derived from your question.
 
-Part 1. What you entered
--------------------------
+Part 1. What you entered and assembled
+--------------------------------------
 Research question: {hypothesis or not_stated}
 Population: {population or not_stated}
 Exposure: {exposure or not_stated}
 Outcomes: {outcomes or not_stated}
 Setting: {setting or not_stated}
+
+{planner_section}
 
 Part 2. The chronic-pain worked example
 ----------------------------------------

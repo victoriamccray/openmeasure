@@ -245,13 +245,6 @@ dataset = get_dataset("right_to_play_baseline")
 
 st.write(dataset.explore_question)
 
-st.info(
-    "This journey is not an analysis of your own evaluation. It walks "
-    "through someone else's, which is a different skill: reading a "
-    "published study closely enough to say which of its claims you could "
-    "check yourself."
-)
-
 if stage < STAGE_DESIGN:
     if st.button("Continue to the design", type="primary"):
         TRACKER.advance_to(STAGE_DESIGN)
