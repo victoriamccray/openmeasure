@@ -243,5 +243,54 @@ class TestMeasurementMap(unittest.TestCase):
         self.assertIn("names no facets", str(raised.exception))
 
 
+class TestDiagramLabelsFit(unittest.TestCase):
+    """
+    Clipping produced "The reported treatment effect..." on the one line
+    of the journey that has to be read, and a reader cannot tell a
+    shortened label from one that happens to end there.
+    """
+
+    def test_every_artifact_label_fits_the_boundary_diagram(self):
+        for fact in study.ARTIFACTS:
+            with self.subTest(fact=fact.label):
+                self.assertLessEqual(
+                    len(fact.for_diagram), study.BOUNDARY_LABEL_LIMIT
+                )
+
+    def test_a_fact_that_does_not_fit_is_rejected_rather_than_clipped(self):
+        with self.assertRaises(ValueError) as raised:
+            study.StudyFact(
+                label="A label far longer than any column could ever hold",
+                value="A value",
+                provenance=study.REPORTED,
+                source="Somewhere",
+            )
+
+        self.assertIn("rather than letting it be clipped", str(raised.exception))
+
+    def test_a_short_form_satisfies_the_limit(self):
+        fact = study.StudyFact(
+            label="A label far longer than any column could ever hold",
+            short_label="A short label",
+            value="A value",
+            provenance=study.REPORTED,
+            source="Somewhere",
+        )
+
+        self.assertEqual(fact.for_diagram, "A short label")
+
+    def test_the_full_label_is_what_the_expander_still_shows(self):
+        """
+        The short form is for the diagram only. The full name stays the
+        fact's label, so the list underneath is unaffected.
+        """
+        recomputed = next(
+            fact for fact in study.ARTIFACTS if "recomputed" in fact.label
+        )
+
+        self.assertIn("independently recomputed", recomputed.label)
+        self.assertNotEqual(recomputed.label, recomputed.for_diagram)
+
+
 if __name__ == "__main__":
     unittest.main()

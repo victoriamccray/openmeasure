@@ -75,6 +75,7 @@ from modules.research_design.core.inspect_rules import (
 from modules.research_design.core.schema import measurement_plan_profile
 from modules.research_design.core.simulate import generate_naturalistic_pain_study
 from shared import visuals
+from shared.measure_visuals import measure_visual_svg
 from shared.catalog import WORKFLOWS
 from shared.journey_stages import StageTracker
 from shared.method_guide import BRANCHES
@@ -1201,27 +1202,57 @@ else:
     selected_measure_names: list[str] = []
 
     if named_concepts:
+        # The visual explorer, for every concept rather than for one
+        # worked example. Choose a measure, see the shape of what it
+        # produces, read what it captures and what it costs. The
+        # chronic-pain gallery had this interaction and it was
+        # pain-specific, so every other study got a list of names.
+        #
+        # Candidates are narrowed to the concept where OpenMeasure has a
+        # narrowed list, and fall back to everything its kind can observe
+        # where it does not. Which of the two a reader is looking at is
+        # said, because a broad list is a different answer rather than a
+        # worse one.
         for concept in named_concepts:
-            candidates = ontology.measures_for(concept.kind)
+            candidates, narrowed = lexicon.measures_for_concept(
+                concept.name, concept.kind
+            )
 
             st.markdown(f"**{concept.name}**")
             st.caption(concept.kind)
+
+            columns = st.columns(min(len(candidates), 4) or 1)
+            for index, measure in enumerate(candidates):
+                with columns[index % len(columns)]:
+                    st.markdown(
+                        measure_visual_svg(measure), unsafe_allow_html=True
+                    )
+                    st.caption(f"**{measure.name}**")
+                    st.caption(measure.modality)
 
             chosen = st.multiselect(
                 f"Ways to observe {concept.name}",
                 options=[measure.name for measure in candidates],
                 key=f"planner_measures_{concept.name}",
                 label_visibility="collapsed",
+                placeholder=f"Add measures for {concept.name}",
             )
             selected_measure_names.extend(chosen)
 
-            with st.expander(f"Inspect the {len(candidates)} candidates"):
+            st.caption(
+                lexicon.NARROWED_CANDIDATES_NOTE
+                if narrowed
+                else lexicon.BROAD_CANDIDATES_NOTE
+            )
+
+            with st.expander(f"Inspect these {len(candidates)} measures"):
                 for measure in candidates:
-                    st.markdown(f"**{measure.name}**  ")
+                    st.markdown(f"**{measure.name}**")
                     st.caption(
-                        f"{measure.modality}. Captures {measure.captures.lower()}. "
-                        f"Produces {measure.produces.lower()}."
+                        f"Captures {measure.captures.lower()}. Produces "
+                        f"{measure.produces.lower()}."
                     )
+                    st.caption(f"Modality: {measure.modality}")
                     st.caption(f"Burden: {measure.burden}")
                     st.caption(f"Limitation: {measure.limitation}")
                     st.caption(

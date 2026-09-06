@@ -66,6 +66,16 @@ TRIAL_CITATION = (
 
 CATALOG_ENTRY = "shared/datasets.py, right_to_play_baseline"
 
+# How wide a label can be on the boundary diagram before it runs into the
+# column beside it.
+#
+# Enforced rather than truncated. Clipping produced "The reported
+# treatment effect..." on the one line of the journey that has to be
+# read, and a reader cannot tell a shortened label from a label that
+# happens to end there. A fact whose name does not fit carries a short
+# form; a fact with neither raises.
+BOUNDARY_LABEL_LIMIT = 40
+
 
 @dataclass(frozen=True)
 class StudyFact:
@@ -75,6 +85,10 @@ class StudyFact:
     value: str
     provenance: str
     source: str
+
+    # A shorter name, for a diagram that cannot fit the full one. Empty
+    # means the full label already fits.
+    short_label: str = ""
 
     def __post_init__(self) -> None:
         for field_name in ("label", "value", "provenance", "source"):
@@ -92,10 +106,23 @@ class StudyFact:
                 f"{', '.join(sorted(PROVENANCE_STATES))}."
             )
 
+        if len(self.for_diagram) > BOUNDARY_LABEL_LIMIT:
+            raise ValueError(
+                f"'{self.for_diagram}' is longer than "
+                f"{BOUNDARY_LABEL_LIMIT} characters and would run into the "
+                "column beside it on the boundary diagram. Give this fact a "
+                "short_label rather than letting it be clipped."
+            )
+
     @property
     def is_established(self) -> bool:
         """Whether the artifacts settle this."""
         return self.provenance != NOT_ESTABLISHED
+
+    @property
+    def for_diagram(self) -> str:
+        """The name to draw: the short form where one exists."""
+        return self.short_label or self.label
 
     @property
     def badge(self) -> str:
@@ -257,6 +284,7 @@ ARTIFACTS: tuple[StudyFact, ...] = (
     ),
     StudyFact(
         label="The reported treatment effect, independently recomputed",
+        short_label="The reported effect, recomputed",
         value=(
             "Cannot be produced from the public artifacts. Recomputing it "
             "needs the 24-month outcomes for each participant, which are "

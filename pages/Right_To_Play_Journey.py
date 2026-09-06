@@ -325,21 +325,6 @@ def _measurement_map_svg(constructs) -> str:
     )
 
 
-# How wide a listed artifact can be before it runs into the column beside
-# it. The full label is in the expander under the figure, so this
-# shortens rather than refusing: unlike an instrument's name, a
-# shortened artifact label is still recognisable.
-_ARTIFACT_LABEL_LIMIT = 30
-
-
-def _short(value: str) -> str:
-    """An artifact label, shortened to fit its column."""
-    if len(value) <= _ARTIFACT_LABEL_LIMIT:
-        return value
-
-    return value[: _ARTIFACT_LABEL_LIMIT - 1] + "\u2026"
-
-
 # The replication boundary. The payoff of the journey, and previously two
 # columns of text.
 #
@@ -362,7 +347,7 @@ def _boundary_svg(boundary) -> str:
             _label(
                 x,
                 first_row + index * row_step,
-                _short(fact.label),
+                fact.for_diagram,
                 size=12,
                 anchor="middle",
             )

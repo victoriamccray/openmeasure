@@ -36,6 +36,8 @@ from dataclasses import dataclass
 
 from .ontology import (
     CONCEPT_KINDS,
+    get_measure,
+    measures_for,
     KIND_AGREEMENT,
     KIND_BEHAVIOR,
     KIND_BIOLOGICAL_STATE,
@@ -232,3 +234,112 @@ def suggest_concepts(question: str) -> tuple[ConceptSuggestion, ...]:
         )
         for entry in ordered
     )
+
+
+# Which measures actually apply to a named concept, where the concept
+# kind is too coarse on its own.
+#
+# The kind finds a candidate universe and does not settle applicability.
+# Cardiac activity and brain activity are both processes in the body, and
+# functional neuroimaging observes one of them; offering it for the other
+# because they share a kind is the kind doing work it cannot do.
+#
+# Curated and conservative. A concept absent from this mapping falls back
+# to its kind's whole universe, which is the honest answer for a concept
+# nobody has narrowed yet, and the page says which of the two a reader is
+# looking at. Every list here is a subset of its kind's universe, checked
+# by a test: naming a measure that its own record says does not observe
+# this kind would be asserting something the library contradicts.
+CONCEPT_MEASURES: dict[str, tuple[str, ...]] = {
+    # Processes in the body, where the kind is at its coarsest.
+    "Cardiac activity": ("Heart rate and heart-rate variability",),
+    "Physiological arousal": (
+        "Electrodermal activity",
+        "Heart rate and heart-rate variability",
+    ),
+    "Brain activity": ("Functional neuroimaging",),
+    "Blood pressure": ("Clinical assessment or chart review",),
+    # Experiences, where a scale built for one thing should not be
+    # offered for another.
+    "Pain experience": (
+        "Rating scale, repeated in daily life",
+        "Structured survey",
+        "Semi-structured interview",
+    ),
+    "Spatial pain pattern": ("Body map or pain drawing",),
+    "Depressive symptoms": (
+        "Structured survey",
+        "Semi-structured interview",
+        "Rating scale, repeated in daily life",
+    ),
+    "Anxiety": ("Structured survey", "Semi-structured interview"),
+    "Perceived stress": (
+        "Structured survey",
+        "Rating scale, repeated in daily life",
+    ),
+    "Quality of life": ("Structured survey",),
+    "Self-efficacy": ("Structured survey",),
+    "Financial well-being": ("Financial well-being scale", "Structured survey"),
+    # How someone organises what they know.
+    "Mental-model structure": (
+        "Card sorting",
+        "Causal or cognitive mapping",
+        "Think-aloud protocol",
+        "Semi-structured interview",
+    ),
+    "Understanding": ("Think-aloud protocol", "Semi-structured interview"),
+    # Convergence across people.
+    "Shared mental models": ("Delphi or group elicitation", "Structured survey"),
+    # Economic and material.
+    "Income": ("Income or earnings record",),
+    "Earnings": ("Income or earnings record",),
+    "Savings": ("Assets and savings inventory",),
+    "Debt burden": ("Debt burden measure",),
+    "Material hardship": ("Material hardship indicators",),
+    "Food insecurity": ("Material hardship indicators",),
+    "Poverty": ("Income or earnings record", "Material hardship indicators"),
+    "Housing stability": ("Material hardship indicators",),
+    # Molecular and cellular.
+    "Gene expression": ("Assay of a biological sample",),
+    "Cortisol": ("Assay of a biological sample",),
+    "Inflammation": ("Assay of a biological sample",),
+    "Biomarker level": ("Assay of a biological sample",),
+}
+
+# Said when a concept has no narrowed list, so a reader can tell the two
+# situations apart. A broad list is not a worse answer; it is a different
+# one, and hiding which they are looking at is what would mislead.
+BROAD_CANDIDATES_NOTE = (
+    "These are every measure that can observe this kind of thing. "
+    "OpenMeasure has no narrowed list for this concept, so judge "
+    "applicability yourself."
+)
+
+NARROWED_CANDIDATES_NOTE = (
+    "Narrowed to the measures that apply to this concept, out of "
+    "everything that can observe this kind of thing."
+)
+
+
+def measures_for_concept(concept: str, kind: str):
+    """
+    The measures that apply to one named concept.
+
+    Falls back to the kind's whole universe for a concept nobody has
+    narrowed, which is honest rather than empty: a concept a researcher
+    typed themselves has no curated list and should still reach
+    something.
+
+    Returns the measures and whether the list was narrowed, so a caller
+    can say which of the two a reader is looking at.
+    """
+    universe = measures_for(kind)
+    narrowed = CONCEPT_MEASURES.get(concept)
+
+    if not narrowed:
+        return universe, False
+
+    by_name = {measure.name: measure for measure in universe}
+
+    return tuple(by_name[name] for name in narrowed if name in by_name), True
+

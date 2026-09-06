@@ -101,9 +101,45 @@ class TestEveryMeasureIsTraceable(unittest.TestCase):
                 limitation="",
                 documented_as="Somewhere",
                 search_terms="terms",
+                visual_type=ontology.VISUAL_TEXT,
             )
 
         self.assertIn("limitation", str(raised.exception))
+
+    def test_a_measure_without_a_visual_type_is_rejected(self):
+        """
+        A measure with no shape cannot appear in the explorer beside ones
+        that have one.
+        """
+        with self.assertRaises(TypeError):
+            ontology.Measure(
+                name="Something",
+                observes=(ontology.KIND_BEHAVIOR,),
+                modality=ontology.MODALITY_BEHAVIORAL,
+                captures="Things",
+                produces="Data",
+                burden="Some",
+                limitation="A limit",
+                documented_as="Somewhere",
+                search_terms="terms",
+            )
+
+    def test_a_visual_type_outside_the_vocabulary_is_rejected(self):
+        with self.assertRaises(ValueError) as raised:
+            ontology.Measure(
+                name="Something",
+                observes=(ontology.KIND_BEHAVIOR,),
+                modality=ontology.MODALITY_BEHAVIORAL,
+                captures="Things",
+                produces="Data",
+                burden="Some",
+                limitation="A limit",
+                documented_as="Somewhere",
+                search_terms="terms",
+                visual_type="hologram",
+            )
+
+        self.assertIn("Reuse a primitive", str(raised.exception))
 
     def test_an_unknown_modality_is_rejected(self):
         with self.assertRaises(ValueError) as raised:
@@ -117,6 +153,7 @@ class TestEveryMeasureIsTraceable(unittest.TestCase):
                 limitation="A limit",
                 documented_as="Somewhere",
                 search_terms="terms",
+                visual_type=ontology.VISUAL_TEXT,
             )
 
         self.assertIn("not one of the declared modalities", str(raised.exception))

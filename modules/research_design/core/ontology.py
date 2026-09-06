@@ -78,6 +78,44 @@ MODALITIES: tuple[str, ...] = (
     MODALITY_QUALITATIVE,
 )
 
+# What a measure's data looks like, as a small reusable vocabulary.
+#
+# A shape rather than a picture of the instrument. A researcher choosing
+# between card sorting and causal mapping is choosing between clusters
+# and a directed graph, and seeing those two shapes is closer to seeing
+# what the choice means than reading two paragraphs is.
+#
+# Deliberately few, and shared. A new measure reuses a primitive; a new
+# primitive is added only when something genuinely produces a shape none
+# of these describe, because a vocabulary with one entry per measure is
+# not a vocabulary.
+VISUAL_RATING_SCALE = "rating_scale"
+VISUAL_BODY_MAP = "body_map"
+VISUAL_SIGNAL_TRACE = "signal_trace"
+VISUAL_EVENT_TIMELINE = "event_timeline"
+VISUAL_CARD_CLUSTER = "card_cluster"
+VISUAL_CAUSAL_MAP = "causal_map"
+VISUAL_DISTRIBUTION = "distribution"
+VISUAL_INVENTORY = "inventory"
+VISUAL_RECORD = "record"
+VISUAL_IMAGE = "image"
+VISUAL_TEXT = "text"
+
+VISUAL_TYPES: tuple[str, ...] = (
+    VISUAL_RATING_SCALE,
+    VISUAL_BODY_MAP,
+    VISUAL_SIGNAL_TRACE,
+    VISUAL_EVENT_TIMELINE,
+    VISUAL_CARD_CLUSTER,
+    VISUAL_CAUSAL_MAP,
+    VISUAL_DISTRIBUTION,
+    VISUAL_INVENTORY,
+    VISUAL_RECORD,
+    VISUAL_IMAGE,
+    VISUAL_TEXT,
+)
+
+
 # What sort of thing a concept is. This is the join: it decides which
 # measures are applicable, and it is about the concept rather than about
 # the field the concept belongs to.
@@ -127,6 +165,11 @@ class Measure:
     documented_as: str
     search_terms: str
 
+    # What this measure's data looks like, drawn from the shared
+    # vocabulary above. Required, because a measure with no shape cannot
+    # appear in the explorer beside ones that have one.
+    visual_type: str
+
     def __post_init__(self) -> None:
         required = (
             "name",
@@ -137,6 +180,7 @@ class Measure:
             "limitation",
             "documented_as",
             "search_terms",
+            "visual_type",
         )
         for field_name in required:
             if not getattr(self, field_name):
@@ -149,6 +193,13 @@ class Measure:
             raise ValueError(
                 f"{self.name} has modality '{self.modality}', which is not "
                 f"one of the declared modalities: {', '.join(MODALITIES)}."
+            )
+
+        if self.visual_type not in VISUAL_TYPES:
+            raise ValueError(
+                f"{self.name} has visual_type '{self.visual_type}', which is "
+                f"not in the shared vocabulary: {', '.join(VISUAL_TYPES)}. "
+                "Reuse a primitive, or add one deliberately."
             )
 
         if not self.observes:
@@ -176,6 +227,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established qualitative research method",
         search_terms="semi-structured interview qualitative research method",
+        visual_type=VISUAL_TEXT,
     ),
     Measure(
         name="Structured survey",
@@ -190,6 +242,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established survey-methodology instrument type",
         search_terms="survey instrument development validation measurement",
+        visual_type=VISUAL_RATING_SCALE,
     ),
     Measure(
         name="Think-aloud protocol",
@@ -204,6 +257,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established protocol-analysis method",
         search_terms="think aloud protocol analysis verbal report method",
+        visual_type=VISUAL_TEXT,
     ),
     Measure(
         name="Card sorting",
@@ -218,6 +272,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established knowledge-elicitation technique",
         search_terms="card sorting knowledge elicitation technique",
+        visual_type=VISUAL_CARD_CLUSTER,
     ),
     Measure(
         name="Causal or cognitive mapping",
@@ -232,6 +287,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established cognitive-mapping method",
         search_terms="cognitive mapping causal map elicitation method",
+        visual_type=VISUAL_CAUSAL_MAP,
     ),
     Measure(
         name="Delphi or group elicitation",
@@ -246,6 +302,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established consensus method",
         search_terms="Delphi method consensus expert elicitation",
+        visual_type=VISUAL_DISTRIBUTION,
     ),
     Measure(
         name="Structured observation",
@@ -260,6 +317,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established observational research method",
         search_terms="structured observation coding scheme interrater",
+        visual_type=VISUAL_EVENT_TIMELINE,
     ),
     Measure(
         name="Document or artifact analysis",
@@ -274,6 +332,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established documentary-analysis method",
         search_terms="document analysis archival research method",
+        visual_type=VISUAL_TEXT,
     ),
     Measure(
         name="Administrative records extract",
@@ -288,6 +347,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established secondary-data source type",
         search_terms="administrative data research secondary use validity",
+        visual_type=VISUAL_RECORD,
     ),
     Measure(
         name="Rating scale, repeated in daily life",
@@ -302,6 +362,22 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established ecological momentary assessment design",
         search_terms="ecological momentary assessment experience sampling",
+        visual_type=VISUAL_RATING_SCALE,
+    ),
+    Measure(
+        name="Body map or pain drawing",
+        observes=(KIND_EXPERIENCE,),
+        modality=MODALITY_SELF_REPORT,
+        captures="Where on the body a person locates what they feel",
+        produces="Marked regions per report",
+        burden="About a minute per report",
+        limitation=(
+            "Records where a person marks, which reflects the template's "
+            "regions and their own body concept as well as the sensation"
+        ),
+        documented_as="An established pain-assessment method",
+        search_terms="pain drawing body map assessment reliability",
+        visual_type=VISUAL_BODY_MAP,
     ),
     Measure(
         name="Electrodermal activity",
@@ -316,6 +392,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established psychophysiological measure",
         search_terms="electrodermal activity skin conductance measurement",
+        visual_type=VISUAL_SIGNAL_TRACE,
     ),
     Measure(
         name="Heart rate and heart-rate variability",
@@ -330,6 +407,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established cardiovascular measure",
         search_terms="heart rate variability measurement preprocessing",
+        visual_type=VISUAL_SIGNAL_TRACE,
     ),
     Measure(
         name="Functional neuroimaging",
@@ -344,6 +422,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established neuroimaging modality",
         search_terms="functional MRI BOLD measurement validity",
+        visual_type=VISUAL_IMAGE,
     ),
     Measure(
         name="Assay of a biological sample",
@@ -358,6 +437,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established laboratory measurement type",
         search_terms="assay batch effect biological sample measurement",
+        visual_type=VISUAL_DISTRIBUTION,
     ),
     Measure(
         name="Clinical assessment or chart review",
@@ -372,6 +452,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established clinical data source type",
         search_terms="chart review clinical coding validity ascertainment",
+        visual_type=VISUAL_RECORD,
     ),
     Measure(
         name="Environmental sensor",
@@ -386,6 +467,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established environmental monitoring approach",
         search_terms="environmental sensor exposure measurement error",
+        visual_type=VISUAL_SIGNAL_TRACE,
     ),
     Measure(
         name="Income or earnings record",
@@ -400,6 +482,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established administrative-data source type",
         search_terms="administrative earnings records research validity",
+        visual_type=VISUAL_RECORD,
     ),
     Measure(
         name="Assets and savings inventory",
@@ -414,6 +497,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established household-finance survey module",
         search_terms="household assets savings survey measurement nonresponse",
+        visual_type=VISUAL_INVENTORY,
     ),
     Measure(
         name="Debt burden measure",
@@ -428,6 +512,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established household-finance survey module",
         search_terms="debt burden ratio household survey measurement",
+        visual_type=VISUAL_INVENTORY,
     ),
     Measure(
         name="Material hardship indicators",
@@ -442,6 +527,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established hardship-measurement item set",
         search_terms="material hardship measurement items poverty survey",
+        visual_type=VISUAL_INVENTORY,
     ),
     Measure(
         name="Financial well-being scale",
@@ -456,6 +542,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established financial well-being instrument type",
         search_terms="financial well-being scale validation measurement",
+        visual_type=VISUAL_RATING_SCALE,
     ),
     Measure(
         name="Model evaluation on held-out data",
@@ -470,6 +557,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established model-evaluation practice",
         search_terms="held out evaluation data leakage model validation",
+        visual_type=VISUAL_DISTRIBUTION,
     ),
 )
 
