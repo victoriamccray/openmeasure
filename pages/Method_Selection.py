@@ -965,11 +965,20 @@ else:
             )
 
         st.divider()
-        st.markdown("**Assemble Your Measurement System**")
-        st.caption("Choose which of the measures above to include in this study.")
+        # Named as the example's, at the point of choosing rather than
+        # only in the record. These five measures and the simulation
+        # underneath them are the chronic-pain scenario; calling the
+        # selection "this study" made them read as the reader's own,
+        # whatever question they had typed above.
+        st.markdown("**Assemble The Worked Example's Measurement System**")
+        st.caption(
+            "Choose which of the measures above the chronic-pain "
+            "simulation includes. These are the example's measures, not "
+            "measures derived from the question you entered."
+        )
 
         assembled_measures = st.multiselect(
-            "Measures included in this study",
+            "Measures included in the worked example",
             options=_ALL_MEASURE_KEYS,
             format_func=lambda k: _MEASURE_LABEL_BY_KEY[k],
             default=st.session_state.get("assembled_measures", list(_ALL_MEASURE_KEYS)),
@@ -1436,32 +1445,66 @@ not an integration.
 """
             )
 
-        section_header("Design Record", "A summary of this design, to carry forward")
+        # Two parts, kept apart on purpose.
+        #
+        # This record used to open with the reader's own question and
+        # then state "Study design (revealed from what you assembled and
+        # ran): Observational, within-person, longitudinal" underneath
+        # it, followed by the pain example's five measures. None of that
+        # was derived from their question. It is the fixed chronic-pain
+        # scenario this page simulates, and printing it under their
+        # question made those choices read as properties of the study
+        # they had designed.
+        #
+        # The blanks were worse. An unanswered Population printed the
+        # pain example's population, so a record could carry a
+        # researcher's own question above a stranger's study population
+        # with nothing marking the join.
+        #
+        # A record that merges the two is wrong in a way the reader
+        # cannot see, so it does not merge them. Blank stays blank, and
+        # everything the example contributes is named as the example's.
+        section_header(
+            "Design Record",
+            "Two parts: what you entered, and what the worked example "
+            "contributed",
+        )
+
+        not_stated = "not stated"
 
         record_text = f"""OpenMeasure Research Design Record
 ===================================
 
-Research question
-------------------
-{hypothesis or PAIN_EXAMPLE["rq_hypothesis"]}
+This record has two parts and they are different kinds of thing. The
+first is what you entered. The second describes the chronic-pain worked
+example, a fixed scenario this page simulates to demonstrate the
+workflow. Nothing in the second part was derived from your question.
 
-Population: {population or PAIN_EXAMPLE["rq_population"]}
-Exposure: {exposure or PAIN_EXAMPLE["rq_exposure"]}
-Outcomes: {outcomes or PAIN_EXAMPLE["rq_outcomes"]}
-Setting: {setting or PAIN_EXAMPLE["rq_setting"]}
+Part 1. What you entered
+-------------------------
+Research question: {hypothesis or not_stated}
+Population: {population or not_stated}
+Exposure: {exposure or not_stated}
+Outcomes: {outcomes or not_stated}
+Setting: {setting or not_stated}
 
-Study design (revealed from what you assembled and ran)
---------------------------------------------------------
-Observational, Within-person, Longitudinal, repeated-measures.
-Assembled measures: {", ".join(_MEASURE_LABEL_BY_KEY[k] for k in assembled_measures) if assembled_measures else "none chosen"}
+Part 2. The chronic-pain worked example
+----------------------------------------
+Everything below belongs to the worked example, not to the question
+above. Its structure, measures and suggested analyses would be different
+for a different study, and this page does not yet build them from what
+you entered.
+
+Structure: observational, within-person, longitudinal, repeated-measures.
+Measures assembled in the example: {", ".join(_MEASURE_LABEL_BY_KEY[k] for k in assembled_measures) if assembled_measures else "none chosen"}
 Compares demographic subgroups: {"yes" if compares_subgroups else "no"}
 
-Design implications (deterministic, structure-only; things to inspect, not recommendations)
----------------------------------------------------------------------------------------------
+Design implications of the example (deterministic, structure-only; things to inspect, not recommendations)
+-----------------------------------------------------------------------------------------------------------
 {chr(10).join(f"- {i.trigger}: {i.note}" for i in inspections) if inspections else "- No structural triggers fired for the choices above."}
 
-Measurement plan
------------------
+Measurement plan for the example
+---------------------------------
 {chr(10).join(f"- {_MEASURE_LABEL_BY_KEY[k]} -> {_MEASURE_COLUMN_INFO[k][1]}" for k in assembled_measures) if assembled_measures else "- None chosen."}
 
 Simulation assumptions (chronic-pain worked example)
@@ -1485,17 +1528,20 @@ Simulated outcome
 - Estimated coupling difference: {estimate.estimated_difference if estimate.estimated_difference is not None else "n/a"}
 - Standard error: {estimate.standard_error if estimate.standard_error is not None else "n/a"}
 
-Proposed analysis considerations
------------------------------------
+Analyses the example's structure points to
+--------------------------------------------
 Time-Series QA (timestamp completeness), then Impact Evaluation
-(comparing the physiological signal across pain states).
+(comparing the physiological signal across pain states). These follow
+from the worked example's columns, not from your question.
 
 Limitations
 -----------
 Observational, not experimental: cannot establish causation. Does not
 model medication, activity, sleep, or stress. Simulated precision does
 not guarantee real-world performance. Synthetic data, not study
-participant data.
+participant data. Part 2 of this record describes the worked example
+throughout; a builder that assembles a design from your own question is
+not yet built.
 """
 
         with st.expander("Show design record", expanded=False):
