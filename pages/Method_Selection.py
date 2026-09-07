@@ -75,7 +75,7 @@ from modules.research_design.core.inspect_rules import (
 from modules.research_design.core.schema import measurement_plan_profile
 from modules.research_design.core.simulate import generate_naturalistic_pain_study
 from shared import visuals
-from shared.measure_visuals import measure_visual_svg
+from shared.measure_visuals import ANIMATED_TYPES, measure_visual_svg
 from shared.catalog import WORKFLOWS
 from shared.stage_workspace import Gate, Stage, StageWorkspace
 from shared.method_guide import BRANCHES
@@ -103,40 +103,112 @@ ACCENT_2 = "#c0392b"
 MISSING_COLOR = "#d8d6cd"
 
 
-def _synchronization_svg(misalignment_minutes: float) -> str:
+# The longest stream name the diagram can letter without colliding with
+# the timeline it labels. SVG text does not wrap, so a longer name is
+# shortened at the caller rather than drawn off the canvas.
+# Measures the library describes as producing more than one reading per
+# participant: sampled continuously, or reported on a schedule. Minute-
+# scale alignment is a question about these. A survey and an
+# administrative extract each arrive once, and the correspondence
+# between them is about which period each covers.
+#
+# Derived from the visual vocabulary rather than listed again, so it
+# cannot drift out of step with what the drawings say a measure
+# produces.
+_REPEATEDLY_SAMPLED = ANIMATED_TYPES + (
+    ontology.VISUAL_DIARY_GRID,
+    ontology.VISUAL_EVENT_TIMELINE,
+)
+
+
+_STREAM_LABEL_LIMIT = 34
+
+
+def _short_stream_label(measure_name: str) -> str:
     """
-    Two horizontal timelines, redrawn on each slider change rather
-    than animated continuously: the wearable line's tick marks shift
-    right of the pain-report line's by an amount proportional to the
-    slider, making "these two streams drift apart" visible directly
-    rather than only as a number of minutes.
+    A measure name the synchronization diagram can letter.
+
+    Cut at a word boundary rather than mid-word, and only for the two
+    library names long enough to need it. Refusing outright would mean a
+    reader could assemble a study whose timing diagram will not draw,
+    which is a worse trade than a shortened label beside a slider that
+    already spells the name out in full.
     """
+    if len(measure_name) <= _STREAM_LABEL_LIMIT:
+        return measure_name
+
+    words = measure_name.split()
+    shortened = words[0]
+
+    for word in words[1:]:
+        if len(f"{shortened} {word}") > _STREAM_LABEL_LIMIT - 1:
+            break
+        shortened = f"{shortened} {word}"
+
+    return f"{shortened}\u2026"
+
+
+def _synchronization_svg(
+    misalignment_minutes: float, *, first_stream: str, second_stream: str
+) -> str:
+    """
+    Two horizontal timelines, one shifted right of the other.
+
+    Redrawn on each slider change rather than animated continuously: the
+    second line's ticks move by an amount proportional to the slider,
+    making "these two streams drift apart" visible directly rather than
+    only as a number of minutes.
+
+    The streams are named by the caller from what was actually
+    assembled. They used to be captioned "Pain report" and "Wearable
+    signal", which was the worked example's pair written into a diagram
+    every study reached.
+    """
+    for label in (first_stream, second_stream):
+        if len(label) > _STREAM_LABEL_LIMIT:
+            raise ValueError(
+                f"'{label}' is {len(label)} characters and this diagram "
+                f"letters up to {_STREAM_LABEL_LIMIT}. Shorten it at the "
+                "caller: SVG text does not wrap, so a longer label is "
+                "drawn off the canvas rather than truncated."
+            )
 
     offset = (misalignment_minutes / 60.0) * 70.0
-    pain_x = (70, 220)
-    wearable_x = tuple(x + offset for x in pain_x)
+    first_x = (70, 220)
+    second_x = tuple(x + offset for x in first_x)
 
-    pain_ticks = "".join(
+    first_ticks = "".join(
         f'<line x1="{x}" y1="24" x2="{x}" y2="36" stroke="{ACCENT_2}" stroke-width="2.5"/>'
-        for x in pain_x
+        for x in first_x
     )
-    wearable_ticks = "".join(
+    second_ticks = "".join(
         f'<line x1="{x:.0f}" y1="74" x2="{x:.0f}" y2="86" stroke="{ACCENT}" stroke-width="2.5"/>'
-        for x in wearable_x
+        for x in second_x
     )
 
-    return f"""
-    <svg width="100%" height="100" viewBox="0 0 320 100" preserveAspectRatio="xMidYMid meet">
-      <text x="8" y="14" font-size="10" fill="{ACCENT_2}">Pain report</text>
-      <line x1="8" y1="30" x2="312" y2="30" stroke="{GRIDLINE}" stroke-width="1.5"/>
-      {pain_ticks}
-      <text x="8" y="64" font-size="10" fill="{ACCENT}">Wearable signal</text>
-      <line x1="8" y1="80" x2="312" y2="80" stroke="{GRIDLINE}" stroke-width="1.5"/>
-      {wearable_ticks}
-      <line x1="{pain_x[0]}" y1="36" x2="{wearable_x[0]:.0f}" y2="74" stroke="{INK_MUTED}" stroke-width="1" stroke-dasharray="3,2"/>
-      <text x="{(pain_x[0] + wearable_x[0]) / 2:.0f}" y="55" font-size="9" fill="{INK_MUTED}" text-anchor="middle">{misalignment_minutes:.0f} min</text>
-    </svg>
-    """
+    inner = (
+        f'<text x="8" y="14" font-size="10" fill="{ACCENT_2}">{first_stream}</text>'
+        f'<line x1="8" y1="30" x2="312" y2="30" stroke="{GRIDLINE}" stroke-width="1.5"/>'
+        f'{first_ticks}'
+        f'<text x="8" y="64" font-size="10" fill="{ACCENT}">{second_stream}</text>'
+        f'<line x1="8" y1="80" x2="312" y2="80" stroke="{GRIDLINE}" stroke-width="1.5"/>'
+        f'{second_ticks}'
+        f'<line x1="{first_x[0]}" y1="36" x2="{second_x[0]:.0f}" y2="74" '
+        f'stroke="{INK_MUTED}" stroke-width="1" stroke-dasharray="3,2"/>'
+        f'<text x="{(first_x[0] + second_x[0]) / 2:.0f}" y="55" font-size="9" '
+        f'fill="{INK_MUTED}" text-anchor="middle">'
+        f'{misalignment_minutes:.0f} min</text>'
+    )
+
+    return visuals.figure(
+        inner,
+        width=320,
+        height=100,
+        label=(
+            f"{first_stream} and {second_stream} on two timelines, "
+            f"{misalignment_minutes:.0f} minutes apart."
+        ),
+    )
 
 _DEFAULT_BODY_ZONE = "Abdomen"
 
@@ -801,7 +873,46 @@ else:
     # that built it, because the timing, the simulation and the record
     # all describe it, and in a workspace those are separate screens.
     # Session state carries it, so nothing recomputes.
+    # The assembled study, rebuilt from the two things a reader actually
+    # edits: the concept table and one measure multiselect per concept.
+    #
+    # Derived here rather than inside the Measures stage, which is where
+    # it used to be written. That made the study a side effect of one
+    # screen having rendered: loading the worked example on the Question
+    # stage and going straight to Timing left planner_study unset, the
+    # timing gate unsatisfied, and three stages blank. Derived state that
+    # later stages depend on has to exist whichever stage is on screen.
+    #
+    # The Measures stage still owns editing it. This only reconstitutes
+    # what those widgets last held.
+    def _assemble_from_session() -> assembly.AssembledStudy:
+        concepts = tuple(
+            assembly.Concept(
+                str(row.get("Concept", "")).strip(),
+                str(row.get("What sort of thing is it?", "")),
+            )
+            for row in st.session_state.get("planner_concepts", [])
+            if str(row.get("Concept", "")).strip()
+        )
+
+        chosen: list[str] = []
+        for concept in concepts:
+            chosen.extend(
+                st.session_state.get(f"planner_measures_{concept.name}", [])
+            )
+
+        return assembly.AssembledStudy(
+            concepts=concepts,
+            selected_measures=tuple(dict.fromkeys(chosen)),
+        )
+
     planner_state = st.session_state.get("planner_study")
+
+    if planner_state is None or not planner_state.concepts:
+        rebuilt = _assemble_from_session()
+        if rebuilt.concepts:
+            st.session_state["planner_study"] = rebuilt
+            planner_state = rebuilt
     planner_measures = (
         tuple(planner_state.selected_measures) if planner_state is not None else ()
     )
@@ -809,6 +920,14 @@ else:
         tuple(concept.name for concept in planner_state.concepts)
         if planner_state is not None
         else ()
+    )
+
+    # Whether the worked example is loaded decides what the timing,
+    # simulation and record stages show, and in a workspace each of those
+    # is a separate run that never executes the question stage where the
+    # button lives. Read before the gates, which now test it.
+    worked_example_loaded = bool(
+        st.session_state.get("worked_example_loaded", False)
     )
 
     # Gates. The simulation needs something it can model; the rest is
@@ -828,10 +947,13 @@ else:
             Stage("record", "Design Record"),
         ),
         gates={
+            # Timing describes whatever was assembled, so a measure is
+            # all it needs.
             "timing": Gate(
                 satisfied=bool(planner_measures),
                 requirement="Assemble at least one measure to continue",
             ),
+
             "question": Gate(
                 satisfied=bool(st.session_state.get("rq_population")),
                 requirement="Population not stated",
@@ -840,13 +962,6 @@ else:
         },
     )
 
-    # Read before any stage renders. Whether the worked example is loaded
-    # decides what the timing, simulation and record stages show, and in
-    # a workspace each of those is a separate run that never executes the
-    # question stage where the button lives.
-    worked_example_loaded = bool(
-        st.session_state.get("worked_example_loaded", False)
-    )
 
     # Which assembled measures this page's simulation has a channel for,
     # and which it does not. Derived here rather than in the stage that
@@ -955,6 +1070,13 @@ else:
                     if str(key).startswith("planner_"):
                         st.session_state.pop(key, None)
                 st.session_state.pop("worked_example_loaded", None)
+                # And what the simulation produced. Without this the
+                # Design Record kept reporting a coupling estimate for
+                # thirty participants directly under "Measures assembled
+                # in the example: none chosen".
+                for key in list(st.session_state):
+                    if str(key).startswith("design_kept_"):
+                        st.session_state.pop(key, None)
                 st.rerun()
 
         if worked_example_loaded:
@@ -1262,6 +1384,29 @@ else:
             "them, so a study can draw on several kinds of evidence at once."
         )
 
+        # Where the mapping comes from and how far it reaches, stated
+        # before anything is offered from it. A researcher deciding how
+        # much to trust this step is entitled to the number, and half of
+        # the concepts OpenMeasure recognises do not have a curated list.
+        curated_concepts, known_concepts = lexicon.curated_coverage()
+        with st.expander("Where these suggestions come from"):
+            st.caption(
+                f"OpenMeasure recognises {known_concepts} concepts and has a "
+                f"hand-curated measure list for {curated_concepts} of them. "
+                "The lists were written by the maintainer against the "
+                "measurement literature for each construct; they are not "
+                "derived from a published crosswalk, and none of them is a "
+                "construct-validity claim."
+            )
+            st.caption(
+                "A concept without a curated list still reaches something: "
+                "every measure whose own record says it can observe that "
+                "kind of thing. That is a category join rather than a "
+                "recommendation, it is labelled as one where it appears, "
+                "and some of what it offers will be wrong for your "
+                "construct."
+            )
+
         # Recognised, never generated. A phrase in OpenMeasure's list is
         # matched and a phrase outside it is not guessed at, so a construct
         # nobody chose cannot enter a study looking as though they had.
@@ -1343,59 +1488,133 @@ else:
             # where it does not. Which of the two a reader is looking at is
             # said, because a broad list is a different answer rather than a
             # worse one.
+            def render_measure_detail(measure) -> None:
+                """One measure in full, wherever it is being listed."""
+                st.markdown(f"**{measure.name}**")
+                st.caption(
+                    f"Captures {measure.captures.lower()}. Produces "
+                    f"{measure.produces.lower()}."
+                )
+                st.caption(f"Modality: {measure.modality}")
+                st.caption(f"Burden: {measure.burden}")
+                st.caption(f"Limitation: {measure.limitation}")
+                st.caption(
+                    f"{measure.documented_as}. Search: "
+                    f"`{measure.search_terms}`"
+                )
+
             for concept in named_concepts:
-                candidates, narrowed = lexicon.measures_for_concept(
+                candidates = lexicon.measures_for_concept(
                     concept.name, concept.kind
                 )
 
                 st.markdown(f"**{concept.name}**")
                 st.caption(concept.kind)
 
-                columns = st.columns(min(len(candidates), 4) or 1)
-                for index, measure in enumerate(candidates):
-                    with columns[index % len(columns)]:
-                        st.markdown(
-                            measure_visual_svg(measure), unsafe_allow_html=True
-                        )
-                        st.caption(f"**{measure.name}**")
-                        # The drawing above is of the artifact, so name
-                        # it: a reader comparing an ECG trace against a
-                        # skin-conductance trace should not have to
-                        # guess which one they are looking at.
-                        st.caption(f"{measure.produces}, {measure.visual_type}")
-                        st.caption(measure.modality)
+                # The two cases are drawn differently rather than
+                # labelled differently.
+                #
+                # A row of pictograph cards reads as a recommendation
+                # whatever the caption underneath says, and for a concept
+                # nobody has curated the list is a category join: every
+                # measure whose own record says it can observe this kind
+                # of thing. That offered functional neuroimaging as a way
+                # to measure violent behaviour among students, because
+                # violence is something a person does. It can study
+                # neural processes associated with a behaviour; it does
+                # not measure the behaviour.
+                #
+                # So the gallery is for curated matches. A category join
+                # arrives as a warning first and a collapsed list second,
+                # still selectable, because a researcher who knows
+                # structured observation is the right answer here has to
+                # be able to choose it.
+                if candidates.validated_for_the_concept:
+                    st.caption(
+                        f"**{candidates.basis}.** {candidates.note}"
+                    )
+
+                    columns = st.columns(min(len(candidates.measures), 4) or 1)
+                    for index, measure in enumerate(candidates.measures):
+                        with columns[index % len(columns)]:
+                            st.markdown(
+                                measure_visual_svg(measure),
+                                unsafe_allow_html=True,
+                            )
+                            st.caption(f"**{measure.name}**")
+                            # The drawing above is of the artifact, so
+                            # name it: a reader comparing an ECG trace
+                            # against a skin-conductance trace should not
+                            # have to guess which one they are looking at.
+                            st.caption(
+                                f"{measure.produces}, {measure.visual_type}"
+                            )
+                            st.caption(measure.modality)
+                else:
+                    st.warning(
+                        f"**{candidates.basis}.** {candidates.note}"
+                    )
 
                 chosen = st.multiselect(
                     f"Ways to observe {concept.name}",
-                    options=[measure.name for measure in candidates],
+                    options=[
+                        measure.name for measure in candidates.measures
+                    ],
                     key=f"planner_measures_{concept.name}",
                     label_visibility="collapsed",
                     placeholder=f"Add measures for {concept.name}",
                 )
                 selected_measure_names.extend(chosen)
 
-                st.caption(
-                    lexicon.NARROWED_CANDIDATES_NOTE
-                    if narrowed
-                    else lexicon.BROAD_CANDIDATES_NOTE
-                )
+                # Counted rather than assumed plural. Several concepts
+                # have exactly one candidate, and "Inspect these 1
+                # measures" is the kind of seam that makes a careful
+                # page look careless.
+                count = len(candidates.measures)
+                if candidates.validated_for_the_concept:
+                    heading = (
+                        f"Inspect this measure"
+                        if count == 1
+                        else f"Inspect these {count} measures"
+                    )
+                else:
+                    heading = (
+                        "1 category-level possibility, and what it would "
+                        "actually capture"
+                        if count == 1
+                        else f"{count} category-level possibilities, and "
+                        "what each would actually capture"
+                    )
 
-                with st.expander(f"Inspect these {len(candidates)} measures"):
-                    for measure in candidates:
-                        st.markdown(f"**{measure.name}**")
+                with st.expander(heading):
+                    if not candidates.validated_for_the_concept:
                         st.caption(
-                            f"Captures {measure.captures.lower()}. Produces "
-                            f"{measure.produces.lower()}."
+                            "Read what each captures against what you mean "
+                            "by this concept. That comparison is the "
+                            "decision, and OpenMeasure has not made it."
                         )
-                        st.caption(f"Modality: {measure.modality}")
-                        st.caption(f"Burden: {measure.burden}")
-                        st.caption(f"Limitation: {measure.limitation}")
-                        st.caption(
-                            f"{measure.documented_as}. Search: "
-                            f"`{measure.search_terms}`"
-                        )
+
+                    for measure in candidates.measures:
+                        if not candidates.validated_for_the_concept:
+                            st.markdown(
+                                measure_visual_svg(measure),
+                                unsafe_allow_html=True,
+                            )
+                        render_measure_detail(measure)
+        elif suggested:
+            # The case that read as broken: a recognised concept sitting
+            # in a button nobody had said to press, under a message
+            # telling the reader to name one.
+            st.info(
+                "Add one of the concepts recognised above, or type your "
+                "own into the table, to see how it could be observed."
+            )
         else:
-            st.info("Name at least one concept above to see how it could be observed.")
+            st.info(
+                "Complete the Question stage to get concept suggestions, or "
+                "type a concept into the table above. Either way, nothing "
+                "enters the study until you add it."
+            )
 
         planner_study = assembly.AssembledStudy(
             concepts=named_concepts,
@@ -1407,6 +1626,12 @@ else:
         # three describe what was assembled. The concepts reach the
         # record alone, since naming one more thing to observe does not
         # change how often anything is sampled.
+        # The gates are drawn above this, so a measure picked just now
+        # was not available to them.
+        design_workspace.record_gate_input(
+            "measures", list(planner_study.selected_measures)
+        )
+
         design_workspace.record_input(
             "measures",
             list(planner_study.selected_measures),
@@ -1636,10 +1861,17 @@ else:
     # 2. Timing & synchronization
     # -------------------------------------------------------------
 
-    if design_stage == STAGE_TIMING and worked_example_loaded:
+    if design_stage == STAGE_TIMING:
         section_header(
             "Timing & Synchronization",
             "When are measures collected, and how closely aligned are they?",
+        )
+
+        st.caption(
+            "Two measures can each be accurate and still appear unrelated "
+            "if they capture different moments. When what you are measuring "
+            "can change quickly, poor synchronization can weaken or distort "
+            "the relationship you observe."
         )
 
         sample_cols = st.columns(3)
@@ -1690,13 +1922,96 @@ else:
             "observations planned in total, before adherence or missingness."
         )
 
-        st.markdown("**How Are the Two Streams Aligned?**")
-        temporal_misalignment_minutes = st.slider(
-            "Temporal misalignment between rating and wearable (minutes)",
-            0,
-            60,
-            design_workspace.kept("misalignment", 10),
+        # Named from what was assembled rather than from the worked
+        # example. Which two streams are compared is the reader's
+        # selection, and a diagram captioned "Pain report" and "Wearable
+        # signal" was describing someone else's study.
+        #
+        # Continuously sampled measures are the ones this question bites
+        # hardest for: their timestamps come from a device clock while an
+        # episodic report comes from whenever a person got to it. The
+        # animated visual types are exactly that set, which is why the
+        # split is read from there rather than from a second list that
+        # could drift out of step with it.
+        continuous = [
+            name
+            for name in planner_measures
+            if ontology.get_measure(name).visual_type in ANIMATED_TYPES
+        ]
+        episodic = [name for name in planner_measures if name not in continuous]
+        repeatedly_sampled = [
+            name
+            for name in planner_measures
+            if ontology.get_measure(name).visual_type in _REPEATEDLY_SAMPLED
+        ]
+
+        # Two conditions, not one. A single measure has nothing to align
+        # against, and two measures that each arrive once have no
+        # minute-scale gap between them either. A study should not
+        # inherit the misalignment concept just because this stage
+        # exists.
+        alignment_applies = (
+            len(planner_measures) >= 2 and bool(repeatedly_sampled)
         )
+
+        st.markdown("**How Are the Streams Aligned?**")
+
+        if len(planner_measures) < 2:
+            st.info(
+                "Alignment is a question about two or more streams, and this "
+                "study assembles one. Add another measure to inspect how "
+                "their timing affects the comparison between them."
+            )
+            temporal_misalignment_minutes = design_workspace.kept(
+                "misalignment", 10
+            )
+        elif not alignment_applies:
+            st.info(
+                "As OpenMeasure describes them, each measure here produces "
+                "one reading per participant, so there is no minute-scale "
+                "gap between them to inspect. Correspondence between them "
+                "is a question about which period each one covers."
+            )
+            temporal_misalignment_minutes = design_workspace.kept(
+                "misalignment", 10
+            )
+        else:
+            first_stream = (episodic or continuous)[0]
+            second_stream = (continuous or episodic)[-1]
+
+            # The names go in the caption rather than the slider label.
+            # Two library names contain a comma, and "between rating
+            # scale, repeated in daily life and electrodermal activity"
+            # loses the boundary between the two streams it is naming.
+            temporal_misalignment_minutes = st.slider(
+                "Temporal misalignment (minutes)",
+                0,
+                60,
+                design_workspace.kept("misalignment", 10),
+            )
+
+            st.caption(
+                "**Temporal misalignment** is the gap between when "
+                f"**{first_stream}** is logged and when "
+                f"**{second_stream}** is recorded. In the next stage you "
+                "can change this gap to see how timing affects the apparent "
+                "relationship between the two streams."
+            )
+
+            if continuous and episodic:
+                st.caption(
+                    f"**{second_stream}** is sampled continuously and "
+                    f"**{first_stream}** is not, so the two carry "
+                    "timestamps from different clocks. That is where this "
+                    "gap does the most damage to a comparison."
+                )
+            elif not continuous:
+                st.caption(
+                    "Both streams here are episodic, so alignment is a "
+                    "question about which occasions correspond rather than "
+                    "about a device clock drifting from a person's report."
+                )
+
         design_workspace.keep("misalignment", temporal_misalignment_minutes)
 
         # The timing choices reach the simulation and the record, which
@@ -1712,20 +2027,23 @@ else:
             affects=("simulate", "record"),
             label="Timing",
         )
-        st.markdown(
-            _synchronization_svg(float(temporal_misalignment_minutes)),
-            unsafe_allow_html=True,
-        )
-        st.caption(
-            "The gap between when a pain rating is logged and when the "
-            "wearable actually reads. Larger values make the recorded "
-            "rating a noisier stand-in for what was actually happening "
-            "physiologically at that moment."
-        )
+        if alignment_applies:
+            st.markdown(
+                _synchronization_svg(
+                    float(temporal_misalignment_minutes),
+                    first_stream=_short_stream_label(first_stream),
+                    second_stream=_short_stream_label(second_stream),
+                ),
+                unsafe_allow_html=True,
+            )
+            st.caption(
+                "Larger values make each reading a noisier stand-in for "
+                "what the other stream was doing at that moment."
+            )
 
         inspect_note(
-            "Temporal alignment is a timing decision here, and an "
-            "adjustable assumption in the next stage."
+            "Whether the measurements are close enough in time to support "
+            "the comparison you want to make."
         )
 
 
@@ -1740,21 +2058,70 @@ else:
     study = design_workspace.kept("study")
     estimate = design_workspace.kept("estimate")
 
+    if design_stage == STAGE_SIMULATE:
+        section_header(
+            "Explore With a Worked Simulation",
+            "How design conditions change the evidence a study ends up with",
+        )
+
+        # What a simulation is for, before any slider. A reader who meets
+        # five parameters and an estimate first has to reverse-engineer
+        # the lesson from the controls, and most will read them as
+        # statistical settings to get right rather than as conditions to
+        # vary.
+        st.write(
+            "The simulation shows how study-design conditions can change "
+            "the evidence you end up observing, even when the underlying "
+            "effect is fixed. Change assumptions such as missing "
+            "observations, measurement noise, and differences between "
+            "participants to see how much information is retained and how "
+            "well the simulated analysis recovers the underlying "
+            "relationship."
+        )
+
+    if (
+        design_stage == STAGE_SIMULATE
+        and not worked_example_loaded
+    ):
+        # The generic path stops here, and says so. OpenMeasure can
+        # simulate one built-in scenario today; offering a reader's own
+        # study to a model built for someone else's would be worse than
+        # saying what the limit is.
+        st.info(
+            "OpenMeasure can simulate one built-in scenario so far, and it "
+            "is not a model of the study you assembled above. Load the "
+            "worked example on the Question stage to work through what "
+            "design conditions do to an estimate."
+        )
+
+        inspect_note(
+            "Change one assumption at a time and watch how the simulated "
+            "observations and estimate respond. The point is not to find a "
+            "good result, it is to see which design conditions make the "
+            "relationship you are studying easier or harder to detect."
+        )
+
     if (
         design_stage == STAGE_SIMULATE
         and worked_example_loaded
         and n_participants is not None
+        # Kept alongside n_participants and used in the same arithmetic,
+        # so the guard names them rather than relying on that.
+        and observations_per_day is not None
+        and duration_days is not None
     ):
-        section_header(
-            "Explore With a Worked Simulation",
-            "A fixed chronic-pain scenario, not a simulation of your own study above",
-        )
-
-        st.write(
-            "The sliders below are assumptions about what is *true* in "
-            "this fixed scenario, not facts a real version of it would "
-            "already know: a real study would need pilot data or "
-            "published estimates to set them credibly."
+        # Labelled as the example it is. These sliders are one scenario's
+        # parameters, not OpenMeasure's general simulation model, and a
+        # reader who took them for the latter would be reading a pain
+        # study's assumptions as the toolkit's own.
+        st.markdown("**Worked example: Chronic pain**")
+        st.caption(
+            "Pain states, pain ratings, physiological signals and the "
+            "coupling between them below are this scenario's, and are "
+            "illustrative. The sliders are assumptions about what is "
+            "*true* in it, not facts a real version would already know: a "
+            "real study would need pilot data or published estimates to "
+            "set them credibly."
         )
 
         noise_cols = st.columns(2)
@@ -1982,10 +2349,17 @@ else:
         )
 
         inspect_note(
-            "How many participants were excluded for insufficient data "
-            f"({estimate.n_participants_excluded_insufficient_data}) "
-            "relative to how many were used, not just the estimate "
-            "itself."
+            "Change one assumption at a time and watch what happens to "
+            "missingness, the participant-level signals, and the estimated "
+            "coupling difference. The point is not to find a good result, "
+            "it is to see which design conditions make the underlying "
+            "relationship easier or harder to recover."
+        )
+        st.caption(
+            "Here, "
+            f"{estimate.n_participants_excluded_insufficient_data} "
+            "participants were excluded for insufficient data, against "
+            f"{estimate.n_participants_used} used."
         )
 
         interpretation_note(
@@ -2000,7 +2374,13 @@ else:
     # 4. Reveal terminology & implications
     # -------------------------------------------------------------
 
-    if design_stage == STAGE_IMPLICATIONS and study is not None and estimate is not None:
+    if (
+        design_stage == STAGE_IMPLICATIONS
+        and study is not None
+        and estimate is not None
+        # measurement_plan_profile reads straight through this one.
+        and assumptions is not None
+    ):
         section_header("Interpretation", "What you built, named, and what it does and does not support")
 
         interpretation_note(

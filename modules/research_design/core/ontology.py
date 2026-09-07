@@ -237,7 +237,10 @@ MEASURES: tuple[Measure, ...] = (
         name="Semi-structured interview",
         observes=(KIND_EXPERIENCE, KIND_KNOWLEDGE_STRUCTURE),
         modality=MODALITY_QUALITATIVE,
-        captures="What a person says they think, in their own framing",
+        captures=(
+            "How a person describes their experiences, views, or actions, "
+            "in their own framing"
+        ),
         produces="Transcript text",
         burden="30 to 90 minutes per participant, plus transcription",
         limitation=(
@@ -372,7 +375,10 @@ MEASURES: tuple[Measure, ...] = (
         name="Rating scale, repeated in daily life",
         observes=(KIND_EXPERIENCE,),
         modality=MODALITY_SELF_REPORT,
-        captures="How something a person feels changes within that person",
+        captures=(
+            "How a self-reported experience or state changes within a "
+            "person over time"
+        ),
         produces="One score per prompt, many per person",
         burden="Several prompts a day, adherence falls over weeks",
         limitation=(
@@ -392,7 +398,8 @@ MEASURES: tuple[Measure, ...] = (
         burden="About a minute per report",
         limitation=(
             "Records where a person marks, which reflects the template's "
-            "regions and their own body concept as well as the sensation"
+            "regions and the person's interpretation of their bodily "
+            "sensation"
         ),
         documented_as="An established pain-assessment method",
         search_terms="pain drawing body map assessment reliability",

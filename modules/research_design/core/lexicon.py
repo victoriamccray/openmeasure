@@ -306,40 +306,112 @@ CONCEPT_MEASURES: dict[str, tuple[str, ...]] = {
     "Biomarker level": ("Assay of a biological sample",),
 }
 
-# Said when a concept has no narrowed list, so a reader can tell the two
-# situations apart. A broad list is not a worse answer; it is a different
-# one, and hiding which they are looking at is what would mislead.
-BROAD_CANDIDATES_NOTE = (
-    "These are every measure that can observe this kind of thing. "
-    "OpenMeasure has no narrowed list for this concept, so judge "
-    "applicability yourself."
+# On what basis a measure reached a concept. Two names rather than a
+# boolean, because the difference between them is the whole claim and a
+# True/False called "narrowed" describes the list rather than its
+# standing.
+#
+#     Category compatibility is not a validated measure of a construct.
+#
+# Functional neuroimaging declares that it observes "something a person
+# or system does", which is true, and OpenMeasure therefore offered it
+# for measuring violent behaviour among students. It can study neural
+# processes associated with a behaviour; it does not measure that
+# behaviour. Structured observation does. A page that rendered both the
+# same way was letting a category join stand in for an appropriateness
+# claim it cannot make.
+BASIS_CONCEPT = "Concept-specific match"
+BASIS_CATEGORY = "Category-level possibility"
+
+BASES: tuple[str, ...] = (BASIS_CONCEPT, BASIS_CATEGORY)
+
+BASIS_CONCEPT_NOTE = (
+    "A reasonable approach for observing this particular construct, "
+    "curated by hand for it. A starting point rather than a settled "
+    "answer, and not a claim of construct validity."
 )
 
-NARROWED_CANDIDATES_NOTE = (
-    "Narrowed to the measures that apply to this concept, out of "
-    "everything that can observe this kind of thing."
+BASIS_CATEGORY_NOTE = (
+    "These methods can observe phenomena of this general type, but "
+    "OpenMeasure has not established that any of them is appropriate for "
+    "this specific construct. Some will not be."
 )
 
 
-def measures_for_concept(concept: str, kind: str):
+@dataclass(frozen=True)
+class MeasureCandidates:
     """
-    The measures that apply to one named concept.
+    What could observe one concept, and on what basis it was offered.
+
+    A frozen record rather than a tuple and a flag, so a caller cannot
+    read the measures and drop the standing they were offered under,
+    which is what a page did when it put both cases in the same gallery
+    with the difference in a caption underneath.
+    """
+
+    concept: str
+    kind: str
+    measures: tuple
+    basis: str
+
+    def __post_init__(self) -> None:
+        if self.basis not in BASES:
+            raise ValueError(
+                f"'{self.basis}' is not a basis a measure can be offered "
+                f"on. Known: {', '.join(BASES)}."
+            )
+
+    @property
+    def validated_for_the_concept(self) -> bool:
+        """Whether a person curated this list for this concept."""
+        return self.basis == BASIS_CONCEPT
+
+    @property
+    def note(self) -> str:
+        """What a reader has to be told about this list."""
+        return (
+            BASIS_CONCEPT_NOTE
+            if self.validated_for_the_concept
+            else BASIS_CATEGORY_NOTE
+        )
+
+
+def measures_for_concept(concept: str, kind: str) -> MeasureCandidates:
+    """
+    What could observe one named concept, and how firmly.
 
     Falls back to the kind's whole universe for a concept nobody has
-    narrowed, which is honest rather than empty: a concept a researcher
-    typed themselves has no curated list and should still reach
-    something.
-
-    Returns the measures and whether the list was narrowed, so a caller
-    can say which of the two a reader is looking at.
+    curated, which is honest rather than empty: a concept a researcher
+    typed themselves has no list and should still reach something. What
+    it must not do is arrive looking like a recommendation, which is why
+    the basis travels with the measures rather than beside them.
     """
     universe = measures_for(kind)
-    narrowed = CONCEPT_MEASURES.get(concept)
+    curated = CONCEPT_MEASURES.get(concept)
 
-    if not narrowed:
-        return universe, False
+    if not curated:
+        return MeasureCandidates(
+            concept=concept, kind=kind, measures=universe, basis=BASIS_CATEGORY
+        )
 
     by_name = {measure.name: measure for measure in universe}
 
-    return tuple(by_name[name] for name in narrowed if name in by_name), True
+    return MeasureCandidates(
+        concept=concept,
+        kind=kind,
+        measures=tuple(by_name[name] for name in curated if name in by_name),
+        basis=BASIS_CONCEPT,
+    )
+
+
+def curated_coverage() -> tuple[int, int]:
+    """
+    How many known concepts have a curated list, out of how many.
+
+    Reported rather than assumed. Half of them do not, and a reader
+    deciding how much to trust this step is entitled to the number.
+    """
+    concepts = {entry.concept for entry in LEXICON}
+
+    return len(concepts & set(CONCEPT_MEASURES)), len(concepts)
 

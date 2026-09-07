@@ -165,7 +165,7 @@ class AssembledStudy:
         from .lexicon import measures_for_concept
 
         for concept in self.concepts:
-            applicable, _ = measures_for_concept(concept.name, concept.kind)
+            applicable = measures_for_concept(concept.name, concept.kind).measures
             names = {measure.name for measure in applicable}
             reaching = tuple(
                 measure.name for measure in self.measures if measure.name in names

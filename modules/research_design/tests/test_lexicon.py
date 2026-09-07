@@ -181,3 +181,112 @@ class TestTheListIsWellFormed(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestCategoryCompatibilityIsNotConstructValidity(unittest.TestCase):
+    """
+    The distinction this module exists to keep, at the measure level.
+
+    It kept it at the concept level from the start: a phrase outside the
+    curated list is not guessed at. Then it lost it one layer down. A
+    concept nobody had curated fell back to every measure whose own
+    record says it can observe that kind of thing, and the page rendered
+    that join in the same gallery it rendered a curated match in.
+
+    The case that exposed it: functional neuroimaging declares that it
+    observes "something a person or system does", which is true, so
+    OpenMeasure offered it as a way to measure violent behaviour among
+    students. It can study neural processes associated with a behaviour.
+    It does not measure the behaviour.
+    """
+
+    def test_a_curated_concept_says_it_was_matched_to_the_concept(self):
+        found = lexicon.measures_for_concept(
+            "Pain experience", ontology.KIND_EXPERIENCE
+        )
+
+        self.assertEqual(found.basis, lexicon.BASIS_CONCEPT)
+        self.assertTrue(found.validated_for_the_concept)
+
+    def test_an_uncurated_concept_says_it_is_only_category_level(self):
+        found = lexicon.measures_for_concept(
+            "Violent behaviour", ontology.KIND_BEHAVIOR
+        )
+
+        self.assertEqual(found.basis, lexicon.BASIS_CATEGORY)
+        self.assertFalse(found.validated_for_the_concept)
+
+    def test_the_category_note_refuses_the_appropriateness_claim(self):
+        found = lexicon.measures_for_concept(
+            "Violent behaviour", ontology.KIND_BEHAVIOR
+        )
+
+        self.assertIn("has not established", found.note)
+        self.assertIn("Some will not be", found.note)
+
+    def test_neuroimaging_for_violence_is_never_called_a_match(self):
+        """
+        Pinned by name, because this is the specific thing that read as a
+        recommendation. If a later change curates a list for violent
+        behaviour, this test should be updated deliberately rather than
+        pass by accident.
+        """
+        found = lexicon.measures_for_concept(
+            "Violent behaviour", ontology.KIND_BEHAVIOR
+        )
+        names = [measure.name for measure in found.measures]
+
+        self.assertIn("Functional neuroimaging", names)
+        self.assertFalse(found.validated_for_the_concept)
+
+    def test_every_uncurated_concept_is_category_level(self):
+        """
+        No concept reaches a concept-specific basis without someone
+        having written it down.
+        """
+        for entry in lexicon.LEXICON:
+            found = lexicon.measures_for_concept(entry.concept, entry.kind)
+            curated = entry.concept in lexicon.CONCEPT_MEASURES
+
+            with self.subTest(concept=entry.concept):
+                self.assertEqual(found.validated_for_the_concept, curated)
+
+    def test_a_basis_outside_the_two_is_refused(self):
+        with self.assertRaises(ValueError) as raised:
+            lexicon.MeasureCandidates(
+                concept="Anything",
+                kind=ontology.KIND_EXPERIENCE,
+                measures=(),
+                basis="Probably fine",
+            )
+
+        self.assertIn("is not a basis", str(raised.exception))
+
+
+class TestCoverageIsReportedRatherThanAssumed(unittest.TestCase):
+    """
+    Roughly half the known concepts have no curated list. A reader
+    deciding how much to trust this step is entitled to the number.
+    """
+
+    def test_coverage_counts_curated_concepts_against_known_ones(self):
+        curated, known = lexicon.curated_coverage()
+
+        self.assertGreater(known, 0)
+        self.assertLessEqual(curated, known)
+
+    def test_it_matches_the_two_tables_it_reports_on(self):
+        curated, known = lexicon.curated_coverage()
+        concepts = {entry.concept for entry in lexicon.LEXICON}
+
+        self.assertEqual(known, len(concepts))
+        self.assertEqual(curated, len(concepts & set(lexicon.CONCEPT_MEASURES)))
+
+    def test_it_does_not_claim_full_coverage(self):
+        """
+        A guard against a future change that silently reports complete
+        curation because it started counting the wrong set.
+        """
+        curated, known = lexicon.curated_coverage()
+
+        self.assertLess(curated, known)
