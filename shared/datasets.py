@@ -368,9 +368,12 @@ DATASETS: tuple[RealDataset, ...] = (
             description=(
                 "The per-window summary columns the worked example's "
                 "analysis reads, for one ring design: 1,797 windows across "
-                "28 subjects. The PPG and accelerometer waveforms are not "
-                "included, so the Signal Inspection stage needs the full "
-                "archive."
+                "28 subjects. Every stage of the journey runs on this. The "
+                "PPG and accelerometer waveforms are not included, which "
+                "is the whole size difference, so Signal Inspection lists "
+                "the per-window columns instead of walking a waveform end "
+                "to end; that one illustration is what the full archive "
+                "adds."
             ),
             sha256=(
                 "bd8f94c1441b83144982200db6eb68edbc57aff131789b32ff5c17d70e8665a2"
