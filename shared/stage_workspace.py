@@ -119,6 +119,15 @@ STATE_MARKS = {
 # `if stage == STAGE_X:` fails and no body runs.
 STAGE_UNAVAILABLE = -1
 
+# How many stages the rail will put in one row.
+#
+# Streamlit's normal content width divided eleven ways is about sixty
+# pixels, which truncates any label longer than a word to an ellipsis.
+# Six keeps a cell wide enough to letter "Measurement" or "Conditions",
+# and a page with more stages than this gets balanced rows rather than
+# one unreadable one.
+MAX_RAIL_COLUMNS = 6
+
 
 def _digest(value) -> str:
     """A stable fingerprint of a recorded value."""
@@ -511,33 +520,61 @@ class StageWorkspace:
             self.current
         ].label
 
-        columns = st.columns(len(self.stages))
+        # Where the reader is, in words, above the marks. Eleven marks
+        # say the shape of the process; they do not say which one you are
+        # in as directly as a sentence does.
+        st.caption(
+            f"Stage {self.current + 1} of {len(self.stages)} · "
+            f"{self.stages[self.current].label}"
+        )
 
-        for index, (stage, column) in enumerate(zip(self.stages, columns)):
-            state = self.state_of(index)
-            reason = self.blocked_reason(index)
-            reachable = index <= self.furthest or not reason
+        for row in self._rail_rows():
+            columns = st.columns(len(row))
 
-            with column:
-                if st.button(
-                    f"{STATE_MARKS[state]} {stage.label}",
-                    key=self._name(f"rail_{index}"),
-                    disabled=not reachable and index != self.current,
-                    width="stretch",
-                    type="primary" if state == STATE_CURRENT else "secondary",
-                ):
-                    self.go_to(index)
-                    st.rerun()
+            for index, column in zip(row, columns):
+                stage = self.stages[index]
+                state = self.state_of(index)
+                reason = self.blocked_reason(index)
+                reachable = index <= self.furthest or not reason
 
-                if state == STATE_UNAVAILABLE or not reachable:
-                    # More actionable than a review cause, so it wins
-                    # where a stage carries both.
-                    st.caption(reason)
-                elif state == STATE_NEEDS_REVIEW:
-                    causes = self.review_causes(index)
-                    st.caption(
-                        f"{', '.join(causes)} changed" if causes else "Review"
-                    )
+                with column:
+                    # The reason and the review cause go in the tooltip,
+                    # not under the button. Rendered per stage they
+                    # repeated the same sentence down the whole rail, in
+                    # a column too narrow to wrap it on word boundaries.
+                    if state == STATE_UNAVAILABLE or not reachable:
+                        note = reason
+                    elif state == STATE_NEEDS_REVIEW:
+                        causes = self.review_causes(index)
+                        note = (
+                            f"{', '.join(causes)} changed"
+                            if causes
+                            else "Needs review"
+                        )
+                    else:
+                        note = state
+
+                    if st.button(
+                        f"{STATE_MARKS[state]} {stage.label}",
+                        key=self._name(f"rail_{index}"),
+                        disabled=not reachable and index != self.current,
+                        width="stretch",
+                        type=(
+                            "primary" if state == STATE_CURRENT else "secondary"
+                        ),
+                        help=note,
+                    ):
+                        self.go_to(index)
+                        st.rerun()
+
+        # One shared line rather than one per locked stage, and the
+        # earliest unmet requirement rather than the nearest, because
+        # reaching a later stage through an unsatisfied earlier one would
+        # skip the decision that one exists for.
+        earliest_unmet = self.blocked_reason(len(self.stages) - 1)
+
+        if earliest_unmet:
+            st.caption(earliest_unmet)
 
         if self.state_of(self.current) == STATE_UNAVAILABLE:
             st.warning(
@@ -547,6 +584,27 @@ class StageWorkspace:
             return STAGE_UNAVAILABLE
 
         return self.current
+
+    def _rail_rows(self) -> tuple[tuple[int, ...], ...]:
+        """
+        The stage indices, in balanced rows of at most MAX_RAIL_COLUMNS.
+
+        Balanced rather than filled: eleven stages read better as six and
+        five than as six, then five in a row half as wide, and seven read
+        better as four and three than as six and one.
+        """
+        total = len(self.stages)
+
+        if total <= MAX_RAIL_COLUMNS:
+            return (tuple(range(total)),)
+
+        rows = -(-total // MAX_RAIL_COLUMNS)
+        per_row = -(-total // rows)
+
+        return tuple(
+            tuple(range(start, min(start + per_row, total)))
+            for start in range(0, total, per_row)
+        )
 
     def render_review_notice(self) -> None:
         """Say why the current stage is flagged, where it is."""
