@@ -8,44 +8,49 @@ instead. So the categories are those, and "Something seems wrong" is
 first among them, because a methodological error reported once is worth
 more than a hundred satisfaction scores.
 
-Two routes, and the reader chooses
-----------------------------------
-A public GitHub issue suits a reproducible bug or a feature request.
-Private feedback suits anything that might touch unpublished research
-context. Posting the second to a public tracker because the first was
-easier to build would be a decision about someone else's confidentiality,
-so both are offered and the difference is stated before either is used.
+Review, then choose where it goes
+---------------------------------
+The report is shown in full before either button: the note, and the page,
+stage, version and category attached to it. A form that revealed what it
+had collected only after sending would be asking for trust it had not
+earned, and one of the two routes here publishes.
 
-What is attached
-----------------
-The page, the stage, the version and the category. Never the research
+    Feedback -> Review -> [ Submit privately ] [ Open a public issue ]
+
+Public opens a pre-filled GitHub issue for the reader to post themselves.
+Private posts the same reviewed content to a form endpoint, without
+leaving OpenMeasure and without anyone opening a mail client.
+
+What travels
+------------
+The note, and the page, stage, version and category. Never the research
 question, the data, the selections or the results: a feedback control
 that quietly shipped a study's contents somewhere would be a data
-disclosure wearing a friendly icon. Whatever the reader types is the only
-free text that travels, and the form says so above the box.
+disclosure wearing a friendly icon. The review section is the proof of
+that rather than a promise about it, since it shows the whole payload.
 
 Where private feedback goes
 ---------------------------
-To an address, in an email the reader sends themselves. Posting straight
-into a private issue tracker would file it better, and it would also mean
-a deployed web app holding a write credential and a backend to keep
-working, which is a lot of standing infrastructure for a button that may
-be pressed twice a month. If private feedback ever arrives in volume,
-automating it into a tracker is a small change from here.
+To a form endpoint configured in st.secrets, which forwards it to the
+maintainer. The address behind that endpoint is not in this repository
+and does not need to be: an address written into public source is an
+address in a scraper's list.
 
-Nothing is offered unless an address is configured. There is no default,
-and a form that accepted a private message with nowhere to send it would
-be worse than no form: it would look like the message was received. When
-it is not configured the control says so and offers the public route
-instead.
+A form endpoint rather than a private issue tracker, because the tracker
+would mean a deployed web app holding a write credential, which is a lot
+of standing infrastructure for a button that may be pressed twice a
+month. Automating it into a tracker later is a small change from here.
 
-Both routes hand the reader something pre-filled and let them send it.
-Neither submits on their behalf.
+With no endpoint configured, Submit privately is not offered. Review and
+the public route stay, so what disappears is the one button that could
+not deliver rather than the whole form apologising.
 """
 
 from __future__ import annotations
 
+import json
 import urllib.parse
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -59,10 +64,11 @@ ACTIVE_STAGE_KEY = "openmeasure_active_stage"
 
 REPOSITORY_URL = "https://github.com/victoriamccray/openmeasure"
 
-# Read from st.secrets rather than written here. A fork or a local run
-# should not mail this project's maintainer, and an address in a public
-# repository is an address in a scraper's list.
-PRIVATE_ADDRESS_SETTING = "feedback_email"
+# Read from st.secrets rather than written here, so a fork or a local run
+# does not post to this project's endpoint.
+FORM_ENDPOINT_SETTING = "feedback_form_endpoint"
+
+REQUEST_TIMEOUT_SECONDS = 15
 
 # The label a submitted issue carries, so feedback lands in one place in
 # the existing queue rather than mixing with planned work.
@@ -82,33 +88,43 @@ CATEGORIES: tuple[str, ...] = (
     CATEGORY_OTHER,
 )
 
-ROUTE_PUBLIC = "Open a public GitHub issue"
-ROUTE_PRIVATE = "Send private feedback"
-
-# Shown above both routes, before anything is typed. Above rather than
-# below, because a warning under a filled-in box arrives too late.
+# Shown above the box, before anything is typed. Above rather than below,
+# because a warning under a filled-in field arrives too late.
 PRIVACY_WARNING = (
     "Please do not include participant data, private research data, or "
     "personal information."
 )
 
+REVIEW_HEADING = "This is what will be sent"
+
 PUBLIC_NOTICE = (
-    "This opens a pre-filled issue on OpenMeasure's public tracker. What "
-    "you write there is public, and you can edit it before posting."
+    "Opens a pre-filled issue on OpenMeasure's public tracker. What you "
+    "write there is public, and you can edit it before posting."
 )
 
-PRIVATE_NOTICE = "Private feedback is not posted publicly."
+PRIVATE_NOTICE = "Submitting privately sends this to the maintainer alone."
 
-# Said when no private destination is configured, instead of accepting a
-# message that would go nowhere.
-PRIVATE_UNAVAILABLE = (
-    "Private feedback has no address configured in this deployment, so "
-    "nothing would reach anyone. Use the public route instead."
-)
+SENT_CONFIRMATION = "Sent. Thank you."
 
-PRIVATE_NOTICE_DETAIL = (
-    "This opens an email to the maintainer, which you send yourself."
-)
+
+@dataclass(frozen=True)
+class PageContext:
+    """Where the reader was when they had something to say."""
+
+    page: str
+    stage: str = ""
+    version: str = ""
+
+    def as_lines(self) -> tuple[str, ...]:
+        """The metadata attached to a report, and only this."""
+        lines = [f"Page: {self.page}"]
+
+        if self.stage:
+            lines.append(f"Stage: {self.stage}")
+        if self.version:
+            lines.append(f"Version: {self.version}")
+
+        return tuple(lines)
 
 
 def app_version() -> str:
@@ -137,26 +153,6 @@ def app_version() -> str:
     return pointer[:8]
 
 
-@dataclass(frozen=True)
-class PageContext:
-    """Where the reader was when they had something to say."""
-
-    page: str
-    stage: str = ""
-    version: str = ""
-
-    def as_lines(self) -> tuple[str, ...]:
-        """The metadata attached to a report, and only this."""
-        lines = [f"Page: {self.page}"]
-
-        if self.stage:
-            lines.append(f"Stage: {self.stage}")
-        if self.version:
-            lines.append(f"Version: {self.version}")
-
-        return tuple(lines)
-
-
 def _secret(name: str) -> str:
     """One configured value, or an empty string."""
     try:
@@ -166,13 +162,19 @@ def _secret(name: str) -> str:
         return ""
 
 
-def private_destination() -> str:
-    """The address private feedback goes to, or an empty string."""
-    return _secret(PRIVATE_ADDRESS_SETTING)
+def private_endpoint() -> str:
+    """Where private feedback posts to, or an empty string."""
+    return _secret(FORM_ENDPOINT_SETTING)
 
 
-def _issue_fields(context: PageContext, category: str, note: str) -> dict:
-    """The title, body and label a report carries, on either route."""
+def report_fields(context: PageContext, category: str, note: str) -> dict:
+    """
+    The whole report: what the reader wrote, and what is attached.
+
+    One builder for both routes, so what is sent does not depend on which
+    button was pressed, and so the review section can show the thing that
+    actually travels rather than a description of it.
+    """
     if category not in CATEGORIES:
         raise ValueError(
             f"'{category}' is not a feedback category. Known: "
@@ -196,39 +198,57 @@ def issue_url(context: PageContext, category: str, note: str) -> str:
     publish their words before they had seen how they read in public, and
     the title alone is often the part they want to change.
     """
-    query = urllib.parse.urlencode(_issue_fields(context, category, note))
+    query = urllib.parse.urlencode(report_fields(context, category, note))
 
     return f"{REPOSITORY_URL}/issues/new?{query}"
 
 
-def mailto_url(context: PageContext, category: str, note: str) -> str:
+def submit_privately(context: PageContext, category: str, note: str) -> None:
     """
-    A pre-filled email to the configured address.
+    Post the report to the configured form endpoint.
 
-    Pre-filled rather than sent, the same as the public route: the reader
-    presses send in their own client, so nothing leaves without them
-    seeing it.
+    Raises on failure rather than returning quietly: telling someone
+    their feedback was sent when the endpoint refused it would be a lie
+    in the one place this module exists to be honest about.
     """
-    destination = private_destination()
+    endpoint = private_endpoint()
 
-    if not destination:
+    if not endpoint:
         raise ValueError(
-            "No private feedback address is configured, so there is "
+            "No private feedback endpoint is configured, so there is "
             "nowhere for this to go."
         )
 
-    fields = _issue_fields(context, category, note)
-    query = urllib.parse.urlencode(
+    fields = report_fields(context, category, note)
+    payload = json.dumps(
         {
-            "subject": f"OpenMeasure feedback: {fields['title']}",
-            "body": fields["body"],
+            "subject": fields["title"],
+            "message": fields["body"],
+            "category": category,
+            "page": context.page,
+            "stage": context.stage,
+            "version": context.version,
         }
+    ).encode("utf-8")
+
+    request = urllib.request.Request(
+        endpoint,
+        data=payload,
+        method="POST",
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": "OpenMeasure-feedback",
+        },
     )
 
-    return f"mailto:{destination}?{query}"
+    with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS):
+        return
 
 
-def render_feedback_control(page: str, *, stage: str = "", version: str | None = None) -> None:
+def render_feedback_control(
+    page: str, *, stage: str = "", version: str | None = None
+) -> None:
     """
     The control itself: one small trigger, opening one small form.
 
@@ -241,9 +261,7 @@ def render_feedback_control(page: str, *, stage: str = "", version: str | None =
         version=app_version() if version is None else version,
     )
 
-    with st.popover(
-        "Feedback", icon=":material/feedback:", type="tertiary"
-    ):
+    with st.popover("Feedback", icon=":material/feedback:", type="tertiary"):
         st.caption(PRIVACY_WARNING)
 
         category = st.radio(
@@ -253,29 +271,45 @@ def render_feedback_control(page: str, *, stage: str = "", version: str | None =
         )
 
         note = st.text_area(
-            "Optional note",
+            "Your note",
             key=f"feedback_note_{page}",
             placeholder="What did you expect, and what happened instead?",
         )
 
-        route = st.radio(
-            "How would you like to send this?",
-            options=(ROUTE_PUBLIC, ROUTE_PRIVATE),
-            key=f"feedback_route_{page}",
-        )
+        fields = report_fields(context, category, note)
 
-        if route == ROUTE_PUBLIC:
-            st.caption(PUBLIC_NOTICE)
+        with st.expander(REVIEW_HEADING, expanded=True):
+            st.caption(fields["title"])
+            st.code(fields["body"], language=None)
+
+        endpoint = private_endpoint()
+        private_column, public_column = st.columns(2)
+
+        with private_column:
+            # Offered only where it can deliver. The public route stays
+            # either way, so what disappears is the one button that would
+            # not have worked.
+            if endpoint and st.button(
+                "Submit privately",
+                key=f"feedback_submit_{page}",
+                type="primary",
+                width="stretch",
+            ):
+                try:
+                    submit_privately(context, category, note)
+                except Exception as error:
+                    st.error(
+                        "That did not send, so it has not reached anyone: "
+                        f"{error}"
+                    )
+                else:
+                    st.success(SENT_CONFIRMATION)
+
+        with public_column:
             st.link_button(
-                "Review and open the issue",
+                "Open a public issue",
                 issue_url(context, category, note),
+                width="stretch",
             )
-        elif private_destination():
-            st.caption(f"{PRIVATE_NOTICE} {PRIVATE_NOTICE_DETAIL}")
-            st.link_button(
-                "Open the email", mailto_url(context, category, note)
-            )
-        else:
-            st.caption(PRIVATE_UNAVAILABLE)
 
-        st.caption("Attached: " + "; ".join(context.as_lines()))
+        st.caption(f"{PUBLIC_NOTICE} {PRIVATE_NOTICE}" if endpoint else PUBLIC_NOTICE)
