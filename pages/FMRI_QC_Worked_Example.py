@@ -63,7 +63,7 @@ import streamlit.components.v1 as components
 from modules.reliability.core import interrater as ir
 from shared.charts import multiline_time_series_chart
 from shared.data_handling import disclosure_for, render_data_handling_summary
-from shared.journey_stages import StageTracker
+from shared.stage_workspace import Stage, StageWorkspace
 from shared.report import caveat, implications, inspect_note, interpretation_note, section_header
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -89,7 +89,6 @@ JOURNEY_STAGES = (
     "Compare simulated events",
 )
 
-TRACKER = StageTracker(session_key=STAGE_KEY, stage_labels=JOURNEY_STAGES)
 
 INK_PRIMARY = "#0b0b0b"
 INK_SECONDARY = "#52514e"
@@ -512,9 +511,25 @@ st.caption(
 
 render_data_handling_summary(disclosure_for("pages/FMRI_QC_Worked_Example.py"))
 
-stage = TRACKER.render_breadcrumb()
+# One stage in the workspace at a time, and the rail is how you move.
+# Reading this used to mean scrolling past every earlier stage, which
+# made four decisions read as four sections of a report.
+#
+# No gates. Every stage here is something to read or to inspect, so
+# nothing a reader does unlocks the next one, and a gate would be a
+# wizard's manners on a page with no use for them.
+WORKSPACE = StageWorkspace(
+    session_key="fqc",
+    stages=(
+        Stage("question", "Question"),
+        Stage("measurement", "Measurement"),
+        Stage("inspection", "Signal Inspection"),
+        Stage("comparison", "Simulated Events"),
+    ),
+)
 
-TRACKER.render_restart_button()
+stage = WORKSPACE.render_rail()
+WORKSPACE.render_review_notice()
 
 st.divider()
 
@@ -522,72 +537,81 @@ st.divider()
 # 0. Research question
 # -----------------------------------------------------------------
 
-section_header("Research Question")
+if stage == STAGE_RESEARCH_QUESTION:
+    # The tracker used to draw this. Kept, because a worked example a
+    # reader has moved controls in should be returnable to its opening
+    # state without reloading the browser.
+    if st.button("Restart study"):
+        for key in [
+            name for name in st.session_state if str(name).startswith("fqc")
+        ]:
+            st.session_state.pop(key, None)
+        st.rerun()
 
-st.markdown(
-    "### Do trained raters agree on which fMRI scans are usable, and "
-    "does an existing QC tool's own metrics line up with their reasons?"
-)
 
-st.write(
-    "Before analyzing fMRI data, someone has to decide whether each scan "
-    "is usable. This page walks through one real study of that decision: "
-    "four independent, trained raters judged the same scans, and an "
-    "existing, unmodified quality-control tool (`pyfMRIqc`) computed its "
-    "own metrics for the same scans, independently."
-)
+    section_header("Research Question")
 
-rq_col1, rq_col2 = st.columns(2)
-with rq_col1:
-    st.badge("Tool metrics", icon=":material/fact_check:", color="blue")
-with rq_col2:
-    st.badge("Rater judgment", icon=":material/how_to_vote:", color="blue")
-
-st.info(
-    "\"pyfMRIqc is a tool for checking the quality of raw functional "
-    "magnetic resonance imaging (fMRI) data. pyfMRIqc produces a range "
-    "of output files which can be used to identify fMRI data quality "
-    "issues such as artefacts, motion, signal loss etc.\""
-)
-
-with st.expander("Data sources and citations"):
     st.markdown(
-        """
-- **`pyfMRIqc`**: Williams, B., & Lindner, M. (2020). pyfMRIqc: A
-  Software Package for Raw fMRI Data Quality Assurance. *Journal of
-  Open Research Software*, 8(1), 23.
-  [doi.org/10.5334/jors.280](https://doi.org/10.5334/jors.280)
-  ([source](https://github.com/DrMichaelLindner/pyfMRIqc), GPLv3). It
-  creates 3D and 4D NIFTI files for in-depth QA, plus a 2D image per
-  NIFTI file for a quick overview; these and other information (SNR,
-  scan parameters) are combined into one HTML report. It runs from the
-  command line, so it can batch-QC a whole series of datasets as part
-  of a processing pipeline, or through dialog boxes for a single
-  dataset.
-- **The rating study**: Williams, B., et al. (2023). Inter-rater
-  reliability of functional MRI data quality control assessments: a
-  standardised protocol and practical guide using pyfMRIqc.
-  [PMC9936142](https://pmc.ncbi.nlm.nih.gov/articles/PMC9936142). Data:
-  University of Reading Research Data Archive,
-  [doi.org/10.17864/1947.000424](https://doi.org/10.17864/1947.000424).
-- **Real per-subject QC output** used in the Signal Inspection stage
-  below comes from [github.com/bwilliams96/cinnqc](https://github.com/bwilliams96/cinnqc),
-  which hosts `pyfMRIqc` run on the study's real subjects, identified
-  only by pseudonymous IDs (e.g. `sub-013`). That repository states no
-  license; nothing from it is bundled by this page. It is read directly
-  from GitHub at runtime by default, or from a local clone you provide.
-"""
+        "### Do trained raters agree on which fMRI scans are usable, and "
+        "does an existing QC tool's own metrics line up with their reasons?"
     )
 
-if stage < STAGE_UNDERSTAND_MEASUREMENT:
-    if st.button("Begin study", type="primary"):
-        TRACKER.advance_to(STAGE_UNDERSTAND_MEASUREMENT)
+    st.write(
+        "Before analyzing fMRI data, someone has to decide whether each scan "
+        "is usable. This page walks through one real study of that decision: "
+        "four independent, trained raters judged the same scans, and an "
+        "existing, unmodified quality-control tool (`pyfMRIqc`) computed its "
+        "own metrics for the same scans, independently."
+    )
+
+    rq_col1, rq_col2 = st.columns(2)
+    with rq_col1:
+        st.badge("Tool metrics", icon=":material/fact_check:", color="blue")
+    with rq_col2:
+        st.badge("Rater judgment", icon=":material/how_to_vote:", color="blue")
+
+    st.info(
+        "\"pyfMRIqc is a tool for checking the quality of raw functional "
+        "magnetic resonance imaging (fMRI) data. pyfMRIqc produces a range "
+        "of output files which can be used to identify fMRI data quality "
+        "issues such as artefacts, motion, signal loss etc.\""
+    )
+
+    with st.expander("Data sources and citations"):
+        st.markdown(
+            """
+    - **`pyfMRIqc`**: Williams, B., & Lindner, M. (2020). pyfMRIqc: A
+      Software Package for Raw fMRI Data Quality Assurance. *Journal of
+      Open Research Software*, 8(1), 23.
+      [doi.org/10.5334/jors.280](https://doi.org/10.5334/jors.280)
+      ([source](https://github.com/DrMichaelLindner/pyfMRIqc), GPLv3). It
+      creates 3D and 4D NIFTI files for in-depth QA, plus a 2D image per
+      NIFTI file for a quick overview; these and other information (SNR,
+      scan parameters) are combined into one HTML report. It runs from the
+      command line, so it can batch-QC a whole series of datasets as part
+      of a processing pipeline, or through dialog boxes for a single
+      dataset.
+    - **The rating study**: Williams, B., et al. (2023). Inter-rater
+      reliability of functional MRI data quality control assessments: a
+      standardised protocol and practical guide using pyfMRIqc.
+      [PMC9936142](https://pmc.ncbi.nlm.nih.gov/articles/PMC9936142). Data:
+      University of Reading Research Data Archive,
+      [doi.org/10.17864/1947.000424](https://doi.org/10.17864/1947.000424).
+    - **Real per-subject QC output** used in the Signal Inspection stage
+      below comes from [github.com/bwilliams96/cinnqc](https://github.com/bwilliams96/cinnqc),
+      which hosts `pyfMRIqc` run on the study's real subjects, identified
+      only by pseudonymous IDs (e.g. `sub-013`). That repository states no
+      license; nothing from it is bundled by this page. It is read directly
+      from GitHub at runtime by default, or from a local clone you provide.
+    """
+        )
+
 
 # -----------------------------------------------------------------
 # 1. Understand measurement
 # -----------------------------------------------------------------
 
-if stage >= STAGE_UNDERSTAND_MEASUREMENT:
+if stage == STAGE_UNDERSTAND_MEASUREMENT:
     section_header(
         "Understand Measurement",
         "What pyfMRIqc measures, and what a QC decision means",
@@ -676,15 +700,12 @@ decision, and measured how much they agreed with each other.
         )
     )
 
-    if stage < STAGE_SIGNAL_INSPECTION:
-        if st.button("Continue to signal inspection", type="primary"):
-            TRACKER.advance_to(STAGE_SIGNAL_INSPECTION)
 
 # -----------------------------------------------------------------
 # 2. Signal inspection
 # -----------------------------------------------------------------
 
-if stage >= STAGE_SIGNAL_INSPECTION:
+if stage == STAGE_SIGNAL_INSPECTION:
     section_header(
         "Signal Inspection",
         "Real pyfMRIqc output on real study subjects",
@@ -1071,15 +1092,12 @@ if stage >= STAGE_SIGNAL_INSPECTION:
     elif search_attempted:
         st.warning("No subject QC output was found for this source.")
 
-    if stage < STAGE_SIMULATED_COMPARISON:
-        if st.button("Continue to compare simulated events", type="primary"):
-            TRACKER.advance_to(STAGE_SIMULATED_COMPARISON)
 
 # -----------------------------------------------------------------
 # 3. Compare simulated events
 # -----------------------------------------------------------------
 
-if stage >= STAGE_SIMULATED_COMPARISON:
+if stage == STAGE_SIMULATED_COMPARISON:
     section_header(
         "Compare Simulated Events",
         "Three known-cause examples, kept separate from the real subject data above",
@@ -1129,3 +1147,5 @@ if stage >= STAGE_SIMULATED_COMPARISON:
             "hypothesis to check, not a diagnosis this page can make "
             "for you."
         )
+
+WORKSPACE.render_navigation()

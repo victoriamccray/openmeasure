@@ -47,7 +47,7 @@ from modules.model_efficiency.core import frontier as frontier_core
 from modules.model_efficiency.core import models as models_core
 from modules.model_efficiency.core import preference as preference_core
 from shared.data_handling import disclosure_for, render_data_handling_summary
-from shared.journey_stages import StageTracker
+from shared.stage_workspace import Stage, StageWorkspace
 from shared.report import caveat, flagged_item_note, section_header
 
 SAMPLE_DIR = ROOT / "modules" / "model_efficiency" / "sample_data"
@@ -356,7 +356,6 @@ JOURNEY_STAGES = (
 PREDICT_KEY = "gaia_predict_light_vs_student"
 REVEAL_KEY = "gaia_reveal_light_vs_student"
 
-TRACKER = StageTracker(session_key=STAGE_KEY, stage_labels=JOURNEY_STAGES)
 
 
 def _to_bool(value) -> bool:
@@ -401,9 +400,28 @@ st.caption(
 
 render_data_handling_summary(disclosure_for("pages/GAIA_Worked_Example.py"))
 
-stage = TRACKER.render_breadcrumb()
+# One stage in the workspace at a time, and the rail is how you move.
+# Reading this used to mean scrolling past every earlier stage, which
+# made seven decisions read as seven sections of a report.
+#
+# No gates. Every stage here is something to read, predict against, or
+# weigh, so nothing a reader does unlocks the next one, and a gate would
+# be a wizard's manners on a page with no use for them.
+WORKSPACE = StageWorkspace(
+    session_key="gaia",
+    stages=(
+        Stage("question", "Question"),
+        Stage("task", "The Task"),
+        Stage("performance", "Performance"),
+        Stage("efficiency", "Efficiency"),
+        Stage("tradeoff", "Tradeoff"),
+        Stage("generalizability", "Generalizability"),
+        Stage("decision", "Decision"),
+    ),
+)
 
-TRACKER.render_restart_button(extra_session_keys=(PREDICT_KEY, REVEAL_KEY))
+stage = WORKSPACE.render_rail()
+WORKSPACE.render_review_notice()
 
 st.divider()
 
@@ -411,48 +429,59 @@ st.divider()
 # 1. Research question
 # -----------------------------------------------------------------
 
-section_header("1. Research Question")
+if stage == STAGE_RESEARCH_QUESTION:
+    # The tracker used to draw this, and it cleared the prediction and
+    # reveal keys with it. Kept, because a worked example a reader has
+    # committed a prediction in should be returnable to its opening
+    # state without reloading the browser.
+    if st.button("Restart study"):
+        for key in [
+            name for name in st.session_state
+            if str(name).startswith("gaia")
+        ] + [PREDICT_KEY, REVEAL_KEY]:
+            st.session_state.pop(key, None)
+        st.rerun()
 
-st.markdown("### When Is a More Efficient Model Appropriate To Replace a Larger One?")
 
-st.write(
-    "AI-based applications in MRI have shown substantial potential for "
-    "improving image quality, reconstruction speed, and diagnostic "
-    "accuracy. But developing and running these models is "
-    "energy-intensive: it produces greenhouse gas emissions from the "
-    "data storage and computation that both training and inference "
-    "require, and larger, more demanding models can be harder to "
-    "deploy where hardware or energy are constrained. This journey "
-    "asks whether a smaller, more efficient model can be validated as "
-    "appropriate once performance and resource use are considered "
-    "together, rather than performance alone."
-)
+    section_header("1. Research Question")
 
-rq_col1, rq_col2 = st.columns(2)
-with rq_col1:
-    st.badge("Performance", icon=":material/insights:", color="blue")
-with rq_col2:
-    st.badge("Efficiency", icon=":material/eco:", color="blue")
+    st.markdown("### When Is a More Efficient Model Appropriate To Replace a Larger One?")
 
-with st.expander("Context: energy use in AI-based MRI"):
     st.write(
-        "AI development and deployment is energy-intensive. Reducing "
-        "that footprint is treated here as part of model evaluation "
-        "itself, alongside accuracy, rather than as a separate concern."
+        "AI-based applications in MRI have shown substantial potential for "
+        "improving image quality, reconstruction speed, and diagnostic "
+        "accuracy. But developing and running these models is "
+        "energy-intensive: it produces greenhouse gas emissions from the "
+        "data storage and computation that both training and inference "
+        "require, and larger, more demanding models can be harder to "
+        "deploy where hardware or energy are constrained. This journey "
+        "asks whether a smaller, more efficient model can be validated as "
+        "appropriate once performance and resource use are considered "
+        "together, rather than performance alone."
     )
-    st.caption(GAIA_CITATION)
-    st.caption(KAACK_CITATION)
-    st.caption(DHAR_CITATION)
 
-if stage < STAGE_UNDERSTAND_TASK:
-    if st.button("Begin study", type="primary"):
-        TRACKER.advance_to(STAGE_UNDERSTAND_TASK)
+    rq_col1, rq_col2 = st.columns(2)
+    with rq_col1:
+        st.badge("Performance", icon=":material/insights:", color="blue")
+    with rq_col2:
+        st.badge("Efficiency", icon=":material/eco:", color="blue")
+
+    with st.expander("Context: energy use in AI-based MRI"):
+        st.write(
+            "AI development and deployment is energy-intensive. Reducing "
+            "that footprint is treated here as part of model evaluation "
+            "itself, alongside accuracy, rather than as a separate concern."
+        )
+        st.caption(GAIA_CITATION)
+        st.caption(KAACK_CITATION)
+        st.caption(DHAR_CITATION)
+
 
 # -----------------------------------------------------------------
 # 2. Understand the task
 # -----------------------------------------------------------------
 
-if stage >= STAGE_UNDERSTAND_TASK:
+if stage == STAGE_UNDERSTAND_TASK:
     section_header(
         "2. Understand the Task",
         "Three models, one task: predicting hard-to-acquire diffusion MRI signals.",
@@ -696,15 +725,12 @@ if stage >= STAGE_UNDERSTAND_TASK:
         st.caption(WAND_CITATION)
         st.caption(GAIA_CITATION)
 
-    if stage < STAGE_COMPARE_PERFORMANCE:
-        if st.button("Continue to compare performance", type="primary"):
-            TRACKER.advance_to(STAGE_COMPARE_PERFORMANCE)
 
 # -----------------------------------------------------------------
 # 3. Compare performance (primary evidence - exact quotes lead)
 # -----------------------------------------------------------------
 
-if stage >= STAGE_COMPARE_PERFORMANCE:
+if stage == STAGE_COMPARE_PERFORMANCE:
     section_header(
         "3. Compare Performance",
         "The paper's own reported findings, quoted directly.",
@@ -747,15 +773,12 @@ if stage >= STAGE_COMPARE_PERFORMANCE:
         "under these training conditions."
     )
 
-    if stage < STAGE_COMPARE_EFFICIENCY:
-        if st.button("Continue to compare efficiency", type="primary"):
-            TRACKER.advance_to(STAGE_COMPARE_EFFICIENCY)
 
 # -----------------------------------------------------------------
 # 4. Compare efficiency (primary evidence - exact quotes lead)
 # -----------------------------------------------------------------
 
-if stage >= STAGE_COMPARE_EFFICIENCY:
+if stage == STAGE_COMPARE_EFFICIENCY:
     section_header(
         "4. Compare Efficiency",
         "The paper's own reported findings, quoted directly.",
@@ -793,15 +816,12 @@ if stage >= STAGE_COMPARE_EFFICIENCY:
         "deployed life."
     )
 
-    if stage < STAGE_EVALUATE_TRADEOFF:
-        if st.button("Continue to evaluate tradeoff", type="primary"):
-            TRACKER.advance_to(STAGE_EVALUATE_TRADEOFF)
 
 # -----------------------------------------------------------------
 # 5. Evaluate tradeoff (illustrative synthesis, secondary to 3-4)
 # -----------------------------------------------------------------
 
-if stage >= STAGE_EVALUATE_TRADEOFF:
+if stage == STAGE_EVALUATE_TRADEOFF:
     section_header(
         "5. Evaluate Tradeoff",
         "An illustrative synthesis built on approximate values, secondary "
@@ -966,15 +986,12 @@ if stage >= STAGE_EVALUATE_TRADEOFF:
         "figures."
     )
 
-    if stage < STAGE_GENERALIZABILITY:
-        if st.button("Continue to examine generalizability", type="primary"):
-            TRACKER.advance_to(STAGE_GENERALIZABILITY)
 
 # -----------------------------------------------------------------
 # 6. Examine generalizability
 # -----------------------------------------------------------------
 
-if stage >= STAGE_GENERALIZABILITY:
+if stage == STAGE_GENERALIZABILITY:
     section_header(
         "6. Examine Generalizability",
         "What was measured, versus what it implies.",
@@ -1024,15 +1041,12 @@ if stage >= STAGE_GENERALIZABILITY:
         "implication of the size and efficiency result, not a finding."
     )
 
-    if stage < STAGE_RESEARCH_DECISION:
-        if st.button("Continue to the research decision", type="primary"):
-            TRACKER.advance_to(STAGE_RESEARCH_DECISION)
 
 # -----------------------------------------------------------------
 # 7. Research decision
 # -----------------------------------------------------------------
 
-if stage >= STAGE_RESEARCH_DECISION:
+if stage == STAGE_RESEARCH_DECISION:
     section_header("7. Research Decision")
 
     decision = st.radio(
@@ -1097,3 +1111,5 @@ if stage >= STAGE_RESEARCH_DECISION:
             "accurate model may not automatically be the most appropriate "
             "one."
         )
+
+WORKSPACE.render_navigation()
