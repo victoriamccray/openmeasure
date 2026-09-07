@@ -78,40 +78,59 @@ MODALITIES: tuple[str, ...] = (
     MODALITY_QUALITATIVE,
 )
 
-# What a measure's data looks like, as a small reusable vocabulary.
+# What a measure's data looks like, drawn as the thing it actually is.
 #
-# A shape rather than a picture of the instrument. A researcher choosing
-# between card sorting and causal mapping is choosing between clusters
-# and a directed graph, and seeing those two shapes is closer to seeing
-# what the choice means than reading two paragraphs is.
+# An earlier version of this list held abstract shapes: one "signal
+# trace" covered electrodermal activity, heart rate and an air-quality
+# sensor, and one "distribution" covered a Delphi round, a blood assay
+# and a held-out test set. It was a tidy vocabulary and it hid the
+# choice. A researcher deciding between EDA and ECG is not choosing
+# between two instances of a line: they are choosing between a slow
+# tonic level with phasic responses and a beat-by-beat waveform whose
+# intervals are the measurement, and those look nothing alike.
 #
-# Deliberately few, and shared. A new measure reuses a primitive; a new
-# primitive is added only when something genuinely produces a shape none
-# of these describe, because a vocabulary with one entry per measure is
-# not a vocabulary.
-VISUAL_RATING_SCALE = "rating_scale"
-VISUAL_BODY_MAP = "body_map"
-VISUAL_SIGNAL_TRACE = "signal_trace"
-VISUAL_EVENT_TIMELINE = "event_timeline"
-VISUAL_CARD_CLUSTER = "card_cluster"
-VISUAL_CAUSAL_MAP = "causal_map"
-VISUAL_DISTRIBUTION = "distribution"
-VISUAL_INVENTORY = "inventory"
-VISUAL_RECORD = "record"
-VISUAL_IMAGE = "image"
-VISUAL_TEXT = "text"
+# So a type names the instrument or the artifact wherever that is
+# recognizable, and the drawing is specific: an anterior body outline,
+# an axial brain slice, a P-QRS-T complex. Types are still shared where
+# the artifact really is the same thing, which is why one record table
+# serves administrative extracts, clinical charts and earnings records.
+# A new type is added when a measure produces something none of these
+# depicts, not to give every measure its own artwork.
+VISUAL_RATING_SCALE = "rating scale"
+VISUAL_DIARY_GRID = "diary grid"
+VISUAL_BODY_MAP = "body map"
+VISUAL_ECG = "ECG waveform"
+VISUAL_SKIN_CONDUCTANCE = "skin-conductance trace"
+VISUAL_SIGNAL_TRACE = "sensor trace"
+VISUAL_BRAIN_SLICE = "brain slice"
+VISUAL_ASSAY = "assay sample"
+VISUAL_EVENT_TIMELINE = "coded observation lanes"
+VISUAL_CARD_CLUSTER = "card sort"
+VISUAL_CAUSAL_MAP = "causal map"
+VISUAL_ROUND_CONVERGENCE = "round-by-round convergence"
+VISUAL_INVENTORY = "checklist"
+VISUAL_RATIO_BAR = "ratio against a whole"
+VISUAL_RECORD = "record table"
+VISUAL_HELD_OUT_SPLIT = "held-out split"
+VISUAL_TEXT = "transcript"
 
 VISUAL_TYPES: tuple[str, ...] = (
     VISUAL_RATING_SCALE,
+    VISUAL_DIARY_GRID,
     VISUAL_BODY_MAP,
+    VISUAL_ECG,
+    VISUAL_SKIN_CONDUCTANCE,
     VISUAL_SIGNAL_TRACE,
+    VISUAL_BRAIN_SLICE,
+    VISUAL_ASSAY,
     VISUAL_EVENT_TIMELINE,
     VISUAL_CARD_CLUSTER,
     VISUAL_CAUSAL_MAP,
-    VISUAL_DISTRIBUTION,
+    VISUAL_ROUND_CONVERGENCE,
     VISUAL_INVENTORY,
+    VISUAL_RATIO_BAR,
     VISUAL_RECORD,
-    VISUAL_IMAGE,
+    VISUAL_HELD_OUT_SPLIT,
     VISUAL_TEXT,
 )
 
@@ -302,7 +321,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established consensus method",
         search_terms="Delphi method consensus expert elicitation",
-        visual_type=VISUAL_DISTRIBUTION,
+        visual_type=VISUAL_ROUND_CONVERGENCE,
     ),
     Measure(
         name="Structured observation",
@@ -362,7 +381,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established ecological momentary assessment design",
         search_terms="ecological momentary assessment experience sampling",
-        visual_type=VISUAL_RATING_SCALE,
+        visual_type=VISUAL_DIARY_GRID,
     ),
     Measure(
         name="Body map or pain drawing",
@@ -392,7 +411,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established psychophysiological measure",
         search_terms="electrodermal activity skin conductance measurement",
-        visual_type=VISUAL_SIGNAL_TRACE,
+        visual_type=VISUAL_SKIN_CONDUCTANCE,
     ),
     Measure(
         name="Heart rate and heart-rate variability",
@@ -407,7 +426,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established cardiovascular measure",
         search_terms="heart rate variability measurement preprocessing",
-        visual_type=VISUAL_SIGNAL_TRACE,
+        visual_type=VISUAL_ECG,
     ),
     Measure(
         name="Functional neuroimaging",
@@ -422,7 +441,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established neuroimaging modality",
         search_terms="functional MRI BOLD measurement validity",
-        visual_type=VISUAL_IMAGE,
+        visual_type=VISUAL_BRAIN_SLICE,
     ),
     Measure(
         name="Assay of a biological sample",
@@ -437,7 +456,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established laboratory measurement type",
         search_terms="assay batch effect biological sample measurement",
-        visual_type=VISUAL_DISTRIBUTION,
+        visual_type=VISUAL_ASSAY,
     ),
     Measure(
         name="Clinical assessment or chart review",
@@ -512,7 +531,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established household-finance survey module",
         search_terms="debt burden ratio household survey measurement",
-        visual_type=VISUAL_INVENTORY,
+        visual_type=VISUAL_RATIO_BAR,
     ),
     Measure(
         name="Material hardship indicators",
@@ -557,7 +576,7 @@ MEASURES: tuple[Measure, ...] = (
         ),
         documented_as="An established model-evaluation practice",
         search_terms="held out evaluation data leakage model validation",
-        visual_type=VISUAL_DISTRIBUTION,
+        visual_type=VISUAL_HELD_OUT_SPLIT,
     ),
 )
 

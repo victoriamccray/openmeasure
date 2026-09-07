@@ -1349,6 +1349,11 @@ else:
                             measure_visual_svg(measure), unsafe_allow_html=True
                         )
                         st.caption(f"**{measure.name}**")
+                        # The drawing above is of the artifact, so name
+                        # it: a reader comparing an ECG trace against a
+                        # skin-conductance trace should not have to
+                        # guess which one they are looking at.
+                        st.caption(f"{measure.produces}, {measure.visual_type}")
                         st.caption(measure.modality)
 
                 chosen = st.multiselect(
