@@ -203,7 +203,13 @@ DISCLOSURES: tuple[DataHandlingDisclosure, ...] = (
             "synthetic sample data."
         ),
         redistribution=REDISTRIBUTION_NOT_APPLICABLE,
-        notes="Does not record to shared/handoff.py.",
+        notes=(
+            "Does not record to shared/handoff.py. This journey is staged "
+            "and its later stages describe evidence loaded earlier, so the "
+            "uploaded evidence rows are held in session state for the "
+            "length of the session rather than only for the stage that "
+            "read them. Starting a new claim clears them."
+        ),
     ),
     DataHandlingDisclosure(
         page="pages/HealthRing_Worked_Example.py",

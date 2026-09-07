@@ -383,6 +383,11 @@ class StageWorkspace:
         one, because the gate that tests it is written by the page and
         has to be able to name the same thing.
 
+        Call it last in its block. It reruns, so any statement after it
+        is skipped on the pass that first creates the artifact. Portfolio
+        Impact Analysis lost its evidence frame that way the first time
+        this was wired up, because two plain writes sat underneath it.
+
         Impact Evaluation hand-rolled this with a first_result flag
         before it moved here. Portfolio Impact Analysis has six of these
         artifacts and would have repeated it six times.

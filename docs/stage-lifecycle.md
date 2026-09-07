@@ -86,6 +86,9 @@ interaction redraws the page. On screen that reads as the gate not
 working.
 
 `publish(key, value)` stores the artifact and reruns when it is new.
+**Call it last in its block**, since the rerun skips whatever follows it
+on the pass that first creates the artifact. Portfolio Impact Analysis
+lost its evidence frame exactly that way.
 `record_gate_input(name, value)` covers the other shape, where the value
 already existed and moved: it compares digests, and a first write has no
 previous digest to differ from.
@@ -95,6 +98,23 @@ the second with a `gate_moved` comparison. Both are here now, because
 Portfolio Impact Analysis has six such artifacts and one page's
 workaround repeated six times is how shared infrastructure becomes
 fragile.
+
+### Writing a gate
+
+Test the value, not the key. `"pia_validation" in st.session_state` is
+satisfied by a `None` sitting under that name, and the stage it guards
+then runs on nothing and fails inside its own core call rather than being
+told it has nothing to work from. Portfolio Impact Analysis shipped six
+presence gates for about an hour; the first test written against them
+found the hole.
+
+```python
+# Weak: a None satisfies this.
+satisfied="pia_validation" in st.session_state
+
+# What the stage actually needs.
+satisfied=st.session_state.get("pia_validation") is not None
+```
 
 ### An input changes
 

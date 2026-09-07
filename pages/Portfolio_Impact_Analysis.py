@@ -34,7 +34,7 @@ from modules.evidence_to_claim.core import record as record_core
 from modules.evidence_to_claim.core import strength as strength_core
 from modules.evidence_to_claim.core import validate as validate_core
 from shared.data_handling import disclosure_for, render_data_handling_summary
-from shared.journey_stages import StageTracker
+from shared.stage_workspace import Gate, Stage, StageWorkspace
 from shared.report import (
     Band,
     caveat,
@@ -153,9 +153,6 @@ SESSION_KEYS = (
     "pia_limitations",
     "pia_portfolio_context",
 )
-
-TRACKER = StageTracker(session_key=STAGE_KEY, stage_labels=JOURNEY_STAGES)
-
 
 def _none_if_nan(value) -> str | None:
     if value is None or pd.isna(value):
@@ -487,113 +484,174 @@ INDICATOR_NAMES = (
     _label_source.drop_duplicates("indicator_id").set_index("indicator_id")["indicator_name"].to_dict()
 )
 
-stage = TRACKER.render_breadcrumb()
+# One workspace, in the order this journey actually reasons: a claim,
+# then the evidence for it, then whether that evidence clears a bar the
+# reader sets, then what claim it supports, then what it leaves open.
+#
+# Each stage already checked its own prerequisite inline, which is what
+# these gates are. Tested by value rather than by key presence: `"x" in
+# session_state` is satisfied by a None sitting under that name, and a
+# stage that ran on one would fail inside its own core call rather than
+# be told it had nothing to work from. Declared once here, they also carry the two things an
+# inline check could not: an unreachable stage says what would unblock
+# it, and a stage whose artifact is later discarded stops rendering
+# rather than describing something that is gone.
+workspace = StageWorkspace(
+    session_key="pia",
+    stages=(
+        Stage("claim", "Claim"),
+        Stage("evidence", "Evidence"),
+        Stage("validate", "Validate"),
+        Stage("supported", "Supported Claim"),
+        Stage("limitations", "Limitations"),
+        Stage("portfolio", "Portfolio Context"),
+        Stage("record", "Evidence Record"),
+    ),
+    gates={
+        "evidence": Gate(
+            satisfied=st.session_state.get("pia_claim") is not None,
+            requirement="Define a claim to continue",
+        ),
+        "validate": Gate(
+            satisfied=st.session_state.get("pia_bundle") is not None,
+            requirement="Describe the evidence to continue",
+        ),
+        "supported": Gate(
+            satisfied=st.session_state.get("pia_validation") is not None,
+            requirement="Run the validation checks to continue",
+        ),
+        "limitations": Gate(
+            satisfied=st.session_state.get("pia_supported") is not None,
+            requirement="Determine the supported claim to continue",
+        ),
+        "portfolio": Gate(
+            satisfied=st.session_state.get("pia_limitations") is not None,
+            requirement="Examine the limitations to continue",
+        ),
+        "record": Gate(
+            satisfied=st.session_state.get("pia_portfolio_context") is not None,
+            requirement="Open portfolio context to continue",
+        ),
+    },
+)
 
-TRACKER.render_restart_button(extra_session_keys=SESSION_KEYS[1:])
+stage = workspace.render_rail()
+workspace.render_review_notice()
 
 st.divider()
+
+
+def stop_here() -> None:
+    """
+    End a stage early without stranding the reader.
+
+    A stage that cannot go further still has to offer the way back, and a
+    bare st.stop() below the rail would leave nothing but the rail.
+    """
+    workspace.render_navigation()
+    st.stop()
 
 # ---------------------------------------------------------------------
 # 1. Define claim (finding)
 # ---------------------------------------------------------------------
 
-section_header("1. Define Claim", "Finding - what you are claiming, and at what level.")
+if stage == STAGE_DEFINE_CLAIM:
+    section_header("Define Claim", "Finding - what you are claiming, and at what level.")
 
-st.caption(
-    "Output, outcome, and impact are escalating evidentiary expectations, "
-    "not synonyms. Output is what was delivered. Outcome is a measured "
-    "change, with no claim about cause. Impact is that change attributed "
-    "to the program, which conventionally needs a comparison group."
-)
-
-rq_col1, rq_col2 = st.columns(2)
-with rq_col1:
-    st.badge("Claim", icon=":material/campaign:", color="blue")
-with rq_col2:
-    st.badge("Evidence", icon=":material/verified:", color="blue")
-
-sample_claims = pd.read_csv(SAMPLE_DIR / "claims.csv")
-
-use_sample = st.radio(
-    "Claim source",
-    options=["Use a sample claim", "Define a custom claim"],
-    index=0,
-    horizontal=True,
-)
-
-if use_sample == "Use a sample claim":
-    def _claim_option_label(cid: str) -> str:
-        row = sample_claims.set_index("claim_id").loc[cid]
-        if show_ids:
-            return f"{cid}: {row['claim_text']}"
-        grantee_label = _friendly(row.get("grantee_id"), GRANTEE_NAMES, show_ids)
-        return f"{grantee_label} - {row['claim_text']}"
-
-    chosen_id = st.selectbox(
-        "Sample claim",
-        options=sample_claims["claim_id"],
-        format_func=_claim_option_label,
+    st.caption(
+        "Output, outcome, and impact are escalating evidentiary expectations, "
+        "not synonyms. Output is what was delivered. Outcome is a measured "
+        "change, with no claim about cause. Impact is that change attributed "
+        "to the program, which conventionally needs a comparison group."
     )
-    row = sample_claims.set_index("claim_id").loc[chosen_id]
-    row["claim_id"] = chosen_id
-    st.caption(f"Claim type **{row['claim_type']}**, at the **{row['level']}** level.")
 
-    if st.button("Use this claim", type="primary"):
-        try:
-            st.session_state["pia_claim"] = _claim_from_row(row)
-            for key in SESSION_KEYS[2:]:
-                st.session_state.pop(key, None)
-        except ValueError as exc:
-            st.error(str(exc))
-            st.stop()
-else:
-    claim_id = st.text_input("Claim ID", value="CLAIM-CUSTOM-01")
-    claim_text = st.text_area("Claim text", placeholder="e.g. Our program increased participants' confidence.")
-    claim_type = st.selectbox("Claim type", options=claim_core.CLAIM_TYPES, index=1)
-    level = st.selectbox("Level", options=claim_core.CLAIM_LEVELS, index=1)
+    rq_col1, rq_col2 = st.columns(2)
+    with rq_col1:
+        st.badge("Claim", icon=":material/campaign:", color="blue")
+    with rq_col2:
+        st.badge("Evidence", icon=":material/verified:", color="blue")
 
-    program_id = grantee_id = portfolio_id = None
-    if level == "program":
-        program_id = st.text_input("Program ID")
-    elif level == "grantee":
-        grantee_id = st.text_input("Grantee ID")
+    sample_claims = pd.read_csv(SAMPLE_DIR / "claims.csv")
+
+    use_sample = st.radio(
+        "Claim source",
+        options=["Use a sample claim", "Define a custom claim"],
+        index=0,
+        horizontal=True,
+    )
+
+    if use_sample == "Use a sample claim":
+        def _claim_option_label(cid: str) -> str:
+            row = sample_claims.set_index("claim_id").loc[cid]
+            if show_ids:
+                return f"{cid}: {row['claim_text']}"
+            grantee_label = _friendly(row.get("grantee_id"), GRANTEE_NAMES, show_ids)
+            return f"{grantee_label} - {row['claim_text']}"
+
+        chosen_id = st.selectbox(
+            "Sample claim",
+            options=sample_claims["claim_id"],
+            format_func=_claim_option_label,
+        )
+        row = sample_claims.set_index("claim_id").loc[chosen_id]
+        row["claim_id"] = chosen_id
+        st.caption(f"Claim type **{row['claim_type']}**, at the **{row['level']}** level.")
+
+        if st.button("Use this claim", type="primary"):
+            try:
+                new_claim = _claim_from_row(row)
+                for key in SESSION_KEYS[2:]:
+                    st.session_state.pop(key, None)
+                workspace.publish("pia_claim", new_claim)
+            except ValueError as exc:
+                st.error(str(exc))
+                stop_here()
     else:
-        portfolio_id = st.text_input("Portfolio ID")
+        claim_id = st.text_input("Claim ID", value="CLAIM-CUSTOM-01")
+        claim_text = st.text_area("Claim text", placeholder="e.g. Our program increased participants' confidence.")
+        claim_type = st.selectbox("Claim type", options=claim_core.CLAIM_TYPES, index=1)
+        level = st.selectbox("Level", options=claim_core.CLAIM_LEVELS, index=1)
 
-    related_raw = st.text_input("Related indicator ID(s), comma-separated", value="")
-    related = tuple(x.strip() for x in related_raw.split(",") if x.strip())
+        program_id = grantee_id = portfolio_id = None
+        if level == "program":
+            program_id = st.text_input("Program ID")
+        elif level == "grantee":
+            grantee_id = st.text_input("Grantee ID")
+        else:
+            portfolio_id = st.text_input("Portfolio ID")
 
-    if st.button("Create claim", type="primary"):
-        try:
-            st.session_state["pia_claim"] = claim_core.ClaimDraft(
-                claim_id=claim_id,
-                claim_text=claim_text,
-                claim_type=claim_type,
-                level=level,
-                program_id=program_id or None,
-                grantee_id=grantee_id or None,
-                portfolio_id=portfolio_id or None,
-                related_indicator_ids=related,
-            )
-            for key in SESSION_KEYS[2:]:
-                st.session_state.pop(key, None)
-        except ValueError as exc:
-            st.error(str(exc))
-            st.stop()
+        related_raw = st.text_input("Related indicator ID(s), comma-separated", value="")
+        related = tuple(x.strip() for x in related_raw.split(",") if x.strip())
 
-if "pia_claim" in st.session_state and stage < STAGE_DESCRIBE_EVIDENCE:
-    if st.button("Continue to describe evidence", type="primary"):
-        TRACKER.advance_to(STAGE_DESCRIBE_EVIDENCE)
+        if st.button("Create claim", type="primary"):
+            try:
+                new_claim = claim_core.ClaimDraft(
+                    claim_id=claim_id,
+                    claim_text=claim_text,
+                    claim_type=claim_type,
+                    level=level,
+                    program_id=program_id or None,
+                    grantee_id=grantee_id or None,
+                    portfolio_id=portfolio_id or None,
+                    related_indicator_ids=related,
+                )
+                for key in SESSION_KEYS[2:]:
+                    st.session_state.pop(key, None)
+                workspace.publish("pia_claim", new_claim)
+            except ValueError as exc:
+                st.error(str(exc))
+                stop_here()
+
 
 # ---------------------------------------------------------------------
 # 2. Describe evidence (evidence)
 # ---------------------------------------------------------------------
 
-if stage >= STAGE_DESCRIBE_EVIDENCE and "pia_claim" in st.session_state:
+if stage == STAGE_DESCRIBE_EVIDENCE:
     claim = st.session_state["pia_claim"]
 
     section_header(
-        "2. Describe Evidence",
+        "Describe Evidence",
         f"Evidence - what backs {claim.claim_id}. Each row is one independent "
         "look at the same finding; more of them, from different methods, "
         "makes the finding harder to overturn (checked in Step 3).",
@@ -640,14 +698,18 @@ if stage >= STAGE_DESCRIBE_EVIDENCE and "pia_claim" in st.session_state:
         try:
             items = tuple(_item_from_row(r) for _, r in evidence_frame.iterrows())
             bundle = evidence_core.summarize_evidence(items, claim_id=claim.claim_id)
-            st.session_state["pia_bundle"] = bundle
             st.session_state["pia_evidence_frame"] = evidence_frame
             st.session_state["pia_evidence_filename"] = evidence_filename
             for key in SESSION_KEYS[5:]:
                 st.session_state.pop(key, None)
+            # Last, because publish reruns: anything after it in this
+            # block would be skipped on the pass that first creates the
+            # bundle, which is how the evidence frame went missing the
+            # first time this was wired up.
+            workspace.publish("pia_bundle", bundle)
         except ValueError as exc:
             st.error(str(exc))
-            st.stop()
+            stop_here()
 
     if "pia_bundle" in st.session_state:
         bundle = st.session_state["pia_bundle"]
@@ -666,19 +728,16 @@ if stage >= STAGE_DESCRIBE_EVIDENCE and "pia_claim" in st.session_state:
         if bundle.n_excluded_items:
             caveat(f"Excluded because {bundle.exclusion_reason}.")
 
-        if stage < STAGE_VALIDATE:
-            if st.button("Continue to validate", type="primary"):
-                TRACKER.advance_to(STAGE_VALIDATE)
 
 # ---------------------------------------------------------------------
 # 3. Validate (evidence -> interpretation)
 # ---------------------------------------------------------------------
 
-if stage >= STAGE_VALIDATE and "pia_bundle" in st.session_state:
+if stage == STAGE_VALIDATE:
     bundle = st.session_state["pia_bundle"]
 
     section_header(
-        "3. Validate",
+        "Validate",
         "Set the bar you'd want to see before trusting this evidence "
         "enough to report on it.",
     )
@@ -732,12 +791,12 @@ if stage >= STAGE_VALIDATE and "pia_bundle" in st.session_state:
                 min_corroboration=int(min_corroboration),
                 max_time_lag_days=int(max_time_lag_days),
             )
-            st.session_state["pia_validation"] = validation
+            workspace.publish("pia_validation", validation)
             for key in SESSION_KEYS[6:]:
                 st.session_state.pop(key, None)
         except ValueError as exc:
             st.error(str(exc))
-            st.stop()
+            stop_here()
 
     if "pia_validation" in st.session_state:
         validation = st.session_state["pia_validation"]
@@ -756,27 +815,24 @@ if stage >= STAGE_VALIDATE and "pia_bundle" in st.session_state:
                 st.caption(CRITERION_WHY[check.criterion])
                 st.caption(check.detail)
 
-        if stage < STAGE_DETERMINE_SUPPORTED_CLAIM:
-            if st.button("Continue to determine supported claim", type="primary"):
-                TRACKER.advance_to(STAGE_DETERMINE_SUPPORTED_CLAIM)
 
 # ---------------------------------------------------------------------
 # 4. Determine supported claim (interpretation)
 # ---------------------------------------------------------------------
 
-if stage >= STAGE_DETERMINE_SUPPORTED_CLAIM and "pia_validation" in st.session_state:
+if stage == STAGE_DETERMINE_SUPPORTED_CLAIM:
     claim = st.session_state["pia_claim"]
     bundle = st.session_state["pia_bundle"]
     validation = st.session_state["pia_validation"]
 
     section_header(
-        "4. Determine Supported Claim",
+        "Determine Supported Claim",
         "Interpretation - evidentiary rigor, graded against Nesta's "
         "Standards of Evidence.",
     )
 
     supported = strength_core.determine_supported_claim(claim, bundle, validation)
-    st.session_state["pia_supported"] = supported
+    workspace.publish("pia_supported", supported)
 
     render_verdict(classify(supported.nesta_level.level, NESTA_LEVEL_BANDS))
 
@@ -825,22 +881,19 @@ if stage >= STAGE_DETERMINE_SUPPORTED_CLAIM and "pia_validation" in st.session_s
         "the underlying claim is true."
     )
 
-    if stage < STAGE_EXAMINE_LIMITATIONS:
-        if st.button("Continue to examine limitations", type="primary"):
-            TRACKER.advance_to(STAGE_EXAMINE_LIMITATIONS)
 
 # ---------------------------------------------------------------------
 # 5. Examine limitations (interpretation)
 # ---------------------------------------------------------------------
 
-if stage >= STAGE_EXAMINE_LIMITATIONS and "pia_supported" in st.session_state:
+if stage == STAGE_EXAMINE_LIMITATIONS:
     bundle = st.session_state["pia_bundle"]
     validation = st.session_state["pia_validation"]
 
-    section_header("5. Examine Limitations", "Interpretation - what the evidence does not establish.")
+    section_header("Examine Limitations", "Interpretation - what the evidence does not establish.")
 
     limitations = limitations_core.examine_limitations(bundle, validation)
-    st.session_state["pia_limitations"] = limitations
+    workspace.publish("pia_limitations", limitations)
 
     if limitations.n_flags == 0:
         st.success("No limitations flagged against the configured thresholds.")
@@ -848,19 +901,16 @@ if stage >= STAGE_EXAMINE_LIMITATIONS and "pia_supported" in st.session_state:
         for flag in limitations.flags:
             flagged_item_note(f"{flag.category} ({flag.severity})", flag.message)
 
-    if stage < STAGE_PORTFOLIO_CONTEXT:
-        if st.button("Continue to portfolio context", type="primary"):
-            TRACKER.advance_to(STAGE_PORTFOLIO_CONTEXT)
 
 # ---------------------------------------------------------------------
 # 6. Portfolio context (interpretation, across grantees)
 # ---------------------------------------------------------------------
 
-if stage >= STAGE_PORTFOLIO_CONTEXT and "pia_limitations" in st.session_state:
+if stage == STAGE_PORTFOLIO_CONTEXT:
     claim = st.session_state["pia_claim"]
 
     section_header(
-        "6. Portfolio Context",
+        "Portfolio Context",
         "Interpretation - how this compares to the rest of a portfolio. "
         "Optional, and skipped if no matching portfolio row is found.",
     )
@@ -1035,17 +1085,14 @@ if stage >= STAGE_PORTFOLIO_CONTEXT and "pia_limitations" in st.session_state:
                         grantee_label_excl = _friendly(r["grantee_id"], GRANTEE_NAMES, show_ids)
                         st.write(f"- {grantee_label_excl}: {r['value']} {r['unit']}")
 
-    st.session_state["pia_portfolio_context"] = portfolio_context
+    workspace.publish("pia_portfolio_context", portfolio_context)
 
-    if stage < STAGE_EVIDENCE_RECORD:
-        if st.button("Continue to evidence record", type="primary"):
-            TRACKER.advance_to(STAGE_EVIDENCE_RECORD)
 
 # ---------------------------------------------------------------------
 # 7. Evidence record (claim)
 # ---------------------------------------------------------------------
 
-if stage >= STAGE_EVIDENCE_RECORD and "pia_portfolio_context" in st.session_state:
+if stage == STAGE_EVIDENCE_RECORD:
     claim = st.session_state["pia_claim"]
     bundle = st.session_state["pia_bundle"]
     validation = st.session_state["pia_validation"]
@@ -1054,7 +1101,7 @@ if stage >= STAGE_EVIDENCE_RECORD and "pia_portfolio_context" in st.session_stat
     portfolio_context = st.session_state["pia_portfolio_context"]
 
     section_header(
-        "7. Evidence Record",
+        "Evidence Record",
         "Claim - defensible language for reporting, with full detail on request.",
     )
 
@@ -1094,3 +1141,6 @@ if stage >= STAGE_EVIDENCE_RECORD and "pia_portfolio_context" in st.session_stat
         if record.portfolio_context is not None:
             st.markdown("**Portfolio context**")
             _render_portfolio_context_detail(record.portfolio_context, show_ids)
+
+workspace.render_navigation()
+
