@@ -1,17 +1,30 @@
 """
-Shared stage-gating UI for OpenMeasure's Research Journeys.
+Cumulative reveal for a gated sequence inside one stage.
 
-Every Research Journey page (see shared/research_journeys.py) reveals its
-content one stage at a time: a stage's content renders once a reader has
-made a decision or inspected a result in the stage before it, rather than
-the whole journey being one long scroll visible at once. Before this
-module existed, all six journeys reimplemented the same three pieces of
-that mechanism independently: a session_state counter for the highest
-unlocked stage, a rerun-on-unlock helper, and a breadcrumb-plus-restart
-block rendered above the stages. That duplication is what StageTracker
-replaces, and is also why it existed only as six near-identical, silently
-divergent copies: pyfMRIqc's fourth stage was checked for but never
-actually unlocked by any call, leaving it permanently unreachable.
+A session_state counter for the highest unlocked step, a
+rerun-on-unlock helper, and a breadcrumb. Before this module existed all
+six Research Journeys reimplemented those three pieces independently, in
+six near-identical and silently divergent copies: pyfMRIqc's fourth
+stage was checked for but never unlocked by any call, leaving it
+permanently unreachable.
+
+Its scope is now much narrower than that. Every journey moved to
+shared/stage_workspace.py, which puts one stage on screen at a time with
+a rail to move between them, because a cumulative reveal makes a
+research process read as a report and going back to change a decision a
+matter of scrolling upward and hoping.
+
+What is left here is the case the workspace is not for. Multimodal
+Signal Convergence's tradeoff stage unlocks its cost dimensions one at a
+time, gain alone and then privacy, security, and agency. That is
+progressive disclosure within a stage rather than a stage of a research
+process, and the distinction is the rule the workspace states:
+
+    Stages move horizontally through the research process. Scrolling
+    moves vertically through the evidence inside the current stage.
+
+A new page wanting stages wants StageWorkspace. A page wanting to reveal
+evidence inside one stage, in an order that matters, wants this.
 
 This is UI code, not core logic, so it lives in shared/ rather than a
 module's core/ for the same reason shared/report.py does (see that
