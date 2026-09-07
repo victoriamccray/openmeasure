@@ -77,6 +77,24 @@ def _plan_a_study() -> AppTest:
     return app
 
 
+# The planner is a staged workspace: the question is asked on the first
+# stage and concepts are named on the second, so a test looking for the
+# concepts screen has to be on it. Set by position rather than by
+# clicking Continue, because go_to() reruns mid-script and AppTest
+# accumulates the widgets from both passes; the navigation itself is
+# covered in shared/tests/test_stage_workspace.py.
+STAGE_MEASURES = 1
+
+
+def _at_concepts(app: AppTest) -> AppTest:
+    """The same session, moved to the stage that names concepts."""
+    app.session_state["design_current"] = STAGE_MEASURES
+    app.session_state["design_furthest"] = STAGE_MEASURES
+    app.run()
+
+    return app
+
+
 class TestAnUnrelatedStudyStaysUnrelated(unittest.TestCase):
     def test_the_worked_example_is_absent_until_it_is_loaded(self):
         app = _plan_a_study()
@@ -89,8 +107,7 @@ class TestAnUnrelatedStudyStaysUnrelated(unittest.TestCase):
         The specific things a researcher asking about financial security
         was shown.
         """
-        app = _plan_a_study()
-        rendered = _rendered_text(app)
+        rendered = _rendered_text(_at_concepts(_plan_a_study()))
 
         for leaked in ("body map", "electrodermal", "heart-rate variability"):
             with self.subTest(measure=leaked):
@@ -101,8 +118,7 @@ class TestAnUnrelatedStudyStaysUnrelated(unittest.TestCase):
         Absence alone would also be satisfied by an empty page. The
         planner has to be the thing that is there.
         """
-        app = _plan_a_study()
-        rendered = _rendered_text(app)
+        rendered = _rendered_text(_at_concepts(_plan_a_study()))
 
         self.assertIn("concepts", rendered)
         self.assertIn("observe", rendered)
@@ -208,6 +224,15 @@ class TestTheQuestionDrivesWhatIsOffered(unittest.TestCase):
     """
 
     def _with_question(self, question: str) -> AppTest:
+        """
+        A session that has been asked the question, then moved on.
+
+        The question is entered on the first stage and read on the
+        second, which is the whole point of the workspace holding it:
+        Streamlit drops a widget's value when the widget is not
+        rendered, so a question that did not survive leaving its stage
+        would be gone before anything could recognise it.
+        """
         app = _plan_a_study()
 
         for area in app.text_area:
@@ -215,7 +240,7 @@ class TestTheQuestionDrivesWhatIsOffered(unittest.TestCase):
                 area.set_value(question).run()
                 break
 
-        return app
+        return _at_concepts(app)
 
     def test_a_financial_security_question_recognises_its_concept(self):
         app = self._with_question(
