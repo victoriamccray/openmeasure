@@ -112,7 +112,7 @@ from modules.signal_pipeline.core import feature_selection as feature_selection_
 from modules.signal_pipeline.core import modality as modality_core
 from modules.signal_pipeline.core import pipeline as pipeline_core
 from shared.data_handling import disclosure_for, render_data_handling_summary
-from shared.journey_stages import StageTracker
+from shared.stage_workspace import Stage, StageWorkspace
 from shared.report import (
     caveat,
     flagged_item_note,
@@ -1344,7 +1344,6 @@ JOURNEY_STAGES = (
     "Research decision",
 )
 
-TRACKER = StageTracker(session_key=STAGE_KEY, stage_labels=JOURNEY_STAGES)
 
 
 def _current_modalities() -> tuple[modality_core.Modality, ...]:
@@ -1376,9 +1375,32 @@ st.caption(
 
 render_data_handling_summary(disclosure_for("pages/GRAND_Worked_Example.py"))
 
-stage = TRACKER.render_breadcrumb()
+# One stage in the workspace at a time, and the rail is how you move.
+# Reading this used to mean scrolling past every earlier stage, which
+# made nine decisions read as nine sections of a report. Nine is where
+# that stops being a nuisance and starts being the reason nobody reaches
+# the end.
+#
+# No gates. Every stage here is something to read, acquire, or check,
+# and each one already says for itself when it has no modality selected
+# to work on.
+WORKSPACE = StageWorkspace(
+    session_key="grand",
+    stages=(
+        Stage("question", "Question"),
+        Stage("acquire", "Acquire"),
+        Stage("qc", "QC"),
+        Stage("process", "Process"),
+        Stage("align", "Align"),
+        Stage("integrate", "Integrate"),
+        Stage("evaluate", "Added Value"),
+        Stage("interpret", "Interpret"),
+        Stage("decision", "Decision"),
+    ),
+)
 
-TRACKER.render_restart_button(extra_session_keys=(SELECTED_MODALITIES_KEY,))
+stage = WORKSPACE.render_rail()
+WORKSPACE.render_review_notice()
 
 st.divider()
 
@@ -1386,75 +1408,84 @@ st.divider()
 # 1. Research question
 # -----------------------------------------------------------------
 
-section_header("1. Research Question")
+if stage == STAGE_RESEARCH_QUESTION:
+    # The tracker used to draw this, clearing the modality selection
+    # with it.
+    if st.button("Restart study"):
+        for key in [
+            name for name in st.session_state
+            if str(name).startswith("grand")
+        ] + [SELECTED_MODALITIES_KEY]:
+            st.session_state.pop(key, None)
+        st.rerun()
 
-st.markdown("### What Does Each Imaging Modality Contribute To Understanding Reading and Language?")
 
-st.write(
-    f"GRAND scanned {GRAND_N_PARTICIPANTS} healthy older adults with "
-    "structural, functional, and diffusion MRI, derived a connectome (a "
-    "map of how strongly different brain regions are structurally "
-    "connected) from that data, and separately measured reading and "
-    "language performance outside the scanner. Each of these five "
-    "modalities measures a "
-    "different thing about the same participants. This page follows the "
-    "sequence a researcher moves through to turn that raw acquisition "
-    "into a defensible statement about what each modality adds: "
-    "acquisition, quality control, separate processing, alignment into "
-    "derived features, integration, evaluation of added value, and "
-    "interpretation."
-)
+    section_header("1. Research Question")
 
-rq_col1, rq_col2 = st.columns(2)
-with rq_col1:
-    st.badge("Five modalities", icon=":material/hub:", color="blue")
-with rq_col2:
-    st.badge("Reading & language", icon=":material/menu_book:", color="blue")
+    st.markdown("### What Does Each Imaging Modality Contribute To Understanding Reading and Language?")
 
-st.write(
-    "Reading and language ability are frequently disrupted by stroke, and "
-    "stroke risk rises with age, so a study of stroke-related language "
-    "impairment needs a normative picture of how reading and its brain "
-    "basis work in healthy older adults first, to know what a patient's "
-    "performance is being compared against. GRAND's participants were "
-    "recruited through two studies aimed at exactly that: BUILD "
-    "(\"Brain-based Understanding of Individual Language Differences after "
-    "stroke\") and ReadMap (\"Reading in Stroke Alexia and Typical Aging\"), "
-    "both run by GRAND's senior author. GRAND itself scans only "
-    "neurotypical adults - it is the normative half of that research "
-    "program, not a stroke dataset."
-)
-
-with st.expander("About GRAND"):
     st.write(
-        f"According to the dataset documentation, the primary objective is "
-        f"{GRAND_PURPOSE}. Data acquisition occurred at {GRAND_SITE}, "
-        f"using a {GRAND_SCANNER}. The functional protocol was "
-        f"{GRAND_TASK_NAME}."
+        f"GRAND scanned {GRAND_N_PARTICIPANTS} healthy older adults with "
+        "structural, functional, and diffusion MRI, derived a connectome (a "
+        "map of how strongly different brain regions are structurally "
+        "connected) from that data, and separately measured reading and "
+        "language performance outside the scanner. Each of these five "
+        "modalities measures a "
+        "different thing about the same participants. This page follows the "
+        "sequence a researcher moves through to turn that raw acquisition "
+        "into a defensible statement about what each modality adds: "
+        "acquisition, quality control, separate processing, alignment into "
+        "derived features, integration, evaluation of added value, and "
+        "interpretation."
     )
-    st.write(
-        f"While the preprint details {GRAND_N_PARTICIPANTS_PREPRINT_ABSTRACT} "
-        f"participants, comprising {GRAND_N_BUILD} from BUILD and "
-        f"{GRAND_N_READMAP} from ReadMap, the released participants.tsv "
-        f"file contains only {GRAND_N_PARTICIPANTS} entries. The existing "
-        "documentation does not account for this discrepancy; for further "
-        "details, refer to item 2 in the citation-integrity note."
-    )
-    st.caption(GRAND_DATASET_CITATION)
-    st.caption(GRAND_PREPRINT_CITATION)
-    st.caption(WILSON_CITATION)
-    st.caption(BUILD_CITATION)
-    st.caption(READMAP_CITATION)
 
-if stage < STAGE_ACQUIRE:
-    if st.button("Begin study", type="primary"):
-        TRACKER.advance_to(STAGE_ACQUIRE)
+    rq_col1, rq_col2 = st.columns(2)
+    with rq_col1:
+        st.badge("Five modalities", icon=":material/hub:", color="blue")
+    with rq_col2:
+        st.badge("Reading & language", icon=":material/menu_book:", color="blue")
+
+    st.write(
+        "Reading and language ability are frequently disrupted by stroke, and "
+        "stroke risk rises with age, so a study of stroke-related language "
+        "impairment needs a normative picture of how reading and its brain "
+        "basis work in healthy older adults first, to know what a patient's "
+        "performance is being compared against. GRAND's participants were "
+        "recruited through two studies aimed at exactly that: BUILD "
+        "(\"Brain-based Understanding of Individual Language Differences after "
+        "stroke\") and ReadMap (\"Reading in Stroke Alexia and Typical Aging\"), "
+        "both run by GRAND's senior author. GRAND itself scans only "
+        "neurotypical adults - it is the normative half of that research "
+        "program, not a stroke dataset."
+    )
+
+    with st.expander("About GRAND"):
+        st.write(
+            f"According to the dataset documentation, the primary objective is "
+            f"{GRAND_PURPOSE}. Data acquisition occurred at {GRAND_SITE}, "
+            f"using a {GRAND_SCANNER}. The functional protocol was "
+            f"{GRAND_TASK_NAME}."
+        )
+        st.write(
+            f"While the preprint details {GRAND_N_PARTICIPANTS_PREPRINT_ABSTRACT} "
+            f"participants, comprising {GRAND_N_BUILD} from BUILD and "
+            f"{GRAND_N_READMAP} from ReadMap, the released participants.tsv "
+            f"file contains only {GRAND_N_PARTICIPANTS} entries. The existing "
+            "documentation does not account for this discrepancy; for further "
+            "details, refer to item 2 in the citation-integrity note."
+        )
+        st.caption(GRAND_DATASET_CITATION)
+        st.caption(GRAND_PREPRINT_CITATION)
+        st.caption(WILSON_CITATION)
+        st.caption(BUILD_CITATION)
+        st.caption(READMAP_CITATION)
+
 
 # -----------------------------------------------------------------
 # 2. Acquire modalities
 # -----------------------------------------------------------------
 
-if stage >= STAGE_ACQUIRE:
+if stage == STAGE_ACQUIRE:
     section_header(
         "2. Acquire Modalities",
         "Select modalities to add to the pipeline.",
@@ -1622,15 +1653,12 @@ if stage >= STAGE_ACQUIRE:
         "docstring for what is flagged rather than resolved."
     )
 
-    if stage < STAGE_QC:
-        if st.button("Continue to QC each modality", type="primary"):
-            TRACKER.advance_to(STAGE_QC)
 
 # -----------------------------------------------------------------
 # 3. QC each modality
 # -----------------------------------------------------------------
 
-if stage >= STAGE_QC:
+if stage == STAGE_QC:
     section_header(
         "3. QC Each Modality",
         "What to inspect before trusting a modality's data, and what it supports.",
@@ -1674,15 +1702,12 @@ if stage >= STAGE_QC:
         "passes. QC is a gate on the pipeline."
     )
 
-    if stage < STAGE_PROCESS:
-        if st.button("Continue to process separately", type="primary"):
-            TRACKER.advance_to(STAGE_PROCESS)
 
 # -----------------------------------------------------------------
 # 4. Process separately
 # -----------------------------------------------------------------
 
-if stage >= STAGE_PROCESS:
+if stage == STAGE_PROCESS:
     section_header(
         "4. Process Separately",
         "Structural, functional, diffusion, and behavioral data require different preprocessing.",
@@ -1733,15 +1758,12 @@ if stage >= STAGE_PROCESS:
     )
     st.caption(FUSION3D_CITATION)
 
-    if stage < STAGE_ALIGN:
-        if st.button("Continue to align & derive features", type="primary"):
-            TRACKER.advance_to(STAGE_ALIGN)
 
 # -----------------------------------------------------------------
 # 5. Align & derive features
 # -----------------------------------------------------------------
 
-if stage >= STAGE_ALIGN:
+if stage == STAGE_ALIGN:
     section_header(
         "5. Align & Derive Features",
         "Each modality's processed output is registered to a common space and reduced to one derived feature.",
@@ -1764,15 +1786,12 @@ if stage >= STAGE_ALIGN:
         "expressed in the same anatomical coordinates."
     )
 
-    if stage < STAGE_INTEGRATE:
-        if st.button("Continue to integrate evidence", type="primary"):
-            TRACKER.advance_to(STAGE_INTEGRATE)
 
 # -----------------------------------------------------------------
 # 6. Integrate evidence
 # -----------------------------------------------------------------
 
-if stage >= STAGE_INTEGRATE:
+if stage == STAGE_INTEGRATE:
     section_header(
         "6. Integrate Evidence",
         "Modalities are combined only after acquisition, QC, processing, and alignment.",
@@ -1795,15 +1814,12 @@ if stage >= STAGE_INTEGRATE:
         "correlations necessitate such a synthesized approach."
     )
 
-    if stage < STAGE_EVALUATE:
-        if st.button("Continue to evaluate added value", type="primary"):
-            TRACKER.advance_to(STAGE_EVALUATE)
 
 # -----------------------------------------------------------------
 # 7. Evaluate added value
 # -----------------------------------------------------------------
 
-if stage >= STAGE_EVALUATE:
+if stage == STAGE_EVALUATE:
     section_header(
         "7. Evaluate Added Value",
         "Does this modality add enough information to justify collecting and integrating it?",
@@ -1925,15 +1941,12 @@ if stage >= STAGE_EVALUATE:
             if m.name in REDUNDANCY_NOTES:
                 st.write(f"- **{_md(m.name)}**: {REDUNDANCY_NOTES[m.name]}")
 
-    if stage < STAGE_INTERPRET:
-        if st.button("Continue to interpret", type="primary"):
-            TRACKER.advance_to(STAGE_INTERPRET)
 
 # -----------------------------------------------------------------
 # 8. Interpret
 # -----------------------------------------------------------------
 
-if stage >= STAGE_INTERPRET:
+if stage == STAGE_INTERPRET:
     section_header("8. Interpret")
 
     current_modalities = _current_modalities()
@@ -2008,15 +2021,12 @@ if stage >= STAGE_INTERPRET:
     st.caption(GRAND_DATASET_CITATION)
     st.caption(GRAND_PREPRINT_CITATION)
 
-    if stage < STAGE_RESEARCH_DECISION:
-        if st.button("Continue to the research decision", type="primary"):
-            TRACKER.advance_to(STAGE_RESEARCH_DECISION)
 
 # -----------------------------------------------------------------
 # 9. Research decision
 # -----------------------------------------------------------------
 
-if stage >= STAGE_RESEARCH_DECISION:
+if stage == STAGE_RESEARCH_DECISION:
     section_header(
         "9. Research Decision",
         "Given this reduced analysis, what would you conclude?",
@@ -2089,3 +2099,5 @@ if stage >= STAGE_RESEARCH_DECISION:
             "diffusion, and behavioral data helps understand reading and "
             "language after stroke."
         )
+
+WORKSPACE.render_navigation()
