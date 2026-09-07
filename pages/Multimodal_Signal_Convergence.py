@@ -1777,7 +1777,16 @@ if stage == STAGE_REAL_SIGNAL:
 # -----------------------------------------------------------------
 
 if stage == STAGE_RESEARCH_DECISION:
-    section_header("7. Research Decision")
+    section_header(
+        "7. Research Decision",
+        "Which added signal would you keep?",
+    )
+
+    st.write(
+        "You have compared what each modality might add against its "
+        "privacy, security, and agency costs. Based on the priorities you "
+        "set in Step 5, this is where you choose."
+    )
 
     st.caption(
         "Step 6 showed one real, measured cost of protecting a signal; "
@@ -1811,7 +1820,8 @@ if stage == STAGE_RESEARCH_DECISION:
         addable_selected = tuple(m for m in current_modalities if m.name != baseline.name)
 
         decision = st.radio(
-            "Given the frontier above, which added modality would you keep in a real deployment?",
+            "Based on the benefits and costs you explored, which added "
+            "modality would you keep for a real deployment?",
             options=[m.name for m in addable_selected] + ["Insufficient evidence to decide"],
             index=len(addable_selected),
         )
@@ -1832,32 +1842,49 @@ if stage == STAGE_RESEARCH_DECISION:
             )
         elif frontier.is_efficient.get(decision, False):
             st.write(
-                f"{decision} is on the gain-cost frontier under the "
-                "weights set in Step 5, meaning no other modality here "
-                "both costs no more and gains no less. Whether it is "
-                "actually worth collecting still depends on how much "
-                "privacy, security, and agency cost should weigh against "
-                "interpretive gain in your specific context, and on "
-                "evidence this illustrative rating doesn't provide about "
-                "a real deployment."
+                f"**{decision} remains a viable option under your "
+                "current priorities.** No other modality in this "
+                "comparison provides at least as much interpretive value "
+                "at the same or lower combined cost."
+            )
+            st.write(
+                f"This does not mean {decision} is the best or safest "
+                "choice for a real deployment. The comparison uses "
+                "illustrative ratings, and a real decision would require "
+                "evidence specific to the system, the participants, and "
+                "the intended use."
             )
         else:
             st.write(
-                f"Under the weights set in Step 5, {decision} is "
-                "dominated by another modality here and would not be "
-                "favored by any weighting of these two dimensions alone - "
-                "though a real deployment could involve factors these "
-                "four illustrative ratings do not capture."
+                f"**Under your current priorities, {decision} has no "
+                "advantage here.** Another modality in this comparison "
+                "provides at least as much interpretive value at the same "
+                "or lower combined cost, so these ratings give no reason "
+                "to prefer it."
+            )
+            st.write(
+                "That is a statement about four illustrative ratings and "
+                "the priorities you set, not about the modality. Change "
+                "the priorities and it can change, and a real deployment "
+                "could turn on factors none of these ratings capture."
             )
 
         st.write(
-            "**Research considerations**: when a pipeline can act on what "
-            "it infers - flagging a clinician, triggering a device, "
-            "shaping what someone sees next - the cost of being wrong, or "
-            "of acting on an inference the person did not consent to, is "
-            "not the same question as whether the inference itself is "
-            "accurate. Validating a multimodal pipeline means validating "
-            "both."
+            "**One more consideration**: validating the signal is not "
+            "enough if the system acts on what it infers. Flagging a "
+            "clinician, triggering a device, or shaping what someone sees "
+            "next each raise a separate question from whether the "
+            "inference was accurate: what happens when it is wrong, and "
+            "whether the person agreed to the action it produces. "
+            "Validating a multimodal pipeline means validating both."
+        )
+
+        st.caption(
+            "Which is the lesson of the whole journey. Choosing a "
+            "modality is not "
+            "\"which signal improves prediction\"; it is whether the "
+            "information it adds justifies what collecting and acting on "
+            "it introduces."
         )
 
     st.divider()
