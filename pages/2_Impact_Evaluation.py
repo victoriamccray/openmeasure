@@ -1077,8 +1077,12 @@ workspace = StageWorkspace(
             optional=True,
         ),
         # There is nothing to interpret until something has been run.
+        # Both halves, because the stage reads the recommendation as well
+        # as the estimate, and a gate that named one of them would be
+        # promising more than it tests.
         "interpret": Gate(
-            satisfied=stored_result is not None,
+            satisfied=stored_result is not None
+            and st.session_state.get("pe_recommendation") is not None,
             requirement="Run an analysis to continue",
         ),
     },
@@ -1193,18 +1197,8 @@ if stage == STAGE_QUESTION:
 
     # Written as plain keys too, since the gates are evaluated above,
     # before this stage renders.
-    #
-    # And rerun when either changes, because the rail was drawn from the
-    # previous values. Without it, a question typed just now would leave
-    # the next stage locked until some unrelated interaction redrew the
-    # page, which reads as the gate not working.
-    comparison_named = bool(q_comparison.strip())
-    gate_moved = (
-        st.session_state.get("pe_question_terms") != question_terms
-        or st.session_state.get("pe_comparison_named") != comparison_named
-    )
     st.session_state["pe_question_terms"] = question_terms
-    st.session_state["pe_comparison_named"] = comparison_named
+    st.session_state["pe_comparison_named"] = bool(q_comparison.strip())
 
     # The question feeds the search and nothing else. Rewording it does not
     # invalidate a design comparison, and a page that said it did would train
@@ -1216,8 +1210,12 @@ if stage == STAGE_QUESTION:
         label="Evaluation question",
     )
 
-    if gate_moved:
-        st.rerun()
+    # The rail was drawn from the previous values, so without this a
+    # question typed just now would leave the next stage locked until
+    # some unrelated interaction redrew the page.
+    workspace.record_gate_input(
+        "question", [question_terms, st.session_state["pe_comparison_named"]]
+    )
 
 # ---------------------------------------------------------------------
 # 2. Domain
@@ -1556,6 +1554,15 @@ if stage == STAGE_ANALYZE:
         options=[DESIGN_GROUPS, DESIGN_PRE_POST, DESIGN_DID],
         key="pe_design",
     )
+
+    # Switching design discards what was last run. A result computed
+    # from one design displayed under another design's column pickers is
+    # not the reader's work being erased, it is an artifact that no
+    # longer matches its inputs.
+    if workspace.kept("design", design) != design:
+        for slot in ("pe_run", "pe_result", "pe_method"):
+            st.session_state.pop(slot, None)
+
     workspace.keep("design", design)
 
     recommendation = None
@@ -2087,15 +2094,14 @@ if stage == STAGE_ANALYZE:
                     # screen and cannot recompute what this pass produced.
                     # What is held is the estimate and the method behind it,
                     # not the rows, so this retains no one's data.
-                    first_result = st.session_state.get("pe_result") is None
-                    st.session_state["pe_result"] = result
-                    st.session_state["pe_method"] = method
-
-                    if first_result:
-                        # The gate on the interpretation stage is read before
-                        # this stage renders, so without this the first
-                        # result would leave Continue disabled.
-                        st.rerun()
+                    #
+                    # publish rather than a plain write: the gate on the
+                    # interpretation stage is read above this stage, so
+                    # the first result would otherwise leave Continue
+                    # disabled until some unrelated interaction redrew
+                    # the page.
+                    workspace.publish("pe_method", method)
+                    workspace.publish("pe_result", result)
             except (ValueError, TypeError) as e:
                 st.error(str(e))
 
@@ -2108,19 +2114,6 @@ if stage == STAGE_INTERPRET:
     # estimate and the method behind it are held; the data is not.
     result = st.session_state.get("pe_result")
     method = str(st.session_state.get("pe_method", ""))
-
-    # The gate above normally keeps this stage shut until something has
-    # been run, but a gate is a guard rather than a guarantee: loading a
-    # second dataset discards the stored estimate while the rail still
-    # remembers that this stage was reached. Saying so is the answer; the
-    # alternative is interpret.support_boundary_claims("") raising into
-    # the page.
-    if result is None or recommendation is None:
-        st.info(
-            "Nothing has been analyzed yet, so there is nothing here to "
-            "interpret. Run an analysis on the previous stage."
-        )
-        stop_here()
 
     section_header(
         "Interpret",
