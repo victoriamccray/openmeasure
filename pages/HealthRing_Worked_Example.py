@@ -66,6 +66,7 @@ import streamlit.components.v1 as components
 
 from modules.healthring.core import acquisition_robustness as ar
 from modules.healthring.core import interpret as hr_interpret
+from shared import visuals
 from shared.charts import multiline_time_series_chart
 from shared.data_handling import disclosure_for, render_data_handling_summary
 from shared.dataset_loaders import (
@@ -701,10 +702,88 @@ def _fit_and_evaluate(
     return model, evaluation, test_data
 
 
-def _render_signal_window(row: pd.Series, slot_key: str) -> None:
+def _quality_bar_svg(quality: float) -> str:
+    """
+    One window's signal quality, as a filled bar against its scale.
+
+    A number between nought and one tells a reader less than a bar does
+    about whether it is near the top of the range, and this stage is
+    about looking at a measurement rather than reading its summary.
+    """
+    width, height = 260.0, 26.0
+    filled = max(0.0, min(1.0, quality)) * (width - 60.0)
+
+    return visuals.figure(
+        f'<rect x="0" y="6" width="{width - 60.0:.0f}" height="12" rx="3" '
+        f'fill="{GRIDLINE}"/>'
+        f'<rect x="0" y="6" width="{filled:.1f}" height="12" rx="3" '
+        f'fill="{ACCENT}" fill-opacity="0.75"/>'
+        f'<text x="{width - 54.0:.0f}" y="17" font-size="11" '
+        f'fill="{INK_MUTED}">{quality:.2f}</text>',
+        width=width,
+        height=height,
+        label=f"Signal quality {quality:.2f} out of 1.",
+    )
+
+
+def _hr_comparison_svg(ring: float, reference: float) -> str:
+    """
+    The ring's estimate and the reference on one axis, with the gap.
+
+    The two numbers are the comparison this whole journey is about, and
+    two metrics side by side make a reader do the subtraction. Drawn on a
+    shared scale, the gap is the thing you see first.
+    """
+    width, height = 320.0, 96.0
+    low = min(ring, reference)
+    high = max(ring, reference)
+    span = max(high - low, 8.0)
+    axis_low = low - span * 0.35
+    axis_high = high + span * 0.35
+
+    def position(value):
+        return 40.0 + (value - axis_low) / (axis_high - axis_low) * (width - 80.0)
+
+    ring_x = position(ring)
+    reference_x = position(reference)
+
+    return visuals.figure(
+        f'<line x1="40" y1="62" x2="{width - 40.0:.0f}" y2="62" '
+        f'stroke="{GRIDLINE}" stroke-width="1.5"/>'
+        # The gap, drawn before the marks so they sit on top of it.
+        f'<line x1="{min(ring_x, reference_x):.1f}" y1="62" '
+        f'x2="{max(ring_x, reference_x):.1f}" y2="62" '
+        f'stroke="{INK_MUTED}" stroke-width="4" '
+        f'stroke-opacity="0.35"/>'
+        f'<circle cx="{ring_x:.1f}" cy="62" r="7" fill="{ACCENT}"/>'
+        f'<text x="{ring_x:.1f}" y="40" font-size="11" fill="{ACCENT}" '
+        f'text-anchor="middle">Ring {ring:.1f}</text>'
+        f'<circle cx="{reference_x:.1f}" cy="62" r="7" fill="none" '
+        f'stroke="{ACCENT_2}" stroke-width="2.5"/>'
+        f'<text x="{reference_x:.1f}" y="86" font-size="11" '
+        f'fill="{ACCENT_2}" text-anchor="middle">'
+        f'Reference {reference:.1f}</text>',
+        width=width,
+        height=height,
+        label=(
+            f"Ring estimate {ring:.1f} bpm and reference {reference:.1f} "
+            f"bpm on one axis, {abs(ring - reference):.1f} bpm apart."
+        ),
+    )
+
+
+def _render_signal_window(
+    row: pd.Series, slot_key: str, *, waveforms: bool = True
+) -> None:
     """
     Walk through one real measurement window: activity, movement, PPG,
     signal quality, HR estimate, then (only after a prediction) error.
+
+    waveforms is False for the public subset, which carries the
+    per-window summary columns and not the PPG and accelerometer
+    channels. The walk is the same either way; the two chart steps say
+    they are missing rather than being skipped silently, and nothing is
+    reconstructed from the summaries to fill the gap.
 
     slot_key makes every widget key unique so this can render twice in
     one script pass, for the two-window comparison, without Streamlit
@@ -713,38 +792,58 @@ def _render_signal_window(row: pd.Series, slot_key: str) -> None:
 
     st.markdown(f"**Activity: {row['Label']}**")
 
-    fs = float(row["fs"])
-    n_samples = len(row["ax-filtered"])
-    t = np.arange(n_samples) / fs
+    if waveforms:
+        fs = float(row["fs"])
+        n_samples = len(row["ax-filtered"])
+        t = np.arange(n_samples) / fs
 
-    st.caption("Movement (accelerometer, three axes):")
-    st.vega_lite_chart(
-        multiline_time_series_chart(
-            t,
-            {"x": row["ax-filtered"], "y": row["ay-filtered"], "z": row["az-filtered"]},
-            {"x": ACCENT, "y": ACCENT_2, "z": ACCENT_3},
-            "Acceleration (filtered, arbitrary units)",
-            config=_VEGA_CHART_CONFIG,
-        ),
-        theme=None,
-        use_container_width=True,
-    )
+        st.caption("Movement (accelerometer, three axes):")
+        st.vega_lite_chart(
+            multiline_time_series_chart(
+                t,
+                {
+                    "x": row["ax-filtered"],
+                    "y": row["ay-filtered"],
+                    "z": row["az-filtered"],
+                },
+                {"x": ACCENT, "y": ACCENT_2, "z": ACCENT_3},
+                "Acceleration (filtered, arbitrary units)",
+                config=_VEGA_CHART_CONFIG,
+            ),
+            theme=None,
+            width="stretch",
+        )
 
-    st.caption("PPG (photoplethysmography), two light channels:")
-    st.vega_lite_chart(
-        multiline_time_series_chart(
-            t,
-            {"infrared": row["ir-filtered"], "red": row["red-filtered"]},
-            {"infrared": ACCENT, "red": ACCENT_2},
-            "PPG signal (filtered, arbitrary units)",
-            config=_VEGA_CHART_CONFIG,
-        ),
-        theme=None,
-        use_container_width=True,
-    )
+        st.caption("PPG (photoplethysmography), two light channels:")
+        st.vega_lite_chart(
+            multiline_time_series_chart(
+                t,
+                {"infrared": row["ir-filtered"], "red": row["red-filtered"]},
+                {"infrared": ACCENT, "red": ACCENT_2},
+                "PPG signal (filtered, arbitrary units)",
+                config=_VEGA_CHART_CONFIG,
+            ),
+            theme=None,
+            width="stretch",
+        )
+    else:
+        st.caption(
+            "Movement and PPG waveforms: not in the public subset. "
+            "Excluding them is the whole size difference, and nothing "
+            "here reconstructs them from the summary columns. Everything "
+            "below is measured."
+        )
 
     quality = (row["ir-quality"] + row["red-quality"]) / 2
+    st.caption("Signal quality this window:")
+    st.markdown(_quality_bar_svg(quality), unsafe_allow_html=True)
     st.caption(hr_interpret.quality_sentence(quality))
+
+    st.caption("The ring's estimate against the reference:")
+    st.markdown(
+        _hr_comparison_svg(float(row["bvp_hr"]), float(row["hr"])),
+        unsafe_allow_html=True,
+    )
 
     hr_col1, hr_col2 = st.columns(2)
     hr_col1.metric("Ring estimate (bvp_hr)", f"{row['bvp_hr']:.1f} bpm")
@@ -1333,28 +1432,31 @@ if stage == STAGE_SIGNAL_INSPECTION:
     # subset. It says what it would need and what is available instead,
     # rather than erroring on a column that was never there.
     if st.session_state.get("healthring_source") == SOURCE_PUBLIC_SUBSET:
-        st.info(
-            "This stage draws the PPG and accelerometer waveforms, which "
-            "the public subset does not carry: excluding them is what "
-            "makes it 80 KB rather than 2.4 GiB. Load the original "
-            "archive under 'Advanced' above to walk a window end to end."
-        )
-
-        st.markdown("**What the subset does carry, per window**")
-        st.dataframe(
-            windows.data.head(20),
-            width="stretch",
-            hide_index=True,
-        )
+        # The same walk, one layer short. Five of its six steps are
+        # per-window summary columns the subset carries; only the two
+        # waveform charts need the archive, and the renderer says so
+        # where they would have been.
         st.caption(
-            "The activity label, the reference and ring heart-rate "
-            "estimates, the ring's own per-channel quality scores, and "
-            "the error terms derived from them. Every later stage runs on "
-            "these; only the waveform walk-through needs the archive."
+            "One real measurement window at a time: what the participant "
+            "was doing, how good the signal was, what the ring estimated, "
+            "what the reference measured, and only then the error between "
+            "them. Loading the original archive adds the PPG and "
+            "accelerometer waveforms to the same walk."
         )
 
+        # One participant, the same as the archive route asks for.
+        # Pooling all twenty-eight would make "this window" the first
+        # matching row from whoever happened to be sorted first.
+        subset_subject_id = st.selectbox(
+            "Which participant to inspect",
+            options=sorted(windows.data["subject_id"].unique().tolist()),
+            key="hr_signal_subject_subset",
+        )
 
-        signal_windows = None
+        signal_windows = ar.prepare_windows(
+            windows.data.loc[windows.data["subject_id"] == subset_subject_id]
+        )
+        waveforms_available = False
     else:
         loaded_subject_ids = sorted(windows.data["subject_id"].unique().tolist())
 
@@ -1370,6 +1472,8 @@ if stage == STAGE_SIGNAL_INSPECTION:
         except (OSError, KeyError, ValueError) as error:
             st.error(f"Could not load this participant's signal: {error}")
             signal_windows = None
+
+        waveforms_available = True
 
     if signal_windows is not None:
         available_labels = signal_windows.condition_order
@@ -1408,11 +1512,15 @@ if stage == STAGE_SIGNAL_INSPECTION:
 
             col_a, col_b = st.columns(2)
             with col_a:
-                _render_signal_window(row_a, "a")
+                _render_signal_window(
+                    row_a, "a", waveforms=waveforms_available
+                )
             with col_b:
-                _render_signal_window(row_b, "b")
+                _render_signal_window(
+                    row_b, "b", waveforms=waveforms_available
+                )
         else:
-            _render_signal_window(row_a, "a")
+            _render_signal_window(row_a, "a", waveforms=waveforms_available)
 
         st.caption(
             "One window is one example, not a pattern: if a higher-"
@@ -1420,6 +1528,28 @@ if stage == STAGE_SIGNAL_INSPECTION:
             "something to investigate, not something this single "
             "comparison proves."
         )
+
+        # Supporting detail, not the stage. It was the whole stage for
+        # the public subset before this.
+        with st.expander("Every window this participant has, as a table"):
+            st.dataframe(
+                signal_windows.data[
+                    [
+                        column
+                        for column in (
+                            "Label",
+                            "quality",
+                            "ir-quality",
+                            "red-quality",
+                            "bvp_hr",
+                            "hr",
+                        )
+                        if column in signal_windows.data.columns
+                    ]
+                ],
+                width="stretch",
+                hide_index=True,
+            )
 
 
 # -----------------------------------------------------------------

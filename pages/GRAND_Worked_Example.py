@@ -139,6 +139,12 @@ CATEGORY_COLORS = {
 }
 PIPELINE_NODE_COLOR = MUTED
 
+# The order every figure and every sentence uses, so a reader comparing
+# the two is comparing the same list. CATEGORY_COLORS already declares
+# it; this names it as the ordering rather than leaving each figure to
+# follow whichever order a reader ticked boxes in.
+CATEGORY_ORDER = tuple(CATEGORY_COLORS)
+
 _VEGA_CHART_CONFIG = {
     "background": SURFACE,
     "axis": {
@@ -1359,10 +1365,22 @@ def _current_modalities() -> tuple[modality_core.Modality, ...]:
     # rendered, and four later stages read this selection on runs where
     # the Acquire stage does not draw.
     selected_names = st.session_state.get(KEPT_MODALITIES_KEY, [])
-    return (baseline,) + tuple(
+    chosen = (baseline,) + tuple(
         modalities_by_name[name]
         for name in selected_names
         if name in modalities_by_name
+    )
+
+    # By category, not by the order the boxes were ticked. Every figure
+    # on this page draws from this, and the prose that describes them
+    # names the same order.
+    return tuple(
+        sorted(
+            chosen,
+            key=lambda modality: CATEGORY_ORDER.index(modality.category)
+            if modality.category in CATEGORY_ORDER
+            else len(CATEGORY_ORDER),
+        )
     )
 
 
@@ -1745,6 +1763,25 @@ if stage == STAGE_PROCESS:
         "is shared across modalities."
     )
 
+    # Which of the five that paragraph describes are actually in this
+    # study. Without it, a reader sees Behavioral described above and
+    # absent from the figure below with nothing to tell them whether
+    # they did not add it or the figure leaves it out.
+    present = [modality.category for modality in current_modalities]
+    absent = [
+        category for category in CATEGORY_ORDER if category not in present
+    ]
+
+    st.caption(
+        "In this study: "
+        + ", ".join(present)
+        + (
+            ". Not added in Step 2: " + ", ".join(absent) + "."
+            if absent
+            else ". All five modalities are in it."
+        )
+    )
+
     components.html(
         _processing_steps_html(current_modalities),
         height=280,
@@ -1760,6 +1797,13 @@ if stage == STAGE_PROCESS:
     components.html(
         _pipeline_flow_html(current_modalities),
         height=260,
+    )
+    st.caption(
+        "Behavioral measures appear here as their own row when they are "
+        "in the study: they are scored rather than sensed, so they carry "
+        "no Signals or Sensors step in the way an MRI modality does, and "
+        "the brain scene in Step 2 draws them away from the brain for "
+        "the same reason."
     )
     st.caption(
         "Alt text: Each modality keeps its own Signals, Sensors, and "

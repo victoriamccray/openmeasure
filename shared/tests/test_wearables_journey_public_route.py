@@ -277,18 +277,65 @@ class TestTheArchiveIsNotPresentedAsRequired(unittest.TestCase):
 
         self.assertIn("Every stage of the journey runs on this", description)
 
-    def test_the_one_stage_that_wants_waveforms_says_what_it_shows_instead(self):
+    def test_the_one_stage_that_wants_waveforms_marks_them_missing(self):
+        """
+        Marked where they would have been, rather than the whole visual
+        inspection disappearing. That is what it did before: the subset
+        branch skipped the walk and printed a dataframe.
+        """
         app = _at(_loaded(), SIGNAL)
         text = " ".join(_rendered(app))
 
-        self.assertIn("Every later stage runs on these", text)
-        self.assertIn("only the waveform walk-through needs the archive", text)
+        self.assertIn("not in the public subset", text)
+        self.assertIn("nothing here reconstructs them", text)
 
-    def test_that_stage_still_shows_the_columns_it_does_have(self):
+    def test_the_walk_itself_still_happens_on_the_subset(self):
+        """
+        Activity, quality, the ring against the reference, then the
+        error after a prediction. Five of the six steps are per-window
+        columns the subset carries.
+        """
         app = _at(_loaded(), SIGNAL)
+        rendered = _rendered(app)
+        text = " ".join(rendered)
 
         self.assertFalse(app.exception)
-        self.assertGreaterEqual(len(app.dataframe), 1)
+        self.assertTrue(
+            any(item.startswith("**Activity:") for item in rendered), text[:200]
+        )
+        self.assertIn(
+            "Ring estimate (bvp_hr)",
+            [str(item.label) for item in app.metric],
+        )
+        self.assertIn(
+            "Reference (hr)", [str(item.label) for item in app.metric]
+        )
+
+    def test_the_values_are_drawn_and_not_only_tabulated(self):
+        """
+        A quality bar and the two heart rates on one axis. Two metrics
+        side by side make a reader do the subtraction.
+        """
+        app = _at(_loaded(), SIGNAL)
+        drawings = [
+            str(item.value) for item in app.markdown if "<svg" in str(item.value)
+        ]
+
+        self.assertGreaterEqual(len(drawings), 2)
+        self.assertTrue(
+            any("Signal quality" in drawing for drawing in drawings), drawings[:1]
+        )
+        self.assertTrue(
+            any("on one axis" in drawing for drawing in drawings), drawings[:1]
+        )
+
+    def test_the_table_is_supporting_detail_rather_than_the_stage(self):
+        app = _at(_loaded(), SIGNAL)
+        labels = [str(item.label) for item in app.expander]
+
+        self.assertTrue(
+            any("as a table" in label for label in labels), labels
+        )
 
 
 if __name__ == "__main__":
