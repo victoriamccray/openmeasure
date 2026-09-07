@@ -46,6 +46,7 @@ from shared.report import (
     caveat,
     classify,
     flagged_item_note,
+    inspect_note,
     render_lifecycle_tracker,
     render_verdict,
     section_header,

@@ -184,7 +184,7 @@ def case_study_note(key: str, connection: str) -> None:
         st.markdown("**What it demonstrates**")
         st.write(study.takeaway)
 
-        st.markdown("**Connection to this analysis**")
+        st.markdown("**How this shapes the analysis**")
         st.write(connection)
 
         st.caption(study.citation)
