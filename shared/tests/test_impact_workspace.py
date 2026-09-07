@@ -458,5 +458,116 @@ class TestTheDisclosureMatchesWhatIsHeld(unittest.TestCase):
         self.assertIn("hash of the uploaded data", self._notes())
 
 
+class TestWhatInvalidatesAStoredEstimate(unittest.TestCase):
+    """
+    An interpretation is only ever as current as the analysis under it.
+
+    Three things can make it stale, and they are not the same. Changing
+    the design changes which statistic was asked for. Clearing the data
+    removes what it was computed from. Rewording the question changes
+    neither, and a page that flagged it would train a reader to dismiss
+    the flag.
+    """
+
+    DESIGNS = (
+        "Two or more groups",
+        "Pre/post (same participants)",
+        "Two groups, each measured before and after",
+    )
+
+    def _analysed(self, design=None) -> AppTest:
+        app = _at(_answered(), ANALYZE, furthest=ANALYZE)
+        next(
+            b for b in app.button if "sample" in str(b.label).lower()
+        ).click()
+        app.run()
+
+        if design is not None:
+            next(
+                r for r in app.radio if "comparing" in str(r.label)
+            ).set_value(design).run()
+
+        next(b for b in app.button if b.label == "Get recommendation").click()
+        app.run()
+        next(b for b in app.button if b.label == "Run analysis").click()
+        app.run()
+
+        return app
+
+    def test_all_three_designs_produce_their_own_method(self):
+        methods = set()
+
+        for design in self.DESIGNS:
+            app = self._analysed(design)
+            method = app.session_state.filtered_state.get("pe_method")
+
+            with self.subTest(design=design):
+                self.assertFalse(app.exception)
+                self.assertTrue(method)
+
+            methods.add(method)
+
+        self.assertEqual(len(methods), 3, methods)
+
+    def test_each_design_reaches_a_bounded_interpretation(self):
+        for design in self.DESIGNS:
+            app = _at(self._analysed(design), INTERPRET, furthest=INTERPRET)
+            text = " ".join(str(item.value) for item in app.markdown)
+
+            with self.subTest(design=design):
+                self.assertFalse(app.exception)
+                self.assertIn("Established here", text)
+
+    def test_switching_the_design_discards_the_estimate(self):
+        app = self._analysed(self.DESIGNS[0])
+        self.assertIsNotNone(
+            app.session_state.filtered_state.get("pe_result")
+        )
+
+        next(
+            r for r in app.radio if "comparing" in str(r.label)
+        ).set_value(self.DESIGNS[1]).run()
+        held = app.session_state.filtered_state
+
+        self.assertIsNone(held.get("pe_result"))
+        self.assertTrue(app.button(key=f"pe_rail_{INTERPRET}").disabled)
+
+    def test_clearing_the_data_discards_the_estimate(self):
+        """
+        The early exit for "nothing loaded" fires above the token check
+        that used to be the only thing discarding a stale estimate, so
+        the interpretation stage went on describing a result for data
+        that was no longer there.
+        """
+        app = self._analysed()
+        clear = [b for b in app.button if "Clear" in str(b.label)]
+
+        if not clear:
+            self.skipTest("no clear control on this stage")
+
+        clear[0].click()
+        app.run()
+        held = app.session_state.filtered_state
+
+        self.assertIsNone(held.get("pe_result"))
+        self.assertIsNone(held.get("pe_recommendation"))
+        self.assertTrue(app.button(key=f"pe_rail_{INTERPRET}").disabled)
+
+    def test_rewording_the_question_does_not_discard_it(self):
+        """
+        The question feeds the literature search and nothing else. It is
+        never paired with the estimate, so a reworded question cannot
+        misattribute one, and flagging it would be crying wolf.
+        """
+        app = self._analysed()
+        app = _at(app, QUESTION, furthest=INTERPRET)
+        app.text_input(key="pe_q_program").set_value("SMS nudges").run()
+
+        held = app.session_state.filtered_state
+
+        self.assertIsNotNone(held.get("pe_result"))
+        self.assertEqual(set(held.get("pe_review", {})), {RESEARCH})
+
+
 if __name__ == "__main__":
     unittest.main()

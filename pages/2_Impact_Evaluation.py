@@ -1499,6 +1499,31 @@ if stage == STAGE_ANALYZE:
     )
 
     if loaded is None:
+        # Nothing loaded means nothing current. Clearing the dataset used
+        # to leave the stored estimate behind, because this early exit
+        # fires above the token check that discards it, so the
+        # interpretation stage went on describing a result for data that
+        # was no longer there.
+        discarded = [
+            slot
+            for slot in (
+                "pe_recommendation",
+                "pe_context",
+                "pe_run",
+                "pe_result",
+                "pe_method",
+                "pe_uploaded_file_id",
+            )
+            if st.session_state.pop(slot, None) is not None
+        ]
+
+        if discarded:
+            # Only when something was actually there, so this cannot
+            # loop. The rail above was drawn from a state that still had
+            # a result, and the interpretation stage would stay
+            # clickable for one more pass without the redraw.
+            st.rerun()
+
         stop_here()
 
     df = loaded.frame
@@ -1562,6 +1587,12 @@ if stage == STAGE_ANALYZE:
     if workspace.kept("design", design) != design:
         for slot in ("pe_run", "pe_result", "pe_method"):
             st.session_state.pop(slot, None)
+
+        workspace.keep("design", design)
+        # The rail was drawn above, from a state that still had a
+        # result, so without this the interpretation stage stays
+        # clickable for one more pass.
+        st.rerun()
 
     workspace.keep("design", design)
 
