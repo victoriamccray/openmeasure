@@ -254,6 +254,42 @@ class TestTheControlsMoveWhatComesAfterThem(unittest.TestCase):
         self.assertNotEqual(before, after)
 
 
+class TestNothingLoadedIsAnsweredNotCrashed(unittest.TestCase):
+    """
+    The gate belongs on the first stage that reads a recording.
+
+    It sat on the stage after that one, so Signal Inspection rendered
+    with windows unset and dereferenced None. Twenty passing tests all
+    loaded the recording first, which is why none of them met it.
+    """
+
+    def test_no_stage_raises_with_nothing_loaded(self):
+        app = _unloaded()
+
+        for stage in range(SIGNAL, FINISH + 1):
+            app.session_state["hr_current"] = stage
+            app.session_state["hr_furthest"] = FINISH
+            app.run()
+
+            with self.subTest(stage=stage):
+                self.assertFalse(app.exception)
+
+    def test_the_gate_sits_on_the_first_stage_that_reads_a_recording(self):
+        app = _unloaded()
+
+        self.assertFalse(app.button(key=f"hr_rail_{MEASUREMENT}").disabled)
+        self.assertTrue(app.button(key=f"hr_rail_{SIGNAL}").disabled)
+
+    def test_continue_to_signal_is_blocked_until_a_recording_loads(self):
+        app = _at(_unloaded(), MEASUREMENT)
+        forward = app.button(key="hr_forward")
+
+        self.assertTrue(forward.disabled)
+
+        captions = " ".join(str(item.value) for item in app.caption)
+        self.assertIn("Load a recording to continue", captions)
+
+
 class TestContinueActuallyAdvances(unittest.TestCase):
     """
     Pressing Continue, rather than setting the position.

@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import hashlib
 import sys
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -497,9 +497,21 @@ caveat(
     "different results."
 )
 
+# What was investigated, what was actually sent, and when. On every row
+# because this is a flat CSV a reader may filter or sort: a provenance
+# block above the header would not survive that.
+#
+# The finding is the reviewer's own wording. It goes in the file they
+# download and not into the cross-analysis handoff, which fingerprints
+# the public results table and keeps nothing anyone typed.
+searched_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
 records_df = pd.DataFrame(
     [
         {
+            "Finding investigated": finding_text.strip(),
+            "Query sent to OpenAlex": active_query,
+            "Searched at (UTC)": searched_at,
             "Title": item.title,
             "Authors": item.author_summary,
             "Year": item.year,
@@ -523,6 +535,12 @@ st.download_button(
     data=records_df.to_csv(index=False).encode("utf-8"),
     file_name="evidence_review_record.csv",
     mime="text/csv",
+)
+st.caption(
+    "Carries your finding as you wrote it, the exact query sent to "
+    "OpenAlex, the time of the search, and every result with its "
+    "screening decision and stated reason. Reproducing a search needs "
+    "the query; understanding it needs the finding."
 )
 
 
@@ -567,8 +585,12 @@ def _record_evidence_review(query_text: str, df: pd.DataFrame, summary_: screeni
         },
     )
     st.caption(
-        f"Query: \"{query_text}\" (search terms only; the finding "
-        "description above is not stored)."
+        f"Query: \"{query_text}\". This cross-analysis record holds the "
+        "search terms and a fingerprint of the public results table, and "
+        "not your finding description. The CSV above does carry the "
+        "finding, the exact query, and the time of the search, because "
+        "that is the file you take away and reproducing a search needs "
+        "to know what it was for."
     )
 
 

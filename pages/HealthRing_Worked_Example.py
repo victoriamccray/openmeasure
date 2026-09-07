@@ -982,7 +982,11 @@ WORKSPACE = StageWorkspace(
         Stage("finish", "Finish"),
     ),
     gates={
-        "design": Gate(
+        # On the inspection stage, not the one after it. Signal
+        # Inspection is the first stage that reads a recording, and with
+        # the gate a stage too late it rendered with windows unset and
+        # dereferenced None.
+        "inspection": Gate(
             satisfied=windows is not None,
             requirement="Load a recording to continue",
         ),
