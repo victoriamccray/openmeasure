@@ -55,6 +55,7 @@ from modules.evidence_to_claim.core import strength as strength_core
 from modules.evidence_to_claim.core import validate as validate_core
 from shared.catalog import MODULE_EVIDENCE_REVIEW
 from shared.data_handling import disclosure_for, render_data_handling_summary
+from shared import literature
 from shared.literature import MAX_RESULTS, SEARCH_ERRORS, search_openalex
 from shared.handoff import (
     KIND_ROWS_DROPPED,
@@ -183,6 +184,27 @@ st.divider()
 # 1. Describe the finding
 # ---------------------------------------------------------------------
 
+# The boundary, above the first control rather than inferred from the
+# reporting conventions this page borrows. Everything below screens what
+# one search of one index returned; a systematic review searches several,
+# with a protocol, and does not stop at screening.
+st.warning(
+    "**This is literature discovery and screening, not a systematic "
+    "review and not evidence synthesis.** It searches OpenAlex once, "
+    "shows you what came back, and records which results you included, "
+    "excluded, or were unsure about. It does not search multiple "
+    "databases, follow a registered protocol, assess risk of bias, or "
+    "pool results. The screening convention and the record are built to "
+    "be compatible with PRISMA 2020 reporting; using them does not make "
+    "the output a review."
+)
+
+st.caption(
+    "What the results here can support: that this is what one search "
+    "surfaced and this is what you judged of it. What they cannot "
+    "support: a claim about the state of the evidence base."
+)
+
 section_header("1. Describe the Finding", "What are you comparing against existing evidence?")
 
 finding_text = st.text_area(
@@ -194,10 +216,37 @@ finding_text = st.text_area(
     height=100,
 )
 
+# The finding, reduced to the words a title index can match on.
+#
+# This box used to be seeded with the whole finding, so a sentence went
+# to a keyword index verbatim: "an increase in financial security"
+# returned securities markets and bank security, because three of its
+# words carry no topic and one of the rest belongs to two literatures.
+#
+# Derived, editable, and reported: every word taken out is named, and a
+# surviving term that spans literatures is flagged before the search
+# rather than after it.
+derived_query = None
+
+if finding_text.strip():
+    try:
+        derived_query = literature.derive_query(finding_text)
+    except ValueError as error:
+        st.caption(str(error))
+
 query = st.text_input(
     "Search terms sent to OpenAlex",
-    value=finding_text,
+    value=derived_query.terms if derived_query is not None else finding_text,
 )
+
+if derived_query is not None:
+    st.caption(
+        "Suggested from your finding by dropping the words a title index "
+        "cannot match on. Editable, and sent exactly as written."
+    )
+
+    for note in derived_query.notes():
+        st.caption(note)
 
 search_clicked = st.button("Search OpenAlex", type="primary", disabled=not query.strip())
 

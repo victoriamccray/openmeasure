@@ -48,6 +48,7 @@ from shared.handoff import (
 )
 from shared.data_handling import disclosure_for, render_data_handling_summary
 from shared.stage_workspace import Gate, Stage, StageWorkspace
+from shared import literature
 from shared.literature import SEARCH_ERRORS, search_openalex
 from shared.report import (
     section_header,
@@ -1307,19 +1308,42 @@ if stage == STAGE_RESEARCH:
 
     default_query = domains.build_search_query(question_terms, domain_id)
 
+    # The question, reduced to the words a title index can match on.
+    #
+    # A question phrased as a sentence carries "did", "our" and "increase"
+    # into the match and dilutes the terms that would land. This page used
+    # to say so and leave the trimming to the reader. It does the trimming
+    # now, names every word it took out, and flags any survivor that two
+    # literatures use differently, all before the search runs rather than
+    # under a page of results explaining a disappointment.
+    derived = None
+
+    if question_terms:
+        try:
+            derived = literature.derive_query(question_terms)
+        except ValueError as error:
+            st.caption(str(error))
+
+    st.caption(f"Your question: {question_terms}" if question_terms else "")
+
     # Seeded rather than passed as value=. This stage is left and returned
     # to, and a value= alongside a key Streamlit has already been handed by
     # name is the one combination it warns about.
     if "pe_query" not in st.session_state:
-        st.session_state["pe_query"] = workspace.kept("query", "") or default_query
+        st.session_state["pe_query"] = (
+            workspace.kept("query", "")
+            or (derived.terms if derived is not None else default_query)
+        )
 
     query = st.text_input("Search terms sent to OpenAlex", key="pe_query")
     st.caption(
-        "Editable, and sent as written. A question phrased as a sentence "
-        "carries words like \"did\" and \"our\" into the match, so trimming it "
-        "to the terms you would expect in a title usually returns closer "
-        "work."
+        "Editable, and sent exactly as written. Suggested from your "
+        "question by dropping the words a title index cannot match on."
     )
+
+    if derived is not None:
+        for note in derived.notes():
+            st.caption(note)
 
     if st.button("Search OpenAlex", disabled=not query.strip()):
         try:
