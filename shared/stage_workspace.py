@@ -59,6 +59,8 @@ from dataclasses import dataclass, field
 
 import streamlit as st
 
+from shared import feedback
+
 # What a stage is, from the reader's side. Four states rather than
 # reached/not-reached, because "was complete, and something it depended
 # on has changed" is a real situation that neither of the other two
@@ -312,6 +314,12 @@ class StageWorkspace:
         unblock it, which is more use than a control that silently does
         nothing.
         """
+        # Left for the feedback footer, which renders after the page and
+        # would otherwise have to be passed the stage by every caller.
+        st.session_state[feedback.ACTIVE_STAGE_KEY] = self.stages[
+            self.current
+        ].label
+
         columns = st.columns(len(self.stages))
 
         for index, (stage, column) in enumerate(zip(self.stages, columns)):

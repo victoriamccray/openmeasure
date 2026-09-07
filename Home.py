@@ -89,6 +89,7 @@ Two other consequences of declaring navigation explicitly, both intended:
 import streamlit as st
 
 from shared.catalog import workflows_by_category
+from shared.feedback import render_feedback_control
 from shared.research_journeys import JOURNEYS
 
 st.set_page_config(
@@ -189,4 +190,10 @@ sections["Research Journeys (hidden)"] = [
     for journey in JOURNEYS
 ]
 
-st.navigation(sections).run()
+# Rendered after the page, so it sits at the foot of every one of them
+# without each page having to call it, and without competing with the
+# content above it.
+page = st.navigation(sections)
+page.run()
+
+render_feedback_control(page.title)
