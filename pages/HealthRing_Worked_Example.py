@@ -1405,9 +1405,6 @@ Each measurement window in this dataset carries:
                     f"leaving {windows.n_usable_windows} usable windows."
                 )
 
-    if windows is not None and stage < STAGE_SIGNAL_INSPECTION:
-        if st.button("Continue to signal inspection", type="primary"):
-            TRACKER.advance_to(STAGE_SIGNAL_INSPECTION)
 
 # -----------------------------------------------------------------
 # 2. Signal inspection

@@ -254,6 +254,75 @@ class TestTheControlsMoveWhatComesAfterThem(unittest.TestCase):
         self.assertNotEqual(before, after)
 
 
+class TestContinueActuallyAdvances(unittest.TestCase):
+    """
+    Pressing Continue, rather than setting the position.
+
+    Every other test here moves by writing hr_current, because go_to
+    reruns mid-script and AppTest accumulates the widgets from both
+    passes. That is the right trade for testing state, and it is exactly
+    why a leftover TRACKER.advance_to call survived the migration and
+    crashed the Measurement to Signal transition with a NameError while
+    eleven passing tests said the stage rendered.
+
+    So this presses the button. One transition per session, because
+    chaining eleven clicks in one session runs into an AppTest snapshot
+    limitation rather than anything about the page.
+    """
+
+    def _forward_from(self, stage: int) -> AppTest:
+        app = _at(_loaded(), stage)
+        forward = app.button(key="hr_forward")
+
+        self.assertFalse(
+            forward.disabled,
+            f"Continue is disabled on stage {stage}: {forward.label}",
+        )
+
+        forward.click()
+        app.run()
+
+        return app
+
+    def test_measurement_to_signal_advances(self):
+        """
+        The transition that was broken. A NameError fired here on a
+        constant the migrated page no longer defines.
+        """
+        app = self._forward_from(MEASUREMENT)
+
+        self.assertFalse(app.exception)
+        self.assertEqual(
+            int(app.session_state.filtered_state["hr_current"]), SIGNAL
+        )
+        self.assertIn(
+            STAGE_HEADINGS[SIGNAL],
+            [str(item.value) for item in app.subheader],
+        )
+
+    def test_every_forward_transition_advances_by_one(self):
+        for stage in range(QUESTION, FINISH):
+            app = self._forward_from(stage)
+
+            with self.subTest(stage=stage):
+                self.assertFalse(app.exception)
+                self.assertEqual(
+                    int(app.session_state.filtered_state["hr_current"]),
+                    stage + 1,
+                )
+
+    def test_no_transition_leaves_a_tracker_call_behind(self):
+        """
+        The migration removed TRACKER; a call to it is a NameError on
+        whichever branch reaches it. Checked statically because the one
+        that survived was guarded by an extra condition and so was not
+        matched by the pattern that removed the other ten.
+        """
+        source = (ROOT / PAGE).read_text(encoding="utf-8")
+
+        self.assertNotIn("TRACKER", source)
+
+
 class TestTheArchiveIsNotPresentedAsRequired(unittest.TestCase):
     """
     2.4 GiB against a 200 MB upload cap makes this a local-run route. A
