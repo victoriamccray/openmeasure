@@ -42,6 +42,28 @@ Nothing here erases a downstream selection when an upstream one changes.
 Erasing would be a decision about the reader's work; flagging leaves it
 to them.
 
+The state model is specified
+----------------------------
+Six states, six behaviours, written down in docs/stage-lifecycle.md and
+tested against synthetic pages in shared/tests/test_stage_workspace.py.
+
+That document exists because the first three migrations each discovered a
+rule the previous one had not needed, and a shared component that learns
+its own semantics one page at a time becomes fragile in exactly that way.
+Two of those rules are enforced here rather than left to page code:
+
+- A stage body may not assume its gate still holds. ``furthest`` is
+  remembered independently of the gates, so a stage already reached stays
+  on the rail after its prerequisite disappears. ``render_rail`` returns
+  ``STAGE_UNAVAILABLE`` rather than the current index in that case, so no
+  stage body runs and a page that forgets to check gets an explanation
+  instead of a traceback.
+
+- Raw data does not cross a stage boundary. ``keep`` refuses a DataFrame,
+  so shared/upload.py's promise that nothing retains a reader's data is a
+  refusal rather than a comment. A derived result may cross; the rows it
+  came from may not.
+
 Preserving state
 ----------------
 Streamlit discards a widget's value when the widget is not rendered, and
@@ -49,6 +71,10 @@ in a workspace where only the current stage renders, that is every widget
 in every other stage. keep() and kept() hold a stage's selections in
 session state under their own names, so leaving a stage and coming back
 finds it as it was.
+
+Putting a held value back into its widget is the page's job, because this
+module does not know a page's widget keys. docs/stage-lifecycle.md gives
+the two-line pattern and says what it looks like when a page omits it.
 """
 
 from __future__ import annotations
@@ -61,30 +87,77 @@ import streamlit as st
 
 from shared import feedback
 
-# What a stage is, from the reader's side. Four states rather than
-# reached/not-reached, because "was complete, and something it depended
-# on has changed" is a real situation that neither of the other two
-# describes.
+# What a stage is, from the reader's side. Six rather than two, because
+# "was complete, and something it depended on has changed" and "was
+# reached, and cannot be opened right now" are both real situations that
+# reached/not-reached does not describe.
 STATE_NOT_REACHED = "Not reached"
 STATE_CURRENT = "Current"
 STATE_COMPLETE = "Complete"
 STATE_NEEDS_REVIEW = "Needs review"
+STATE_REVIEWED = "Reviewed"
+STATE_UNAVAILABLE = "Unavailable"
 
 # The mark each state carries on the rail. Shape rather than colour, so
-# the rail is legible without colour and a needs-review stage is
-# distinguishable from a complete one at a glance.
+# the rail is legible without colour and a challenged stage is
+# distinguishable from a settled one at a glance.
+#
+# The circle family means never challenged. The triangle family means
+# challenged, hollow unanswered and filled answered. The slash means the
+# stage cannot be entered right now whatever its history.
 STATE_MARKS = {
     STATE_COMPLETE: "●",
     STATE_CURRENT: "◉",
     STATE_NOT_REACHED: "○",
     STATE_NEEDS_REVIEW: "△",
+    STATE_REVIEWED: "▲",
+    STATE_UNAVAILABLE: "⊘",
 }
+
+# What render_rail returns instead of a stage index when the current
+# stage cannot render. No stage constant equals it, so every
+# `if stage == STAGE_X:` fails and no body runs.
+STAGE_UNAVAILABLE = -1
+
+
+def _digest(value) -> str:
+    """A stable fingerprint of a recorded value."""
+    return hashlib.sha256(
+        json.dumps(value, sort_keys=True, default=str).encode("utf-8")
+    ).hexdigest()
+
+
+def _is_raw_data(value) -> bool:
+    """
+    Whether this is a table of a reader's rows.
+
+    Checked by module rather than by importing pandas, so this module
+    stays free of a dependency it would use for one guard. It catches the
+    obvious mistake, not a frame hidden inside a result object, and not a
+    page writing to st.session_state directly: no type check can promise
+    either, which is why the policy is written down as well as enforced.
+    """
+    return (type(value).__module__ or "").split(".")[0] == "pandas"
+
+
+def _refuse_raw_data(where: str, value) -> None:
+    """Raise if a reader's rows are being put somewhere they persist."""
+    if _is_raw_data(value):
+        raise TypeError(
+            f"{where} was given a {type(value).__name__}. Raw data does "
+            "not cross a stage boundary: a derived result may, and the "
+            "rows behind it may not. See docs/stage-lifecycle.md."
+        )
 
 
 @dataclass(frozen=True)
 class Gate:
     """
     What has to be true before a stage can be entered.
+
+    ``satisfied`` is re-evaluated on every run and may go false again. A
+    stage already reached stays on the rail, so this is not a promise its
+    body can rely on; see STAGE_UNAVAILABLE.
 
     ``optional`` separates information that would improve the analysis
     from information without which the next stage cannot run. A page that
@@ -147,6 +220,25 @@ class StageWorkspace:
         if len(labels) != len(set(labels)):
             raise ValueError("Stage keys must be unique within a workspace.")
 
+        unknown = set(self.gates) - set(labels)
+        if unknown:
+            raise ValueError(
+                f"Gates name stages this workspace does not have: "
+                f"{', '.join(sorted(unknown))}."
+            )
+
+        # A required gate on the opening stage is a deadlock: it blocks
+        # the one screen from which it could be satisfied. An optional
+        # one is fine, and is how a page names a gap without demanding it.
+        first = self.stages[0].key
+        if first in self.gates and self.gates[first].blocks:
+            raise ValueError(
+                f"'{first}' is the opening stage and carries a required "
+                "gate, which would block the only screen able to satisfy "
+                "it. Make the gate optional, or move it to the stage that "
+                "needs it."
+            )
+
     # -- position ----------------------------------------------------
 
     def _name(self, suffix: str) -> str:
@@ -177,6 +269,10 @@ class StageWorkspace:
     def _review(self) -> dict:
         """Stage index -> the labels of the inputs that changed under it."""
         return dict(st.session_state.get(self._name("review"), {}))
+
+    def _settled(self) -> set:
+        """Stages that were flagged and then confirmed by the reader."""
+        return set(st.session_state.get(self._name("settled"), set()))
 
     def _index_of(self, key: str) -> int:
         for index, stage in enumerate(self.stages):
@@ -214,10 +310,7 @@ class StageWorkspace:
         for key in affects:
             self._index_of(key)
 
-        digest = hashlib.sha256(
-            json.dumps(value, sort_keys=True, default=str).encode("utf-8")
-        ).hexdigest()
-
+        digest = _digest(value)
         slot = self._name(f"input_{name}")
         previous = st.session_state.get(slot)
         st.session_state[slot] = digest
@@ -226,6 +319,7 @@ class StageWorkspace:
             return
 
         review = self._review()
+        settled = self._settled()
         changed = False
 
         for key in affects:
@@ -236,22 +330,91 @@ class StageWorkspace:
             causes = set(review.get(index, ()))
             if label not in causes:
                 review[index] = sorted(causes | {label})
+                # A stage vouched for under the previous conditions is
+                # not vouched for under these.
+                settled.discard(index)
                 changed = True
 
         if not changed:
             return
 
         st.session_state[self._name("review")] = review
+        st.session_state[self._name("settled")] = settled
         st.rerun()
 
+    def record_gate_input(self, name: str, value) -> None:
+        """
+        Record a value the gates are computed from, rerunning if it moved.
+
+        The gates are evaluated above the stage that produces their
+        inputs, because a workspace has to know what is reachable before
+        it can draw the rail. So a value written now was not available to
+        the gate that has already been drawn, and without a rerun a
+        reader who has just satisfied a requirement still sees it unmet
+        until some unrelated interaction redraws the page.
+
+        Separate from record_input because this changes what is
+        *reachable* rather than what needs *reviewing*, and conflating
+        them would flag a stage for having become available.
+        """
+        digest = _digest(value)
+        slot = self._name(f"gate_{name}")
+        previous = st.session_state.get(slot)
+        st.session_state[slot] = digest
+
+        if previous is not None and previous != digest:
+            st.rerun()
+
+    def publish(self, key: str, value) -> None:
+        """
+        Store an artifact a later stage's gate tests, redrawing if it is new.
+
+        The write side of a gate. A stage that produces what the next
+        stage requires does so below the rail, and the rail was drawn
+        from the state as it stood before this run. So the first time an
+        artifact appears, the stage it unlocks is still showing as
+        blocked, and stays that way until some unrelated interaction
+        redraws the page.
+
+        record_gate_input does not cover this. It compares digests, and a
+        first write has no previous digest to differ from.
+
+        ``key`` is a plain session-state name rather than a namespaced
+        one, because the gate that tests it is written by the page and
+        has to be able to name the same thing.
+
+        Impact Evaluation hand-rolled this with a first_result flag
+        before it moved here. Portfolio Impact Analysis has six of these
+        artifacts and would have repeated it six times.
+        """
+        _refuse_raw_data(f"publish('{key}')", value)
+
+        first = key not in st.session_state
+        st.session_state[key] = value
+
+        if first:
+            st.rerun()
+
     def clear_review(self, index: int) -> None:
-        """Mark a reviewed stage as settled again."""
+        """
+        Record that a reader confirmed a flagged stage still applies.
+
+        Moves it to Reviewed rather than back to Complete. Complete means
+        nothing has questioned this stage; Reviewed means something did
+        and a person vouched for it anyway, which is a stronger statement
+        and a different provenance.
+        """
         review = self._review()
         review.pop(index, None)
         st.session_state[self._name("review")] = review
+        st.session_state[self._name("settled")] = self._settled() | {index}
 
     def needs_review(self, index: int) -> bool:
         return index in self._review()
+
+    def reviewed(self, index: int) -> bool:
+        """Whether a reader has confirmed this stage after a change."""
+        return index in self._settled()
 
     def review_causes(self, index: int) -> tuple[str, ...]:
         """What changed upstream of a flagged stage."""
@@ -260,10 +423,21 @@ class StageWorkspace:
     # -- state -------------------------------------------------------
 
     def state_of(self, index: int) -> str:
+        """
+        How this stage stands, in one word from STATE_MARKS.
+
+        Unavailable outranks Current: a reader standing on a stage whose
+        prerequisite has gone is not working in it, and a rail that said
+        otherwise would be describing a screen that is not there.
+        """
+        if index <= self.furthest and self.blocked_reason(index):
+            return STATE_UNAVAILABLE
         if index == self.current:
             return STATE_CURRENT
         if self.needs_review(index):
             return STATE_NEEDS_REVIEW
+        if self.reviewed(index):
+            return STATE_REVIEWED
         if index <= self.furthest:
             return STATE_COMPLETE
 
@@ -274,7 +448,7 @@ class StageWorkspace:
 
     def blocked_reason(self, index: int) -> str:
         """
-        Why a stage cannot be entered yet, or an empty string.
+        Why a stage cannot be entered, or an empty string.
 
         A stage is blocked by its own gate, and by every blocking gate
         before it, because reaching stage four through a stage three that
@@ -296,7 +470,14 @@ class StageWorkspace:
         Streamlit drops a widget's value when the widget is not rendered,
         and in a workspace where one stage renders at a time that is every
         widget in every other stage.
+
+        Refuses a reader's rows. A derived result may cross a stage
+        boundary and the data it came from may not, which is
+        shared/upload.py's promise that nothing here retains a reader's
+        data, enforced rather than described.
         """
+        _refuse_raw_data(f"keep('{key}')", value)
+
         st.session_state[self._name(f"kept_{key}")] = value
 
     def kept(self, key: str, default=None):
@@ -307,12 +488,17 @@ class StageWorkspace:
 
     def render_rail(self) -> int:
         """
-        The rail, and the current stage.
+        The rail, and the stage a page should render.
 
         Every reached stage is a button, so going back is a click rather
         than a scroll. An unreached stage is disabled and says what would
         unblock it, which is more use than a control that silently does
         nothing.
+
+        Returns STAGE_UNAVAILABLE, not the current index, when the
+        current stage is blocked. Its prerequisite may have disappeared
+        since the stage was reached, and a body that assumed otherwise is
+        how Impact Evaluation came to call support_boundary_claims("").
         """
         # Left for the feedback footer, which renders after the page and
         # would otherwise have to be passed the stage by every caller.
@@ -338,13 +524,22 @@ class StageWorkspace:
                     self.go_to(index)
                     st.rerun()
 
-                if state == STATE_NEEDS_REVIEW:
+                if state == STATE_UNAVAILABLE or not reachable:
+                    # More actionable than a review cause, so it wins
+                    # where a stage carries both.
+                    st.caption(reason)
+                elif state == STATE_NEEDS_REVIEW:
                     causes = self.review_causes(index)
                     st.caption(
                         f"{', '.join(causes)} changed" if causes else "Review"
                     )
-                elif not reachable:
-                    st.caption(reason)
+
+        if self.state_of(self.current) == STATE_UNAVAILABLE:
+            st.warning(
+                f"{self.stages[self.current].label} was reached earlier "
+                f"and cannot open now. {self.blocked_reason(self.current)}."
+            )
+            return STAGE_UNAVAILABLE
 
         return self.current
 
@@ -370,7 +565,9 @@ class StageWorkspace:
         Back and forward, at the foot of the stage.
 
         Both are shown wherever they exist, so a reader partway down a
-        long stage does not have to return to the rail to move on.
+        long stage does not have to return to the rail to move on. Drawn
+        even where the stage itself could not render, so a prerequisite
+        that disappeared leaves a way out rather than a dead end.
         """
         back_column, forward_column = st.columns(2)
         index = self.current

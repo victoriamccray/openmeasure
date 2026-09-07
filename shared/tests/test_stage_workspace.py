@@ -7,6 +7,17 @@ Exercised through AppTest against small scripts, the same way
 test_journey_stages.py exercises StageTracker, because the behaviour
 under test is what happens across reruns: going back, coming back, and
 what a page remembers in between.
+
+Synthetic pages rather than real ones on purpose. This is where the state
+model in docs/stage-lifecycle.md is established, and a real page's
+data_editor and format_func selectboxes cannot be driven through AppTest,
+which writes the formatted label where the page expects the key. The
+per-page suites read their dependency declarations out of the source with
+ast; that checks configuration, and this checks behaviour.
+
+TestTheLifecycle below covers the six behaviours the specification names,
+one class per behaviour, because the first three migrations each found a
+rule the previous one had not needed.
 """
 
 from __future__ import annotations
@@ -16,12 +27,16 @@ import unittest
 from streamlit.testing.v1 import AppTest
 
 from shared.stage_workspace import (
+    STAGE_UNAVAILABLE,
     STATE_COMPLETE,
     STATE_CURRENT,
     STATE_NEEDS_REVIEW,
     STATE_NOT_REACHED,
+    STATE_REVIEWED,
+    STATE_UNAVAILABLE,
     Gate,
     Stage,
+    StageWorkspace,
 )
 
 _SCRIPT = """
@@ -113,6 +128,55 @@ st.write(f"CAUSES {[list(workspace.review_causes(i)) for i in range(4)]}")
 """
 
 
+_VANISHING = """
+import streamlit as st
+from shared.stage_workspace import Gate, Stage, StageWorkspace, STAGE_UNAVAILABLE
+
+workspace = StageWorkspace(
+    session_key="van",
+    stages=(
+        Stage("data", "Data"),
+        Stage("analyze", "Analyze"),
+        Stage("interpret", "Interpret"),
+    ),
+    gates={
+        "interpret": Gate(
+            satisfied=st.session_state.get("result") is not None,
+            requirement="Run an analysis to continue",
+        ),
+    },
+)
+
+stage = workspace.render_rail()
+workspace.render_review_notice()
+
+if stage == 0:
+    if st.button("Load data"):
+        st.session_state["loaded"] = True
+        st.rerun()
+    if st.button("Load other data"):
+        # What Impact Evaluation does when a second dataset arrives.
+        st.session_state["loaded"] = True
+        st.session_state.pop("result", None)
+        st.rerun()
+    workspace.record_gate_input("loaded", st.session_state.get("loaded", False))
+elif stage == 1:
+    st.write("ANALYZE STAGE")
+    if st.button("Run it"):
+        st.session_state["result"] = {"estimate": 0.4}
+        st.rerun()
+    workspace.record_gate_input("result", st.session_state.get("result"))
+elif stage == 2:
+    # Would raise on None, the way support_boundary_claims("") did.
+    st.write(f"INTERPRET {st.session_state['result']['estimate']}")
+elif stage == STAGE_UNAVAILABLE:
+    st.write("NOTHING RENDERED")
+
+workspace.render_navigation()
+st.write(f"STATES {[workspace.state_of(i) for i in range(3)]}")
+"""
+
+
 def _app() -> AppTest:
     app = AppTest.from_string(_SCRIPT)
     app.run()
@@ -126,6 +190,16 @@ def _click(app: AppTest, label_starts: str) -> AppTest:
             app.run()
             return app
     raise AssertionError(f"no button starting {label_starts!r}")
+
+
+def _vanishing() -> AppTest:
+    app = AppTest.from_string(_VANISHING)
+    app.run()
+    return app
+
+
+def _rendered(app: AppTest) -> str:
+    return " ".join(str(item.value) for item in app.markdown)
 
 
 def _states(app: AppTest) -> list[str]:
@@ -340,6 +414,292 @@ class TestValidation(unittest.TestCase):
     def test_a_stage_without_a_label_is_rejected(self):
         with self.assertRaises(ValueError):
             Stage("key", "  ")
+
+
+class TestAPrerequisiteDisappears(unittest.TestCase):
+    """
+    Behaviour one. A gate makes a stage unreachable while unsatisfied,
+    but furthest is remembered independently, so a stage already reached
+    stays on the rail after its prerequisite goes.
+
+    Impact Evaluation found this by calling support_boundary_claims("")
+    on a session where a second dataset had discarded the estimate.
+    """
+
+    def _reached_then_lost(self) -> AppTest:
+        app = _click(_vanishing(), "Load data")
+        app = _click(app, "Continue to Analyze")
+        app = _click(app, "Run it")
+        app = _click(app, "Continue to Interpret")
+        # Back to the data stage, and load something else.
+        app = _click(app, "← Back to Analyze")
+        app = _click(app, "← Back to Data")
+        return _click(app, "Load other data")
+
+    def test_the_stage_renders_while_its_prerequisite_holds(self):
+        app = _click(_vanishing(), "Load data")
+        app = _click(app, "Continue to Analyze")
+        app = _click(app, "Run it")
+        app = _click(app, "Continue to Interpret")
+
+        self.assertFalse(app.exception)
+        self.assertIn("INTERPRET 0.4", _rendered(app))
+
+    def test_a_reached_stage_becomes_unavailable_rather_than_complete(self):
+        app = self._reached_then_lost()
+
+        self.assertEqual(_states(app)[2], STATE_UNAVAILABLE)
+
+    def test_it_does_not_become_unreached(self):
+        """
+        Unreached would erase the history. The reader did get there.
+        """
+        app = self._reached_then_lost()
+
+        self.assertNotEqual(_states(app)[2], STATE_NOT_REACHED)
+        self.assertEqual(app.session_state["van_furthest"], 2)
+
+    def test_no_stage_body_runs_when_the_current_stage_is_unavailable(self):
+        """
+        The whole point. A page that forgot to re-check gets a blank
+        stage with an explanation, not a traceback.
+        """
+        app = self._reached_then_lost()
+        app.session_state["van_current"] = 2
+        app.run()
+
+        self.assertFalse(app.exception)
+        self.assertIn("NOTHING RENDERED", _rendered(app))
+        self.assertNotIn("INTERPRET", _rendered(app))
+
+    def test_it_says_what_would_open_it_again(self):
+        app = self._reached_then_lost()
+        app.session_state["van_current"] = 2
+        app.run()
+
+        warnings = " ".join(str(item.value) for item in app.warning)
+        self.assertIn("was reached earlier and cannot open now", warnings)
+        self.assertIn("Run an analysis to continue", warnings)
+
+    def test_the_reader_is_not_moved_off_it(self):
+        """
+        Moving someone off a stage they chose would be a decision about
+        their work. Navigation is drawn so they can leave themselves.
+        """
+        app = self._reached_then_lost()
+        app.session_state["van_current"] = 2
+        app.run()
+
+        self.assertEqual(app.session_state["van_current"], 2)
+        self.assertIsNotNone(app.button(key="van_back"))
+
+    def test_the_prerequisite_returning_restores_the_stage(self):
+        app = self._reached_then_lost()
+        app = _click(app, "Continue to Analyze")
+        app = _click(app, "Run it")
+        app.session_state["van_current"] = 2
+        app.run()
+
+        self.assertFalse(app.exception)
+        self.assertIn("INTERPRET 0.4", _rendered(app))
+
+
+class TestAResultDisappears(unittest.TestCase):
+    """
+    Behaviour three, which is behaviour one where the prerequisite is a
+    computed value rather than a reader's selection.
+
+    Stated separately because it is the case that reads as guaranteed and
+    is not.
+    """
+
+    def test_a_gate_on_a_computed_value_is_re_evaluated_every_run(self):
+        app = _click(_vanishing(), "Load data")
+        app = _click(app, "Continue to Analyze")
+        app = _click(app, "Run it")
+
+        self.assertFalse(app.button(key="van_rail_2").disabled)
+
+        app.session_state["result"] = None
+        app.run()
+
+        self.assertTrue(app.button(key="van_rail_2").disabled)
+
+
+class TestARerunHappens(unittest.TestCase):
+    """
+    Behaviour six. The gates are read above the stage that writes what
+    they test, so a value written now was not available to the gate that
+    has already been drawn.
+    """
+
+    def test_satisfying_a_requirement_does_not_lag_a_pass(self):
+        """
+        Impact Evaluation hand-rolled this before it moved into the
+        workspace. Without it a reader who has just satisfied a
+        requirement still sees it unmet.
+        """
+        app = _click(_vanishing(), "Load data")
+        app = _click(app, "Continue to Analyze")
+        app = _click(app, "Run it")
+
+        # One pass, no further interaction: the rail already knows.
+        self.assertFalse(app.button(key="van_rail_2").disabled)
+
+    def test_the_position_and_the_flags_survive_a_rerun(self):
+        app = _click(_vanishing(), "Load data")
+        app = _click(app, "Continue to Analyze")
+        app.run()
+
+        self.assertEqual(app.session_state["van_current"], 1)
+        self.assertEqual(app.session_state["van_furthest"], 1)
+
+    def test_recording_the_same_gate_input_twice_is_a_no_op(self):
+        """
+        Rerunning on an unchanged value would loop.
+        """
+        app = _click(_vanishing(), "Load data")
+        before = app.session_state["van_gate_loaded"]
+        app.run()
+
+        self.assertEqual(app.session_state["van_gate_loaded"], before)
+        self.assertFalse(app.exception)
+
+
+class TestRawDataDoesNotCrossAStage(unittest.TestCase):
+    """
+    Behaviour five. shared/upload.py promises that nothing retains a
+    reader's data, and keep() is where that promise would quietly break.
+    """
+
+    def test_keep_refuses_a_dataframe(self):
+        import pandas as pd
+
+        script = """
+import pandas as pd
+import streamlit as st
+from shared.stage_workspace import Stage, StageWorkspace
+
+workspace = StageWorkspace(
+    session_key="raw",
+    stages=(Stage("a", "A"), Stage("b", "B")),
+)
+try:
+    workspace.keep("frame", pd.DataFrame({"x": [1, 2]}))
+    st.write("KEPT IT")
+except TypeError as error:
+    st.write(f"REFUSED {error}")
+"""
+        app = AppTest.from_string(script)
+        app.run()
+
+        rendered = _rendered(app)
+        self.assertIn("REFUSED", rendered)
+        self.assertIn("Raw data does not cross a stage boundary", rendered)
+        self.assertNotIn("KEPT IT", rendered)
+
+    def test_a_derived_result_is_allowed_through(self):
+        script = """
+import streamlit as st
+from shared.stage_workspace import Stage, StageWorkspace
+from dataclasses import dataclass
+
+@dataclass(frozen=True)
+class Estimate:
+    difference: float
+
+workspace = StageWorkspace(
+    session_key="derived",
+    stages=(Stage("a", "A"), Stage("b", "B")),
+)
+workspace.keep("estimate", Estimate(0.4))
+st.write(f"KEPT {workspace.kept('estimate').difference}")
+"""
+        app = AppTest.from_string(script)
+        app.run()
+
+        self.assertFalse(app.exception)
+        self.assertIn("KEPT 0.4", _rendered(app))
+
+
+class TestReviewedIsNotComplete(unittest.TestCase):
+    """
+    Complete means nothing has questioned this stage. Reviewed means
+    something did and a person vouched for it anyway, which is a stronger
+    statement and a different provenance.
+    """
+
+    def _settled(self) -> AppTest:
+        app = _click(_click(_app(), "Continue to Measures"), "Pick a measure")
+        app = _click(app, "Continue to Timing")
+        app = _click(app, "● Measures")
+        app = _click(app, "Pick another")
+        app = _click(app, "△ Timing")
+        return _click(app, "These still apply")
+
+    def test_a_settled_stage_reads_as_reviewed_once_it_is_left(self):
+        app = _click(self._settled(), "← Back to Measures")
+
+        self.assertEqual(_states(app)[2], STATE_REVIEWED)
+
+    def test_it_is_distinguishable_from_a_stage_nothing_questioned(self):
+        app = _click(self._settled(), "← Back to Measures")
+        states = _states(app)
+
+        self.assertEqual(states[0], STATE_COMPLETE)
+        self.assertEqual(states[2], STATE_REVIEWED)
+
+    def test_another_change_flags_it_again(self):
+        """
+        A stage vouched for under the previous conditions is not vouched
+        for under these.
+        """
+        app = _click(self._settled(), "● Measures")
+        app = _click(app, "Pick a measure")
+
+        self.assertEqual(_states(app)[2], STATE_NEEDS_REVIEW)
+
+
+class TestTheOpeningStageCannotBeGatedShut(unittest.TestCase):
+    def test_a_required_gate_on_the_first_stage_is_rejected(self):
+        """
+        It would block the one screen able to satisfy it.
+        """
+        with self.assertRaises(ValueError) as raised:
+            StageWorkspace(
+                session_key="deadlock",
+                stages=(Stage("a", "A"), Stage("b", "B")),
+                gates={"a": Gate(satisfied=False, requirement="Impossible")},
+            )
+
+        self.assertIn("opening stage", str(raised.exception))
+
+    def test_an_optional_gate_on_the_first_stage_is_fine(self):
+        """
+        Which is how a page names a gap without demanding it. Method
+        Selection's population gate is exactly this.
+        """
+        workspace = StageWorkspace(
+            session_key="ok",
+            stages=(Stage("a", "A"), Stage("b", "B")),
+            gates={
+                "a": Gate(
+                    satisfied=False, requirement="Population", optional=True
+                )
+            },
+        )
+
+        self.assertEqual(workspace.blocked_reason(1), "")
+
+    def test_a_gate_naming_an_absent_stage_is_rejected(self):
+        with self.assertRaises(ValueError) as raised:
+            StageWorkspace(
+                session_key="typo",
+                stages=(Stage("a", "A"), Stage("b", "B")),
+                gates={"c": Gate(satisfied=True, requirement="Something")},
+            )
+
+        self.assertIn("does not have", str(raised.exception))
 
 
 if __name__ == "__main__":

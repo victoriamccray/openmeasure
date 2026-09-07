@@ -393,16 +393,29 @@ class TestTheResultCrossesButTheDataDoesNot(unittest.TestCase):
         """
         The gate is a guard, not a guarantee. Loading a second dataset
         discards the stored estimate while the rail still remembers this
-        stage was reached, and the page has to answer that rather than
-        raise into it.
+        stage was reached.
+
+        The page used to answer this itself, with a message of its own.
+        It is the workspace's job now: render_rail returns
+        STAGE_UNAVAILABLE rather than the stage index, so no page can
+        forget the check. See docs/stage-lifecycle.md.
         """
         app = _at(_answered(), INTERPRET, furthest=INTERPRET)
 
         self.assertFalse(app.exception)
-        self.assertIn(
-            "nothing here to interpret",
-            " ".join(str(item.value) for item in app.info),
-        )
+
+        warnings = " ".join(str(item.value) for item in app.warning)
+        self.assertIn("cannot open now", warnings)
+        self.assertIn("Run an analysis to continue", warnings)
+
+    def test_the_shared_layer_is_what_stops_it_rather_than_the_page(self):
+        """
+        A page-level re-check would work and would also be one more
+        thing every migration has to remember.
+        """
+        source = (ROOT / PAGE).read_text(encoding="utf-8")
+
+        self.assertNotIn("nothing here to interpret", source)
 
     def test_the_stage_says_the_file_is_not_carried(self):
         """
