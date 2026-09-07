@@ -47,7 +47,7 @@ from shared.handoff import (
     fingerprint_dataframe,
 )
 from shared.data_handling import disclosure_for, render_data_handling_summary
-from shared.journey_stages import StageTracker
+from shared.stage_workspace import Gate, Stage, StageWorkspace
 from shared.literature import SEARCH_ERRORS, search_openalex
 from shared.report import (
     section_header,
@@ -1027,10 +1027,13 @@ render_lifecycle_tracker(current_workflow="Impact Evaluation")
 
 render_data_handling_summary(disclosure_for("pages/2_Impact_Evaluation.py"))
 
-# One gated sequence, in the order an evaluation is actually reasoned
-# through. Before this, the page put its case studies, its method
-# discussion, and a standalone teaching example above a numbered upload
-# workflow, so it read as two pages stacked rather than as one path.
+# One workspace, in the order an evaluation is actually reasoned through.
+#
+# Before this the stages revealed cumulatively: reaching the analysis
+# meant scrolling past five earlier decisions, and going back to change
+# one meant scrolling up and hoping. Now one stage occupies the page and
+# the rail is how a reader moves, so changing the field after choosing a
+# design is a click rather than an excavation.
 STAGE_QUESTION = 0
 STAGE_DOMAIN = 1
 STAGE_RESEARCH = 2
@@ -1039,964 +1042,1118 @@ STAGE_EXAMPLE = 4
 STAGE_ANALYZE = 5
 STAGE_INTERPRET = 6
 
-STAGE_LABELS = (
-    "Evaluation question",
-    "Domain",
-    "Find research",
-    "Explore designs",
-    "Interactive example",
-    "Analyze your data",
-    "Interpret",
+# What the gates test, read straight from session state because the gates
+# are needed to build the workspace that holds everything else. The stage
+# that sets each one writes it alongside its kept values.
+question_terms = str(st.session_state.get("pe_question_terms", ""))
+stored_result = st.session_state.get("pe_result")
+
+workspace = StageWorkspace(
+    session_key="pe",
+    stages=(
+        Stage("question", "Question"),
+        Stage("domain", "Domain"),
+        Stage("research", "Research"),
+        Stage("designs", "Designs"),
+        Stage("example", "Example"),
+        Stage("analyze", "Your Data"),
+        Stage("interpret", "Interpret"),
+    ),
+    gates={
+        # The search terms and every later framing come from these two,
+        # so a page that let someone past without them would be asking
+        # them to evaluate an unnamed program.
+        "domain": Gate(
+            satisfied=bool(question_terms),
+            requirement="Name the program and the outcome to continue",
+        ),
+        # Optional. A comparison is what a design is built around, and
+        # naming it makes the design stage sharper, but a reader who has
+        # not settled it should still be able to see what the designs
+        # are.
+        "designs": Gate(
+            satisfied=bool(st.session_state.get("pe_comparison_named")),
+            requirement="Comparison not named",
+            optional=True,
+        ),
+        # There is nothing to interpret until something has been run.
+        "interpret": Gate(
+            satisfied=stored_result is not None,
+            requirement="Run an analysis to continue",
+        ),
+    },
 )
 
-TRACKER = StageTracker(session_key="pe_stage", stage_labels=STAGE_LABELS)
+# Held by the workspace, because the stage that collected each of these
+# does not render while a later one is open, and Streamlit discards a
+# widget's value as soon as its widget stops being drawn.
+entered = workspace.kept("entered", {})
+domain_id = workspace.kept("domain_id", domains.DOMAINS[0].id)
+selected_domain = domains.get_domain(domain_id)
+selected_studies = list(workspace.kept("selected_studies", []))
+recommendation = st.session_state.get("pe_recommendation")
+context = st.session_state.get("pe_context", {})
 
-stage = TRACKER.render_breadcrumb()
-TRACKER.render_restart_button(
-    extra_session_keys=(
-        "pe_recommendation",
-        "pe_context",
-        "pe_uploaded_file_id",
-        "pe_run",
-        "pe_search_results",
-        "pe_search_provenance",
-        "pe_selected_studies",
-    )
-)
+stage = workspace.render_rail()
+workspace.render_review_notice()
 
-# Stages reveal one at a time by stopping the script rather than by
-# indenting each stage into a block. The analysis further down is the same
-# code it was before this sequence existed, which a re-indentation would
-# have quietly put at risk.
+
+def stop_here() -> None:
+    """
+    End a stage early without stranding the reader.
+
+    A stage that cannot go further still has to offer the way back, and a
+    bare st.stop() below the rail would leave nothing but the rail.
+    """
+    workspace.render_navigation()
+    st.stop()
+
 
 # ---------------------------------------------------------------------
 # 1. Evaluation question
 # ---------------------------------------------------------------------
 
-section_header(
-    "1. Evaluation Question",
-    "What is being evaluated, for whom, against what, and over what period",
-)
+if stage == STAGE_QUESTION:
+    # Restored rather than re-typed. These widgets are gone from session
+    # state while a later stage is open, so coming back would otherwise find
+    # an empty form and a question that survived only in the record.
+    for field, remembered in entered.items():
+        slot = f"pe_q_{field}"
+        if remembered and slot not in st.session_state:
+            st.session_state[slot] = remembered
 
-question_columns = st.columns(2)
-with question_columns[0]:
-    q_program = st.text_input(
-        "Program or intervention",
-        key="pe_q_program",
-        placeholder="e.g. text-message appointment reminders",
-    )
-    q_population = st.text_input(
-        "Population",
-        key="pe_q_population",
-        placeholder="e.g. adult primary-care patients",
-    )
-    q_timing = st.text_input(
-        "Timing",
-        key="pe_q_timing",
-        placeholder="e.g. six months before and after launch",
-    )
-with question_columns[1]:
-    q_outcome = st.text_input(
-        "Outcome",
-        key="pe_q_outcome",
-        placeholder="e.g. share of appointments kept",
-    )
-    q_comparison = st.text_input(
-        "Comparison",
-        key="pe_q_comparison",
-        placeholder="e.g. a similar clinic that sent no reminders",
+    if st.button("Start over"):
+        for key in [name for name in st.session_state if str(name).startswith("pe_")]:
+            st.session_state.pop(key, None)
+        st.rerun()
+
+    section_header(
+        "Evaluation Question",
+        "What is being evaluated, for whom, against what, and over what period",
     )
 
-question_terms = " ".join(
-    part.strip() for part in (q_program, q_outcome) if part.strip()
-)
+    question_columns = st.columns(2)
+    with question_columns[0]:
+        q_program = st.text_input(
+            "Program or intervention",
+            key="pe_q_program",
+            placeholder="e.g. text-message appointment reminders",
+        )
+        q_population = st.text_input(
+            "Population",
+            key="pe_q_population",
+            placeholder="e.g. adult primary-care patients",
+        )
+        q_timing = st.text_input(
+            "Timing",
+            key="pe_q_timing",
+            placeholder="e.g. six months before and after launch",
+        )
+    with question_columns[1]:
+        q_outcome = st.text_input(
+            "Outcome",
+            key="pe_q_outcome",
+            placeholder="e.g. share of appointments kept",
+        )
+        q_comparison = st.text_input(
+            "Comparison",
+            key="pe_q_comparison",
+            placeholder="e.g. a similar clinic that sent no reminders",
+        )
 
-if question_terms:
-    st.caption(
-        "These words seed the literature search two stages on. Nothing is "
-        "sent anywhere until you run that search."
+    question_terms = " ".join(
+        part.strip() for part in (q_program, q_outcome) if part.strip()
     )
 
-case_study_note(
-    "head_start_impact_study",
-    "A question names an outcome and the period it is measured over, and "
-    "an evaluation answers it only for those. Settling both here is what "
-    "keeps a later result from being read as a claim about outcomes it "
-    "never measured, or about a period it never covered.",
-)
+    if question_terms:
+        st.caption(
+            "These words seed the literature search two stages on. Nothing is "
+            "sent anywhere until you run that search."
+        )
 
-if stage < STAGE_DOMAIN:
-    if st.button(
-        "Continue to domain",
-        type="primary",
-        disabled=not question_terms,
-    ):
-        TRACKER.advance_to(STAGE_DOMAIN)
-    if not question_terms:
-        st.caption("Name at least the program and the outcome to continue.")
-    st.stop()
+    case_study_note(
+        "head_start_impact_study",
+        "A question names an outcome and the period it is measured over, and "
+        "an evaluation answers it only for those. Settling both here is what "
+        "keeps a later result from being read as a claim about outcomes it "
+        "never measured, or about a period it never covered.",
+    )
+
+
+    workspace.keep(
+        "entered",
+        {
+            "program": q_program,
+            "population": q_population,
+            "timing": q_timing,
+            "outcome": q_outcome,
+            "comparison": q_comparison,
+        },
+    )
+
+    # Written as plain keys too, since the gates are evaluated above,
+    # before this stage renders.
+    #
+    # And rerun when either changes, because the rail was drawn from the
+    # previous values. Without it, a question typed just now would leave
+    # the next stage locked until some unrelated interaction redrew the
+    # page, which reads as the gate not working.
+    comparison_named = bool(q_comparison.strip())
+    gate_moved = (
+        st.session_state.get("pe_question_terms") != question_terms
+        or st.session_state.get("pe_comparison_named") != comparison_named
+    )
+    st.session_state["pe_question_terms"] = question_terms
+    st.session_state["pe_comparison_named"] = comparison_named
+
+    # The question feeds the search and nothing else. Rewording it does not
+    # invalidate a design comparison, and a page that said it did would train
+    # a reader to dismiss the flag.
+    workspace.record_input(
+        "question",
+        [q_program, q_outcome],
+        affects=("research",),
+        label="Evaluation question",
+    )
+
+    if gate_moved:
+        st.rerun()
 
 # ---------------------------------------------------------------------
 # 2. Domain
 # ---------------------------------------------------------------------
 
-section_header(
-    "2. Domain",
-    "Your field, which sets vocabulary and search terms and nothing else",
-)
+if stage == STAGE_DOMAIN:
+    if "pe_domain" not in st.session_state:
+        st.session_state["pe_domain"] = domain_id
 
-domain_labels = {domain.id: domain.label for domain in domains.DOMAINS}
-domain_id = st.selectbox(
-    "Field of practice",
-    options=list(domain_labels),
-    format_func=lambda key: domain_labels[key],
-    key="pe_domain",
-)
-selected_domain = domains.get_domain(domain_id)
-
-st.caption(
-    "The field changes the words this page uses, the terms it suggests "
-    "for a literature search, and which telling of the worked example you "
-    "see. It does not change which method is recommended, or what any "
-    "statistic comes out as."
-)
-
-st.markdown("**How this field names each design concept**")
-st.dataframe(
-    pd.DataFrame(
-        {
-            "Concept": list(domains.CONCEPTS),
-            "In this field": [
-                selected_domain.term_for(concept) for concept in domains.CONCEPTS
-            ],
-        }
-    ),
-    width="stretch",
-    hide_index=True,
-)
-
-if selected_domain.outcomes:
-    st.markdown("**Outcomes this field commonly measures**")
-    for outcome_suggestion in selected_domain.outcomes:
-        st.write(f"- {outcome_suggestion.label}")
-        if outcome_suggestion.caveat:
-            st.caption(outcome_suggestion.caveat)
-    inspect_note(
-        "The notes under some outcomes. They describe what that measure "
-        "responds to besides the thing being studied."
+    section_header(
+        "Domain",
+        "Your field, which sets vocabulary and search terms and nothing else",
     )
-else:
+
+    domain_labels = {domain.id: domain.label for domain in domains.DOMAINS}
+    domain_id = st.selectbox(
+        "Field of practice",
+        options=list(domain_labels),
+        format_func=lambda key: domain_labels[key],
+        key="pe_domain",
+    )
+    selected_domain = domains.get_domain(domain_id)
+
     st.caption(
-        "No field-specific outcome suggestions, so the search below uses "
-        "your own words alone."
+        "The field changes the words this page uses, the terms it suggests "
+        "for a literature search, and which telling of the worked example you "
+        "see. It does not change which method is recommended, or what any "
+        "statistic comes out as."
     )
 
-if stage < STAGE_RESEARCH:
-    if st.button("Continue to find research", type="primary"):
-        TRACKER.advance_to(STAGE_RESEARCH)
-    st.stop()
+    st.markdown("**How this field names each design concept**")
+    st.dataframe(
+        pd.DataFrame(
+            {
+                "Concept": list(domains.CONCEPTS),
+                "In this field": [
+                    selected_domain.term_for(concept) for concept in domains.CONCEPTS
+                ],
+            }
+        ),
+        width="stretch",
+        hide_index=True,
+    )
+
+    if selected_domain.outcomes:
+        st.markdown("**Outcomes this field commonly measures**")
+        for outcome_suggestion in selected_domain.outcomes:
+            st.write(f"- {outcome_suggestion.label}")
+            if outcome_suggestion.caveat:
+                st.caption(outcome_suggestion.caveat)
+        inspect_note(
+            "The notes under some outcomes. They describe what that measure "
+            "responds to besides the thing being studied."
+        )
+    else:
+        st.caption(
+            "No field-specific outcome suggestions, so the search below uses "
+            "your own words alone."
+        )
+
+
+    workspace.keep("domain_id", domain_id)
+
+    # The field decides the search terms, the words on the design cards and
+    # which telling of the worked example appears. It decides nothing about
+    # the analysis, so the analysis stages are not flagged.
+    workspace.record_input(
+        "domain",
+        domain_id,
+        affects=("research", "designs", "example"),
+        label="Field of practice",
+    )
 
 # ---------------------------------------------------------------------
 # 3. Find research
 # ---------------------------------------------------------------------
 
-section_header(
-    "3. Find Research",
-    "Optional: how this question has been studied before",
-)
+if stage == STAGE_RESEARCH:
+    section_header(
+        "Find Research",
+        "Optional: how this question has been studied before",
+    )
 
-st.info(
-    "Published work informs your reasoning here. It does not choose your "
-    "method. Whatever design these studies used, the designs the next "
-    "stage surfaces come from your own answers and your data's shape."
-)
+    st.info(
+        "Published work informs your reasoning here. It does not choose your "
+        "method. Whatever design these studies used, the designs the next "
+        "stage surfaces come from your own answers and your data's shape."
+    )
 
-default_query = domains.build_search_query(question_terms, domain_id)
-query = st.text_input(
-    "Search terms sent to OpenAlex",
-    value=default_query,
-    key="pe_query",
-)
-st.caption(
-    "Editable, and sent as written. A question phrased as a sentence "
-    "carries words like \"did\" and \"our\" into the match, so trimming it "
-    "to the terms you would expect in a title usually returns closer "
-    "work."
-)
+    default_query = domains.build_search_query(question_terms, domain_id)
 
-if st.button("Search OpenAlex", disabled=not query.strip()):
-    try:
-        st.session_state["pe_search_results"] = search_openalex(query)
-        # Provenance for a later Evaluation Record: the query actually
-        # sent (which the reader may have edited), the field context it
-        # was composed under, and when it ran. Captured at search time
-        # because none of it can be reconstructed afterwards.
-        st.session_state["pe_search_provenance"] = {
-            "query": query,
-            "domain_id": domain_id,
-            "retrieved_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        }
-    except SEARCH_ERRORS as error:
-        st.session_state["pe_search_results"] = []
-        st.error(f"The search could not be completed: {error}")
+    # Seeded rather than passed as value=. This stage is left and returned
+    # to, and a value= alongside a key Streamlit has already been handed by
+    # name is the one combination it warns about.
+    if "pe_query" not in st.session_state:
+        st.session_state["pe_query"] = workspace.kept("query", "") or default_query
 
-raw_results = st.session_state.get("pe_search_results")
-
-if raw_results:
-    rows = research.research_rows(raw_results, question_terms)
-
-    # One result per block, each saying what it shares with the question.
-    # As a table it was five columns of metadata and an overlap count,
-    # which gave a reader no way to tell a study of their program from a
-    # heavily cited guideline that happens to contain the word "program".
-    # The words behind the count answer that immediately, and they were
-    # already being computed and discarded.
-    for row in rows:
-        record = row.record
-        st.markdown(f"**[{record.title}]({record.url})**")
-
-        provenance = " · ".join(
-            part
-            for part in (record.author_summary, str(record.year or ""), record.venue)
-            if part
-        )
-        st.caption(f"{provenance}  \n{row.shared_words_summary()}")
-
-    with st.expander("All results, as a table"):
-        st.dataframe(
-            pd.DataFrame([row.as_display_row() for row in rows]),
-            width="stretch",
-            hide_index=True,
-        )
-
+    query = st.text_input("Search terms sent to OpenAlex", key="pe_query")
     st.caption(
-        f"{research.OVERLAP_COLUMN} counts words your question and a "
-        "result's title or abstract have in common. Relevance is yours to "
-        "judge."
+        "Editable, and sent as written. A question phrased as a sentence "
+        "carries words like \"did\" and \"our\" into the match, so trimming it "
+        "to the terms you would expect in a title usually returns closer "
+        "work."
     )
 
-    st.multiselect(
-        "Studies worth keeping in mind",
-        options=research.selectable_titles(rows),
-        key="pe_selected_studies",
-    )
-elif raw_results is not None:
-    st.caption("That search returned no results. Try broader terms.")
+    if st.button("Search OpenAlex", disabled=not query.strip()):
+        try:
+            st.session_state["pe_search_results"] = search_openalex(query)
+            # Provenance for a later Evaluation Record: the query actually
+            # sent (which the reader may have edited), the field context it
+            # was composed under, and when it ran. Captured at search time
+            # because none of it can be reconstructed afterwards.
+            st.session_state["pe_search_provenance"] = {
+                "query": query,
+                "domain_id": domain_id,
+                "retrieved_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            }
+        except SEARCH_ERRORS as error:
+            st.session_state["pe_search_results"] = []
+            st.error(f"The search could not be completed: {error}")
 
-if stage < STAGE_DESIGNS:
-    skip_column, continue_column = st.columns(2)
-    with continue_column:
-        if st.button("Continue to designs", type="primary"):
-            TRACKER.advance_to(STAGE_DESIGNS)
-    with skip_column:
-        if st.button("Skip this step"):
-            TRACKER.advance_to(STAGE_DESIGNS)
-    st.stop()
+    raw_results = st.session_state.get("pe_search_results")
+
+    if raw_results:
+        rows = research.research_rows(raw_results, question_terms)
+
+        # One result per block, each saying what it shares with the question.
+        # As a table it was five columns of metadata and an overlap count,
+        # which gave a reader no way to tell a study of their program from a
+        # heavily cited guideline that happens to contain the word "program".
+        # The words behind the count answer that immediately, and they were
+        # already being computed and discarded.
+        for row in rows:
+            record = row.record
+            st.markdown(f"**[{record.title}]({record.url})**")
+
+            provenance = " · ".join(
+                part
+                for part in (record.author_summary, str(record.year or ""), record.venue)
+                if part
+            )
+            st.caption(f"{provenance}  \n{row.shared_words_summary()}")
+
+        with st.expander("All results, as a table"):
+            st.dataframe(
+                pd.DataFrame([row.as_display_row() for row in rows]),
+                width="stretch",
+                hide_index=True,
+            )
+
+        st.caption(
+            f"{research.OVERLAP_COLUMN} counts words your question and a "
+            "result's title or abstract have in common. Relevance is yours to "
+            "judge."
+        )
+
+        titles = research.selectable_titles(rows)
+
+        # Restored only where the title is still on offer. A later search
+        # returns different results, and seeding a selection that is not
+        # among the options is an error rather than a preserved choice.
+        if "pe_selected_studies" not in st.session_state:
+            st.session_state["pe_selected_studies"] = [
+                title for title in selected_studies if title in titles
+            ]
+
+        workspace.keep(
+            "selected_studies",
+            list(
+                st.multiselect(
+                    "Studies worth keeping in mind",
+                    options=titles,
+                    key="pe_selected_studies",
+                )
+            ),
+        )
+    elif raw_results is not None:
+        st.caption("That search returned no results. Try broader terms.")
+
+
+    workspace.keep("query", st.session_state.get("pe_query", ""))
 
 # ---------------------------------------------------------------------
 # 4. Explore designs
 # ---------------------------------------------------------------------
 
-section_header(
-    "4. Explore Designs",
-    "What each design compares, and what it can support",
-)
+if stage == STAGE_DESIGNS:
+    section_header(
+        "Explore Designs",
+        "What each design compares, and what it can support",
+    )
 
-selected_studies = st.session_state.get("pe_selected_studies") or []
-if selected_studies:
-    with st.expander(f"Studies you kept ({len(selected_studies)})"):
-        for title in selected_studies:
-            st.write(f"- {title}")
-        st.caption(
-            "Shown as context. Which design fits depends on your own "
-            "answers and your data's shape, not on what these studies did."
-        )
+    if selected_studies:
+        with st.expander(f"Studies you kept ({len(selected_studies)})"):
+            for title in selected_studies:
+                st.write(f"- {title}")
+            st.caption(
+                "Shown as context. Which design fits depends on your own "
+                "answers and your data's shape, not on what these studies did."
+            )
 
-# One large card per design, instead of three thumbnails above a
-# three-column table. The diagram is the explanation here rather than an
-# illustration beside one: a reader who sees what a design observes
-# already knows why it leaves what it leaves open, and the table was
-# asking them to reconstruct that from three cells of prose.
-st.caption(
-    "Each dot is a unit, each cluster a group, and horizontal distance is "
-    "time between observations."
-)
+    # One large card per design, instead of three thumbnails above a
+    # three-column table. The diagram is the explanation here rather than an
+    # illustration beside one: a reader who sees what a design observes
+    # already knows why it leaves what it leaves open, and the table was
+    # asking them to reconstruct that from three cells of prose.
+    st.caption(
+        "Each dot is a unit, each cluster a group, and horizontal distance is "
+        "time between observations."
+    )
 
-for design in designs.DESIGN_OPTIONS:
-    st.markdown(f"#### {design.label}")
-    diagram_column, detail_column = st.columns([1, 1])
+    for design in designs.DESIGN_OPTIONS:
+        st.markdown(f"#### {design.label}")
+        diagram_column, detail_column = st.columns([1, 1])
 
-    with diagram_column:
-        st.markdown(
-            _design_diagram_svg(
-                design.id,
-                selected_domain.term_for(domains.CONCEPT_TREATMENT_GROUP),
-                selected_domain.term_for(domains.CONCEPT_COMPARISON_GROUP),
-            ),
-            unsafe_allow_html=True,
-        )
+        with diagram_column:
+            st.markdown(
+                _design_diagram_svg(
+                    design.id,
+                    selected_domain.term_for(domains.CONCEPT_TREATMENT_GROUP),
+                    selected_domain.term_for(domains.CONCEPT_COMPARISON_GROUP),
+                ),
+                unsafe_allow_html=True,
+            )
 
-    with detail_column:
-        # Rendered from cells_for() rather than restated, so the words
-        # beside the diagram are the same ones the module tests hold to
-        # one short sentence each.
-        for heading, cell in design.cells_for(selected_domain).items():
-            st.markdown(f"**{heading}**  \n{cell}")
+        with detail_column:
+            # Rendered from cells_for() rather than restated, so the words
+            # beside the diagram are the same ones the module tests hold to
+            # one short sentence each.
+            for heading, cell in design.cells_for(selected_domain).items():
+                st.markdown(f"**{heading}**  \n{cell}")
 
-        # The published example sits inside the card it is about. Placed
-        # after the cards, as a list of three, it read as a reading list;
-        # placed here it is evidence about this design, at the point
-        # someone is weighing it.
-        if design.case_study_key:
-            case_study_note(design.case_study_key, design.case_study_connection)
+            # The published example sits inside the card it is about. Placed
+            # after the cards, as a list of three, it read as a reading list;
+            # placed here it is evidence about this design, at the point
+            # someone is weighing it.
+            if design.case_study_key:
+                case_study_note(design.case_study_key, design.case_study_connection)
 
-inspect_note(
-    "What each design leaves open. Every design leaves something, and "
-    "which of those you can live with is usually what decides between "
-    "them."
-)
+    inspect_note(
+        "What each design leaves open. Every design leaves something, and "
+        "which of those you can live with is usually what decides between "
+        "them."
+    )
 
-implications(designs.DESIGN_CHOICE_IMPLICATION)
+    implications(designs.DESIGN_CHOICE_IMPLICATION)
 
-if stage < STAGE_EXAMPLE:
-    if st.button("Continue to the worked example", type="primary"):
-        TRACKER.advance_to(STAGE_EXAMPLE)
-    st.stop()
 
 # ---------------------------------------------------------------------
 # 5. Interactive example
 # ---------------------------------------------------------------------
 
-section_header(
-    "5. Interactive Example",
-    "Work the comparison yourself, on numbers you can move",
-)
+if stage == STAGE_EXAMPLE:
+    section_header(
+        "Interactive Example",
+        "Work the comparison yourself, on numbers you can move",
+    )
 
-render_did_teaching_example(domain_id)
+    render_did_teaching_example(domain_id)
 
-if stage < STAGE_ANALYZE:
-    if st.button("Continue to your own data", type="primary"):
-        TRACKER.advance_to(STAGE_ANALYZE)
-    st.stop()
 
 # ---------------------------------------------------------------------
 # 6. Analyze your data
 # ---------------------------------------------------------------------
 
-section_header("6. Analyze Your Data", "CSV file, one row per participant")
+if stage == STAGE_ANALYZE:
+    section_header("Analyze Your Data", "CSV file, one row per participant")
 
-loaded = render_data_entry(
-    MODULE_PROGRAM_EVALUATION,
-    empty_prompt=(
-        "Load the sample dataset to try a comparison straight away, or "
-        "upload your own CSV."
-    ),
-)
-
-if loaded is None:
-    st.stop()
-
-df = loaded.frame
-profile = dp_profile.profile_dataframe(df)
-
-# Discard a recommendation carried over from different data. Without this,
-# loading a second dataset whose column names happen to match the first
-# would analyze the new data under the previous plan, silently.
-if st.session_state.get("pe_uploaded_file_id") != loaded.token:
-    st.session_state["pe_uploaded_file_id"] = loaded.token
-    st.session_state.pop("pe_recommendation", None)
-    st.session_state.pop("pe_run", None)
-    st.session_state.pop("pe_context", None)
-
-# The portrait leads, then the values, then the detail. A row count and
-# five rows of raw values were the focal point here, and neither says
-# what a reader is about to be asked: which columns exist, what each
-# looks like, and whether any of them have holes in them.
-render_dataset_portrait(
-    profile, source_name=loaded.name, is_sample=loaded.is_sample
-)
-
-with st.expander("The first rows, as loaded"):
-    st.dataframe(df.head(), width="stretch")
-
-render_data_profile(df, profile=profile)
-
-# Column defaults come from the data profile's role guesses, so the
-# zero-friction path opens on a meaningful analysis rather than on
-# whichever column happens to be first. An identifier column stays
-# selectable; it is simply not the default. Without this the bundled
-# example opened with participant_id as its outcome, produced a
-# technically valid but meaningless comparison, and only warned about it
-# two steps later.
-DESIGN_GROUPS = "Two or more groups"
-DESIGN_PRE_POST = "Pre/post (same participants)"
-DESIGN_DID = "Two groups, each measured before and after"
-
-design = st.radio(
-    "What are you comparing?",
-    options=[DESIGN_GROUPS, DESIGN_PRE_POST, DESIGN_DID],
-    index=0,
-)
-
-recommendation = None
-context = {}
-
-if design == DESIGN_GROUPS:
-    outcome_options = list(df.columns)
-    outcome_col = st.selectbox(
-        "Outcome column",
-        options=outcome_options,
-        index=default_index(outcome_options, default_outcome_column(profile, outcome_options)),
-    )
-    group_options = [c for c in df.columns if c != outcome_col]
-    group_col = st.selectbox(
-        "Group column",
-        options=group_options,
-        index=default_index(group_options, default_group_column(profile, group_options)),
-    )
-    is_multiselect = st.checkbox(
-        "This group column allows multiple selections per participant "
-        "(e.g. a comma-separated demographic field)",
-        value=False,
-    )
-    delimiter = ","
-    if is_multiselect:
-        delimiter = st.text_input("Delimiter used to separate multiple selections", value=",")
-
-    context = {
-        "outcome_col": outcome_col,
-        "group_col": group_col,
-        "is_multiselect": is_multiselect,
-        "delimiter": delimiter,
-    }
-
-    if st.button("Get recommendation", type="primary"):
-        try:
-            recommendation = rec.recommend_method(
-                df,
-                outcome_col=outcome_col,
-                group_col=group_col,
-                is_multiselect_group=is_multiselect,
-                multiselect_delimiter=delimiter,
-            )
-        except (ValueError, TypeError) as e:
-            st.error(str(e))
-            st.stop()
-
-elif design == DESIGN_PRE_POST:
-    pre_options = list(df.columns)
-    default_pre, default_post = default_prepost_columns(profile, pre_options)
-    pre_col = st.selectbox(
-        "Pre (baseline) column",
-        options=pre_options,
-        index=default_index(pre_options, default_pre),
-    )
-    post_options = [c for c in df.columns if c != pre_col]
-    post_col = st.selectbox(
-        "Post (follow-up) column",
-        options=post_options,
-        index=default_index(post_options, default_post),
-    )
-    context = {"pre_col": pre_col, "post_col": post_col}
-
-    if st.button("Get recommendation", type="primary"):
-        try:
-            recommendation = rec.recommend_method(df, pre_col=pre_col, post_col=post_col)
-        except (ValueError, TypeError) as e:
-            st.error(str(e))
-            st.stop()
-
-else:
     st.caption(
-        "This design needs one row per unit, a column marking which two "
-        "groups the units belong to, and that unit's outcome measured at "
-        "the same two time points in two more columns."
+        "An uploaded file belongs to this stage rather than to the session, "
+        "so returning here later means loading it again. What an analysis "
+        "produces is carried forward; the rows behind it are not."
     )
 
-    group_options = list(df.columns)
-    group_col = st.selectbox(
-        "Group column (which units were treated)",
-        options=group_options,
-        index=default_index(group_options, default_group_column(profile, group_options)),
-    )
-    remaining = [c for c in df.columns if c != group_col]
-    default_pre, default_post = default_prepost_columns(profile, remaining)
-    pre_col = st.selectbox(
-        "Pre (baseline) column",
-        options=remaining,
-        index=default_index(remaining, default_pre),
-    )
-    post_options = [c for c in remaining if c != pre_col]
-    post_col = st.selectbox(
-        "Post (follow-up) column",
-        options=post_options,
-        index=default_index(post_options, default_post),
+    loaded = render_data_entry(
+        MODULE_PROGRAM_EVALUATION,
+        empty_prompt=(
+            "Load the sample dataset to try a comparison straight away, or "
+            "upload your own CSV."
+        ),
     )
 
-    group_values = sorted(df[group_col].dropna().unique().tolist(), key=str)
-    treated_label = st.selectbox(
-        "Which group received the program?",
-        options=group_values,
+    if loaded is None:
+        stop_here()
+
+    df = loaded.frame
+    profile = dp_profile.profile_dataframe(df)
+
+    # Discard a recommendation carried over from different data. Without this,
+    # loading a second dataset whose column names happen to match the first
+    # would analyze the new data under the previous plan, silently.
+    if st.session_state.get("pe_uploaded_file_id") != loaded.token:
+        st.session_state["pe_uploaded_file_id"] = loaded.token
+        st.session_state.pop("pe_recommendation", None)
+        st.session_state.pop("pe_run", None)
+        st.session_state.pop("pe_context", None)
+        # And the result the interpretation stage reads. Leaving it would
+        # let a reader interpret one dataset's estimate under the next
+        # dataset's heading.
+        st.session_state.pop("pe_result", None)
+        st.session_state.pop("pe_method", None)
+
+    # The portrait leads, then the values, then the detail. A row count and
+    # five rows of raw values were the focal point here, and neither says
+    # what a reader is about to be asked: which columns exist, what each
+    # looks like, and whether any of them have holes in them.
+    render_dataset_portrait(
+        profile, source_name=loaded.name, is_sample=loaded.is_sample
     )
-    st.caption(
-        "Nothing in the data marks which group was treated, and this choice "
-        "sets the sign of the estimate, so it is asked rather than guessed."
+
+    with st.expander("The first rows, as loaded"):
+        st.dataframe(df.head(), width="stretch")
+
+    render_data_profile(df, profile=profile)
+
+    # Column defaults come from the data profile's role guesses, so the
+    # zero-friction path opens on a meaningful analysis rather than on
+    # whichever column happens to be first. An identifier column stays
+    # selectable; it is simply not the default. Without this the bundled
+    # example opened with participant_id as its outcome, produced a
+    # technically valid but meaningless comparison, and only warned about it
+    # two steps later.
+    DESIGN_GROUPS = "Two or more groups"
+    DESIGN_PRE_POST = "Pre/post (same participants)"
+    DESIGN_DID = "Two groups, each measured before and after"
+
+    # Kept, because the sample dataset survives leaving this stage even
+    # though an upload does not, and coming back to find the design reset
+    # to the first option while the data is still loaded would look like
+    # the page had changed its mind.
+    if "pe_design" not in st.session_state:
+        st.session_state["pe_design"] = workspace.kept("design", DESIGN_GROUPS)
+
+    design = st.radio(
+        "What are you comparing?",
+        options=[DESIGN_GROUPS, DESIGN_PRE_POST, DESIGN_DID],
+        key="pe_design",
     )
+    workspace.keep("design", design)
 
-    context = {
-        "group_col": group_col,
-        "pre_col": pre_col,
-        "post_col": post_col,
-        "treated_label": treated_label,
-    }
+    recommendation = None
+    context = {}
 
-    if st.button("Get recommendation", type="primary"):
-        try:
-            recommendation = rec.recommend_method(
-                df,
-                group_col=group_col,
-                pre_col=pre_col,
-                post_col=post_col,
-            )
-        except (ValueError, TypeError) as e:
-            st.error(str(e))
-            st.stop()
-
-if recommendation is not None:
-    st.session_state["pe_recommendation"] = recommendation
-    st.session_state["pe_context"] = context
-    # A fresh recommendation invalidates whatever was last run. Without
-    # this, changing the design would show the previous analysis's result
-    # underneath the new recommendation without anyone pressing Run.
-    st.session_state.pop("pe_run", None)
-
-if "pe_recommendation" in st.session_state:
-    recommendation = st.session_state["pe_recommendation"]
-    context = st.session_state["pe_context"]
-
-    section_header("Recommendation")
-    st.markdown(f"**{recommendation.display_name}**")
-    for r in recommendation.reasoning:
-        st.write(f"- {r}")
-    for w in recommendation.warnings:
-        st.warning(w)
-
-    if not recommendation.supported:
-        st.error(
-            "This method is not yet implemented in OpenMeasure. "
-            "See the module README for current scope."
+    if design == DESIGN_GROUPS:
+        outcome_options = list(df.columns)
+        outcome_col = st.selectbox(
+            "Outcome column",
+            options=outcome_options,
+            index=default_index(outcome_options, default_outcome_column(profile, outcome_options)),
         )
-        st.stop()
+        group_options = [c for c in df.columns if c != outcome_col]
+        group_col = st.selectbox(
+            "Group column",
+            options=group_options,
+            index=default_index(group_options, default_group_column(profile, group_options)),
+        )
+        is_multiselect = st.checkbox(
+            "This group column allows multiple selections per participant "
+            "(e.g. a comma-separated demographic field)",
+            value=False,
+        )
+        delimiter = ","
+        if is_multiselect:
+            delimiter = st.text_input("Delimiter used to separate multiple selections", value=",")
 
-    if st.button("Run analysis", type="primary"):
-        st.session_state["pe_run"] = True
+        context = {
+            "outcome_col": outcome_col,
+            "group_col": group_col,
+            "is_multiselect": is_multiselect,
+            "delimiter": delimiter,
+        }
 
-    # Gated on stored state rather than on the button, because st.button
-    # is True only on the pass that clicked it. The result section holds
-    # interactive elements of its own (the effect-size step-through), and
-    # touching one of those reruns the script; under a button gate the
-    # rerun found run_clicked False and the entire result vanished, which
-    # read as the page jumping back a step. Recomputing costs nothing at
-    # these sizes and keeps the displayed result and the analysis the
-    # same object.
-    if st.session_state.get("pe_run"):
-        method = recommendation.method
-        result = None
-
-        try:
-            if method == "compare_two_groups":
-                result = comp.compare_two_groups(df, context["group_col"], context["outcome_col"])
-
-                section_header("Result")
-                c1, c2 = st.columns(2)
-                c1.metric(f"{result.group_a_label} mean", f"{result.mean_a:.2f}", f"n={result.n_a}")
-                c2.metric(f"{result.group_b_label} mean", f"{result.mean_b:.2f}", f"n={result.n_b}")
-
-                m1, m2, m3 = st.columns(3)
-                m1.metric("t-statistic", f"{result.t_statistic:.2f}")
-                m2.metric("p-value", f"{result.p_value:.4f}")
-                m3.metric("Cohen's d", f"{result.cohens_d:.2f}")
-
-                st.caption(
-                    f"Mean difference: {result.mean_difference:.2f} "
-                    f"(95% CI: {result.ci_95_low:.2f} to {result.ci_95_high:.2f}), "
-                    f"df = {result.degrees_of_freedom:.1f}"
+        if st.button("Get recommendation", type="primary"):
+            try:
+                recommendation = rec.recommend_method(
+                    df,
+                    outcome_col=outcome_col,
+                    group_col=group_col,
+                    is_multiselect_group=is_multiselect,
+                    multiselect_delimiter=delimiter,
                 )
+            except (ValueError, TypeError) as e:
+                st.error(str(e))
+                stop_here()
 
-                render_formula(formulas.cohens_d_explanation(result))
+    elif design == DESIGN_PRE_POST:
+        pre_options = list(df.columns)
+        default_pre, default_post = default_prepost_columns(profile, pre_options)
+        pre_col = st.selectbox(
+            "Pre (baseline) column",
+            options=pre_options,
+            index=default_index(pre_options, default_pre),
+        )
+        post_options = [c for c in df.columns if c != pre_col]
+        post_col = st.selectbox(
+            "Post (follow-up) column",
+            options=post_options,
+            index=default_index(post_options, default_post),
+        )
+        context = {"pre_col": pre_col, "post_col": post_col}
 
-                render_effect_size_transformation(
-                    transformation.effect_size_transformation(
+        if st.button("Get recommendation", type="primary"):
+            try:
+                recommendation = rec.recommend_method(df, pre_col=pre_col, post_col=post_col)
+            except (ValueError, TypeError) as e:
+                st.error(str(e))
+                stop_here()
+
+    else:
+        st.caption(
+            "This design needs one row per unit, a column marking which two "
+            "groups the units belong to, and that unit's outcome measured at "
+            "the same two time points in two more columns."
+        )
+
+        group_options = list(df.columns)
+        group_col = st.selectbox(
+            "Group column (which units were treated)",
+            options=group_options,
+            index=default_index(group_options, default_group_column(profile, group_options)),
+        )
+        remaining = [c for c in df.columns if c != group_col]
+        default_pre, default_post = default_prepost_columns(profile, remaining)
+        pre_col = st.selectbox(
+            "Pre (baseline) column",
+            options=remaining,
+            index=default_index(remaining, default_pre),
+        )
+        post_options = [c for c in remaining if c != pre_col]
+        post_col = st.selectbox(
+            "Post (follow-up) column",
+            options=post_options,
+            index=default_index(post_options, default_post),
+        )
+
+        group_values = sorted(df[group_col].dropna().unique().tolist(), key=str)
+        treated_label = st.selectbox(
+            "Which group received the program?",
+            options=group_values,
+        )
+        st.caption(
+            "Nothing in the data marks which group was treated, and this choice "
+            "sets the sign of the estimate, so it is asked rather than guessed."
+        )
+
+        context = {
+            "group_col": group_col,
+            "pre_col": pre_col,
+            "post_col": post_col,
+            "treated_label": treated_label,
+        }
+
+        if st.button("Get recommendation", type="primary"):
+            try:
+                recommendation = rec.recommend_method(
+                    df,
+                    group_col=group_col,
+                    pre_col=pre_col,
+                    post_col=post_col,
+                )
+            except (ValueError, TypeError) as e:
+                st.error(str(e))
+                stop_here()
+
+    # Which columns, under which design. Changing either is what makes a
+    # stored interpretation describe an estimate nobody is looking at.
+    workspace.record_input(
+        "analysis",
+        [design, sorted((str(k), str(v)) for k, v in context.items())],
+        affects=("interpret",),
+        label="Analysis plan",
+    )
+
+    if recommendation is not None:
+        st.session_state["pe_recommendation"] = recommendation
+        st.session_state["pe_context"] = context
+        # A fresh recommendation invalidates whatever was last run. Without
+        # this, changing the design would show the previous analysis's result
+        # underneath the new recommendation without anyone pressing Run.
+        st.session_state.pop("pe_run", None)
+
+    if "pe_recommendation" in st.session_state:
+        recommendation = st.session_state["pe_recommendation"]
+        context = st.session_state["pe_context"]
+
+        section_header("Recommendation")
+        st.markdown(f"**{recommendation.display_name}**")
+        for r in recommendation.reasoning:
+            st.write(f"- {r}")
+        for w in recommendation.warnings:
+            st.warning(w)
+
+        if not recommendation.supported:
+            st.error(
+                "This method is not yet implemented in OpenMeasure. "
+                "See the module README for current scope."
+            )
+            stop_here()
+
+        if st.button("Run analysis", type="primary"):
+            st.session_state["pe_run"] = True
+
+        # Gated on stored state rather than on the button, because st.button
+        # is True only on the pass that clicked it. The result section holds
+        # interactive elements of its own (the effect-size step-through), and
+        # touching one of those reruns the script; under a button gate the
+        # rerun found run_clicked False and the entire result vanished, which
+        # read as the page jumping back a step. Recomputing costs nothing at
+        # these sizes and keeps the displayed result and the analysis the
+        # same object.
+        if st.session_state.get("pe_run"):
+            method = recommendation.method
+            result = None
+
+            try:
+                if method == "compare_two_groups":
+                    result = comp.compare_two_groups(df, context["group_col"], context["outcome_col"])
+
+                    section_header("Result")
+                    c1, c2 = st.columns(2)
+                    c1.metric(f"{result.group_a_label} mean", f"{result.mean_a:.2f}", f"n={result.n_a}")
+                    c2.metric(f"{result.group_b_label} mean", f"{result.mean_b:.2f}", f"n={result.n_b}")
+
+                    m1, m2, m3 = st.columns(3)
+                    m1.metric("t-statistic", f"{result.t_statistic:.2f}")
+                    m2.metric("p-value", f"{result.p_value:.4f}")
+                    m3.metric("Cohen's d", f"{result.cohens_d:.2f}")
+
+                    st.caption(
+                        f"Mean difference: {result.mean_difference:.2f} "
+                        f"(95% CI: {result.ci_95_low:.2f} to {result.ci_95_high:.2f}), "
+                        f"df = {result.degrees_of_freedom:.1f}"
+                    )
+
+                    render_formula(formulas.cohens_d_explanation(result))
+
+                    render_effect_size_transformation(
+                        transformation.effect_size_transformation(
+                            df,
+                            context["group_col"],
+                            context["outcome_col"],
+                            result,
+                        )
+                    )
+
+                    inspect_note("The p-value against your significance threshold, and Cohen's d for effect size.")
+                    implications(
+                        "A p-value below the threshold is evidence of a "
+                        "difference between the observed groups, under Welch's "
+                        "t-test assumptions. Whether that difference can be "
+                        "attributed to the program depends on the study design, "
+                        "not on the p-value. Above the threshold, no difference "
+                        "was detected at this sample size."
+                    )
+
+                    nonparametric = comp.compare_two_groups_nonparametric(
+                        df, context["group_col"], context["outcome_col"]
+                    )
+                    with st.expander("Compare with a rank-based test (Mann-Whitney U)"):
+                        st.markdown(
+                            "Welch's t-test above compares means and assumes the "
+                            "outcome is roughly normally distributed within each "
+                            "group. Mann-Whitney U compares ranks instead, and "
+                            "makes no distributional assumption. Choosing between "
+                            "them is a choice, not a formality: it can change the "
+                            "conclusion."
+                        )
+                        nc1, nc2 = st.columns(2)
+                        nc1.metric(
+                            f"{nonparametric.group_a_label} median",
+                            f"{nonparametric.median_a:.2f}",
+                        )
+                        nc2.metric(
+                            f"{nonparametric.group_b_label} median",
+                            f"{nonparametric.median_b:.2f}",
+                        )
+                        nm1, nm2, nm3 = st.columns(3)
+                        nm1.metric("U statistic", f"{nonparametric.u_statistic:.1f}")
+                        nm2.metric("p-value", f"{nonparametric.p_value:.4f}")
+                        nm3.metric(
+                            "Rank-biserial r",
+                            f"{nonparametric.rank_biserial_correlation:.2f}",
+                        )
+
+                        if (result.p_value < 0.05) == (nonparametric.p_value < 0.05):
+                            st.success(
+                                "Welch's t-test and Mann-Whitney U fall on the "
+                                "same side of α=0.05 here."
+                            )
+                        else:
+                            st.warning(
+                                "Welch's t-test and Mann-Whitney U fall on "
+                                "opposite sides of α=0.05 here. The two tests "
+                                "compare different quantities (means versus "
+                                "ranks) and can disagree, particularly with "
+                                "skewed data or outliers. Treat the choice of "
+                                "test as consequential for this result, not a "
+                                "formality."
+                            )
+                        inspect_note(
+                            "Whether the two tests land on the same side of "
+                            "α=0.05."
+                        )
+
+                elif method == "compare_multiple_groups_welch":
+                    try:
+                        result = comp.compare_multiple_groups_welch(df, context["group_col"], context["outcome_col"])
+                    except ImportError as e:
+                        st.error(str(e))
+                        stop_here()
+
+                    section_header("Result")
+                    means_df = pd.DataFrame({
+                        "Group": result.group_labels,
+                        "n": [result.group_ns[g] for g in result.group_labels],
+                        "Mean": [round(result.group_means[g], 3) for g in result.group_labels],
+                    })
+                    st.dataframe(means_df, width="stretch", hide_index=True)
+
+                    m1, m2 = st.columns(2)
+                    m1.metric("F-statistic (Welch)", f"{result.f_statistic:.2f}")
+                    m2.metric("p-value", f"{result.p_value:.4f}")
+                    st.caption(f"df between = {result.df_between:.1f}, df within = {result.df_within:.1f}")
+
+                    if result.small_groups_flagged:
+                        caveat(
+                            f"Small group(s) flagged (fewer than 5 observations): "
+                            f"{', '.join(result.small_groups_flagged)}. Estimates for these "
+                            "groups may be unstable."
+                        )
+
+                    section_header("Pairwise Comparisons (Games-Howell)")
+                    pairwise_df = pd.DataFrame([
+                        {
+                            "Group A": p.group_a,
+                            "Group B": p.group_b,
+                            "Mean difference": round(p.mean_difference, 3),
+                            "p (adjusted)": round(p.p_value, 4),
+                            "Significant": "Yes" if p.significant else "No",
+                        }
+                        for p in result.pairwise_comparisons
+                    ])
+                    st.dataframe(pairwise_df, width="stretch", hide_index=True)
+                    st.caption("\"Significant\" means the adjusted p-value fell below the conventional threshold α = 0.05.")
+                    inspect_note("Which pairs are flagged Significant.")
+                    implications("Only flagged pairs support a claim of a group difference.")
+
+                    case_study_note(
+                        "dead_salmon",
+                        "The \"p (adjusted)\" column above is already corrected "
+                        "for the number of pairs being compared. Reading those "
+                        "adjusted values, rather than testing each pair "
+                        "separately and reading each at 0.05, is what keeps the "
+                        "number of comparisons from inflating the chance that "
+                        "one of them looks significant by accident.",
+                    )
+
+                elif method == "compare_multiple_groups":
+                    result = comp.compare_multiple_groups(df, context["group_col"], context["outcome_col"])
+
+                    section_header("Result")
+                    means_df = pd.DataFrame({
+                        "Group": result.group_labels,
+                        "n": [result.group_ns[g] for g in result.group_labels],
+                        "Mean": [round(result.group_means[g], 3) for g in result.group_labels],
+                    })
+                    st.dataframe(means_df, width="stretch", hide_index=True)
+
+                    m1, m2 = st.columns(2)
+                    m1.metric("F-statistic", f"{result.f_statistic:.2f}")
+                    m2.metric("p-value", f"{result.p_value:.4f}")
+                    st.caption(f"df between = {result.df_between}, df within = {result.df_within}")
+
+                    if result.small_groups_flagged:
+                        caveat(
+                            f"Small group(s) flagged (fewer than 5 observations): "
+                            f"{', '.join(result.small_groups_flagged)}. Estimates for these "
+                            "groups may be unstable."
+                        )
+
+                    section_header("Pairwise Comparisons (Tukey HSD)")
+                    pairwise_df = pd.DataFrame([
+                        {
+                            "Group A": p.group_a,
+                            "Group B": p.group_b,
+                            "Mean difference": round(p.mean_difference, 3),
+                            "p (adjusted)": round(p.p_value, 4),
+                            "Significant": "Yes" if p.significant else "No",
+                        }
+                        for p in result.pairwise_comparisons
+                    ])
+                    st.dataframe(pairwise_df, width="stretch", hide_index=True)
+                    st.caption("\"Significant\" means the adjusted p-value fell below the conventional threshold α = 0.05.")
+                    inspect_note("Which pairs are flagged Significant.")
+                    implications("Only flagged pairs support a claim of a group difference.")
+
+                    case_study_note(
+                        "dead_salmon",
+                        "The \"p (adjusted)\" column above is already corrected "
+                        "for the number of pairs being compared. Reading those "
+                        "adjusted values, rather than testing each pair "
+                        "separately and reading each at 0.05, is what keeps the "
+                        "number of comparisons from inflating the chance that "
+                        "one of them looks significant by accident.",
+                    )
+
+                elif method == "compare_categorical":
+                    result = comp.compare_categorical(df, context["group_col"], context["outcome_col"])
+
+                    section_header("Result")
+                    st.write("Contingency table (observed counts):")
+                    st.dataframe(result.contingency_table, width="stretch")
+
+                    m1, m2 = st.columns(2)
+                    m1.metric("Chi-square", f"{result.chi2_statistic:.2f}")
+                    m2.metric("p-value", f"{result.p_value:.4f}")
+                    st.caption(f"Degrees of freedom = {result.degrees_of_freedom}")
+
+                    if result.low_expected_frequency_warning:
+                        caveat(
+                            "One or more expected cell frequencies are below 5. The "
+                            "chi-square approximation may be unreliable here; consider "
+                            "Fisher's exact test for small samples (not yet implemented "
+                            "in OpenMeasure)."
+                        )
+
+                    inspect_note("The contingency table's cell counts.")
+                    implications("An association does not establish that the group caused the outcome.")
+
+                elif method == "compare_pre_post":
+                    result = comp.compare_pre_post(df[context["pre_col"]], df[context["post_col"]])
+
+                    section_header("Result")
+                    c1, c2 = st.columns(2)
+                    c1.metric("Pre mean", f"{result.mean_pre:.2f}")
+                    c2.metric("Post mean", f"{result.mean_post:.2f}")
+
+                    m1, m2, m3 = st.columns(3)
+                    m1.metric("t-statistic", f"{result.t_statistic:.2f}")
+                    m2.metric("p-value", f"{result.p_value:.4f}")
+                    m3.metric("Cohen's d", f"{result.cohens_d:.2f}")
+                    st.caption(f"n = {result.n}, df = {result.degrees_of_freedom}, mean change = {result.mean_difference:.2f}")
+                    inspect_note("The p-value and Cohen's d, computed on the same participants' change over time.")
+                    implications(
+                        "A significant change supports that something changed "
+                        "for this group. A pre/post design alone does not rule "
+                        "out other explanations, such as regression to the mean."
+                    )
+
+                    nonparametric = comp.compare_pre_post_nonparametric(
+                        df[context["pre_col"]], df[context["post_col"]]
+                    )
+                    with st.expander("Compare with a rank-based test (Wilcoxon signed-rank)"):
+                        st.markdown(
+                            "The paired t-test above compares the mean change "
+                            "and assumes those changes are roughly normally "
+                            "distributed. The Wilcoxon signed-rank test compares "
+                            "ranks of the changes instead, and makes no "
+                            "distributional assumption. Choosing between them is "
+                            "a choice, not a formality: it can change the "
+                            "conclusion."
+                        )
+                        nc1, nc2 = st.columns(2)
+                        nc1.metric("Pre median", f"{nonparametric.median_pre:.2f}")
+                        nc2.metric("Post median", f"{nonparametric.median_post:.2f}")
+                        nm1, nm2, nm3 = st.columns(3)
+                        nm1.metric("W statistic", f"{nonparametric.w_statistic:.1f}")
+                        nm2.metric("p-value", f"{nonparametric.p_value:.4f}")
+                        nm3.metric(
+                            "Matched-pairs r",
+                            f"{nonparametric.matched_pairs_rank_biserial_correlation:.2f}",
+                        )
+                        if nonparametric.n_zero_differences_dropped:
+                            st.caption(
+                                f"{nonparametric.n_zero_differences_dropped} "
+                                "participant(s) with no change are excluded from "
+                                "ranking, per the Wilcoxon test's convention, "
+                                "but are not treated as missing data."
+                            )
+
+                        if (result.p_value < 0.05) == (nonparametric.p_value < 0.05):
+                            st.success(
+                                "The paired t-test and Wilcoxon signed-rank test "
+                                "fall on the same side of α=0.05 here."
+                            )
+                        else:
+                            st.warning(
+                                "The paired t-test and Wilcoxon signed-rank test "
+                                "fall on opposite sides of α=0.05 here. The two "
+                                "tests compare different quantities (mean versus "
+                                "ranked change) and can disagree, particularly "
+                                "with skewed data or outliers. Treat the choice "
+                                "of test as consequential for this result, not a "
+                                "formality."
+                            )
+                        inspect_note(
+                            "Whether the two tests land on the same side of "
+                            "α=0.05."
+                        )
+
+                elif method == "estimate_did":
+                    result = did_core.estimate_did(
+                        df,
+                        context["group_col"],
+                        context["pre_col"],
+                        context["post_col"],
+                        treated_label=context["treated_label"],
+                    )
+                    render_did_result(result)
+
+                elif method == "sensitivity_analysis":
+                    result = comp.sensitivity_analysis(
                         df,
                         context["group_col"],
                         context["outcome_col"],
-                        result,
-                    )
-                )
-
-                inspect_note("The p-value against your significance threshold, and Cohen's d for effect size.")
-                implications(
-                    "A p-value below the threshold is evidence of a "
-                    "difference between the observed groups, under Welch's "
-                    "t-test assumptions. Whether that difference can be "
-                    "attributed to the program depends on the study design, "
-                    "not on the p-value. Above the threshold, no difference "
-                    "was detected at this sample size."
-                )
-
-                nonparametric = comp.compare_two_groups_nonparametric(
-                    df, context["group_col"], context["outcome_col"]
-                )
-                with st.expander("Compare with a rank-based test (Mann-Whitney U)"):
-                    st.markdown(
-                        "Welch's t-test above compares means and assumes the "
-                        "outcome is roughly normally distributed within each "
-                        "group. Mann-Whitney U compares ranks instead, and "
-                        "makes no distributional assumption. Choosing between "
-                        "them is a choice, not a formality: it can change the "
-                        "conclusion."
-                    )
-                    nc1, nc2 = st.columns(2)
-                    nc1.metric(
-                        f"{nonparametric.group_a_label} median",
-                        f"{nonparametric.median_a:.2f}",
-                    )
-                    nc2.metric(
-                        f"{nonparametric.group_b_label} median",
-                        f"{nonparametric.median_b:.2f}",
-                    )
-                    nm1, nm2, nm3 = st.columns(3)
-                    nm1.metric("U statistic", f"{nonparametric.u_statistic:.1f}")
-                    nm2.metric("p-value", f"{nonparametric.p_value:.4f}")
-                    nm3.metric(
-                        "Rank-biserial r",
-                        f"{nonparametric.rank_biserial_correlation:.2f}",
+                        delimiter=context.get("delimiter", ","),
                     )
 
-                    if (result.p_value < 0.05) == (nonparametric.p_value < 0.05):
+                    section_header("Result: Sensitivity Across Coding Schemes")
+                    p_df = pd.DataFrame([
+                        {"Coding scheme": name, "p-value": round(p, 4)}
+                        for name, p in result.p_values_by_coding.items()
+                    ])
+                    st.dataframe(p_df, width="stretch", hide_index=True)
+                    inspect_note("Whether every row's p-value falls on the same side of α.")
+
+                    if result.consistent_conclusion:
                         st.success(
-                            "Welch's t-test and Mann-Whitney U fall on the "
-                            "same side of α=0.05 here."
+                            f"The conclusion (significant at α={result.alpha}, or not) "
+                            "is consistent across all three coding schemes."
                         )
                     else:
                         st.warning(
-                            "Welch's t-test and Mann-Whitney U fall on "
-                            "opposite sides of α=0.05 here. The two tests "
-                            "compare different quantities (means versus "
-                            "ranks) and can disagree, particularly with "
-                            "skewed data or outliers. Treat the choice of "
-                            "test as consequential for this result, not a "
-                            "formality."
-                        )
-                    inspect_note(
-                        "Whether the two tests land on the same side of "
-                        "α=0.05."
-                    )
-
-            elif method == "compare_multiple_groups_welch":
-                try:
-                    result = comp.compare_multiple_groups_welch(df, context["group_col"], context["outcome_col"])
-                except ImportError as e:
-                    st.error(str(e))
-                    st.stop()
-
-                section_header("Result")
-                means_df = pd.DataFrame({
-                    "Group": result.group_labels,
-                    "n": [result.group_ns[g] for g in result.group_labels],
-                    "Mean": [round(result.group_means[g], 3) for g in result.group_labels],
-                })
-                st.dataframe(means_df, width="stretch", hide_index=True)
-
-                m1, m2 = st.columns(2)
-                m1.metric("F-statistic (Welch)", f"{result.f_statistic:.2f}")
-                m2.metric("p-value", f"{result.p_value:.4f}")
-                st.caption(f"df between = {result.df_between:.1f}, df within = {result.df_within:.1f}")
-
-                if result.small_groups_flagged:
-                    caveat(
-                        f"Small group(s) flagged (fewer than 5 observations): "
-                        f"{', '.join(result.small_groups_flagged)}. Estimates for these "
-                        "groups may be unstable."
-                    )
-
-                section_header("Pairwise Comparisons (Games-Howell)")
-                pairwise_df = pd.DataFrame([
-                    {
-                        "Group A": p.group_a,
-                        "Group B": p.group_b,
-                        "Mean difference": round(p.mean_difference, 3),
-                        "p (adjusted)": round(p.p_value, 4),
-                        "Significant": "Yes" if p.significant else "No",
-                    }
-                    for p in result.pairwise_comparisons
-                ])
-                st.dataframe(pairwise_df, width="stretch", hide_index=True)
-                st.caption("\"Significant\" means the adjusted p-value fell below the conventional threshold α = 0.05.")
-                inspect_note("Which pairs are flagged Significant.")
-                implications("Only flagged pairs support a claim of a group difference.")
-
-                case_study_note(
-                    "dead_salmon",
-                    "The \"p (adjusted)\" column above is already corrected "
-                    "for the number of pairs being compared. Reading those "
-                    "adjusted values, rather than testing each pair "
-                    "separately and reading each at 0.05, is what keeps the "
-                    "number of comparisons from inflating the chance that "
-                    "one of them looks significant by accident.",
-                )
-
-            elif method == "compare_multiple_groups":
-                result = comp.compare_multiple_groups(df, context["group_col"], context["outcome_col"])
-
-                section_header("Result")
-                means_df = pd.DataFrame({
-                    "Group": result.group_labels,
-                    "n": [result.group_ns[g] for g in result.group_labels],
-                    "Mean": [round(result.group_means[g], 3) for g in result.group_labels],
-                })
-                st.dataframe(means_df, width="stretch", hide_index=True)
-
-                m1, m2 = st.columns(2)
-                m1.metric("F-statistic", f"{result.f_statistic:.2f}")
-                m2.metric("p-value", f"{result.p_value:.4f}")
-                st.caption(f"df between = {result.df_between}, df within = {result.df_within}")
-
-                if result.small_groups_flagged:
-                    caveat(
-                        f"Small group(s) flagged (fewer than 5 observations): "
-                        f"{', '.join(result.small_groups_flagged)}. Estimates for these "
-                        "groups may be unstable."
-                    )
-
-                section_header("Pairwise Comparisons (Tukey HSD)")
-                pairwise_df = pd.DataFrame([
-                    {
-                        "Group A": p.group_a,
-                        "Group B": p.group_b,
-                        "Mean difference": round(p.mean_difference, 3),
-                        "p (adjusted)": round(p.p_value, 4),
-                        "Significant": "Yes" if p.significant else "No",
-                    }
-                    for p in result.pairwise_comparisons
-                ])
-                st.dataframe(pairwise_df, width="stretch", hide_index=True)
-                st.caption("\"Significant\" means the adjusted p-value fell below the conventional threshold α = 0.05.")
-                inspect_note("Which pairs are flagged Significant.")
-                implications("Only flagged pairs support a claim of a group difference.")
-
-                case_study_note(
-                    "dead_salmon",
-                    "The \"p (adjusted)\" column above is already corrected "
-                    "for the number of pairs being compared. Reading those "
-                    "adjusted values, rather than testing each pair "
-                    "separately and reading each at 0.05, is what keeps the "
-                    "number of comparisons from inflating the chance that "
-                    "one of them looks significant by accident.",
-                )
-
-            elif method == "compare_categorical":
-                result = comp.compare_categorical(df, context["group_col"], context["outcome_col"])
-
-                section_header("Result")
-                st.write("Contingency table (observed counts):")
-                st.dataframe(result.contingency_table, width="stretch")
-
-                m1, m2 = st.columns(2)
-                m1.metric("Chi-square", f"{result.chi2_statistic:.2f}")
-                m2.metric("p-value", f"{result.p_value:.4f}")
-                st.caption(f"Degrees of freedom = {result.degrees_of_freedom}")
-
-                if result.low_expected_frequency_warning:
-                    caveat(
-                        "One or more expected cell frequencies are below 5. The "
-                        "chi-square approximation may be unreliable here; consider "
-                        "Fisher's exact test for small samples (not yet implemented "
-                        "in OpenMeasure)."
-                    )
-
-                inspect_note("The contingency table's cell counts.")
-                implications("An association does not establish that the group caused the outcome.")
-
-            elif method == "compare_pre_post":
-                result = comp.compare_pre_post(df[context["pre_col"]], df[context["post_col"]])
-
-                section_header("Result")
-                c1, c2 = st.columns(2)
-                c1.metric("Pre mean", f"{result.mean_pre:.2f}")
-                c2.metric("Post mean", f"{result.mean_post:.2f}")
-
-                m1, m2, m3 = st.columns(3)
-                m1.metric("t-statistic", f"{result.t_statistic:.2f}")
-                m2.metric("p-value", f"{result.p_value:.4f}")
-                m3.metric("Cohen's d", f"{result.cohens_d:.2f}")
-                st.caption(f"n = {result.n}, df = {result.degrees_of_freedom}, mean change = {result.mean_difference:.2f}")
-                inspect_note("The p-value and Cohen's d, computed on the same participants' change over time.")
-                implications(
-                    "A significant change supports that something changed "
-                    "for this group. A pre/post design alone does not rule "
-                    "out other explanations, such as regression to the mean."
-                )
-
-                nonparametric = comp.compare_pre_post_nonparametric(
-                    df[context["pre_col"]], df[context["post_col"]]
-                )
-                with st.expander("Compare with a rank-based test (Wilcoxon signed-rank)"):
-                    st.markdown(
-                        "The paired t-test above compares the mean change "
-                        "and assumes those changes are roughly normally "
-                        "distributed. The Wilcoxon signed-rank test compares "
-                        "ranks of the changes instead, and makes no "
-                        "distributional assumption. Choosing between them is "
-                        "a choice, not a formality: it can change the "
-                        "conclusion."
-                    )
-                    nc1, nc2 = st.columns(2)
-                    nc1.metric("Pre median", f"{nonparametric.median_pre:.2f}")
-                    nc2.metric("Post median", f"{nonparametric.median_post:.2f}")
-                    nm1, nm2, nm3 = st.columns(3)
-                    nm1.metric("W statistic", f"{nonparametric.w_statistic:.1f}")
-                    nm2.metric("p-value", f"{nonparametric.p_value:.4f}")
-                    nm3.metric(
-                        "Matched-pairs r",
-                        f"{nonparametric.matched_pairs_rank_biserial_correlation:.2f}",
-                    )
-                    if nonparametric.n_zero_differences_dropped:
-                        st.caption(
-                            f"{nonparametric.n_zero_differences_dropped} "
-                            "participant(s) with no change are excluded from "
-                            "ranking, per the Wilcoxon test's convention, "
-                            "but are not treated as missing data."
+                            f"The conclusion at α={result.alpha} differs depending on "
+                            "how multi-select responses are coded. Treat this result as "
+                            "sensitive to an arbitrary coding choice, not as settled."
                         )
 
-                    if (result.p_value < 0.05) == (nonparametric.p_value < 0.05):
-                        st.success(
-                            "The paired t-test and Wilcoxon signed-rank test "
-                            "fall on the same side of α=0.05 here."
-                        )
-                    else:
-                        st.warning(
-                            "The paired t-test and Wilcoxon signed-rank test "
-                            "fall on opposite sides of α=0.05 here. The two "
-                            "tests compare different quantities (mean versus "
-                            "ranked change) and can disagree, particularly "
-                            "with skewed data or outliers. Treat the choice "
-                            "of test as consequential for this result, not a "
-                            "formality."
-                        )
-                    inspect_note(
-                        "Whether the two tests land on the same side of "
-                        "α=0.05."
+                    case_study_note(
+                        "narps",
+                        "The rows above apply that idea to one specific choice, "
+                        "how to count a participant who selected more than one "
+                        "category. Agreement across the three codings says the "
+                        "conclusion does not turn on that choice. Disagreement "
+                        "says it does, and that reporting a single coding would "
+                        "have hidden it.",
                     )
 
-            elif method == "estimate_did":
-                result = did_core.estimate_did(
-                    df,
-                    context["group_col"],
-                    context["pre_col"],
-                    context["post_col"],
-                    treated_label=context["treated_label"],
-                )
-                render_did_result(result)
+                    for name, sub_result in result.coding_results.items():
+                        with st.expander(f"Full result: {name} coding"):
+                            render_sensitivity_sub_result(sub_result)
 
-            elif method == "sensitivity_analysis":
-                result = comp.sensitivity_analysis(
-                    df,
-                    context["group_col"],
-                    context["outcome_col"],
-                    delimiter=context.get("delimiter", ","),
-                )
-
-                section_header("Result: Sensitivity Across Coding Schemes")
-                p_df = pd.DataFrame([
-                    {"Coding scheme": name, "p-value": round(p, 4)}
-                    for name, p in result.p_values_by_coding.items()
-                ])
-                st.dataframe(p_df, width="stretch", hide_index=True)
-                inspect_note("Whether every row's p-value falls on the same side of α.")
-
-                if result.consistent_conclusion:
-                    st.success(
-                        f"The conclusion (significant at α={result.alpha}, or not) "
-                        "is consistent across all three coding schemes."
-                    )
                 else:
-                    st.warning(
-                        f"The conclusion at α={result.alpha} differs depending on "
-                        "how multi-select responses are coded. Treat this result as "
-                        "sensitive to an arbitrary coding choice, not as settled."
+                    st.error(
+                        "OpenMeasure could not run the recommended method. "
+                        "This is unexpected; please report it as a bug."
                     )
 
-                case_study_note(
-                    "narps",
-                    "The rows above apply that idea to one specific choice, "
-                    "how to count a participant who selected more than one "
-                    "category. Agreement across the three codings says the "
-                    "conclusion does not turn on that choice. Disagreement "
-                    "says it does, and that reporting a single coding would "
-                    "have hidden it.",
-                )
-
-                for name, sub_result in result.coding_results.items():
-                    with st.expander(f"Full result: {name} coding"):
-                        render_sensitivity_sub_result(sub_result)
-
-            else:
-                st.error(
-                    "OpenMeasure could not run the recommended method. "
-                    "This is unexpected; please report it as a bug."
-                )
-
-            if result is not None:
-                record_comparison(df, loaded.name, context, recommendation, result)
-                st.caption(
-                    "Recorded for the Cross-Analysis Implications page, which "
-                    "shows how much of your data each analysis used."
-                )
-
-                # ---------------------------------------------------------
-                # 7. Interpret
-                # ---------------------------------------------------------
-                #
-                # Marked reached rather than advanced to: this stage opens
-                # because an analysis just produced a result, and that
-                # result exists only in this pass. A rerun would discard
-                # the very thing that unlocked it.
-                TRACKER.mark_reached(STAGE_INTERPRET)
-
-                section_header(
-                    "7. Interpret",
-                    "What this design and this result together support",
-                )
-
-                # Lead with where support stops, then explain it. The
-                # names come from core, per method, so the branches on
-                # the diagram and the statements underneath it are the
-                # same list. They used to be the first sentence of each
-                # recommender warning, which put a 160-character sentence
-                # on a branch label: not truncated but off the canvas,
-                # and invisible on every design except this one.
-                st.markdown(
-                    _support_boundary_svg(
-                        interpret.support_boundary_claims(method),
-                        interpret.support_boundary_conditions(method),
-                    ),
-                    unsafe_allow_html=True,
-                )
-
-                caveat(interpret.P_VALUE_NOTE)
-
-                if method == "estimate_did":
-                    render_did_interpretation(result)
-                else:
-                    st.markdown("**What the design leaves open**")
-                    for warning in recommendation.warnings:
-                        st.write(f"- {warning}")
+                if result is not None:
+                    record_comparison(df, loaded.name, context, recommendation, result)
                     st.caption(
-                        "These are properties of the design, not of the "
-                        "numbers. A smaller p-value does not retire any of "
-                        "them."
+                        "Recorded for the Cross-Analysis Implications page, which "
+                        "shows how much of your data each analysis used."
                     )
 
-        except (ValueError, TypeError) as e:
-            st.error(str(e))
+                    # Held for the interpretation stage, which is a separate
+                    # screen and cannot recompute what this pass produced.
+                    # What is held is the estimate and the method behind it,
+                    # not the rows, so this retains no one's data.
+                    first_result = st.session_state.get("pe_result") is None
+                    st.session_state["pe_result"] = result
+                    st.session_state["pe_method"] = method
+
+                    if first_result:
+                        # The gate on the interpretation stage is read before
+                        # this stage renders, so without this the first
+                        # result would leave Continue disabled.
+                        st.rerun()
+            except (ValueError, TypeError) as e:
+                st.error(str(e))
+
+# ---------------------------------------------------------------------
+# 7. Interpret
+# ---------------------------------------------------------------------
+
+if stage == STAGE_INTERPRET:
+    # What the analysis stage produced, which is not running now. The
+    # estimate and the method behind it are held; the data is not.
+    result = st.session_state.get("pe_result")
+    method = str(st.session_state.get("pe_method", ""))
+
+    # The gate above normally keeps this stage shut until something has
+    # been run, but a gate is a guard rather than a guarantee: loading a
+    # second dataset discards the stored estimate while the rail still
+    # remembers that this stage was reached. Saying so is the answer; the
+    # alternative is interpret.support_boundary_claims("") raising into
+    # the page.
+    if result is None or recommendation is None:
+        st.info(
+            "Nothing has been analyzed yet, so there is nothing here to "
+            "interpret. Run an analysis on the previous stage."
+        )
+        stop_here()
+
+    section_header(
+        "Interpret",
+        "What this design and this result together support",
+    )
+
+    # Lead with where support stops, then explain it. The names come from
+    # core, per method, so the branches on the diagram and the statements
+    # underneath it are the same list. They used to be the first sentence
+    # of each recommender warning, which put a 160-character sentence on a
+    # branch label: not truncated but off the canvas, and invisible on
+    # every design except this one.
+    st.markdown(
+        _support_boundary_svg(
+            interpret.support_boundary_claims(method),
+            interpret.support_boundary_conditions(method),
+        ),
+        unsafe_allow_html=True,
+    )
+
+    caveat(interpret.P_VALUE_NOTE)
+
+    if method == "estimate_did":
+        render_did_interpretation(result)
+    else:
+        st.markdown("**What the design leaves open**")
+        for warning in recommendation.warnings:
+            st.write(f"- {warning}")
+        st.caption(
+            "These are properties of the design, not of the numbers. A "
+            "smaller p-value does not retire any of them."
+        )
+
+
+workspace.render_navigation()
+workspace.render_optional_gaps()

@@ -50,28 +50,63 @@ def _open(page: str) -> AppTest:
     return app
 
 
+# Impact Evaluation's stages, in the workspace that page is now built on.
+IMPACT_DOMAIN_STAGE = 1
+IMPACT_EXAMPLE_STAGE = 4
+IMPACT_ANALYSIS_STAGE = 5
+IMPACT_INTERPRET_STAGE = 6
+
+
+def _at_stage(app: AppTest, index: int) -> AppTest:
+    """
+    Open one stage of a workspace.
+
+    Set by position rather than by clicking Continue: go_to() reruns
+    mid-script and AppTest accumulates the widgets from both passes, so a
+    click lands on a stale instance. The navigation itself is covered in
+    shared/tests/test_stage_workspace.py.
+    """
+    app.session_state["pe_current"] = index
+    app.session_state["pe_furthest"] = max(
+        index, int(app.session_state.filtered_state.get("pe_furthest", 0))
+    )
+    app.run()
+
+    return app
+
+
+def _with_question(page: str = IMPACT_EVALUATION) -> AppTest:
+    """A session whose evaluation question is answered."""
+    app = AppTest.from_file("Home.py", default_timeout=TIMEOUT_SECONDS)
+    app.run()
+    app.switch_page(page).run()
+
+    app.text_input(key="pe_q_program").set_value("reminder texts")
+    app.text_input(key="pe_q_outcome").set_value("appointments kept").run()
+
+    return app
+
+
 def _walk_to_analysis(app: AppTest) -> None:
     """
-    Advance Impact Evaluation to its data step.
+    Open Impact Evaluation on its data stage.
 
-    That page is a gated sequence now, so its data entry sits behind five
-    Continue clicks rather than being the first thing on the page. The
-    first stage needs a program and an outcome before it will let anyone
-    past, which is what the two set_value calls supply.
+    That page is a workspace now, so one stage occupies it at a time and
+    its data entry is the sixth. The first stage needs a program and an
+    outcome before anything past the second unlocks, which is what the
+    two set_value calls supply.
+
+    Set by position rather than by clicking Continue: go_to() reruns
+    mid-script and AppTest accumulates the widgets from both passes, so a
+    click lands on a stale instance. The navigation itself is covered in
+    shared/tests/test_stage_workspace.py.
     """
     app.text_input(key="pe_q_program").set_value("reminder texts")
     app.text_input(key="pe_q_outcome").set_value("appointments kept").run()
 
-    for label in (
-        "Continue to domain",
-        "Continue to find research",
-        "Skip this step",
-        "Continue to the worked example",
-        "Continue to your own data",
-    ):
-        button = _button(app, label)
-        assert button is not None, f"'{label}' was not offered."
-        button.click().run()
+    app.session_state["pe_current"] = IMPACT_ANALYSIS_STAGE
+    app.session_state["pe_furthest"] = IMPACT_ANALYSIS_STAGE
+    app.run()
 
 
 class TestSampleLoadsWithoutUploading(unittest.TestCase):
@@ -144,7 +179,7 @@ class TestTeachingContentIsReachableWithoutData(unittest.TestCase):
         broke the moment the example was made visible by default, which
         was an improvement rather than a regression.
         """
-        app = _open(IMPACT_EVALUATION)
+        app = _at_stage(_with_question(), IMPACT_EXAMPLE_STAGE)
 
         self.assertFalse(app.exception)
 
@@ -160,7 +195,7 @@ class TestTeachingContentIsReachableWithoutData(unittest.TestCase):
         explains or qualifies the method is collapsed, so a reader works
         the comparison before reading about counterfactuals.
         """
-        app = _open(IMPACT_EVALUATION)
+        app = _at_stage(_with_question(), IMPACT_EXAMPLE_STAGE)
 
         labels = [expander.label for expander in app.expander]
         for collapsed in (
@@ -181,7 +216,7 @@ class TestTeachingContentIsReachableWithoutData(unittest.TestCase):
     def test_the_field_selector_offers_every_domain(self):
         from modules.program_evaluation.core.domains import DOMAINS
 
-        app = _open(IMPACT_EVALUATION)
+        app = _at_stage(_with_question(), IMPACT_DOMAIN_STAGE)
 
         selectboxes = [s for s in app.selectbox if s.label == "Field of practice"]
         self.assertEqual(len(selectboxes), 1)
@@ -197,84 +232,65 @@ class TestTeachingContentIsReachableWithoutData(unittest.TestCase):
         app.run()
         app.switch_page(IMPACT_EVALUATION).run()
 
-        advance = _button(app, "Continue to domain")
+        advance = _button(app, "Continue to Domain \u2192")
         self.assertIsNotNone(advance)
         self.assertTrue(advance.disabled)
+
+        captions = " ".join(str(item.value) for item in app.caption)
+        self.assertIn("Name the program and the outcome", captions)
 
 
 class TestStageThreeIsOptional(unittest.TestCase):
     """
-    Literature discovery enriches the workflow and never gates it. Both
-    routes past it have to reach the same place.
+    Literature discovery enriches the workflow and never gates it.
+
+    Under the workspace this is one property rather than two routes: the
+    research stage carries no gate, so nothing about it can stop a reader
+    reaching the data. A Skip button was the old way of saying the same
+    thing.
     """
 
-    @staticmethod
-    def _walk(app, third_stage_label):
-        app.text_input(key="pe_q_program").set_value("reminder texts")
-        app.text_input(key="pe_q_outcome").set_value("appointments kept").run()
-        for label in (
-            "Continue to domain",
-            "Continue to find research",
-            third_stage_label,
-            "Continue to the worked example",
-            "Continue to your own data",
-        ):
-            button = _button(app, label)
-            assert button is not None, f"'{label}' was not offered."
-            button.click().run()
-
-    def test_skipping_the_search_still_reaches_the_data_step(self):
-        app = AppTest.from_file("Home.py", default_timeout=TIMEOUT_SECONDS)
+    def test_no_gate_stands_between_the_research_stage_and_the_data(self):
+        app = _with_question()
+        app.session_state["pe_current"] = IMPACT_ANALYSIS_STAGE
+        app.session_state["pe_furthest"] = IMPACT_ANALYSIS_STAGE
         app.run()
-        app.switch_page(IMPACT_EVALUATION).run()
-
-        self._walk(app, "Skip this step")
 
         self.assertFalse(app.exception)
         self.assertIsNotNone(_button(app, SAMPLE_BUTTON_LABEL))
 
-    def test_continuing_without_searching_reaches_the_same_place(self):
+    def test_the_rail_offers_the_data_stage_without_any_search(self):
         """
-        A reader who opens the search stage, runs no search, and presses
-        Continue must land where Skip lands, not somewhere else.
+        Reachable, not merely reachable-by-URL: the rail button for the
+        data stage is the control a reader would actually use.
         """
-        app = AppTest.from_file("Home.py", default_timeout=TIMEOUT_SECONDS)
-        app.run()
-        app.switch_page(IMPACT_EVALUATION).run()
+        app = _with_question()
 
-        self._walk(app, "Continue to designs")
-
-        self.assertFalse(app.exception)
-        self.assertIsNotNone(_button(app, SAMPLE_BUTTON_LABEL))
+        data_stage = app.button(key="pe_rail_5")
+        self.assertFalse(data_stage.disabled)
+        self.assertNotIn("pe_search_results", app.session_state)
 
     def test_no_search_runs_unless_the_button_is_pressed(self):
         """
         The query box is prefilled, which must not be mistaken for the
         search having been sent. Nothing leaves the machine on its own.
         """
-        app = AppTest.from_file("Home.py", default_timeout=TIMEOUT_SECONDS)
-        app.run()
-        app.switch_page(IMPACT_EVALUATION).run()
-
-        app.text_input(key="pe_q_program").set_value("reminder texts")
-        app.text_input(key="pe_q_outcome").set_value("appointments kept").run()
-        _button(app, "Continue to domain").click().run()
-        _button(app, "Continue to find research").click().run()
+        app = _at_stage(_with_question(), 2)
 
         self.assertIsNotNone(_button(app, "Search OpenAlex"))
         self.assertNotIn("pe_search_results", app.session_state)
         self.assertNotIn("pe_search_provenance", app.session_state)
 
 
-class TestInterpretationStagePreservesTheResult(unittest.TestCase):
+class TestTheResultReachesTheInterpretation(unittest.TestCase):
     """
-    Regression: stage 7 opens because an analysis just produced a result,
-    and that result exists only in the pass that computed it.
+    The interpretation is its own stage now, and the analysis that
+    produced the result is not running when it renders.
 
-    StageTracker.advance_to() reruns, which would discard it and leave the
-    interpretation heading above an empty analysis. mark_reached() does
-    not rerun, which is what lets both render together. This asserts the
-    numbers and the interpretation are on screen at the same time.
+    What crosses the boundary is the estimate and the method behind it,
+    held in session state. Not the data: a page that carried the rows
+    between stages would be retaining a reader's data to save them a
+    click.
     """
 
     def _run_analysis(self):
@@ -284,24 +300,38 @@ class TestInterpretationStagePreservesTheResult(unittest.TestCase):
         _button(app, "Run analysis").click().run()
         return app
 
-    def test_the_result_and_its_interpretation_render_together(self):
+    def test_the_analysis_stage_shows_the_result(self):
         app = self._run_analysis()
 
         self.assertFalse(app.exception)
+        self.assertIn("Result", [str(item.value) for item in app.subheader])
 
-        headings = [str(item.value) for item in app.subheader]
-        self.assertIn("Result", headings)
-        self.assertIn("7. Interpret", headings)
-
-    def test_the_computed_numbers_survive_into_the_interpretation_stage(self):
-        """
-        The metrics are the result itself. If the tracker had rerun, this
-        stage would be reached with the metrics gone.
-        """
+    def test_the_computed_numbers_are_there_to_be_read(self):
         app = self._run_analysis()
 
         metric_labels = [metric.label for metric in app.metric]
         self.assertIn("p-value", metric_labels)
+
+    def test_the_interpretation_stage_opens_on_that_result(self):
+        app = _at_stage(self._run_analysis(), IMPACT_INTERPRET_STAGE)
+
+        self.assertFalse(app.exception)
+        self.assertIn("Interpret", [str(item.value) for item in app.subheader])
+
+    def test_the_data_does_not_follow_the_result_across(self):
+        """
+        The estimate crosses; the rows do not.
+        """
+        app = self._run_analysis()
+        held = app.session_state.filtered_state
+
+        self.assertIn("pe_result", held)
+        self.assertIsNone(held.get("pe_frame"))
+
+    def test_nothing_is_interpretable_before_an_analysis_runs(self):
+        app = _with_question()
+
+        self.assertTrue(app.button(key="pe_rail_6").disabled)
 
     def test_the_analysis_is_recorded_for_cross_analysis(self):
         from shared.handoff import STORE_KEY
@@ -383,9 +413,7 @@ class TestResultsSurviveInteraction(unittest.TestCase):
 
         self.assertFalse(app.exception)
 
-        headings = [str(item.value) for item in app.subheader]
-        self.assertIn("Result", headings)
-        self.assertIn("7. Interpret", headings)
+        self.assertIn("Result", [str(item.value) for item in app.subheader])
 
     def test_the_stepper_actually_advances(self):
         app = self._run_analysis()

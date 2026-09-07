@@ -966,6 +966,15 @@ else:
                 "yourself."
             )
 
+        # Restored rather than re-typed. These widgets are gone from
+        # session state while a later stage is open, so coming back would
+        # otherwise find an empty form and a question that survived only
+        # in the Design Record.
+        for field, remembered in entered.items():
+            slot = f"rq_{field}"
+            if remembered and slot not in st.session_state:
+                st.session_state[slot] = remembered
+
         hypothesis = st.text_area(
             "Research question / hypothesis", key="rq_hypothesis", height=100
         )

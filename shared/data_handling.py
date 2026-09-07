@@ -132,6 +132,19 @@ _HANDOFF_NOTE = (
     "page (shared/handoff.py)."
 )
 
+# Impact Evaluation is a staged workspace, so its result outlives the
+# screen that computed it. Worth saying separately from the handoff note:
+# a summary statistic held between stages is more than a hash, and less
+# than the rows it came from.
+_IMPACT_STAGE_NOTE = (
+    _HANDOFF_NOTE
+    + " The computed estimate (group means, counts, and test statistics) "
+    "is also held in session state so the interpretation stage can read "
+    "it, since the analysis that produced it is not running there. The "
+    "loaded rows are not held: returning to the data stage after "
+    "uploading a file means loading it again."
+)
+
 DISCLOSURES: tuple[DataHandlingDisclosure, ...] = (
     DataHandlingDisclosure(
         page="pages/1_Reliability.py",
@@ -160,7 +173,7 @@ DISCLOSURES: tuple[DataHandlingDisclosure, ...] = (
             "search runs is what is sent."
         ),
         redistribution=REDISTRIBUTION_NOT_BUNDLED,
-        notes=_HANDOFF_NOTE,
+        notes=_IMPACT_STAGE_NOTE,
     ),
     DataHandlingDisclosure(
         page="pages/3_Fairness.py",
