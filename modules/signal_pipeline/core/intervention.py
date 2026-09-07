@@ -28,6 +28,15 @@ from dataclasses import dataclass
 from typing import Mapping
 
 import numpy as np
+
+# NumPy renamed trapz to trapezoid in 1.22 and removed the old name in
+# 2.0. requirements.txt asks for numpy>=1.24, so a deployment resolving
+# to 2.x got an AttributeError on the one line that used it, and a
+# development machine on 1.26 could not reproduce that.
+#
+# Resolved once, here, rather than by holding NumPy back: nothing else
+# in this project needs an older one.
+_trapezoid = getattr(np, "trapezoid", None) or np.trapz
 from scipy.signal import decimate, welch
 
 ALPHA_BAND_HZ: tuple[float, float] = (8.0, 13.0)
@@ -76,7 +85,7 @@ def compute_alpha_power(window: np.ndarray, sampling_rate: float) -> float:
     freqs, power_spectrum = welch(window, fs=sampling_rate, nperseg=window.size)
     in_band = (freqs >= ALPHA_BAND_HZ[0]) & (freqs <= ALPHA_BAND_HZ[1])
 
-    return float(np.trapz(power_spectrum[in_band], freqs[in_band]))
+    return float(_trapezoid(power_spectrum[in_band], freqs[in_band]))
 
 
 @dataclass(frozen=True)

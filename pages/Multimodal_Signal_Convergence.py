@@ -712,7 +712,7 @@ def _frontier_spec(
     modalities,
     weighted_cost: tradeoff_core.WeightedCostResult,
     frontier: tradeoff_core.GainCostFrontierResult,
-    cost_title: str = "Combined cost under these weights (lower is better)",
+    cost_title: str = "Cost based on your priorities (lower is better)",
 ) -> dict:
     rows = [
         {
@@ -752,7 +752,7 @@ def _frontier_spec(
             "y": {
                 "field": "gain",
                 "type": "quantitative",
-                "title": "Interpretive gain (higher is better)",
+                "title": "What this modality adds (higher is better)",
                 "scale": {"domain": [0, 1]},
             },
             "color": {
@@ -776,7 +776,7 @@ def _frontier_spec(
             "tooltip": [
                 {"field": "label", "type": "nominal", "title": "Modality"},
                 {"field": "cost", "type": "quantitative", "title": "Combined cost", "format": ".2f"},
-                {"field": "gain", "type": "quantitative", "title": "Interpretive gain", "format": ".2f"},
+                {"field": "gain", "type": "quantitative", "title": "What it adds", "format": ".2f"},
                 {"field": "on_frontier", "type": "nominal", "title": "On frontier"},
             ],
         },
@@ -804,7 +804,7 @@ def _gain_bar_spec(modalities: tuple[modality_core.Modality, ...]) -> dict:
             "x": {
                 "field": "gain",
                 "type": "quantitative",
-                "title": "Interpretive gain alone (higher is better)",
+                "title": "What this modality adds, on its own (higher is better)",
                 "scale": {"domain": [0, 1]},
             },
             "color": {
@@ -1007,7 +1007,11 @@ if stage == STAGE_RESEARCH_QUESTION:
 
     rq_col1, rq_col2 = st.columns(2)
     with rq_col1:
-        st.badge("Interpretive gain", icon=":material/trending_up:", color="blue")
+        st.badge(
+            "What this modality adds",
+            icon=":material/trending_up:",
+            color="blue",
+        )
     with rq_col2:
         st.badge("Privacy/security/agency cost", icon=":material/shield:", color="blue")
 
@@ -1295,8 +1299,25 @@ if stage == STAGE_CONVERGENCE:
 if stage == STAGE_WEIGH_TRADEOFF:
     section_header(
         "5. Weigh the Tradeoff",
-        "An illustrative synthesis built on the ratings from Step 3, "
-        "grounded where a real measured result is available.",
+        "More modalities are not automatically better",
+    )
+
+    # The decision first, in words that do not require the vocabulary
+    # the rest of the stage uses. A reader who meets weighted costs, a
+    # frontier and dominated points before meeting the question has to
+    # reverse-engineer what they are deciding.
+    st.write(
+        "Adding a signal can provide new information, but it can also "
+        "introduce new costs. Here you can explore that tradeoff. First "
+        "compare how much each modality might add, then consider "
+        "privacy, security, and participant agency, and finally choose "
+        "how much each cost matters for your study."
+    )
+
+    st.caption(
+        "A modality is useful when the information it adds justifies the "
+        "costs it introduces. Which costs count is your judgment, and "
+        "the chart follows it rather than settling it."
     )
 
     all_modalities = _load_modalities()
@@ -1316,8 +1337,11 @@ if stage == STAGE_WEIGH_TRADEOFF:
         tradeoff_step = TRADEOFF_TRACKER.current()
 
         st.caption(
-            "Introduced gradually: gain alone, then each cost dimension "
-            "one at a time, before the full weighted picture."
+            "One thing at a time: what each modality adds, then each "
+            "cost on its own, then the picture under your own "
+            "priorities. An illustrative synthesis built on the ratings "
+            "from Step 3, grounded where a real measured result is "
+            "available."
         )
 
         st.vega_lite_chart(_gain_bar_spec(current_modalities), width="stretch")
@@ -1328,27 +1352,28 @@ if stage == STAGE_WEIGH_TRADEOFF:
         )
 
         if any(m.category in ("Autonomic", "Muscular") for m in current_modalities):
-            st.info(
-                "A real, measured result behind these Autonomic/Muscular "
-                "ratings: on DEAP's own single-trial emotion classifiers, "
-                "EEG alone scored 0.563 F1 and its bundled peripheral "
-                "channels (ECG - heart electrical activity, EMG - muscle "
-                "activity, GSR - skin conductance, plus respiration, "
-                "skin temperature, and eye movement, not separable into "
-                "this page's Autonomic and Muscular categories "
-                "individually) scored 0.608 F1 on valence - not a "
-                "statistically reliable difference (p=0.41). Fusing "
-                "peripheral with a third modality this page does not "
-                "model (multimedia content analysis) reached 0.652 F1, "
-                "the only fusion result in the paper that was a "
-                "statistically reliable improvement (p=0.025); fusing "
-                "all three "
-                "available modalities together did not improve on that "
-                "two-modality result. The paper's own conclusion: fusion "
-                "generally helped, but only slightly, and rarely enough "
-                "to be a statistically reliable improvement."
-            )
-            st.caption(KOELSTRA_CITATION)
+            with st.expander("See the research behind these ratings"):
+                st.info(
+                    "A real, measured result behind these Autonomic/Muscular "
+                    "ratings: on DEAP's own single-trial emotion classifiers, "
+                    "EEG alone scored 0.563 F1 and its bundled peripheral "
+                    "channels (ECG - heart electrical activity, EMG - muscle "
+                    "activity, GSR - skin conductance, plus respiration, "
+                    "skin temperature, and eye movement, not separable into "
+                    "this page's Autonomic and Muscular categories "
+                    "individually) scored 0.608 F1 on valence - not a "
+                    "statistically reliable difference (p=0.41). Fusing "
+                    "peripheral with a third modality this page does not "
+                    "model (multimedia content analysis) reached 0.652 F1, "
+                    "the only fusion result in the paper that was a "
+                    "statistically reliable improvement (p=0.025); fusing "
+                    "all three "
+                    "available modalities together did not improve on that "
+                    "two-modality result. The paper's own conclusion: fusion "
+                    "generally helped, but only slightly, and rarely enough "
+                    "to be a statistically reliable improvement."
+                )
+                st.caption(KOELSTRA_CITATION)
 
         if tradeoff_step < TRADEOFF_ADD_PRIVACY:
             if st.button("Now add privacy cost", type="primary"):
@@ -1404,23 +1429,24 @@ if stage == STAGE_WEIGH_TRADEOFF:
             )
 
             if any(m.category == "Neural" for m in current_modalities):
-                st.info(
-                    "A real, demonstrated security threat behind Neural's "
-                    "rating: researchers showed that amplitude-modulated "
-                    "radio-frequency signals from a remote antenna can be "
-                    "picked up by EEG electrode wires acting as unintended "
-                    "antennas and injected into the acquisition hardware "
-                    "as fabricated brain activity - through walls, at "
-                    "roughly three meters, with no access to the BCI "
-                    "software or data. Separately, EEG's own activity "
-                    "patterns are distinctive enough to identify who "
-                    "produced them, so a device collecting EEG for one "
-                    "purpose is, in effect, also collecting a biometric "
-                    "identifier as a byproduct - the same signal serves "
-                    "both purposes at once."
-                )
-                st.caption(ARMENGOL_URPI_ET_AL_CITATION)
-                st.caption(BAGLEY_ET_AL_CITATION)
+                with st.expander("See the research behind these ratings"):
+                    st.info(
+                        "A real, demonstrated security threat behind Neural's "
+                        "rating: researchers showed that amplitude-modulated "
+                        "radio-frequency signals from a remote antenna can be "
+                        "picked up by EEG electrode wires acting as unintended "
+                        "antennas and injected into the acquisition hardware "
+                        "as fabricated brain activity - through walls, at "
+                        "roughly three meters, with no access to the BCI "
+                        "software or data. Separately, EEG's own activity "
+                        "patterns are distinctive enough to identify who "
+                        "produced them, so a device collecting EEG for one "
+                        "purpose is, in effect, also collecting a biometric "
+                        "identifier as a byproduct - the same signal serves "
+                        "both purposes at once."
+                    )
+                    st.caption(ARMENGOL_URPI_ET_AL_CITATION)
+                    st.caption(BAGLEY_ET_AL_CITATION)
 
             if tradeoff_step < TRADEOFF_ADD_AGENCY:
                 if st.button("Now add agency cost, and set your own weights", type="primary"):
@@ -1478,18 +1504,20 @@ if stage == STAGE_WEIGH_TRADEOFF:
                 _frontier_spec(current_modalities, weighted_cost, frontier), width="stretch"
             )
             st.caption(
-                "Faded points are dominated under these weights: some other "
-                "modality here costs no more and gains no less."
+                "A faded modality has no advantage under your current "
+                "priorities: another option adds at least as much "
+                "information at the same or lower overall cost. That is "
+                "what \"dominated\" means on a chart like this."
             )
 
             for m in current_modalities:
                 if not frontier.is_efficient[m.name]:
                     flagged_item_note(
                         m.name,
-                        "Under these weights and these illustrative ratings, "
-                        "this modality is dominated by another and would not "
-                        "be favored by any weighting of these two dimensions "
-                        "alone.",
+                        "Another modality here adds at least as much and "
+                        "costs no more under the priorities you set, so "
+                        "these ratings give no reason to prefer this one. "
+                        "Change the priorities and that can change.",
                     )
 
             caveat(
@@ -1502,18 +1530,20 @@ if stage == STAGE_WEIGH_TRADEOFF:
             )
 
             st.write(
-                "**Implications**: which modalities are efficient under "
-                "these ratings is weight-dependent, not fixed - a "
-                "modality dominated under one weighting can be on the "
-                "frontier under another."
+                "**Implications**: which modalities look worth adding "
+                "depends on the priorities you set, not on the ratings "
+                "alone. One that has no advantage under your current "
+                "priorities can be the obvious choice under different "
+                "ones."
             )
 
             st.write(
-                "**What to inspect**: try setting privacy weight to 1.0 "
-                "and the others to 0.0, then reverse it. Which modalities are "
-                "dominated changes with the weights - the frontier is a map "
-                "of what the ratings imply under a given weighting, not a "
-                "single verdict on any modality."
+                "**What to inspect**: set the privacy weight to 1.0 and "
+                "the others to 0.0, then reverse it. Which modalities "
+                "fade changes as you do, which is the point: this chart "
+                "maps what the ratings imply under a given set of "
+                "priorities, and does not deliver a verdict on any "
+                "modality."
             )
 
 
