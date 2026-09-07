@@ -37,7 +37,7 @@ import streamlit as st
 
 from modules.fairness.core import pulse_oximeter_demo as pod
 from shared.data_handling import disclosure_for, render_data_handling_summary
-from shared.journey_stages import StageTracker
+from shared.stage_workspace import Stage, StageWorkspace
 from shared.report import caveat, implications, inspect_note, interpretation_note, section_header
 
 # ---------------------------------------------------------------------
@@ -62,7 +62,6 @@ JOURNEY_STAGES = (
     "Reflect",
 )
 
-TRACKER = StageTracker(session_key=STAGE_KEY, stage_labels=JOURNEY_STAGES)
 
 INK_MUTED = "#898781"
 GRIDLINE = "#e1e0d9"
@@ -237,9 +236,47 @@ st.caption(
 
 render_data_handling_summary(disclosure_for("pages/Pulse_Oximeter_Worked_Example.py"))
 
-stage = TRACKER.render_breadcrumb()
+# One stage in the workspace at a time, and the rail is how you move.
+# Reading this used to mean scrolling past every earlier stage, which
+# made six decisions read as six sections of a report.
+#
+# No gates. Every stage here is something to read or to move a slider
+# on, and the consequences stage describes whatever threshold is
+# currently set rather than requiring one to be chosen: under the
+# cumulative reveal it opened as soon as the decision stage had
+# rendered, because the slider has a default, and a gate here would take
+# that away.
+WORKSPACE = StageWorkspace(
+    session_key="pulseox",
+    stages=(
+        Stage("question", "Question"),
+        Stage("measurement", "Measurement"),
+        Stage("evidence", "Real Evidence"),
+        Stage("decision", "The Decision"),
+        Stage("consequences", "Consequences"),
+        Stage("reflect", "Reflect"),
+    ),
+)
 
-TRACKER.render_restart_button()
+# The threshold and the simulation run on it. Derived before any stage
+# renders, because the decision stage offers the slider and the
+# consequences stage describes the result, and in a workspace those are
+# separate runs.
+DEFAULT_THRESHOLD = (pod.BAND_LOWER + pod.BAND_UPPER) / 2
+
+threshold = float(WORKSPACE.kept("threshold", DEFAULT_THRESHOLD))
+cohort_choice = WORKSPACE.kept("cohort", next(iter(COHORT_LABELS)))
+sim_cohort_id = cohort_choice
+synthetic_cohort = pod.generate_synthetic_cohort(sim_cohort_id, seed=0)
+sim_result = pod.evaluate_action_threshold(
+    synthetic_cohort,
+    threshold,
+    privileged_group="White",
+    unprivileged_group="Black",
+)
+
+stage = WORKSPACE.render_rail()
+WORKSPACE.render_review_notice()
 
 st.divider()
 
@@ -247,67 +284,77 @@ st.divider()
 # 0. Research question
 # -----------------------------------------------------------------
 
-section_header("Research Question")
+if stage == STAGE_RESEARCH_QUESTION:
+    # The tracker used to draw this. Kept, because a worked example a
+    # reader has moved sliders in should be returnable to its opening
+    # state without reloading the browser.
+    if st.button("Restart study"):
+        for key in [
+            name for name in st.session_state
+            if str(name).startswith("pulseox")
+        ]:
+            st.session_state.pop(key, None)
+        st.rerun()
 
-st.markdown(
-    "### Does pulse oximetry detect low blood oxygen equally well across "
-    "racial groups, and what happens downstream if it does not?"
-)
 
-st.write(
-    "Pulse oximeters estimate arterial oxygen saturation from light "
-    "absorption through tissue, with no blood draw required."
-)
+    section_header("Research Question")
 
-st.markdown(_light_absorption_animation_svg(), unsafe_allow_html=True)
-st.caption(
-    "How a pulse oximeter reads oxygen level: red and infrared light "
-    "pass through tissue to a detector, and an artery's blood volume "
-    "rises and falls with each heartbeat, dimming and brightening the "
-    "light that arrives. Comparing how much red versus infrared light "
-    "varies with that pulse is what yields the SpO2 reading."
-)
-
-st.write(
-    "Clinicians use the reading to triage patients and to decide how "
-    "much supplemental oxygen to give. Sjoding et al. (2020) compared "
-    "paired pulse-oximeter and arterial-blood-gas measurements, taken "
-    "within 10 minutes of each other, across two cohorts: adult "
-    "inpatients at the University of Michigan Hospital, and ICU patients "
-    "across a multicenter database spanning roughly 178 hospitals from "
-    "2014 to 2015."
-)
-
-st.caption(
-    "This journey extends the 'Pulse oximeter racial bias' case study "
-    "shown on the Measurement Validation and Fairness pages: same "
-    "citation and takeaway, walked through stage by stage instead of "
-    "summarized in one paragraph."
-)
-
-with st.expander("Data sources and citations"):
     st.markdown(
-        """
-- **Sjoding, M. W., Dickson, R. P., Iwashyna, T. J., Gay, S. E., & Valley,
-  T. S. (2020).** Racial bias in pulse oximetry measurement [letter].
-  *New England Journal of Medicine*, 383(25), 2477-2478.
-  [doi.org/10.1056/NEJMc2029240](https://www.nejm.org/doi/full/10.1056/NEJMc2029240)
-- The FDA's response to this and related findings is discussed in the
-  Reflect stage below, sourced from public reporting rather than a
-  bibliographic citation of the FDA's own guidance document, which this
-  page has not independently reviewed.
-"""
+        "### Does pulse oximetry detect low blood oxygen equally well across "
+        "racial groups, and what happens downstream if it does not?"
     )
 
-if stage < STAGE_UNDERSTAND_MEASUREMENT:
-    if st.button("Begin study", type="primary"):
-        TRACKER.advance_to(STAGE_UNDERSTAND_MEASUREMENT)
+    st.write(
+        "Pulse oximeters estimate arterial oxygen saturation from light "
+        "absorption through tissue, with no blood draw required."
+    )
+
+    st.markdown(_light_absorption_animation_svg(), unsafe_allow_html=True)
+    st.caption(
+        "How a pulse oximeter reads oxygen level: red and infrared light "
+        "pass through tissue to a detector, and an artery's blood volume "
+        "rises and falls with each heartbeat, dimming and brightening the "
+        "light that arrives. Comparing how much red versus infrared light "
+        "varies with that pulse is what yields the SpO2 reading."
+    )
+
+    st.write(
+        "Clinicians use the reading to triage patients and to decide how "
+        "much supplemental oxygen to give. Sjoding et al. (2020) compared "
+        "paired pulse-oximeter and arterial-blood-gas measurements, taken "
+        "within 10 minutes of each other, across two cohorts: adult "
+        "inpatients at the University of Michigan Hospital, and ICU patients "
+        "across a multicenter database spanning roughly 178 hospitals from "
+        "2014 to 2015."
+    )
+
+    st.caption(
+        "This journey extends the 'Pulse oximeter racial bias' case study "
+        "shown on the Measurement Validation and Fairness pages: same "
+        "citation and takeaway, walked through stage by stage instead of "
+        "summarized in one paragraph."
+    )
+
+    with st.expander("Data sources and citations"):
+        st.markdown(
+            """
+    - **Sjoding, M. W., Dickson, R. P., Iwashyna, T. J., Gay, S. E., & Valley,
+      T. S. (2020).** Racial bias in pulse oximetry measurement [letter].
+      *New England Journal of Medicine*, 383(25), 2477-2478.
+      [doi.org/10.1056/NEJMc2029240](https://www.nejm.org/doi/full/10.1056/NEJMc2029240)
+    - The FDA's response to this and related findings is discussed in the
+      Reflect stage below, sourced from public reporting rather than a
+      bibliographic citation of the FDA's own guidance document, which this
+      page has not independently reviewed.
+    """
+        )
+
 
 # -----------------------------------------------------------------
 # 1. Understand measurement
 # -----------------------------------------------------------------
 
-if stage >= STAGE_UNDERSTAND_MEASUREMENT:
+if stage == STAGE_UNDERSTAND_MEASUREMENT:
     section_header(
         "Understand Measurement",
         "What 'occult hypoxemia' means, and why it can go undetected",
@@ -354,15 +401,12 @@ if stage >= STAGE_UNDERSTAND_MEASUREMENT:
             "letter itself does not isolate a single mechanism."
         )
 
-    if stage < STAGE_REAL_EVIDENCE:
-        if st.button("Continue to the real evidence", type="primary"):
-            TRACKER.advance_to(STAGE_REAL_EVIDENCE)
 
 # -----------------------------------------------------------------
 # 2. Real evidence
 # -----------------------------------------------------------------
 
-if stage >= STAGE_REAL_EVIDENCE:
+if stage == STAGE_REAL_EVIDENCE:
     section_header(
         "Real Evidence",
         "Published occult-hypoxemia rates, exactly as reported",
@@ -381,6 +425,10 @@ if stage >= STAGE_REAL_EVIDENCE:
         horizontal=True,
         key="pulseox_cohort",
     )
+
+    # Held for the decision stage, which calibrates its simulation on
+    # this cohort and runs without the radio on screen.
+    WORKSPACE.keep("cohort", cohort_choice)
 
     st.caption(
         "Sjoding et al. report this same disparity independently in two "
@@ -425,19 +473,16 @@ if stage >= STAGE_REAL_EVIDENCE:
         "applies to every individual."
     )
 
-    if stage < STAGE_EXPLORE_DECISION:
-        if st.button("Continue to explore the decision", type="primary"):
-            TRACKER.advance_to(STAGE_EXPLORE_DECISION)
 
 # -----------------------------------------------------------------
 # 3. Explore the decision
 # -----------------------------------------------------------------
 
-threshold: float | None = None
-sim_result = None
-sim_cohort_id: str | None = None
+# Declared above rather than here. These used to start as None and be
+# set only if this stage rendered, which is exactly the shape that leaves
+# a later stage describing nothing.
 
-if stage >= STAGE_EXPLORE_DECISION:
+if stage == STAGE_EXPLORE_DECISION:
     section_header(
         "Explore the Decision",
         "An adjustable alarm threshold, on a synthetic cohort",
@@ -485,28 +530,32 @@ if stage >= STAGE_EXPLORE_DECISION:
 
     st.caption(
         f"Simulating: **{COHORT_LABELS[cohort_choice]}** (the cohort "
-        "selected above, in Real Evidence)."
+        "chosen in Real Evidence)."
     )
     sim_cohort_id = cohort_choice
+
+    if "pulseox_threshold" not in st.session_state:
+        st.session_state["pulseox_threshold"] = threshold
 
     threshold = st.slider(
         "Alarm threshold: flag a patient for closer review if their "
         "pulse-oximeter reading falls below this value",
         min_value=pod.BAND_LOWER + 0.5,
         max_value=pod.BAND_UPPER - 0.5,
-        value=(pod.BAND_LOWER + pod.BAND_UPPER) / 2,
         step=0.1,
         key="pulseox_threshold",
     )
 
-    synthetic_cohort = pod.generate_synthetic_cohort(sim_cohort_id, seed=0)
-
+    # Recomputed on the slider's value, and held for the consequences
+    # stage, which describes what this threshold does downstream and
+    # runs without the slider on screen.
     sim_result = pod.evaluate_action_threshold(
         synthetic_cohort,
         threshold,
         privileged_group="White",
         unprivileged_group="Black",
     )
+    WORKSPACE.keep("threshold", threshold)
 
     metric_cols = st.columns(2)
     with metric_cols[0]:
@@ -578,15 +627,12 @@ if stage >= STAGE_EXPLORE_DECISION:
     for assumption in synthetic_cohort.assumptions:
         caveat(assumption)
 
-    if stage < STAGE_SYSTEM_CONSEQUENCES:
-        if st.button("Continue to system consequences", type="primary"):
-            TRACKER.advance_to(STAGE_SYSTEM_CONSEQUENCES)
 
 # -----------------------------------------------------------------
 # 4. System consequences
 # -----------------------------------------------------------------
 
-if stage >= STAGE_SYSTEM_CONSEQUENCES and sim_result is not None and threshold is not None:
+if stage == STAGE_SYSTEM_CONSEQUENCES:
     section_header(
         "System Consequences",
         "The same measurement error, carried downstream",
@@ -638,15 +684,12 @@ if stage >= STAGE_SYSTEM_CONSEQUENCES and sim_result is not None and threshold i
         "correct a gap that originates in the measurement itself."
     )
 
-    if stage < STAGE_REFLECT:
-        if st.button("Continue to reflect", type="primary"):
-            TRACKER.advance_to(STAGE_REFLECT)
 
 # -----------------------------------------------------------------
 # 5. Reflect
 # -----------------------------------------------------------------
 
-if stage >= STAGE_REFLECT:
+if stage == STAGE_REFLECT:
     section_header("Reflect", "What this does and does not settle")
 
     st.write(
@@ -684,3 +727,5 @@ if stage >= STAGE_REFLECT:
         "studied, and no single downstream threshold fully closes that "
         "gap, because the gap originates before the threshold is applied."
     )
+
+WORKSPACE.render_navigation()
