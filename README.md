@@ -1,13 +1,23 @@
 # OpenMeasure Lab
 
-An open-source validation toolkit for research data, measures, models, and programs.
+A transparent research-validation environment that helps researchers decide what checks are appropriate, run them reproducibly, understand what the results permit them to conclude, and preserve the reasoning behind those decisions.
 
 [![Live Demo](https://img.shields.io/badge/Live-Demo-64748B?style=flat)](https://openmeasure.streamlit.app)
 [![GitHub](https://img.shields.io/badge/GitHub-Repository-64748B?style=flat&logo=github&logoColor=white)](https://github.com/victoriamccray/openmeasure)
 
-OpenMeasure brings together statistical methods, transparent reporting, and plain-language interpretation to help researchers evaluate measurements, datasets, analytical models, and program evaluations.
+Those four things are the whole design, and each is somewhere specific in the repository.
 
-OpenMeasure is designed for researchers and practitioners working in community health, social services, education, public policy, and applied research. The toolkit emphasizes validation methods that are accessible, reproducible, transparent, and adaptable across disciplines.
+**Decide what checks are appropriate.** Method Selection starts from what you are trying to determine rather than from a menu of tests, and routes to the workflow suited to it. Where a dataset is already loaded, `modules/data_profile` reads column shapes and suggests a starting point, saying what is ambiguous instead of resolving it silently. A shape-based suggestion is not a claim that a method is appropriate, and OpenMeasure says which one it is making.
+
+**Run them reproducibly.** Every calculation lives in a `modules/<name>/core/` package of pure functions with no Streamlit import and no I/O, each returning a frozen dataclass. That boundary is enforced by a test, so the analysis can be lifted out of the interface it currently has. Assumptions, seeds, and exclusions are recorded rather than implied.
+
+**Understand what the results permit.** This is the part most tools leave to the reader. A p-value does not retire a design limitation; several sources reporting the same number are not an independent replication; fair by one definition is not fair by another. So no module collapses a contested question into a composite score, every threshold cites the convention it comes from, and results carry an explicit boundary between what they establish and what they leave open, including "not established" as a first-class state.
+
+**Preserve the reasoning.** Staged workflows record which decision fed which conclusion, and flag a downstream stage for review when an upstream choice changes, naming what changed. Findings recorded across workflows are compared without being merged, so two analyses of the same upload can be shown to converge, diverge, or not be comparable at all. Provenance distinguishes what a source reported from what OpenMeasure calculated from what nobody has established. See `docs/stage-lifecycle.md` and `shared/handoff.py`.
+
+OpenMeasure is for researchers and practitioners in community health, social services, education, public policy, and applied research. The validation methods are meant to be accessible, reproducible, transparent, and adaptable across disciplines.
+
+It computes, organizes, visualizes, and tracks evidence. The methodological judgment stays with the researcher.
 
 ## Modules
 
