@@ -49,6 +49,7 @@ from modules.signal_pipeline.core import pipeline as pipeline_core
 from modules.signal_pipeline.core import tradeoff as tradeoff_core
 from shared.data_handling import disclosure_for, render_data_handling_summary
 from shared.journey_stages import StageTracker
+from shared.stage_workspace import Stage, StageWorkspace
 from shared.report import caveat, flagged_item_note, section_header
 
 SAMPLE_DIR = ROOT / "modules" / "signal_pipeline" / "sample_data"
@@ -330,7 +331,6 @@ JOURNEY_STAGES = (
     "Research decision",
 )
 
-TRACKER = StageTracker(session_key=STAGE_KEY, stage_labels=JOURNEY_STAGES)
 
 # A second, nested StageTracker: the "Weigh the tradeoff" stage above
 # unlocks its own cost dimensions one at a time (gain alone, then
@@ -911,18 +911,28 @@ st.caption(
 
 render_data_handling_summary(disclosure_for("pages/Multimodal_Signal_Convergence.py"))
 
-stage = TRACKER.render_breadcrumb()
-
-TRACKER.render_restart_button(
-    extra_session_keys=(
-        SELECTED_MODALITIES_KEY,
-        PRIVACY_WEIGHT_KEY,
-        SECURITY_WEIGHT_KEY,
-        AGENCY_WEIGHT_KEY,
-        PERSPECTIVE_KEY,
-        TRADEOFF_STEP_KEY,
-    )
+# One stage in the workspace at a time, and the rail is how you move.
+# Reading this used to mean scrolling past every earlier stage, which
+# made seven decisions read as seven sections of a report.
+#
+# No gates. Every stage here is something to read, build, or weigh, and
+# the tradeoff stage already says for itself when it has no modality to
+# compare, which is more use than a locked rail entry.
+WORKSPACE = StageWorkspace(
+    session_key="mmsc",
+    stages=(
+        Stage("question", "Question"),
+        Stage("pipeline", "Pipeline"),
+        Stage("modalities", "Modalities"),
+        Stage("convergence", "Convergence"),
+        Stage("tradeoff", "Tradeoff"),
+        Stage("real_signal", "A Real Signal"),
+        Stage("decision", "Decision"),
+    ),
 )
+
+stage = WORKSPACE.render_rail()
+WORKSPACE.render_review_notice()
 
 st.divider()
 
@@ -930,68 +940,85 @@ st.divider()
 # 1. Research question
 # -----------------------------------------------------------------
 
-section_header("1. Research Question")
+if stage == STAGE_RESEARCH_QUESTION:
+    # The tracker used to draw this, clearing the modality selection,
+    # the three cost weights, the perspective, and the nested tradeoff
+    # sequence's own position with it.
+    if st.button("Restart study"):
+        for key in [
+            name for name in st.session_state
+            if str(name).startswith("mmsc")
+        ] + [
+            SELECTED_MODALITIES_KEY,
+            PRIVACY_WEIGHT_KEY,
+            SECURITY_WEIGHT_KEY,
+            AGENCY_WEIGHT_KEY,
+            PERSPECTIVE_KEY,
+            TRADEOFF_STEP_KEY,
+        ]:
+            st.session_state.pop(key, None)
+        st.rerun()
 
-st.markdown(
-    "### Does Combining Signals Improve Interpretation Enough To Justify "
-    "the Added Privacy, Security, and Agency Cost Of Collecting Them?"
-)
 
-st.write(
-    "A neurotech pipeline built around a single signal - EEG, say - can "
-    "always be made 'more informative' by adding another stream: heart "
-    "rate, movement, self-report, even a clinician's notes. Each addition "
-    "can sharpen what the pipeline infers, but each also adds its own "
-    "cost: a new way for the data to be re-identifying (traceable back "
-    "to a specific person, even without a name attached), a new point "
-    "of exposure, a new way the system can act on someone without their "
-    "deliberate say. This journey asks whether an added modality's gain "
-    "is validated as worth its cost, rather than assuming more signal is "
-    "automatically better."
-)
-st.caption(DE_MONTJOYE_CITATION)
+    section_header("1. Research Question")
 
-rq_col1, rq_col2 = st.columns(2)
-with rq_col1:
-    st.badge("Interpretive gain", icon=":material/trending_up:", color="blue")
-with rq_col2:
-    st.badge("Privacy/security/agency cost", icon=":material/shield:", color="blue")
-
-with st.expander("Validation Question"):
-    st.write(
-        "Mental privacy and cognitive liberty (the right to control "
-        "access to one's own brain data and mental processes) have been "
-        "proposed as human rights specifically because neural data can "
-        "reveal more about a person than they intended to disclose. The same "
-        "concern scales to any signal that is collected continuously and "
-        "combined with others: the risk is not any one signal alone, but "
-        "what their combination can infer."
+    st.markdown(
+        "### Does Combining Signals Improve Interpretation Enough To Justify "
+        "the Added Privacy, Security, and Agency Cost Of Collecting Them?"
     )
-    st.caption(IENCA_ANDORNO_CITATION)
-    st.write(
-        "Security is a separate concern from privacy, and "
-        "brain-computer interface (BCI) research surveys it across the "
-        "full \"BCI cycle\": acquisition hardware, "
-        "on-device processing, transmission between devices, the machine "
-        "learning models decoding the signal, and the applications or "
-        "cloud services consuming the result. More traditional points of "
-        "exposure in that cycle, such as wireless communication or cloud "
-        "storage, can adopt existing methods (encryption, secure "
-        "communication protocols, differential privacy) directly; the "
-        "closer to the brain a surface is, the more those methods need "
-        "to be modified or replaced entirely."
-    )
-    st.caption(BAGLEY_ET_AL_CITATION)
 
-if stage < STAGE_BUILD_PIPELINE:
-    if st.button("Begin study", type="primary"):
-        TRACKER.advance_to(STAGE_BUILD_PIPELINE)
+    st.write(
+        "A neurotech pipeline built around a single signal - EEG, say - can "
+        "always be made 'more informative' by adding another stream: heart "
+        "rate, movement, self-report, even a clinician's notes. Each addition "
+        "can sharpen what the pipeline infers, but each also adds its own "
+        "cost: a new way for the data to be re-identifying (traceable back "
+        "to a specific person, even without a name attached), a new point "
+        "of exposure, a new way the system can act on someone without their "
+        "deliberate say. This journey asks whether an added modality's gain "
+        "is validated as worth its cost, rather than assuming more signal is "
+        "automatically better."
+    )
+    st.caption(DE_MONTJOYE_CITATION)
+
+    rq_col1, rq_col2 = st.columns(2)
+    with rq_col1:
+        st.badge("Interpretive gain", icon=":material/trending_up:", color="blue")
+    with rq_col2:
+        st.badge("Privacy/security/agency cost", icon=":material/shield:", color="blue")
+
+    with st.expander("Validation Question"):
+        st.write(
+            "Mental privacy and cognitive liberty (the right to control "
+            "access to one's own brain data and mental processes) have been "
+            "proposed as human rights specifically because neural data can "
+            "reveal more about a person than they intended to disclose. The same "
+            "concern scales to any signal that is collected continuously and "
+            "combined with others: the risk is not any one signal alone, but "
+            "what their combination can infer."
+        )
+        st.caption(IENCA_ANDORNO_CITATION)
+        st.write(
+            "Security is a separate concern from privacy, and "
+            "brain-computer interface (BCI) research surveys it across the "
+            "full \"BCI cycle\": acquisition hardware, "
+            "on-device processing, transmission between devices, the machine "
+            "learning models decoding the signal, and the applications or "
+            "cloud services consuming the result. More traditional points of "
+            "exposure in that cycle, such as wireless communication or cloud "
+            "storage, can adopt existing methods (encryption, secure "
+            "communication protocols, differential privacy) directly; the "
+            "closer to the brain a surface is, the more those methods need "
+            "to be modified or replaced entirely."
+        )
+        st.caption(BAGLEY_ET_AL_CITATION)
+
 
 # -----------------------------------------------------------------
 # 2. Build the pipeline
 # -----------------------------------------------------------------
 
-if stage >= STAGE_BUILD_PIPELINE:
+if stage == STAGE_BUILD_PIPELINE:
     section_header(
         "2. Build the Pipeline",
         "One general shape, starting with a single neurotech signal.",
@@ -1044,15 +1071,12 @@ if stage >= STAGE_BUILD_PIPELINE:
         "costs."
     )
 
-    if stage < STAGE_ADD_MODALITIES:
-        if st.button("Continue to add modalities", type="primary"):
-            TRACKER.advance_to(STAGE_ADD_MODALITIES)
 
 # -----------------------------------------------------------------
 # 3. Add modalities
 # -----------------------------------------------------------------
 
-if stage >= STAGE_ADD_MODALITIES:
+if stage == STAGE_ADD_MODALITIES:
     section_header(
         "3. Add Modalities",
         "Add categories one at a time; the diagram below updates as you do.",
@@ -1160,15 +1184,12 @@ if stage >= STAGE_ADD_MODALITIES:
         "cost - that comparison is Step 5."
     )
 
-    if stage < STAGE_CONVERGENCE:
-        if st.button("Continue to examine convergence", type="primary"):
-            TRACKER.advance_to(STAGE_CONVERGENCE)
 
 # -----------------------------------------------------------------
 # 4. Examine convergence
 # -----------------------------------------------------------------
 
-if stage >= STAGE_CONVERGENCE:
+if stage == STAGE_CONVERGENCE:
     section_header(
         "4. Examine Convergence",
         "Where the added signals actually meet, and what meets there.",
@@ -1225,15 +1246,12 @@ if stage >= STAGE_CONVERGENCE:
         "as a combination, not signal by signal."
     )
 
-    if stage < STAGE_WEIGH_TRADEOFF:
-        if st.button("Continue to weigh the tradeoff", type="primary"):
-            TRACKER.advance_to(STAGE_WEIGH_TRADEOFF)
 
 # -----------------------------------------------------------------
 # 5. Weigh the tradeoff
 # -----------------------------------------------------------------
 
-if stage >= STAGE_WEIGH_TRADEOFF:
+if stage == STAGE_WEIGH_TRADEOFF:
     section_header(
         "5. Weigh the Tradeoff",
         "An illustrative synthesis built on the ratings from Step 3, "
@@ -1253,9 +1271,6 @@ if stage >= STAGE_WEIGH_TRADEOFF:
             "Add at least one modality in Step 3 to compare gain against "
             "cost across more than one signal."
         )
-        if stage < STAGE_REAL_SIGNAL:
-            if st.button("Continue to protect a real signal", type="primary"):
-                TRACKER.advance_to(STAGE_REAL_SIGNAL)
     else:
         tradeoff_step = TRADEOFF_TRACKER.current()
 
@@ -1442,15 +1457,12 @@ if stage >= STAGE_WEIGH_TRADEOFF:
                 "single verdict on any modality."
             )
 
-            if stage < STAGE_REAL_SIGNAL:
-                if st.button("Continue to protect a real signal", type="primary"):
-                    TRACKER.advance_to(STAGE_REAL_SIGNAL)
 
 # -----------------------------------------------------------------
 # 6. Protect a real signal
 # -----------------------------------------------------------------
 
-if stage >= STAGE_REAL_SIGNAL:
+if stage == STAGE_REAL_SIGNAL:
     section_header(
         "6. Protect a Real Signal",
         "Apply one protective measure to a real EEG recording, then "
@@ -1670,15 +1682,12 @@ if stage >= STAGE_REAL_SIGNAL:
         "different downstream use of the same signal."
     )
 
-    if stage < STAGE_RESEARCH_DECISION:
-        if st.button("Continue to the research decision", type="primary"):
-            TRACKER.advance_to(STAGE_RESEARCH_DECISION)
 
 # -----------------------------------------------------------------
 # 7. Research decision
 # -----------------------------------------------------------------
 
-if stage >= STAGE_RESEARCH_DECISION:
+if stage == STAGE_RESEARCH_DECISION:
     section_header("7. Research Decision")
 
     st.caption(
@@ -1773,3 +1782,5 @@ if stage >= STAGE_RESEARCH_DECISION:
             "revisitable question instead of a one-time architectural "
             "decision."
         )
+
+WORKSPACE.render_navigation()
