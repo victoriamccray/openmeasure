@@ -73,7 +73,7 @@ from shared.dataset_loaders import (
     load_public_artifact,
 )
 from shared.datasets import DATASETS, get_dataset
-from shared.journey_stages import StageTracker
+from shared.stage_workspace import Gate, Stage, StageWorkspace
 from shared.report import caveat, flagged_item_note, implications, inspect_note, section_header
 
 # ---------------------------------------------------------------------
@@ -116,7 +116,6 @@ JOURNEY_STAGES = (
     "Finish study",
 )
 
-TRACKER = StageTracker(session_key=STAGE_KEY, stage_labels=JOURNEY_STAGES)
 
 SPLIT_PARTICIPANT = "participant"
 SPLIT_WINDOW = "window"
@@ -792,15 +791,107 @@ st.caption(
 
 render_data_handling_summary(disclosure_for("pages/HealthRing_Worked_Example.py"))
 
-stage = TRACKER.render_breadcrumb()
+# One stage in the workspace at a time, and the rail is how you move.
+# Eleven stages is where a cumulative reveal stops being a nuisance and
+# becomes the reason nobody reaches the end.
+#
+# Everything this journey computes is derived here, before any stage
+# draws. Nine stages used to carry a prerequisite on a value produced
+# inside an earlier stage, which worked only because every earlier stage
+# had already run in the same pass. All of it is a deterministic function
+# of the loaded windows, the split choice and the seed, and the page
+# already recomputed all of it on every rerun, so nothing is lost by
+# doing it once up front.
+windows = st.session_state.get("healthring_windows")
 
-TRACKER.render_restart_button(
-    extra_session_keys=(
-        "healthring_windows",
-        "healthring_n_subjects",
-        "hr_reveal_breakdown",
-    )
+split_choice = WORKSPACE_SPLIT_CHOICE = st.session_state.get(
+    "hr_kept_split_choice", SPLIT_PARTICIPANT
 )
+split_seed = int(st.session_state.get("hr_kept_split_seed", 0))
+
+splits: dict[str, ar.SplitResult | None] = {}
+split_errors: dict[str, str] = {}
+fitted: dict[
+    str, tuple[ar.RecalibrationModel, ar.AgreementResult, pd.DataFrame]
+] = {}
+chosen_split: ar.SplitResult | None = None
+baseline: ar.AgreementResult | None = None
+evaluation: ar.AgreementResult | None = None
+test_data: pd.DataFrame | None = None
+retention: ar.RetentionResult | None = None
+quality_threshold = float(st.session_state.get("hr_kept_quality_threshold", 0.5))
+
+if windows is not None:
+    for name, splitter in (
+        (SPLIT_PARTICIPANT, ar.split_by_subject),
+        (SPLIT_WINDOW, ar.split_by_window),
+    ):
+        try:
+            splits[name] = splitter(
+                windows, test_fraction=0.3, seed=split_seed
+            )
+        except ValueError as error:
+            splits[name] = None
+            split_errors[name] = str(error)
+
+    for name, result in splits.items():
+        if result is not None:
+            try:
+                fitted[name] = _fit_and_evaluate(result)
+            except ValueError as error:
+                split_errors[name] = str(error)
+
+    chosen_split = splits.get(split_choice)
+
+    if chosen_split is not None:
+        baseline = ar.agreement_summary(
+            chosen_split.test_data["bvp_hr"],
+            chosen_split.test_data["hr"],
+        )
+
+    if split_choice in fitted:
+        _, evaluation, test_data = fitted[split_choice]
+
+    if test_data is not None:
+        try:
+            retention = ar.filter_by_quality(
+                test_data,
+                predicted_col="predicted_hr",
+                target_col="hr",
+                threshold=quality_threshold,
+            )
+        except (ValueError, KeyError):
+            retention = None
+
+# One gate. Everything from the signal inspection onward describes a
+# recording, and until one is loaded there is nothing for any of it to
+# describe. The stages used to render nothing at all in that case, which
+# is the same fact without the explanation.
+WORKSPACE = StageWorkspace(
+    session_key="hr",
+    stages=(
+        Stage("question", "Question"),
+        Stage("measurement", "Measurement"),
+        Stage("inspection", "Signal"),
+        Stage("design", "Design"),
+        Stage("baseline", "Baseline"),
+        Stage("model", "Model"),
+        Stage("evaluate", "Evaluate"),
+        Stage("retention", "Retention"),
+        Stage("conditions", "Conditions"),
+        Stage("conclusion", "Conclusion"),
+        Stage("finish", "Finish"),
+    ),
+    gates={
+        "design": Gate(
+            satisfied=windows is not None,
+            requirement="Load a recording to continue",
+        ),
+    },
+)
+
+stage = WORKSPACE.render_rail()
+WORKSPACE.render_review_notice()
 
 st.divider()
 
@@ -808,99 +899,110 @@ st.divider()
 # 0. Research question
 # -----------------------------------------------------------------
 
-section_header("Research Question")
+if stage == STAGE_RESEARCH_QUESTION:
+    # The tracker used to draw this, clearing the loaded windows, the
+    # participant count and the revealed breakdown with it.
+    if st.button("Restart study"):
+        for key in [
+            name for name in st.session_state
+            if str(name).startswith(("hr_", "healthring_"))
+        ]:
+            st.session_state.pop(key, None)
+        st.rerun()
 
-st.markdown(
-    "### Can We Trust Ring-Derived Heart Rate Across Real-World Conditions?"
-)
 
-st.write(
-    "A wearable ring reports a heart-rate number with no error bars "
-    "attached. This page runs a real validation of one ring's heart-rate "
-    "estimate against a reference device, across real activity "
-    "conditions. It uses real data, not a demonstration built to make a "
-    "model look good, and it explains each term as it comes up."
-)
+    section_header("Research Question")
 
-rq_col1, rq_col2 = st.columns(2)
-with rq_col1:
-    st.badge("Ring estimate", icon=":material/watch:", color="blue")
-with rq_col2:
-    st.badge("Reference device", icon=":material/monitor_heart:", color="blue")
+    st.markdown(
+        "### Can We Trust Ring-Derived Heart Rate Across Real-World Conditions?"
+    )
 
-st.info(
-    "\"Smart rings enable unobtrusive monitoring of cardiovascular "
-    "vital signs via photoplethysmography (PPG), yet rigorous "
-    "validation is limited by the scarcity of open, multi-parameter "
-    "datasets.\" HealthRing dataset includes three synchronized "
-    "cohorts from 54 adults, recorded on two custom ring designs "
-    "(reflective and transmissive PPG) alongside clinical-grade "
-    "reference devices."
-)
-
-with st.expander("Dataset access and citation"):
     st.write(
-        f"**{HEALTHRING_DATASET.name}** ({HEALTHRING_DATASET.domain}). "
-        f"{HEALTHRING_DATASET.description}"
-    )
-    for source in HEALTHRING_DATASET.sources:
-        st.markdown(f"[{source.label}]({source.url})")
-    st.caption(f"Access: {HEALTHRING_DATASET.access}")
-    st.caption(HEALTHRING_DATASET.citation)
-    st.caption(
-        "This page never bundles HealthRing data. Bring your own copy of "
-        "the archive, either by uploading it or by pointing at a local "
-        "path, and it is used only for this session: not modified, "
-        "stored beyond the session, or redistributed."
+        "A wearable ring reports a heart-rate number with no error bars "
+        "attached. This page runs a real validation of one ring's heart-rate "
+        "estimate against a reference device, across real activity "
+        "conditions. It uses real data, not a demonstration built to make a "
+        "model look good, and it explains each term as it comes up."
     )
 
-with st.expander("What was found by HealthRing researchers"):
-    st.write(
-        "On the controlled and daily-life cohorts, the paper's own "
-        "physics-based and supervised benchmarks reach mean absolute "
-        "errors of 5.33 BPM (heart rate), 2.98 breaths/min (respiratory "
-        "rate), 1.72% (SpO2), 12.98 mmHg (systolic blood pressure), and "
-        "7.64 mmHg (diastolic blood pressure)."
-    )
-    st.write(
-        "On the treadmill cohort, fine-tuning cuts heart-rate error "
-        "from 36.91 to 23.99 BPM, and respiratory-rate error from 5.44 "
-        "to 4.61 breaths/min, relative to applying a model with no "
-        "retraining on that cohort's motion."
-    )
-    st.write(
-        "Other findings from the paper, useful context before this "
-        "walkthrough runs its own, much simpler model: supervised "
-        "models consistently beat physics-based methods, but the best "
-        "model varied by task; error increases sharply with more "
-        "intense motion, roughly tripling versus stationary scenarios; "
-        "blood pressure was the hardest of the four vital signs to "
-        "estimate; adding extra sensor channels (a second PPG "
-        "wavelength, the accelerometer) gave only modest, inconsistent "
-        "gains depending on ring design; and their best supervised "
-        "models matched or beat two commercial rings (Samsung Galaxy "
-        "Ring, Oura Ring) on heart rate."
-    )
-    st.caption(
-        "This page fits one predictor with ordinary least squares, not "
-        "the supervised models the paper benchmarks. Treat these as "
-        "prior findings from the literature to compare this walkthrough's "
-        "own result against, not a bar this page's model is expected to "
-        "clear."
+    rq_col1, rq_col2 = st.columns(2)
+    with rq_col1:
+        st.badge("Ring estimate", icon=":material/watch:", color="blue")
+    with rq_col2:
+        st.badge("Reference device", icon=":material/monitor_heart:", color="blue")
+
+    st.info(
+        "\"Smart rings enable unobtrusive monitoring of cardiovascular "
+        "vital signs via photoplethysmography (PPG), yet rigorous "
+        "validation is limited by the scarcity of open, multi-parameter "
+        "datasets.\" HealthRing dataset includes three synchronized "
+        "cohorts from 54 adults, recorded on two custom ring designs "
+        "(reflective and transmissive PPG) alongside clinical-grade "
+        "reference devices."
     )
 
-if stage < STAGE_UNDERSTAND_MEASUREMENT:
-    if st.button("Begin study", type="primary"):
-        TRACKER.advance_to(STAGE_UNDERSTAND_MEASUREMENT)
+    with st.expander("Dataset access and citation"):
+        st.write(
+            f"**{HEALTHRING_DATASET.name}** ({HEALTHRING_DATASET.domain}). "
+            f"{HEALTHRING_DATASET.description}"
+        )
+        for source in HEALTHRING_DATASET.sources:
+            st.markdown(f"[{source.label}]({source.url})")
+        st.caption(f"Access: {HEALTHRING_DATASET.access}")
+        st.caption(HEALTHRING_DATASET.citation)
+        st.caption(
+            "This page never bundles HealthRing data. Bring your own copy of "
+            "the archive, either by uploading it or by pointing at a local "
+            "path, and it is used only for this session: not modified, "
+            "stored beyond the session, or redistributed."
+        )
+
+    with st.expander("What was found by HealthRing researchers"):
+        st.write(
+            "On the controlled and daily-life cohorts, the paper's own "
+            "physics-based and supervised benchmarks reach mean absolute "
+            "errors of 5.33 BPM (heart rate), 2.98 breaths/min (respiratory "
+            "rate), 1.72% (SpO2), 12.98 mmHg (systolic blood pressure), and "
+            "7.64 mmHg (diastolic blood pressure)."
+        )
+        st.write(
+            "On the treadmill cohort, fine-tuning cuts heart-rate error "
+            "from 36.91 to 23.99 BPM, and respiratory-rate error from 5.44 "
+            "to 4.61 breaths/min, relative to applying a model with no "
+            "retraining on that cohort's motion."
+        )
+        st.write(
+            "Other findings from the paper, useful context before this "
+            "walkthrough runs its own, much simpler model: supervised "
+            "models consistently beat physics-based methods, but the best "
+            "model varied by task; error increases sharply with more "
+            "intense motion, roughly tripling versus stationary scenarios; "
+            "blood pressure was the hardest of the four vital signs to "
+            "estimate; adding extra sensor channels (a second PPG "
+            "wavelength, the accelerometer) gave only modest, inconsistent "
+            "gains depending on ring design; and their best supervised "
+            "models matched or beat two commercial rings (Samsung Galaxy "
+            "Ring, Oura Ring) on heart rate."
+        )
+        st.caption(
+            "This page fits one predictor with ordinary least squares, not "
+            "the supervised models the paper benchmarks. Treat these as "
+            "prior findings from the literature to compare this walkthrough's "
+            "own result against, not a bar this page's model is expected to "
+            "clear."
+        )
+
 
 # -----------------------------------------------------------------
 # 1. Understand measurement
 # -----------------------------------------------------------------
 
-windows = None
+# windows is derived above, before any stage draws. It used to
+# start as None here and be set only if the stage that loads a
+# recording had rendered.
 predicted_problems: list[str] = []
 
-if stage >= STAGE_UNDERSTAND_MEASUREMENT:
+if stage == STAGE_UNDERSTAND_MEASUREMENT:
     section_header(
         "Understand Measurement",
         "What is actually being compared, before any analysis runs",
@@ -1212,7 +1314,7 @@ Each measurement window in this dataset carries:
 # 2. Signal inspection
 # -----------------------------------------------------------------
 
-if stage >= STAGE_SIGNAL_INSPECTION and windows is not None:
+if stage == STAGE_SIGNAL_INSPECTION:
     section_header(
         "Signal Inspection",
         "Walk through one real measurement window end to end",
@@ -1251,9 +1353,6 @@ if stage >= STAGE_SIGNAL_INSPECTION and windows is not None:
             "these; only the waveform walk-through needs the archive."
         )
 
-        if stage < STAGE_DESIGN_EVALUATION:
-            if st.button("Continue to design evaluation", type="primary"):
-                TRACKER.advance_to(STAGE_DESIGN_EVALUATION)
 
         signal_windows = None
     else:
@@ -1322,20 +1421,14 @@ if stage >= STAGE_SIGNAL_INSPECTION and windows is not None:
             "comparison proves."
         )
 
-    if stage < STAGE_DESIGN_EVALUATION:
-        if st.button("Continue to evaluation design", type="primary"):
-            TRACKER.advance_to(STAGE_DESIGN_EVALUATION)
 
 # -----------------------------------------------------------------
 # 3. Design the evaluation
 # -----------------------------------------------------------------
 
-chosen_split: ar.SplitResult | None = None
-split_choice = SPLIT_PARTICIPANT
-split_seed = 0
-fitted: dict[str, tuple[ar.RecalibrationModel, ar.AgreementResult, pd.DataFrame]] = {}
+# Derived above, before any stage drew.
 
-if stage >= STAGE_DESIGN_EVALUATION and windows is not None:
+if stage == STAGE_DESIGN_EVALUATION:
     section_header(
         "Design the Evaluation",
         "How you split training and test data decides what the test result can claim",
@@ -1368,17 +1461,24 @@ participant-level split does. This is called **leakage**.
 """
     )
 
+    if "hr_split_choice" not in st.session_state:
+        st.session_state["hr_split_choice"] = split_choice
+
     split_choice = st.radio(
         "How should training and test data be split?",
         options=[SPLIT_PARTICIPANT, SPLIT_WINDOW],
         format_func=lambda key: SPLIT_CHOICE_LABELS[key],
+        key="hr_split_choice",
     )
+
+    if "hr_split_seed" not in st.session_state:
+        st.session_state["hr_split_seed"] = split_seed
 
     split_seed = st.number_input(
         "Split seed",
         min_value=0,
-        value=0,
         step=1,
+        key="hr_split_seed",
         help=(
             "The seed controls which participants or windows happen to "
             "land in the test set. Changing it re-runs the same split "
@@ -1388,6 +1488,16 @@ participant-level split does. This is called **leakage**.
         ),
     )
 
+    # Held for the eight stages that read this chain and never draw
+    # these two controls.
+    WORKSPACE.keep("split_choice", split_choice)
+    WORKSPACE.keep("split_seed", int(split_seed))
+
+    # Recomputed here on the widgets' own values rather than read from
+    # the hoisted chain, so moving the seed shows its effect on this
+    # pass. The hoisted chain derives from the kept values and catches up
+    # on the next one, which is the pass any other stage renders in, so
+    # the two never disagree on screen.
     splits: dict[str, ar.SplitResult | None] = {}
     split_errors: dict[str, str] = {}
 
@@ -1473,20 +1583,15 @@ participant-level split does. This is called **leakage**.
             "on someone new."
         )
 
-    if stage < STAGE_BASELINE:
-        if st.button(
-            "Continue with this split", type="primary", disabled=chosen_split is None
-        ):
-            TRACKER.advance_to(STAGE_BASELINE)
 
 # -----------------------------------------------------------------
 # 3. Establish baseline
 # -----------------------------------------------------------------
 
-baseline: ar.AgreementResult | None = None
+# baseline is derived above, from the split it summarizes.
 model_prediction = "Not sure"
 
-if stage >= STAGE_BASELINE and chosen_split is not None:
+if stage == STAGE_BASELINE:
     section_header(
         "Establish Baseline",
         "What agreement looks like on the test set, before introducing any model",
@@ -1525,19 +1630,16 @@ if stage >= STAGE_BASELINE and chosen_split is not None:
         index=2,
     )
 
-    if stage < STAGE_MODEL:
-        if st.button("Continue to model", type="primary"):
-            TRACKER.advance_to(STAGE_MODEL)
 
 # -----------------------------------------------------------------
 # 4. Build model
 # -----------------------------------------------------------------
 
+# evaluation and test_data are derived above, from the fitted
+# model for the chosen split.
 model: ar.RecalibrationModel | None = None
-evaluation: ar.AgreementResult | None = None
-test_data: pd.DataFrame | None = None
 
-if stage >= STAGE_MODEL and chosen_split is not None and split_choice in fitted:
+if stage == STAGE_MODEL:
     section_header(
         "Build Model",
         "One simple, interpretable model, fit on training data only",
@@ -1620,15 +1722,12 @@ application, and does the modeling choice reflect that?**
         "happened on held-out data."
     )
 
-    if stage < STAGE_EVALUATE:
-        if st.button("Continue to evaluation", type="primary"):
-            TRACKER.advance_to(STAGE_EVALUATE)
 
 # -----------------------------------------------------------------
 # 5. Evaluate
 # -----------------------------------------------------------------
 
-if stage >= STAGE_EVALUATE and evaluation is not None and baseline is not None:
+if stage == STAGE_EVALUATE:
     section_header(
         "Evaluate",
         "Agreement on the held-out test set, revealed one layer at a time",
@@ -1713,18 +1812,17 @@ if stage >= STAGE_EVALUATE and evaluation is not None and baseline is not None:
         "conditions in the next stage."
     )
 
-    if stage < STAGE_RETENTION:
-        if st.button("Continue to the retention tradeoff", type="primary"):
-            TRACKER.advance_to(STAGE_RETENTION)
 
 # -----------------------------------------------------------------
 # 6. Weigh the retention tradeoff
 # -----------------------------------------------------------------
 
-retention: ar.RetentionResult | None = None
-quality_threshold = 0.5
+# retention and quality_threshold are derived above, from the threshold
+# the reader last set. They used to start here and be set only if this
+# stage rendered, which left the conclusion and the finish stages
+# reporting that no retention figure was available.
 
-if stage >= STAGE_RETENTION and evaluation is not None and test_data is not None:
+if stage == STAGE_RETENTION:
     section_header(
         "Weigh the Retention Tradeoff",
         "Cleaner signal keeps less data: watch retention and error move together",
@@ -1747,14 +1845,18 @@ if stage >= STAGE_RETENTION and evaluation is not None and test_data is not None
     with right:
         st.caption("Cleaner signal")
     with mid:
+        if "hr_quality_threshold" not in st.session_state:
+            st.session_state["hr_quality_threshold"] = quality_threshold
+
         quality_threshold = st.slider(
             "Minimum signal quality to keep a window",
             min_value=0.0,
             max_value=1.0,
-            value=0.5,
             step=0.05,
             label_visibility="collapsed",
+            key="hr_quality_threshold",
         )
+        WORKSPACE.keep("quality_threshold", quality_threshold)
 
     st.caption(f"At a minimum quality of {quality_threshold:.2f}:")
 
@@ -1814,9 +1916,6 @@ if stage >= STAGE_RETENTION and evaluation is not None and test_data is not None
         "never one without the other."
     )
 
-    if stage < STAGE_CONDITIONS_CHECK:
-        if st.button("Continue to the conditions check", type="primary"):
-            TRACKER.advance_to(STAGE_CONDITIONS_CHECK)
 
 # -----------------------------------------------------------------
 # 7. Does it hold across conditions?
@@ -1825,7 +1924,7 @@ if stage >= STAGE_RETENTION and evaluation is not None and test_data is not None
 condition_breakdown: tuple[ar.ConditionBreakdown, ...] | None = None
 REVEAL_BREAKDOWN_KEY = "hr_reveal_breakdown"
 
-if stage >= STAGE_CONDITIONS_CHECK and evaluation is not None and test_data is not None:
+if stage == STAGE_CONDITIONS_CHECK:
     section_header(
         "Does It Hold Across Conditions?",
         "The pooled result can hide differences that only show up condition by condition",
@@ -1905,15 +2004,12 @@ if stage >= STAGE_CONDITIONS_CHECK and evaluation is not None and test_data is n
             use_container_width=True,
         )
 
-    if stage < STAGE_CONCLUSION:
-        if st.button("Continue to your conclusion", type="primary"):
-            TRACKER.advance_to(STAGE_CONCLUSION)
 
 # -----------------------------------------------------------------
 # 8. Defend your conclusion
 # -----------------------------------------------------------------
 
-if stage >= STAGE_CONCLUSION and evaluation is not None and baseline is not None:
+if stage == STAGE_CONCLUSION:
     section_header(
         "Defend Your Conclusion",
         "Based on what you observed, what would you actually trust this measurement to do?",
@@ -1984,15 +2080,12 @@ if stage >= STAGE_CONCLUSION and evaluation is not None and baseline is not None
         "what it is sufficient for is still a judgment call."
     )
 
-    if stage < STAGE_FINISH:
-        if st.button("Finish study", type="primary"):
-            TRACKER.advance_to(STAGE_FINISH)
 
 # -----------------------------------------------------------------
 # 9. Finish study
 # -----------------------------------------------------------------
 
-if stage >= STAGE_FINISH and evaluation is not None and baseline is not None:
+if stage == STAGE_FINISH:
     section_header(
         "Finish Study",
         "A compact validation record",
@@ -2147,3 +2240,5 @@ beyond this dataset.
         with st.container(border=True):
             st.badge(f"{label}: {state}", icon=icon, color=color)
             st.caption(note)
+
+WORKSPACE.render_navigation()
