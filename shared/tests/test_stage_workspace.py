@@ -23,8 +23,11 @@ rule the previous one had not needed.
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 from streamlit.testing.v1 import AppTest
+
+ROOT = Path(__file__).resolve().parents[2]
 
 from shared.stage_workspace import (
     STAGE_UNAVAILABLE,
@@ -658,6 +661,59 @@ class TestReviewedIsNotComplete(unittest.TestCase):
         app = _click(app, "Pick a measure")
 
         self.assertEqual(_states(app)[2], STATE_NEEDS_REVIEW)
+
+
+class TestNoPageWritesAPresenceGate(unittest.TestCase):
+    """
+    A structural guard, not a behaviour test.
+
+    `satisfied="x" in st.session_state` is satisfied by a None under that
+    name, so the stage it guards runs on nothing and fails inside its own
+    core call rather than being told it has nothing to work from.
+    Portfolio Impact Analysis shipped six of these for about an hour and
+    the first test written against them found the hole.
+
+    Cheap to check across every page, and it fails when the weaker form
+    comes back rather than when it next causes a crash.
+    """
+
+    @staticmethod
+    def _gate_expressions() -> dict:
+        """Every satisfied= expression in every page: file -> [source]."""
+        import ast
+
+        found = {}
+
+        for page in sorted((ROOT / "pages").glob("*.py")):
+            source = page.read_text(encoding="utf-8")
+
+            for node in ast.walk(ast.parse(source)):
+                if not isinstance(node, ast.Call):
+                    continue
+
+                name = node.func
+                if not (isinstance(name, ast.Name) and name.id == "Gate"):
+                    continue
+
+                for keyword in node.keywords:
+                    if keyword.arg == "satisfied":
+                        found.setdefault(page.name, []).append(
+                            ast.unparse(keyword.value)
+                        )
+
+        return found
+
+    def test_some_pages_declare_gates(self):
+        """So the check below cannot pass by finding nothing."""
+        self.assertGreaterEqual(sum(
+            len(v) for v in self._gate_expressions().values()
+        ), 8)
+
+    def test_no_gate_tests_key_presence(self):
+        for page, expressions in self._gate_expressions().items():
+            for expression in expressions:
+                with self.subTest(page=page, gate=expression):
+                    self.assertNotIn("in st.session_state", expression)
 
 
 class TestTheOpeningStageCannotBeGatedShut(unittest.TestCase):
