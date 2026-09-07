@@ -11,7 +11,6 @@ refuses rather than accepts a message it cannot deliver.
 
 from __future__ import annotations
 
-import json
 import unittest
 import urllib.parse
 from pathlib import Path
@@ -106,12 +105,12 @@ class TestThePublicRoute(unittest.TestCase):
 class TestThePrivateRoute(unittest.TestCase):
     def test_it_refuses_when_there_is_nowhere_to_send(self):
         """
-        Accepting a private message with no destination would look like
-        the message was received, which is worse than no form at all.
+        Accepting a private message with no address would look like the
+        message was received, which is worse than no form at all.
         """
         with mock.patch.object(feedback, "private_destination", return_value=""):
             with self.assertRaises(ValueError) as raised:
-                feedback.submit_private_feedback(
+                feedback.mailto_url(
                     feedback.PageContext(page="Fairness"),
                     feedback.CATEGORY_WRONG,
                     "A note.",
@@ -119,122 +118,63 @@ class TestThePrivateRoute(unittest.TestCase):
 
         self.assertIn("nowhere for this to go", str(raised.exception))
 
-    def test_a_repository_without_a_token_is_not_a_destination(self):
-        """
-        Offering the route on a half-configured deployment would promise
-        a delivery the submit call could not make.
-        """
+    def test_it_addresses_the_configured_address(self):
         with mock.patch.object(
-            feedback,
-            "_secret",
-            lambda name: (
-                "owner/private-feedback"
-                if name == feedback.PRIVATE_REPOSITORY_SETTING
-                else ""
-            ),
+            feedback, "_secret", return_value="someone@example.org"
         ):
-            self.assertEqual(feedback.private_destination(), "")
-
-    def test_a_token_without_a_repository_is_not_a_destination(self):
-        with mock.patch.object(
-            feedback,
-            "_secret",
-            lambda name: (
-                "ghp_notreal" if name == feedback.GITHUB_TOKEN_SETTING else ""
-            ),
-        ):
-            self.assertEqual(feedback.private_destination(), "")
-
-    def test_both_halves_configured_names_the_repository(self):
-        with mock.patch.object(
-            feedback, "_secret", lambda name: {
-                feedback.PRIVATE_REPOSITORY_SETTING: "owner/private-feedback",
-                feedback.GITHUB_TOKEN_SETTING: "ghp_notreal",
-            }[name]
-        ):
-            self.assertEqual(
-                feedback.private_destination(), "owner/private-feedback"
-            )
-
-    def _submitted(self) -> tuple:
-        """The request the submit call would make, without making it."""
-        sent = {}
-
-        class Response:
-            def read(self):
-                return b'{"number": 41}'
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *args):
-                return False
-
-        def capture(request, timeout=None):
-            sent["url"] = request.full_url
-            sent["method"] = request.method
-            sent["payload"] = json.loads(request.data.decode("utf-8"))
-            sent["headers"] = request.headers
-            return Response()
-
-        with mock.patch.object(
-            feedback, "private_destination", return_value="owner/private-feedback"
-        ), mock.patch.object(
-            feedback, "_secret", return_value="ghp_notreal"
-        ), mock.patch.object(
-            feedback.urllib.request, "urlopen", capture
-        ):
-            number = feedback.submit_private_feedback(
-                feedback.PageContext(page="Fairness", stage="Choose a goal"),
+            url = feedback.mailto_url(
+                feedback.PageContext(page="Fairness"),
                 feedback.CATEGORY_WRONG,
-                "Ratio looks off.",
+                "A note.",
             )
 
-        return number, sent
+        self.assertTrue(url.startswith("mailto:someone@example.org?"))
 
-    def test_it_opens_an_issue_in_the_private_repository(self):
-        _, sent = self._submitted()
-
-        self.assertEqual(
-            sent["url"],
-            "https://api.github.com/repos/owner/private-feedback/issues",
-        )
-        self.assertEqual(sent["method"], "POST")
-
-    def test_it_never_posts_to_the_public_repository(self):
-        _, sent = self._submitted()
-
-        self.assertNotIn("openmeasure/issues", sent["url"])
-
-    def test_the_private_issue_carries_the_same_fields_as_the_public_one(self):
+    def test_it_carries_the_same_fields_as_the_public_route(self):
         """
         Both routes use one field builder, so a report does not depend on
         which one a reader chose.
         """
-        _, sent = self._submitted()
         context = feedback.PageContext(page="Fairness", stage="Choose a goal")
+
+        with mock.patch.object(
+            feedback, "_secret", return_value="someone@example.org"
+        ):
+            private = _query(
+                feedback.mailto_url(
+                    context, feedback.CATEGORY_WRONG, "Ratio looks off."
+                )
+            )
+
         public = _query(
             feedback.issue_url(context, feedback.CATEGORY_WRONG, "Ratio looks off.")
         )
 
-        self.assertEqual(sent["payload"]["title"], public["title"])
-        self.assertEqual(sent["payload"]["body"], public["body"])
-        self.assertEqual(sent["payload"]["labels"], [public["labels"]])
+        self.assertEqual(private["body"], public["body"])
+        self.assertIn(public["title"], private["subject"])
 
-    def test_the_issue_number_comes_back_so_the_reader_is_told(self):
-        number, _ = self._submitted()
-
-        self.assertEqual(number, 41)
-
-    def test_no_destination_is_hardcoded(self):
+    def test_no_address_is_written_into_the_source(self):
         """
-        A fork or a local run must not send anything to this project's
-        maintainer, so the private repository can only come from secrets.
+        A fork or a local run must not mail this project's maintainer,
+        and an address in a public repository is an address in a
+        scraper's list.
         """
         source = (ROOT / "shared" / "feedback.py").read_text(encoding="utf-8")
 
-        self.assertEqual(source.count("victoriamccray"), 1)
-        self.assertIn("_secret(PRIVATE_REPOSITORY_SETTING)", source)
+        self.assertNotIn("@", source.replace("@dataclass", ""))
+        self.assertIn("_secret(PRIVATE_ADDRESS_SETTING)", source)
+
+    def test_nothing_is_sent_on_the_reader_s_behalf(self):
+        """
+        Both routes hand over something pre-filled. A module that posted
+        or mailed for the reader would need a credential, a backend, and
+        a reason to trust both.
+        """
+        source = (ROOT / "shared" / "feedback.py").read_text(encoding="utf-8")
+
+        for outbound in ("urllib.request", "requests", "smtplib"):
+            with self.subTest(mechanism=outbound):
+                self.assertNotIn(outbound, source)
 
 
 class TestWhatTheReaderIsTold(unittest.TestCase):

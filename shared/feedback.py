@@ -26,30 +26,26 @@ free text that travels, and the form says so above the box.
 
 Where private feedback goes
 ---------------------------
-To a second, private repository, through the same issue API as the public
-route. An email inbox would need less setup, but feedback that has to be
-copied out of a mailbox before it can be worked on tends to stay in the
-mailbox, and the labels, the queue and the history all already live in
-issues. A form service would add a third party to the path of exactly the
-submissions most likely to be sensitive, which is the wrong direction.
+To an address, in an email the reader sends themselves. Posting straight
+into a private issue tracker would file it better, and it would also mean
+a deployed web app holding a write credential and a backend to keep
+working, which is a lot of standing infrastructure for a button that may
+be pressed twice a month. If private feedback ever arrives in volume,
+automating it into a tracker is a small change from here.
 
-Nothing is sent unless both the repository and a token are configured.
-There is no default destination, and a form that accepted a private
-message with nothing behind it would be worse than no form: it would look
-like the message was received. When it is not configured the control says
-so and offers the public route instead.
+Nothing is offered unless an address is configured. There is no default,
+and a form that accepted a private message with nowhere to send it would
+be worse than no form: it would look like the message was received. When
+it is not configured the control says so and offers the public route
+instead.
 
-The public route hands the reader a pre-filled URL and lets them post it.
-The private route posts on their behalf, because there is no private
-equivalent of that URL, so it says what will happen before the button and
-reports the issue number after it.
+Both routes hand the reader something pre-filled and let them send it.
+Neither submits on their behalf.
 """
 
 from __future__ import annotations
 
-import json
 import urllib.parse
-import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -62,14 +58,11 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 ACTIVE_STAGE_KEY = "openmeasure_active_stage"
 
 REPOSITORY_URL = "https://github.com/victoriamccray/openmeasure"
-GITHUB_API = "https://api.github.com"
 
-# Both read from st.secrets rather than hardcoded, so a fork or a local
-# run sends nothing to this project's maintainer.
-PRIVATE_REPOSITORY_SETTING = "private_feedback_repo"
-GITHUB_TOKEN_SETTING = "github_feedback_token"
-
-REQUEST_TIMEOUT_SECONDS = 15
+# Read from st.secrets rather than written here. A fork or a local run
+# should not mail this project's maintainer, and an address in a public
+# repository is an address in a scraper's list.
+PRIVATE_ADDRESS_SETTING = "feedback_email"
 
 # The label a submitted issue carries, so feedback lands in one place in
 # the existing queue rather than mixing with planned work.
@@ -109,15 +102,12 @@ PRIVATE_NOTICE = "Private feedback is not posted publicly."
 # Said when no private destination is configured, instead of accepting a
 # message that would go nowhere.
 PRIVATE_UNAVAILABLE = (
-    "Private feedback has no destination configured in this deployment, "
-    "so nothing would reach anyone. Use the public route, or contact the "
-    "maintainer directly."
+    "Private feedback has no address configured in this deployment, so "
+    "nothing would reach anyone. Use the public route instead."
 )
 
-# Said before the button, since this route sends rather than pre-fills.
 PRIVATE_NOTICE_DETAIL = (
-    "It opens an issue in OpenMeasure's private feedback tracker, which "
-    "only the maintainer can read."
+    "This opens an email to the maintainer, which you send yourself."
 )
 
 
@@ -177,16 +167,8 @@ def _secret(name: str) -> str:
 
 
 def private_destination() -> str:
-    """
-    The private repository, as owner/name, or an empty string.
-
-    Empty unless both halves are configured. A repository without a token
-    cannot be written to, and reporting the route as available would
-    promise a delivery that the submit call would then fail to make.
-    """
-    repository = _secret(PRIVATE_REPOSITORY_SETTING)
-
-    return repository if repository and _secret(GITHUB_TOKEN_SETTING) else ""
+    """The address private feedback goes to, or an empty string."""
+    return _secret(PRIVATE_ADDRESS_SETTING)
 
 
 def _issue_fields(context: PageContext, category: str, note: str) -> dict:
@@ -219,52 +201,31 @@ def issue_url(context: PageContext, category: str, note: str) -> str:
     return f"{REPOSITORY_URL}/issues/new?{query}"
 
 
-def submit_private_feedback(
-    context: PageContext, category: str, note: str
-) -> int:
+def mailto_url(context: PageContext, category: str, note: str) -> str:
     """
-    Open an issue in the private repository, and return its number.
+    A pre-filled email to the configured address.
 
-    Returned rather than swallowed so the control can show the reader
-    that the report arrived somewhere. A failure raises: telling someone
-    their feedback was sent when the API refused it would be a lie in the
-    one place this module exists to be honest about.
+    Pre-filled rather than sent, the same as the public route: the reader
+    presses send in their own client, so nothing leaves without them
+    seeing it.
     """
     destination = private_destination()
 
     if not destination:
         raise ValueError(
-            "No private feedback destination is configured, so there is "
+            "No private feedback address is configured, so there is "
             "nowhere for this to go."
         )
 
     fields = _issue_fields(context, category, note)
-    payload = json.dumps(
+    query = urllib.parse.urlencode(
         {
-            "title": fields["title"],
+            "subject": f"OpenMeasure feedback: {fields['title']}",
             "body": fields["body"],
-            "labels": [fields["labels"]],
         }
-    ).encode("utf-8")
-
-    request = urllib.request.Request(
-        f"{GITHUB_API}/repos/{destination}/issues",
-        data=payload,
-        method="POST",
-        headers={
-            "Accept": "application/vnd.github+json",
-            "Authorization": f"Bearer {_secret(GITHUB_TOKEN_SETTING)}",
-            "Content-Type": "application/json",
-            "User-Agent": "OpenMeasure-feedback",
-        },
     )
 
-    with urllib.request.urlopen(
-        request, timeout=REQUEST_TIMEOUT_SECONDS
-    ) as response:
-        created = json.loads(response.read().decode("utf-8"))
-
-    return int(created["number"])
+    return f"mailto:{destination}?{query}"
 
 
 def render_feedback_control(page: str, *, stage: str = "", version: str | None = None) -> None:
@@ -311,17 +272,9 @@ def render_feedback_control(page: str, *, stage: str = "", version: str | None =
             )
         elif private_destination():
             st.caption(f"{PRIVATE_NOTICE} {PRIVATE_NOTICE_DETAIL}")
-
-            if st.button("Send privately", key=f"feedback_send_{page}"):
-                try:
-                    number = submit_private_feedback(context, category, note)
-                except Exception as error:
-                    st.error(
-                        "That did not send, so it has not reached anyone: "
-                        f"{error}"
-                    )
-                else:
-                    st.success(f"Sent. It is logged as #{number}.")
+            st.link_button(
+                "Open the email", mailto_url(context, category, note)
+            )
         else:
             st.caption(PRIVATE_UNAVAILABLE)
 
