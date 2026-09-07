@@ -954,8 +954,13 @@ else:
                 requirement="Assemble at least one measure to continue",
             ),
 
+            # Reads a plain key the question stage writes, not the
+            # text input's own. A widget's value is gone the moment its
+            # stage stops drawing, so reading rq_population here made
+            # the optional-gap list claim a population was unstated as
+            # soon as the reader moved on from stating it.
             "question": Gate(
-                satisfied=bool(st.session_state.get("rq_population")),
+                satisfied=bool(st.session_state.get("rq_population_stated")),
                 requirement="Population not stated",
                 optional=True,
             ),
@@ -1113,6 +1118,10 @@ else:
             "These fields describe your question and go into the Design "
             "Record."
         )
+
+        # Written as a plain key too, since the gate above is evaluated
+        # before this stage renders.
+        st.session_state["rq_population_stated"] = bool(population.strip())
 
         design_workspace.keep(
             "entered",

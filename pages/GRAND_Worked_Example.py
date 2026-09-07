@@ -1322,6 +1322,10 @@ REDUNDANCY_NOTES = {
 STAGE_KEY = "grand_stage"
 SELECTED_MODALITIES_KEY = "grand_selected_modalities"
 
+# Where the selection survives leaving the stage that made it. The
+# multiselect's own key is dropped the moment that stage stops drawing.
+KEPT_MODALITIES_KEY = "grand_kept_modalities"
+
 STAGE_RESEARCH_QUESTION = 0
 STAGE_ACQUIRE = 1
 STAGE_QC = 2
@@ -1350,8 +1354,16 @@ def _current_modalities() -> tuple[modality_core.Modality, ...]:
     all_modalities = _load_modalities()
     modalities_by_name = {m.name: m for m in all_modalities}
     baseline = modalities_by_name[BASELINE_MODALITY_NAME]
-    selected_names = st.session_state.get(SELECTED_MODALITIES_KEY, [])
-    return (baseline,) + tuple(modalities_by_name[name] for name in selected_names)
+    # Read from where the workspace keeps it, not from the multiselect's
+    # own key. Streamlit discards a widget's value when the widget is not
+    # rendered, and four later stages read this selection on runs where
+    # the Acquire stage does not draw.
+    selected_names = st.session_state.get(KEPT_MODALITIES_KEY, [])
+    return (baseline,) + tuple(
+        modalities_by_name[name]
+        for name in selected_names
+        if name in modalities_by_name
+    )
 
 
 st.set_page_config(
@@ -1415,7 +1427,7 @@ if stage == STAGE_RESEARCH_QUESTION:
         for key in [
             name for name in st.session_state
             if str(name).startswith("grand")
-        ] + [SELECTED_MODALITIES_KEY]:
+        ] + [SELECTED_MODALITIES_KEY, KEPT_MODALITIES_KEY]:
             st.session_state.pop(key, None)
         st.rerun()
 
@@ -1503,13 +1515,21 @@ if stage == STAGE_ACQUIRE:
         "language measures collected outside the scanner."
     )
 
+    if SELECTED_MODALITIES_KEY not in st.session_state:
+        st.session_state[SELECTED_MODALITIES_KEY] = list(
+            st.session_state.get(KEPT_MODALITIES_KEY, [])
+        )
+
     selected_names = st.multiselect(
         "Modalities to add",
         options=[m.name for m in addable],
-        default=st.session_state.get(SELECTED_MODALITIES_KEY, []),
         key=SELECTED_MODALITIES_KEY,
     )
-    current_modalities = (baseline,) + tuple(modalities_by_name[name] for name in selected_names)
+    WORKSPACE.keep("modalities", list(selected_names))
+
+    current_modalities = (baseline,) + tuple(
+        modalities_by_name[name] for name in selected_names
+    )
 
     components.html(
         _brain_scene_html(current_modalities, height=340),

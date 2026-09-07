@@ -313,6 +313,30 @@ PRIVACY_WEIGHT_KEY = "signal_pipeline_privacy_weight"
 SECURITY_WEIGHT_KEY = "signal_pipeline_security_weight"
 AGENCY_WEIGHT_KEY = "signal_pipeline_agency_weight"
 
+# Where each of the above survives leaving the stage that draws it. A
+# widget's own key is dropped the moment its widget stops being
+# rendered, and every one of these is read by a later stage: the
+# selection by three of them, the weights by the research decision.
+KEPT = {
+    SELECTED_MODALITIES_KEY: "mmsc_kept_modalities",
+    PERSPECTIVE_KEY: "mmsc_kept_perspective",
+    PRIVACY_WEIGHT_KEY: "mmsc_kept_privacy",
+    SECURITY_WEIGHT_KEY: "mmsc_kept_security",
+    AGENCY_WEIGHT_KEY: "mmsc_kept_agency",
+}
+
+
+def _held(widget_key, default):
+    """What a later stage should read instead of the widget's own key."""
+    return st.session_state.get(KEPT[widget_key], default)
+
+
+def _hold(widget_key, value):
+    """Mirror a control's value where a later stage can still find it."""
+    st.session_state[KEPT[widget_key]] = value
+
+    return value
+
 STAGE_RESEARCH_QUESTION = 0
 STAGE_BUILD_PIPELINE = 1
 STAGE_ADD_MODALITIES = 2
@@ -955,7 +979,7 @@ if stage == STAGE_RESEARCH_QUESTION:
             AGENCY_WEIGHT_KEY,
             PERSPECTIVE_KEY,
             TRADEOFF_STEP_KEY,
-        ]:
+        ] + list(KEPT.values()):
             st.session_state.pop(key, None)
         st.rerun()
 
@@ -1087,11 +1111,20 @@ if stage == STAGE_ADD_MODALITIES:
     baseline = modalities_by_name[BASELINE_MODALITY_NAME]
     addable = tuple(m for m in all_modalities if m.name != BASELINE_MODALITY_NAME)
 
-    selected_names = st.multiselect(
-        "Modalities to add to the EEG-only pipeline",
-        options=[m.name for m in addable],
-        default=st.session_state.get(SELECTED_MODALITIES_KEY, []),
-        key=SELECTED_MODALITIES_KEY,
+    if SELECTED_MODALITIES_KEY not in st.session_state:
+        st.session_state[SELECTED_MODALITIES_KEY] = list(
+            _held(SELECTED_MODALITIES_KEY, [])
+        )
+
+    selected_names = _hold(
+        SELECTED_MODALITIES_KEY,
+        list(
+            st.multiselect(
+                "Modalities to add to the EEG-only pipeline",
+                options=[m.name for m in addable],
+                key=SELECTED_MODALITIES_KEY,
+            )
+        ),
     )
 
     current_modalities = (baseline,) + tuple(
@@ -1102,13 +1135,21 @@ if stage == STAGE_ADD_MODALITIES:
     st.caption(
         "Perspective - same modalities, different question about them:"
     )
-    perspective = st.segmented_control(
-        "Perspective",
-        options=PERSPECTIVES,
-        default=PERSPECTIVE_BUILD,
-        key=PERSPECTIVE_KEY,
-        label_visibility="collapsed",
-    ) or PERSPECTIVE_BUILD
+    if PERSPECTIVE_KEY not in st.session_state:
+        st.session_state[PERSPECTIVE_KEY] = _held(
+            PERSPECTIVE_KEY, PERSPECTIVE_BUILD
+        )
+
+    perspective = _hold(
+        PERSPECTIVE_KEY,
+        st.segmented_control(
+            "Perspective",
+            options=PERSPECTIVES,
+            key=PERSPECTIVE_KEY,
+            label_visibility="collapsed",
+        )
+        or PERSPECTIVE_BUILD,
+    )
     st.caption(PERSPECTIVE_DESCRIPTIONS[perspective])
 
     components.html(
@@ -1198,7 +1239,7 @@ if stage == STAGE_CONVERGENCE:
     all_modalities = _load_modalities()
     modalities_by_name = {m.name: m for m in all_modalities}
     baseline = modalities_by_name[BASELINE_MODALITY_NAME]
-    selected_names = st.session_state.get(SELECTED_MODALITIES_KEY, [])
+    selected_names = _held(SELECTED_MODALITIES_KEY, [])
     current_modalities = (baseline,) + tuple(
         modalities_by_name[name] for name in selected_names
     )
@@ -1233,7 +1274,7 @@ if stage == STAGE_CONVERGENCE:
             "one signal."
         )
 
-    perspective = st.session_state.get(PERSPECTIVE_KEY, PERSPECTIVE_BUILD) or PERSPECTIVE_BUILD
+    perspective = _held(PERSPECTIVE_KEY, PERSPECTIVE_BUILD) or PERSPECTIVE_BUILD
     st.caption(f"Viewed from Step 3's current perspective ({perspective}):")
     st.write(CONVERGENCE_PERSPECTIVE_TEXT[perspective])
 
@@ -1261,7 +1302,7 @@ if stage == STAGE_WEIGH_TRADEOFF:
     all_modalities = _load_modalities()
     modalities_by_name = {m.name: m for m in all_modalities}
     baseline = modalities_by_name[BASELINE_MODALITY_NAME]
-    selected_names = st.session_state.get(SELECTED_MODALITIES_KEY, [])
+    selected_names = _held(SELECTED_MODALITIES_KEY, [])
     current_modalities = (baseline,) + tuple(
         modalities_by_name[name] for name in selected_names
     )
@@ -1393,14 +1434,32 @@ if stage == STAGE_WEIGH_TRADEOFF:
                 "not need to add up to anything in particular."
             )
             w1, w2, w3 = st.columns(3)
-            privacy_weight = w1.slider(
-                "Privacy weight", 0.0, 1.0, 0.34, 0.01, key=PRIVACY_WEIGHT_KEY
+            if PRIVACY_WEIGHT_KEY not in st.session_state:
+                st.session_state[PRIVACY_WEIGHT_KEY] = float(
+                    _held(PRIVACY_WEIGHT_KEY, 0.34)
+                )
+
+            privacy_weight = _hold(
+                PRIVACY_WEIGHT_KEY,
+                w1.slider("Privacy weight", 0.0, 1.0, step=0.01, key=PRIVACY_WEIGHT_KEY),
             )
-            security_weight = w2.slider(
-                "Security weight", 0.0, 1.0, 0.33, 0.01, key=SECURITY_WEIGHT_KEY
+            if SECURITY_WEIGHT_KEY not in st.session_state:
+                st.session_state[SECURITY_WEIGHT_KEY] = float(
+                    _held(SECURITY_WEIGHT_KEY, 0.33)
+                )
+
+            security_weight = _hold(
+                SECURITY_WEIGHT_KEY,
+                w2.slider("Security weight", 0.0, 1.0, step=0.01, key=SECURITY_WEIGHT_KEY),
             )
-            agency_weight = w3.slider(
-                "Agency weight", 0.0, 1.0, 0.33, 0.01, key=AGENCY_WEIGHT_KEY
+            if AGENCY_WEIGHT_KEY not in st.session_state:
+                st.session_state[AGENCY_WEIGHT_KEY] = float(
+                    _held(AGENCY_WEIGHT_KEY, 0.33)
+                )
+
+            agency_weight = _hold(
+                AGENCY_WEIGHT_KEY,
+                w3.slider("Agency weight", 0.0, 1.0, step=0.01, key=AGENCY_WEIGHT_KEY),
             )
 
             weighted_cost = tradeoff_core.combine_costs(
@@ -1699,7 +1758,7 @@ if stage == STAGE_RESEARCH_DECISION:
     all_modalities = _load_modalities()
     modalities_by_name = {m.name: m for m in all_modalities}
     baseline = modalities_by_name[BASELINE_MODALITY_NAME]
-    selected_names = st.session_state.get(SELECTED_MODALITIES_KEY, [])
+    selected_names = _held(SELECTED_MODALITIES_KEY, [])
     current_modalities = (baseline,) + tuple(
         modalities_by_name[name] for name in selected_names
     )
@@ -1710,9 +1769,9 @@ if stage == STAGE_RESEARCH_DECISION:
             "to decide about yet. Go back to Step 3 to add at least one."
         )
     else:
-        privacy_weight = st.session_state.get(PRIVACY_WEIGHT_KEY, 0.34)
-        security_weight = st.session_state.get(SECURITY_WEIGHT_KEY, 0.33)
-        agency_weight = st.session_state.get(AGENCY_WEIGHT_KEY, 0.33)
+        privacy_weight = _held(PRIVACY_WEIGHT_KEY, 0.34)
+        security_weight = _held(SECURITY_WEIGHT_KEY, 0.33)
+        agency_weight = _held(AGENCY_WEIGHT_KEY, 0.33)
 
         weighted_cost = tradeoff_core.combine_costs(
             current_modalities, privacy_weight, security_weight, agency_weight
