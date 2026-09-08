@@ -19,10 +19,17 @@ Cards also carry a recording status once anything has been recorded, so the
 page answers what has not been looked at rather than only what exists. The
 status is absent on a first visit: a wall of "Not assessed" before a user has
 had the chance to do anything reads as a scolding rather than as guidance.
+
+"How OpenMeasure Works" sits between "How To Use OpenMeasure" and the module
+map, so a reader meets the ways in, then the shape of the thing, then the
+workflows themselves. It describes the five systems the toolkit is built from
+and leads with a diagram, because five interacting parts is structure, and
+shared/visuals.py's grammar draws structure rather than listing it twice.
 """
 
 import streamlit as st
 
+from shared import visuals
 from shared.catalog import (
     LIFECYCLE_STAGES,
     STAGE_QUESTIONS,
@@ -36,6 +43,88 @@ from shared.progress import (
     workflow_progress,
 )
 from shared.report import render_lifecycle_tracker
+
+# Body-text ink. shared/visuals.py's INK_MUTED is tuned for strokes beside
+# a number and is too light to read as a box label, the same reason
+# pages/Quality_and_Validation.py carries its own _INK.
+_INK = "#52514e"
+_SURFACE = "#fcfcfb"
+
+# One line, because a multi-line attribute value carries its own newlines
+# and indentation into what a screen reader announces.
+_ARCHITECTURE_LABEL = (
+    "Research UI reads and writes research state, which drives both the "
+    "scientific logic and the evidence and data infrastructure. "
+    "Validation infrastructure checks all of them."
+)
+
+
+def _architecture_svg() -> str:
+    """
+    Static diagram of the five systems, drawn as structure rather than
+    as a list a second time.
+
+    The stack is the path an analysis actually takes: the UI reads and
+    writes research state, state drives both the scientific logic and
+    the evidence infrastructure, and validation sits under all of them.
+    Solid strokes throughout, since every one of these relationships is
+    established in the codebase; shared/visuals.py reserves dashes for
+    what is assumed.
+
+    Returned as one line with no indentation, the same as
+    shared/visuals.py's primitives. st.markdown renders raw HTML only
+    while it still looks like raw HTML: four-space-indented lines are
+    read as an indented code block instead, and the diagram silently
+    loses every element after the first one or two. That is what the
+    hand-indented template on pages/Quality_and_Validation.py currently
+    hits, and it is why this builder concatenates rather than using a
+    formatted block.
+    """
+    box = f'rx="6" fill="{_SURFACE}" stroke="{visuals.ACCENT}" stroke-width="1.4"'
+    connector = f'stroke="{_INK}" stroke-width="1.4" opacity="0.7"'
+    head = f'fill="{_INK}" opacity="0.8"'
+    label = f'text-anchor="middle" font-size="12" fill="{_INK}"'
+
+    parts = (
+        # Research UI, and the two-way link down to research state.
+        f'<rect x="20" y="12" width="600" height="40" {box}/>',
+        f'<text x="320" y="37" {label}>Research UI</text>',
+        f'<line x1="320" y1="56" x2="320" y2="76" {connector}/>',
+        f'<polygon points="320,56 316,62 324,62" {head}/>',
+        f'<polygon points="320,76 316,70 324,70" {head}/>',
+        # Research state, then the split into the two systems it drives.
+        f'<rect x="20" y="80" width="600" height="40" {box}/>',
+        f'<text x="320" y="105" {label}>Research state</text>',
+        f'<line x1="320" y1="120" x2="320" y2="134" {connector}/>',
+        f'<line x1="165" y1="134" x2="475" y2="134" {connector}/>',
+        f'<line x1="165" y1="134" x2="165" y2="146" {connector}/>',
+        f'<polygon points="165,150 161,144 169,144" {head}/>',
+        f'<line x1="475" y1="134" x2="475" y2="146" {connector}/>',
+        f'<polygon points="475,150 471,144 479,144" {head}/>',
+        f'<rect x="20" y="150" width="290" height="52" {box}/>',
+        f'<text x="165" y="181" {label}>Scientific logic</text>',
+        f'<rect x="330" y="150" width="290" height="52" {box}/>',
+        f'<text x="475" y="174" {label}>Evidence and data</text>',
+        f'<text x="475" y="190" {label}>infrastructure</text>',
+        # Validation, checking the layers above it.
+        f'<line x1="165" y1="220" x2="165" y2="208" {connector}/>',
+        f'<polygon points="165,202 161,208 169,208" {head}/>',
+        f'<line x1="475" y1="220" x2="475" y2="208" {connector}/>',
+        f'<polygon points="475,202 471,208 479,208" {head}/>',
+        f'<rect x="20" y="220" width="600" height="40" {box}/>',
+        f'<text x="320" y="245" {label}>Validation infrastructure</text>',
+    )
+
+    return (
+        '<svg viewBox="0 0 640 272" role="img" '
+        'preserveAspectRatio="xMidYMid meet" '
+        'style="width:100%;height:auto;display:block;'
+        "font-family:system-ui,-apple-system,'Segoe UI',sans-serif\" "
+        f'aria-label="{_ARCHITECTURE_LABEL}">' + "".join(parts) + "</svg>"
+    )
+
+
+_ARCHITECTURE_SVG = _architecture_svg()
 
 st.title("OpenMeasure Lab")
 st.caption(
@@ -80,6 +169,65 @@ st.caption(
     "OpenMeasure is designed to support methodological reasoning "
     "alongside statistical expertise, domain knowledge, and established "
     "analysis tools."
+)
+
+st.divider()
+
+
+# ---------------------------------------------------------------------
+# How OpenMeasure works
+# ---------------------------------------------------------------------
+
+st.subheader("How OpenMeasure Works")
+
+st.markdown(
+    """
+OpenMeasure is built from five interacting systems. Each holds one part
+of an analysis, and the boundaries between them are enforced by tests in
+the codebase.
+"""
+)
+
+st.markdown(_ARCHITECTURE_SVG, unsafe_allow_html=True)
+
+st.caption(
+    "The four layers an analysis passes through, and the validation "
+    "infrastructure that checks each of them."
+)
+
+st.markdown(
+    """
+**Research UI**
+Streamlit pages, stage navigation, visual measure explorers, diagrams,
+and controls. This layer presents the results that the scientific logic
+returns.
+
+**Research state**
+What you have selected, what depends on what, what has changed, and what
+still needs review, carried across stages and across workflows.
+
+**Scientific logic**
+Statistical calculations, diagnostics, comparison rules, methodological
+constraints, and the measurement ontology, the vocabulary that connects
+a concept you want to observe to the measures able to observe it. These
+are pure functions, and they run independently of the interface around
+them.
+
+**Evidence and data infrastructure**
+Public datasets, uploads, provenance, literature, artifacts, and the
+handoffs that let one workflow read another workflow's result.
+
+**Validation infrastructure**
+Unit tests against hand-calculable and literature-cited values, edge
+cases that must raise a clear error, page-render tests, and comparison
+against independent reference software for the statistics that have a
+reference implementation.
+"""
+)
+
+st.caption(
+    "The software computes, organizes, visualizes, and tracks evidence. "
+    "The researcher retains the methodological judgment."
 )
 
 st.divider()
@@ -132,10 +280,10 @@ for stage in LIFECYCLE_STAGES:
         # Explore Real Data occupy it instead -- see
         # shared/research_journeys.py's docstring for the fuller reasoning.
         st.caption(
-            "No numbered workflow covers this stage. Research Journeys and "
-            "Explore Real Data occupy it instead: each walks a real "
-            "dataset through what it can and cannot support, rather than "
-            "computing a statistic."
+            "Research Journeys and Explore Real Data occupy this stage. "
+            "Framing a research question is a judgment rather than "
+            "something a statistic validates, so each walks a real "
+            "dataset through the questions it can and cannot support."
         )
 
         with st.container(border=True):
@@ -246,17 +394,19 @@ st.subheader("Best-Suited Workflows")
 st.markdown(
     "OpenMeasure fits reproducibility, reliability, fairness, data-"
     "quality, and program-evaluation questions on your own research "
-    "data, models, or programs. It does not replace domain expertise, "
-    "and it does not produce a single composite pass/fail score."
+    "data, models, or programs. It reports each finding on its own "
+    "terms, alongside the assumptions and tradeoffs behind it, and "
+    "leaves the methodological judgment and the domain expertise with "
+    "you."
 )
 
 st.subheader("Limitations & Future Directions")
 st.markdown(
     "Current modules cover a defined set of established statistical "
-    "methods and worked examples, not every validation question or "
-    "dataset type. Future releases are expected to expand data-"
-    "validation and fairness coverage and connect further findings "
-    "across the research workflow."
+    "methods and worked examples, which is narrower than the full "
+    "range of validation questions and dataset types. Future releases "
+    "are expected to expand data-validation and fairness coverage and "
+    "connect further findings across the research workflow."
 )
 
 st.subheader("Generative AI Use Statement")
