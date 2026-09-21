@@ -165,7 +165,7 @@ RESOURCES: tuple[Resource, ...] = (
             "An open-source implantable neuromodulation system intended "
             "to support diverse clinical research needs."
         ),
-        url="https://sites.usc.edu/carss/",
+        url="https://opennerve.org/",
     ),
     Resource(
         name="RuralSenses",
