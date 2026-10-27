@@ -66,6 +66,7 @@ KIND_ORDER: tuple[str, ...] = (
     "Dataset Directory",
     "Measures Repository",
     "Research Platform",
+    "Research Practice Guide",
     "Research Impact Resource",
 )
 
@@ -188,6 +189,30 @@ RESOURCES: tuple[Resource, ...] = (
             "and bioelectronic-medicine datasets."
         ),
         url="https://sparc.science/",
+    ),
+    Resource(
+        name="The Many Brains Project and TestMyBrain",
+        kind="Research Platform",
+        description=(
+            "A nonprofit that builds web-based cognitive tests for "
+            "remote, unsupervised administration and runs "
+            "TestMyBrain.org, which has collected participant data since "
+            "2008. It publishes the tests, the software that administers "
+            "them, and normative samples for interpreting scores."
+        ),
+        url="https://www.manybrains.net/",
+    ),
+    Resource(
+        name="Better Code, Better Science (Russ Poldrack)",
+        kind="Research Practice Guide",
+        description=(
+            "A book on software engineering practice for scientific "
+            "code, covering testing, project and data organization, "
+            "workflow automation, software validation, and the use of AI "
+            "coding assistants. The text is published openly under a "
+            "Creative Commons licence, the accompanying code under MIT."
+        ),
+        url="https://bettercode-book.org/",
     ),
     Resource(
         name="Science With Impact (Anne Toomey)",
