@@ -31,6 +31,7 @@ discussion and modules/signal_pipeline/sample_data/modality_profiles.csv
 for the citation behind every row.
 """
 
+import math
 import sys
 from pathlib import Path
 
@@ -106,6 +107,19 @@ PIPELINE_STAGE_NOTES = (
     (":material/loop:", "Feedback", "The response changes the signal that comes next"),
 )
 
+# What is actually passed from one stage to the next. The stage names
+# alone said what each stage is, not what crosses the boundary between
+# them, which is the part a reader following the order needs.
+PIPELINE_HANDOFFS = (
+    "a physical signal a sensor can pick up",
+    "a raw measured trace",
+    "a cleaned, transformed signal",
+    "an estimate of a state",
+    "a threshold result",
+    "a response the person experiences",
+)
+PIPELINE_RETURN_HANDOFF = "a changed signal the next time around"
+
 # Anatomy scene layout: an original, simplified biological-illustration
 # style (brain / heart / muscle / soundwave icons on a soft body outline),
 # not a trace or copy of any commercial illustration library's assets -
@@ -130,6 +144,12 @@ EXTERNAL_ICON_PX = {
     "Environmental": (258, 150),
     "Institutional": (258, 232),
 }
+# The Privacy view draws the edge of the person: body-sensed signals
+# cross it, and the three non-body-sensed modalities are drawn outside
+# it because they were never inside it to begin with. Sized to enclose
+# the body outline below, and to leave the external icons outside.
+PERSON_BOUNDARY_PX = (12, 14, 178, 346)  # x1, y1, x2, y2
+PRIVACY_CROSSING_PX = (178, 300)
 # Local (0-32 box) canonical icon paths - hand-authored here, simplified
 # and stylized rather than anatomically literal, in the spirit of a clean
 # biological-illustration look. fill takes the category's palette color;
@@ -305,6 +325,55 @@ BARRY_ET_AL_CITATION = (
     "2765-2773. https://doi.org/10.1016/j.clinph.2007.07.028"
 )
 
+# Citations are numbered and listed once at the end of the page rather
+# than printed under the sentence they support, where they interrupted
+# the point each stage is making. PAGE_REFERENCE_ORDER fixes the numbers
+# for the references this page cites in its own prose; references that
+# appear only in a modality's data row are appended after these, in
+# modality order, by _reference_registry below.
+PAGE_REFERENCE_ORDER: tuple[str, ...] = (
+    IENCA_ANDORNO_CITATION,
+    DE_MONTJOYE_CITATION,
+    KOELSTRA_CITATION,
+    BAGLEY_ET_AL_CITATION,
+    ARMENGOL_URPI_ET_AL_CITATION,
+    DENNING_ET_AL_CITATION,
+    SANCHEZ_GAMA_ET_AL_CITATION,
+    BARRY_ET_AL_CITATION,
+)
+
+
+def _split_references(text: str) -> tuple[str, ...]:
+    """
+    Split a citation string that holds more than one reference.
+
+    A modality's citation field joins its references with "; ", but a
+    single reference can itself contain a semicolon inside parentheses,
+    so splitting on every semicolon would cut one reference in half.
+    Only top-level semicolons separate references.
+    """
+
+    parts: list[str] = []
+    current: list[str] = []
+    depth = 0
+
+    for char in text:
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth = max(depth - 1, 0)
+
+        if char == ";" and depth == 0:
+            parts.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+
+    parts.append("".join(current))
+
+    return tuple(part.strip() for part in parts if part.strip())
+
+
 BASELINE_MODALITY_NAME = "Neural (EEG)"
 
 STAGE_KEY = "signal_pipeline_stage"
@@ -398,6 +467,42 @@ def _load_modalities() -> tuple[modality_core.Modality, ...]:
     )
 
 
+def _reference_registry(
+    modalities: tuple[modality_core.Modality, ...],
+) -> tuple[str, ...]:
+    """Every reference this page can cite, in the order it is numbered."""
+
+    ordered = list(PAGE_REFERENCE_ORDER)
+
+    for modality in modalities:
+        for reference in _split_references(modality.citation):
+            if reference not in ordered:
+                ordered.append(reference)
+
+    return tuple(ordered)
+
+
+REFERENCES: tuple[str, ...] = _reference_registry(_load_modalities())
+
+
+def _ref(*citations: str) -> str:
+    """
+    The bracketed reference markers for one or more citations.
+
+    Raises ValueError through list.index if a citation is not in
+    REFERENCES, rather than silently printing a marker that points at no
+    entry in the list at the end of the page.
+    """
+
+    numbers = {
+        REFERENCES.index(reference) + 1
+        for citation in citations
+        for reference in _split_references(citation)
+    }
+
+    return "[" + ", ".join(str(number) for number in sorted(numbers)) + "]"
+
+
 def _pipeline_pictograph_html(pipeline: pipeline_core.SignalPipeline) -> str:
     """
     A drawn pictograph of the pipeline: each modality's own icon (the
@@ -472,10 +577,12 @@ def _pipeline_pictograph_html(pipeline: pipeline_core.SignalPipeline) -> str:
             f"modality above from here on.</title></circle>"
         )
 
+    # Numbered to match _pipeline_timeline_html's nodes: the same stage
+    # carries the same number in both diagrams on this page.
     stage_labels = "".join(
         f'<text x="{stage_x[stage]}" y="{height - 8}" text-anchor="middle" '
-        f'font-size="10" fill="{MUTED}">{stage}</text>'
-        for stage in stages
+        f'font-size="10" fill="{MUTED}">{index + 1}. {stage}</text>'
+        for index, stage in enumerate(stages)
     )
 
     return f"""
@@ -505,6 +612,94 @@ def _pipeline_pictograph_html(pipeline: pipeline_core.SignalPipeline) -> str:
           {stage_labels}
         </svg>
       </div>
+    </div>
+    """
+
+
+def _pipeline_timeline_html() -> str:
+    """
+    A numbered vertical timeline of the seven pipeline stages, with the
+    handoff between each pair of stages named on the connector and the
+    feedback return drawn as an arc back to the first stage.
+
+    This replaced a row of seven equal badges, which showed what each
+    stage is but gave a reader no order to follow and nothing about what
+    crosses the boundary between two stages. The numbers here are the
+    same ones the pipeline pictograph uses for its stage labels, so the
+    two diagrams on this page can be read against each other.
+    """
+
+    stages = PIPELINE_STAGE_NOTES
+    node_x, text_x, radius = 78, 112, 15
+    top, row_gap = 34, 78
+    # Sized to the longest stage note rather than to the container, so
+    # the drawing is not a narrow column against a wide empty margin.
+    width = 420
+    height = top + (len(stages) - 1) * row_gap + 54
+
+    parts: list[str] = []
+
+    for index, (_, label, note) in enumerate(stages):
+        cy = top + index * row_gap
+
+        if index < len(stages) - 1:
+            parts.append(
+                f'<line x1="{node_x}" y1="{cy + radius + 5}" x2="{node_x}" '
+                f'y2="{cy + row_gap - radius - 7}" stroke="{MUTED}" '
+                f'stroke-width="2" marker-end="url(#timeline-arrow)"/>'
+            )
+            parts.append(
+                f'<text x="{text_x}" y="{cy + 48}" font-size="11" '
+                f'fill="{MUTED}" font-style="italic">passes on '
+                f"{PIPELINE_HANDOFFS[index]}</text>"
+            )
+
+        parts.append(
+            f'<circle cx="{node_x}" cy="{cy}" r="{radius}" '
+            f'fill="{INK_SECONDARY}"/>'
+        )
+        parts.append(
+            f'<text x="{node_x}" y="{cy + 5}" text-anchor="middle" '
+            f'font-size="14" font-weight="600" fill="{SURFACE}">'
+            f"{index + 1}</text>"
+        )
+        parts.append(
+            f'<text x="{text_x}" y="{cy + 1}" font-size="14" '
+            f'font-weight="600" fill="{INK_SECONDARY}">{label}</text>'
+        )
+        parts.append(
+            f'<text x="{text_x}" y="{cy + 19}" font-size="11.5" '
+            f'fill="{MUTED}">{note}</text>'
+        )
+
+    first_cy = top
+    last_cy = top + (len(stages) - 1) * row_gap
+    parts.append(
+        f'<path d="M {node_x - radius - 3},{last_cy} C 22,{last_cy} '
+        f'22,{first_cy} {node_x - radius - 7},{first_cy}" fill="none" '
+        f'stroke="{MUTED}" stroke-width="1.5" stroke-dasharray="4 4" '
+        f'opacity="0.8" marker-end="url(#timeline-arrow)"/>'
+    )
+    parts.append(
+        f'<text x="18" y="{(first_cy + last_cy) / 2}" text-anchor="middle" '
+        f'font-size="10.5" fill="{MUTED}" font-style="italic" '
+        f'transform="rotate(-90 18 {(first_cy + last_cy) / 2})">'
+        f"{PIPELINE_RETURN_HANDOFF}</text>"
+    )
+
+    return f"""
+    <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+                background:{SURFACE}; border-radius:6px; padding:4px 0;">
+      <svg width="100%" height="{height}" viewBox="0 0 {width} {height}"
+           preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <marker id="timeline-arrow" viewBox="0 0 8 8" refX="6" refY="4"
+                  markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0,0 L8,4 L0,8 z" fill="{MUTED}"/>
+          </marker>
+        </defs>
+        {"".join(parts)}
+      </svg>
     </div>
     """
 
@@ -551,6 +746,60 @@ def _ticker_markup(category: str, x: float, y: float) -> str:
     )
 
 
+def _agency_gate_markup(
+    cx: float,
+    cy: float,
+    entry_x: float,
+    entry_y: float,
+    agency_cost: float,
+    color: str,
+) -> str:
+    """
+    A gate drawn across a modality's path to the pipeline, its opening
+    narrowing as that modality's illustrative agency cost rises.
+
+    The aperture is a continuous reading of the same 0-to-1 rating the
+    Agency view already reports, not a threshold: nothing here sorts
+    modalities into "controllable" and "not". A fully open gate is a
+    rating of 0, a nearly closed one a rating of 1, and every value in
+    between lands in between.
+
+    Drawn in local coordinates and rotated onto the path, so the gate
+    always reads as crossing the line rather than lying along it. The
+    pale backing keeps it legible where the path runs over the body
+    outline, which is most of the scene.
+    """
+
+    dx, dy = entry_x - cx, entry_y - cy
+    angle = math.degrees(math.atan2(dy, dx))
+    # Far enough along the path to read as sitting on it, not as part of
+    # the icon it leaves.
+    gate_x, gate_y = cx + dx * 0.55, cy + dy * 0.55
+
+    half_span = 14.0
+    half_gap = 2.0 + 8.0 * (1.0 - min(max(agency_cost, 0.0), 1.0))
+
+    bars = "".join(
+        f'<line x1="0" y1="{half_gap * side:.1f}" x2="0" '
+        f'y2="{half_span * side:.1f}" stroke="{color}" stroke-width="3.5" '
+        f'stroke-linecap="round"/>'
+        f'<line x1="-3" y1="{half_span * side:.1f}" x2="3" '
+        f'y2="{half_span * side:.1f}" stroke="{color}" stroke-width="1.6" '
+        f'stroke-linecap="round" opacity="0.7"/>'
+        for side in (1, -1)
+    )
+
+    return (
+        f'<g transform="translate({gate_x:.1f},{gate_y:.1f}) '
+        f'rotate({angle:.1f})">'
+        f'<rect x="-6" y="{-(half_span + 5):.1f}" width="12" '
+        f'height="{2 * (half_span + 5):.1f}" rx="5" fill="{SURFACE}" '
+        f'opacity="0.92"/>'
+        f"{bars}"
+        f"</g>"
+    )
+
+
 def _anatomy_scene_html(
     modalities: tuple[modality_core.Modality, ...],
     perspective: str,
@@ -565,11 +814,17 @@ def _anatomy_scene_html(
     shapes, not a trace or copy of any commercial illustration library's
     assets - this app has no license to reproduce those.
 
+    The three perspectives draw three different structures over the same
+    modalities, rather than one picture at three marker sizes: Build runs
+    every signal into the shared pipeline entry point, Privacy draws the
+    edge of the person and the signals that cross it, and Agency puts a
+    gate on each path whose opening reads that modality's agency cost.
+    None of them changes the underlying data.
+
     Icons pulse; body-sensed ones also carry a small seamlessly-looping
     illustrative waveform (see _ticker_markup) shown only in the Build
-    perspective, since Privacy/Agency spend that same visual attention on
-    icon size instead. perspective changes icon size (privacy_cost or
-    agency_cost) and nothing about the underlying data. show_tickers is
+    perspective, since the other two spend that same visual attention on
+    the boundary and the gates. show_tickers is
     turned off for the combined, multi-modality figure: up to seven
     simultaneous waveforms would crowd each other's fixed body-region
     slots rather than stay legible, so the ticker is reserved for scenes
@@ -579,6 +834,7 @@ def _anatomy_scene_html(
 
     width, view_h = SCENE_VIEWBOX
     entry_x, entry_y = ENTRY_POINT_PX
+    crossing_x, crossing_y = PRIVACY_CROSSING_PX
 
     icons_svg: list[str] = []
     connectors_svg: list[str] = []
@@ -592,19 +848,38 @@ def _anatomy_scene_html(
             cx, cy = EXTERNAL_ICON_PX.get(m.category, (258, 190))
             has_external = True
 
+        # Privacy is the one view where icon size carries the cost. The
+        # Agency view spends that encoding on its gates instead, so
+        # sizing icons by agency cost as well would say the same number
+        # twice and leave the gate looking decorative.
         if perspective == PERSPECTIVE_PRIVACY:
-            cost = m.privacy_cost
-        elif perspective == PERSPECTIVE_AGENCY:
-            cost = m.agency_cost
+            scale = 0.75 + 0.55 * m.privacy_cost
         else:
-            cost = 0.5
-        scale = 0.75 + 0.55 * cost  # canonical icon is a 32px box; ~24px-42px rendered
+            scale = 0.75 + 0.55 * 0.5
+        # canonical icon is a 32px box; ~24px-42px rendered
 
         color = CATEGORY_COLORS[m.category]
-        connectors_svg.append(
-            f'<line x1="{cx}" y1="{cy}" x2="{entry_x}" y2="{entry_y}" '
-            f'stroke="{color}" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.55"/>'
-        )
+
+        if perspective == PERSPECTIVE_PRIVACY:
+            # Where the signal crosses out of the person, which is the
+            # question this view asks. A modality that is never sensed
+            # from the body has no crossing to draw.
+            if m.is_body_sensed:
+                connectors_svg.append(
+                    f'<line x1="{cx}" y1="{cy}" x2="{crossing_x}" '
+                    f'y2="{crossing_y}" stroke="{color}" stroke-width="1.5" '
+                    f'opacity="0.6" marker-end="url(#scene-arrow)"/>'
+                )
+        else:
+            connectors_svg.append(
+                f'<line x1="{cx}" y1="{cy}" x2="{entry_x}" y2="{entry_y}" '
+                f'stroke="{color}" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.55"/>'
+            )
+
+        if perspective == PERSPECTIVE_AGENCY:
+            connectors_svg.append(
+                _agency_gate_markup(cx, cy, entry_x, entry_y, m.agency_cost, color)
+            )
 
         if m.is_body_sensed:
             amt, dur = _ICON_PULSE.get(m.category, (1.08, "1.2s"))
@@ -616,9 +891,11 @@ def _anatomy_scene_html(
 
         icons_svg.append(f'<g style="{pulse_style}">')
         icons_svg.append(_icon_markup(m.category, cx, cy, scale, pulse_class))
+        label_x = min(max(cx, 44), width - 44)
         icons_svg.append(
-            f'<text x="{cx}" y="{cy - 16 * scale - 8:.1f}" text-anchor="middle" '
-            f'font-size="10" fill="{INK_SECONDARY}">{m.name}</text>'
+            f'<text x="{label_x}" y="{cy - 16 * scale - 8:.1f}" '
+            f'text-anchor="middle" font-size="10" '
+            f'fill="{INK_SECONDARY}">{m.name}</text>'
         )
         icons_svg.append("</g>")
 
@@ -649,10 +926,28 @@ def _anatomy_scene_html(
         <line x1="114" y1="224" x2="120" y2="332" stroke="#ece7df" stroke-width="18" stroke-linecap="round"/>
     """
 
-    entry_label = (
-        f'<text x="{entry_x}" y="{entry_y + 16}" text-anchor="middle" font-size="11" '
-        f'font-weight="bold" fill="{INK_SECONDARY}">&#8594; Signals</text>'
-    )
+    entry_label = ""
+    if perspective != PERSPECTIVE_PRIVACY:
+        entry_label = (
+            f'<text x="{entry_x}" y="{entry_y + 16}" text-anchor="middle" font-size="11" '
+            f'font-weight="bold" fill="{INK_SECONDARY}">&#8594; Signals</text>'
+        )
+
+    boundary_svg = ""
+    if perspective == PERSPECTIVE_PRIVACY:
+        bx1, by1, bx2, by2 = PERSON_BOUNDARY_PX
+        boundary_svg = (
+            f'<rect x="{bx1}" y="{by1}" width="{bx2 - bx1}" '
+            f'height="{by2 - by1}" rx="46" fill="none" stroke="{MUTED}" '
+            f'stroke-width="1.5" stroke-dasharray="6 5" opacity="0.85"/>'
+            f'<line x1="{crossing_x}" y1="{crossing_y}" x2="{crossing_x + 34}" '
+            f'y2="{crossing_y}" stroke="{INK_SECONDARY}" stroke-width="2" '
+            f'marker-end="url(#scene-arrow)"/>'
+            f'<text x="{bx1 + 6}" y="{by1 - 4}" font-size="10" '
+            f'font-style="italic" fill="{MUTED}">the person</text>'
+            f'<text x="{crossing_x + 4}" y="{crossing_y + 20}" font-size="10" '
+            f'font-style="italic" fill="{INK_SECONDARY}">leaves the person</text>'
+        )
 
     legend_row = "".join(f"<div>{item}</div>" for item in legend_items)
     scale_factor = height / view_h
@@ -693,7 +988,14 @@ def _anatomy_scene_html(
       </style>
       <div style="display:flex; justify-content:center;">
         <svg width="{svg_w:.0f}" height="{height}" viewBox="0 0 {width} {view_h}">
+          <defs>
+            <marker id="scene-arrow" viewBox="0 0 8 8" refX="7" refY="4"
+                    markerWidth="5" markerHeight="5" orient="auto">
+              <path d="M0,0 L8,4 L0,8 z" fill="{INK_SECONDARY}"/>
+            </marker>
+          </defs>
           {body_svg}
+          {boundary_svg}
           {"".join(connectors_svg)}
           {entry_label}
           {external_label}
@@ -932,6 +1234,11 @@ st.caption(
     "A guided illustrative walkthrough: each stage unlocks after you "
     "make a decision or inspect its consequence."
 )
+st.caption(
+    "Written for early-career researchers learning to validate a study "
+    "design, so every stage states its reasoning in plain language and "
+    "numbers its sources against the References list at the end."
+)
 
 render_data_handling_summary(disclosure_for("pages/Multimodal_Signal_Convergence.py"))
 
@@ -1002,8 +1309,8 @@ if stage == STAGE_RESEARCH_QUESTION:
         "deliberate say. This journey asks whether an added modality's gain "
         "is validated as worth its cost, rather than assuming more signal is "
         "automatically better."
+        + _ref(DE_MONTJOYE_CITATION)
     )
-    st.caption(DE_MONTJOYE_CITATION)
 
     rq_col1, rq_col2 = st.columns(2)
     with rq_col1:
@@ -1024,8 +1331,8 @@ if stage == STAGE_RESEARCH_QUESTION:
             "concern scales to any signal that is collected continuously and "
             "combined with others: the risk is not any one signal alone, but "
             "what their combination can infer."
+            + _ref(IENCA_ANDORNO_CITATION)
         )
-        st.caption(IENCA_ANDORNO_CITATION)
         st.write(
             "Security is a separate concern from privacy, and "
             "brain-computer interface (BCI) research surveys it across the "
@@ -1038,8 +1345,8 @@ if stage == STAGE_RESEARCH_QUESTION:
             "communication protocols, differential privacy) directly; the "
             "closer to the brain a surface is, the more those methods need "
             "to be modified or replaced entirely."
+            + _ref(BAGLEY_ET_AL_CITATION)
         )
-        st.caption(BAGLEY_ET_AL_CITATION)
 
 
 # -----------------------------------------------------------------
@@ -1081,15 +1388,16 @@ if stage == STAGE_BUILD_PIPELINE:
         _anatomy_scene_html((baseline,), PERSPECTIVE_BUILD, height=340),
         height=340 + ANATOMY_LEGEND_BUFFER_PX,
     )
-    st.caption(f"Signal examples: {baseline.signal_examples}.")
-    st.caption(baseline.citation)
+    st.caption(
+        f"Signal examples: {baseline.signal_examples}. "
+        f"{_ref(baseline.citation)}"
+    )
 
     st.caption(f"How {baseline.name}'s signal travels through the pipeline:")
-    pipeline_cols = st.columns(len(PIPELINE_STAGE_NOTES))
-    for col, (icon, label, note) in zip(pipeline_cols, PIPELINE_STAGE_NOTES):
-        with col:
-            st.badge(label, icon=icon, color="blue")
-            st.caption(note)
+    components.html(
+        _pipeline_timeline_html(),
+        height=34 + (len(PIPELINE_STAGE_NOTES) - 1) * 78 + 64,
+    )
 
     st.write(
         "**Interpretation**: a pipeline with one modality already "
@@ -1167,9 +1475,20 @@ if stage == STAGE_ADD_MODALITIES:
             "recordings."
         )
     elif perspective == PERSPECTIVE_PRIVACY:
-        st.caption("Marker size here scales with each modality's illustrative privacy cost.")
+        st.caption(
+            "The dashed outline is the edge of the person. Each "
+            "body-sensed signal crosses it at the marked point, and a "
+            "modality drawn outside it was never sensed from the body at "
+            "all. Marker size scales with illustrative privacy cost."
+        )
     else:
-        st.caption("Marker size here scales with each modality's illustrative agency cost.")
+        st.caption(
+            "Each path carries a gate where the person can still "
+            "intervene, and the gate's opening narrows as that "
+            "modality's illustrative agency cost rises. Markers are all "
+            "one size here, so the gate is the only thing reading the "
+            "cost."
+        )
 
     st.caption("How those signals travel through the pipeline:")
     pictograph_height = 30 + max(len(current_modalities) - 1, 0) * 46 + 46
@@ -1206,8 +1525,7 @@ if stage == STAGE_ADD_MODALITIES:
                 st.write(f"**Where it leaves the person**: {added.privacy_exit_point}")
             elif perspective == PERSPECTIVE_AGENCY:
                 st.write(f"**Where the person retains or loses control**: {added.agency_control_point}")
-            st.caption(added.notes)
-            st.caption(added.citation)
+            st.caption(f"{added.notes} {_ref(added.citation)}")
 
     caveat(
         "These ratings are illustrative, author-assigned scores informed "
@@ -1372,8 +1690,8 @@ if stage == STAGE_WEIGH_TRADEOFF:
                     "two-modality result. The paper's own conclusion: fusion "
                     "generally helped, but only slightly, and rarely enough "
                     "to be a statistically reliable improvement."
+                    + _ref(KOELSTRA_CITATION)
                 )
-                st.caption(KOELSTRA_CITATION)
 
         if tradeoff_step < TRADEOFF_ADD_PRIVACY:
             if st.button("Now add privacy cost", type="primary"):
@@ -1444,9 +1762,11 @@ if stage == STAGE_WEIGH_TRADEOFF:
                         "purpose is, in effect, also collecting a biometric "
                         "identifier as a byproduct - the same signal serves "
                         "both purposes at once."
+                        + _ref(
+                            ARMENGOL_URPI_ET_AL_CITATION,
+                            BAGLEY_ET_AL_CITATION,
+                        )
                     )
-                    st.caption(ARMENGOL_URPI_ET_AL_CITATION)
-                    st.caption(BAGLEY_ET_AL_CITATION)
 
             if tradeoff_step < TRADEOFF_ADD_AGENCY:
                 if st.button("Now add agency cost, and set your own weights", type="primary"):
@@ -1573,7 +1893,6 @@ if stage == STAGE_REAL_SIGNAL:
         "then Inference is re-run on the changed signal."
     )
 
-    st.caption(SANCHEZ_GAMA_ET_AL_CITATION)
     st.write(
         "This stage uses a real 15-second-per-condition excerpt of one "
         "occipital channel (O1, a scalp position at the back of the "
@@ -1583,15 +1902,15 @@ if stage == STAGE_REAL_SIGNAL:
         "- alternating eyes-closed and eyes-open resting EEG. Unlike "
         "every rating in this journey so far, the numbers below are "
         "measured, not author-assigned."
+        + _ref(SANCHEZ_GAMA_ET_AL_CITATION)
     )
-    st.caption(BARRY_ET_AL_CITATION)
     st.write(
         "Occipital alpha power (8-13 Hz) rises when the eyes close and "
         "falls when they open, a long-established EEG finding: this is "
         "the real signal the baseline below detects, not something "
         "fitted to this specific excerpt."
+        + _ref(BARRY_ET_AL_CITATION)
     )
-    st.caption(DENNING_ET_AL_CITATION)
     st.write(
         "Denning, Matsuoka, & Kohno (2009) coined *neurosecurity*: "
         "protecting a neural device's confidentiality, integrity, and "
@@ -1599,6 +1918,7 @@ if stage == STAGE_REAL_SIGNAL:
         "computation, and free will. This stage applies that same "
         "privacy/security/agency vocabulary to one real signal instead "
         "of an illustrative rating."
+        + _ref(DENNING_ET_AL_CITATION)
     )
     with st.expander("Using data like this with other OpenMeasure tools"):
         st.write(
@@ -1900,3 +2220,13 @@ if stage == STAGE_RESEARCH_DECISION:
         )
 
 WORKSPACE.render_navigation()
+
+st.divider()
+
+with st.expander(f"References ({len(REFERENCES)})"):
+    st.caption(
+        "Numbered in the order the journey first cites them. A marker "
+        "such as [4] in any stage above refers to this list."
+    )
+    for number, reference in enumerate(REFERENCES, start=1):
+        st.caption(f"{number}. {reference}")
