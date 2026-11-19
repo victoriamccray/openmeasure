@@ -1,0 +1,425 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/victoriamccray/openmeasure/blob/main/docs/decision-record/decision_record.schema.json",
+  "title": "OpenMeasure Decision Record",
+  "description": "One research decision, the evidence and method behind it, what the result supports and does not support, and where it came from. Version 0.1, a draft for comment. See specification.md in this directory for the meaning of each field.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "record_version",
+    "record_id",
+    "question",
+    "evidence",
+    "decision",
+    "method",
+    "assumptions",
+    "result",
+    "supports",
+    "does_not_support",
+    "provenance"
+  ],
+  "properties": {
+    "record_version": {
+      "description": "Version of this schema the record was written against.",
+      "const": "0.1"
+    },
+    "record_id": {
+      "description": "Identifier unique within the system that produced the record.",
+      "type": "string",
+      "minLength": 1
+    },
+
+    "question": {
+      "description": "What the researcher was trying to determine, stated before the result is known.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text"],
+      "properties": {
+        "text": { "$ref": "#/$defs/nonEmptyText" },
+        "origin": { "$ref": "#/$defs/origin" }
+      }
+    },
+
+    "evidence": {
+      "description": "The data, artifacts, and literature the decision drew on.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/evidenceItem" }
+    },
+
+    "decision": {
+      "description": "The methodological or interpretive decision that was made, and what it was chosen over.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["statement", "origin"],
+      "properties": {
+        "statement": { "$ref": "#/$defs/nonEmptyText" },
+        "origin": { "$ref": "#/$defs/origin" },
+        "alternatives": {
+          "description": "Options that were available and not taken. An empty list means none were recorded, not that none existed.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["option"],
+            "properties": {
+              "option": { "$ref": "#/$defs/nonEmptyText" },
+              "tradeoff": {
+                "description": "What this option would have gained or cost relative to the one taken.",
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "method": {
+      "description": "The analysis, check, or rule that produced the result.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "parameters"],
+      "properties": {
+        "name": { "$ref": "#/$defs/nonEmptyText" },
+        "identifier": {
+          "description": "Machine name of the method inside the producing software, for example 'compare_two_groups'.",
+          "type": "string"
+        },
+        "parameters": {
+          "description": "Every setting the method ran with, including defaults that were left unchanged. Values are JSON primitives or arrays of them.",
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/parameterValue" }
+        },
+        "citations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/nonEmptyText" }
+        }
+      }
+    },
+
+    "assumptions": {
+      "description": "Conditions that must hold for the result to be read as intended. An empty list is allowed only when the method is purely descriptive, and the specification asks producers to say so in result.summary.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/assumption" }
+    },
+
+    "result": {
+      "description": "What the analysis or check actually found, before any reading of it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "quantities"],
+      "properties": {
+        "summary": { "$ref": "#/$defs/nonEmptyText" },
+        "quantities": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/quantity" }
+        },
+        "readings": {
+          "description": "Threshold-based readings of a quantity. Each names the convention it applies.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/reading" }
+        },
+        "observations": {
+          "description": "Facts about this particular result worth noticing, which are not verdicts on it.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/nonEmptyText" }
+        }
+      }
+    },
+
+    "supports": {
+      "description": "Conclusions this evidence supports.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/nonEmptyText" }
+    },
+
+    "does_not_support": {
+      "description": "Conclusions a reader might draw that this evidence does not establish.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/nonEmptyText" }
+    },
+
+    "provenance": {
+      "description": "Where the record came from: software, data handling, the researcher's choices, and when.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["software", "generated_at", "data_handling", "researcher_choices"],
+      "properties": {
+        "software": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "version"],
+          "properties": {
+            "name": { "$ref": "#/$defs/nonEmptyText" },
+            "version": {
+              "description": "Release version, or a commit hash when no release applies.",
+              "type": "string",
+              "minLength": 1
+            },
+            "component": {
+              "description": "The part of the software that produced the record, for example a module name.",
+              "type": "string"
+            }
+          }
+        },
+        "generated_at": {
+          "description": "When the record was produced, as an ISO 8601 timestamp with a UTC offset.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "data_handling": {
+          "description": "What happened to each dataset between receipt and analysis.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/dataHandling" }
+        },
+        "researcher_choices": {
+          "description": "Settings the researcher made, or left at a default, that the result depends on. Parameters already listed in method.parameters are not repeated here.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["choice", "value", "origin"],
+            "properties": {
+              "choice": { "$ref": "#/$defs/nonEmptyText" },
+              "value": { "$ref": "#/$defs/parameterValue" },
+              "origin": { "$ref": "#/$defs/origin" }
+            }
+          }
+        }
+      }
+    },
+
+    "unplaced": {
+      "description": "Information the producer judged scientifically important that no field above fits. Each entry is evidence for revising the schema.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["content", "why_no_field_fits"],
+        "properties": {
+          "content": { "$ref": "#/$defs/nonEmptyText" },
+          "why_no_field_fits": { "$ref": "#/$defs/nonEmptyText" }
+        }
+      }
+    }
+  },
+
+  "$defs": {
+    "nonEmptyText": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+
+    "origin": {
+      "description": "Who settled a choice. 'researcher' means the researcher set it. 'default' means the software's default was left in place. 'suggestion_accepted' means the software proposed it and the researcher accepted. 'fixed_by_method' means the method allows no other value.",
+      "enum": ["researcher", "default", "suggestion_accepted", "fixed_by_method"]
+    },
+
+    "parameterValue": {
+      "oneOf": [
+        { "type": ["string", "number", "boolean", "null"] },
+        {
+          "type": "array",
+          "items": { "type": ["string", "number", "boolean", "null"] }
+        }
+      ]
+    },
+
+    "evidenceItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "label"],
+      "properties": {
+        "kind": { "enum": ["dataset", "artifact", "literature"] },
+        "label": { "$ref": "#/$defs/nonEmptyText" },
+        "description": { "type": "string" },
+        "source": {
+          "description": "Where the item can be found: a URL, DOI, repository, or file name.",
+          "type": "string"
+        },
+        "status": {
+          "description": "Whether the item is real, synthetic, or constructed for teaching.",
+          "enum": ["real", "synthetic", "constructed", "unknown"]
+        },
+        "fingerprint": {
+          "description": "Content digest of a dataset, so two records can be shown to have used the same data.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["algorithm", "digest"],
+          "properties": {
+            "algorithm": { "$ref": "#/$defs/nonEmptyText" },
+            "digest": { "$ref": "#/$defs/nonEmptyText" },
+            "n_rows": { "type": "integer", "minimum": 0 },
+            "n_columns": { "type": "integer", "minimum": 0 },
+            "columns": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "dataset" } } },
+          "then": { "required": ["status"] }
+        }
+      ]
+    },
+
+    "assumption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "statement", "status"],
+      "properties": {
+        "name": { "$ref": "#/$defs/nonEmptyText" },
+        "statement": { "$ref": "#/$defs/nonEmptyText" },
+        "status": {
+          "description": "What is known about whether the assumption holds. See the specification for each value.",
+          "enum": [
+            "held_by_design",
+            "checked_consistent",
+            "checked_inconsistent",
+            "checked_inconclusive",
+            "not_testable_with_these_data",
+            "requires_knowledge_of_setting",
+            "not_checked"
+          ]
+        },
+        "check": {
+          "description": "How the assumption was examined, when it was. Required for the checked_* statuses.",
+          "type": "string"
+        },
+        "citation": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": ["checked_consistent", "checked_inconsistent", "checked_inconclusive"]
+              }
+            }
+          },
+          "then": {
+            "required": ["check"],
+            "properties": { "check": { "$ref": "#/$defs/nonEmptyText" } }
+          }
+        }
+      ]
+    },
+
+    "quantity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "value"],
+      "properties": {
+        "name": { "$ref": "#/$defs/nonEmptyText" },
+        "value": {
+          "description": "The computed value, or null when the method ran and the quantity could not be computed. A null value requires value_note.",
+          "type": ["number", "null"]
+        },
+        "value_note": { "type": "string" },
+        "unit": { "type": "string" },
+        "interval": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["low", "high", "level", "method"],
+          "properties": {
+            "low": { "type": "number" },
+            "high": { "type": "number" },
+            "level": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "exclusiveMaximum": 1
+            },
+            "method": { "$ref": "#/$defs/nonEmptyText" }
+          }
+        },
+        "n": {
+          "description": "Number of units the quantity was computed from.",
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "value": { "type": "null" } } },
+          "then": {
+            "required": ["value_note"],
+            "properties": { "value_note": { "$ref": "#/$defs/nonEmptyText" } }
+          }
+        }
+      ]
+    },
+
+    "reading": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["quantity", "text", "convention"],
+      "properties": {
+        "quantity": {
+          "description": "The name of the quantity in result.quantities this reading applies to.",
+          "$ref": "#/$defs/nonEmptyText"
+        },
+        "text": { "$ref": "#/$defs/nonEmptyText" },
+        "convention": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "citation"],
+          "properties": {
+            "name": { "$ref": "#/$defs/nonEmptyText" },
+            "threshold": { "$ref": "#/$defs/parameterValue" },
+            "citation": { "$ref": "#/$defs/nonEmptyText" }
+          }
+        }
+      }
+    },
+
+    "dataHandling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence_label", "n_input_rows", "retention"],
+      "properties": {
+        "evidence_label": {
+          "description": "The label of the dataset in evidence this entry describes.",
+          "$ref": "#/$defs/nonEmptyText"
+        },
+        "columns_used": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "n_input_rows": { "type": "integer", "minimum": 0 },
+        "n_retained_rows": {
+          "description": "Rows used. Null when the analysis expands rows, in which case n_expanded_observations is required.",
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "n_expanded_observations": { "type": "integer", "minimum": 0 },
+        "retention": {
+          "description": "Each reason some part of the data was unavailable. Counts of different kinds are never summed.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["label", "count", "kind", "mechanism"],
+            "properties": {
+              "label": { "$ref": "#/$defs/nonEmptyText" },
+              "count": { "type": "integer", "minimum": 0 },
+              "kind": { "enum": ["rows_dropped", "cells_empty", "observations_absent"] },
+              "mechanism": { "$ref": "#/$defs/nonEmptyText" }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "n_retained_rows": { "type": "null" } } },
+          "then": { "required": ["n_expanded_observations"] }
+        }
+      ]
+    }
+  }
+}
