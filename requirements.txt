@@ -6,3 +6,4 @@ pytest>=7.0
 statsmodels>=0.14
 krippendorff>=0.6
 openpyxl>=3.0
+jsonschema>=4.0
