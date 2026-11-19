@@ -1,0 +1,169 @@
+<!doctype html>
+<title>OpenMeasure Preview</title>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+:root { --bg:#ffffff; --fg:#262730; --muted:#5c5f6b; --line:#e3e4e8; --accent:#c2410c; --card:#f7f7f9; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0e1117; --fg:#fafafa; --muted:#a3a8b8; --line:#2c303a; --accent:#fb923c; --card:#161a23; color-scheme: dark; } }
+:root[data-theme="dark"] { --bg:#0e1117; --fg:#fafafa; --muted:#a3a8b8; --line:#2c303a; --accent:#fb923c; --card:#161a23; color-scheme: dark; }
+body { background:var(--bg); color:var(--fg); font:16px/1.6 "Source Sans Pro", system-ui, -apple-system, "Segoe UI", sans-serif; margin:0; }
+.wrap { max-width:46rem; margin:0 auto; padding-block:1.5rem 4rem; padding-inline:1rem; }
+nav.top { display:flex; flex-wrap:wrap; gap:.5rem 1.25rem; font-size:.95rem; border-bottom:1px solid var(--line); padding-bottom:.75rem; }
+nav.top a { color:var(--fg); text-decoration:none; } nav.top a[aria-current] { font-weight:700; }
+.preview { background:var(--card); border:1px solid var(--line); border-radius:.5rem; padding:.6rem .9rem; font-size:.9rem; color:var(--muted); margin:1rem 0; }
+h1 { font-size:2.4rem; line-height:1.2; margin:1.5rem 0 .25rem; } h3 { margin-top:2rem; } h4 { margin-top:1.5rem; }
+.caption { color:var(--muted); font-size:.92rem; } .caption p { margin:.25rem 0; }
+hr { border:0; border-top:1px solid var(--line); margin:1.75rem 0; }
+a { color:var(--accent); }
+a.open { display:inline-block; margin:.25rem 0 .75rem; font-weight:600; text-decoration:none; }
+details { border:1px solid var(--line); border-radius:.5rem; padding:.5rem .9rem; margin:.6rem 0; }
+summary { cursor:pointer; font-weight:600; }
+iframe#tool { display:block; width:100%; height:90vh; border:0; border-top:1px solid var(--line); margin-top:1rem; }
+#om-timing { position:fixed; right:max(12px, env(safe-area-inset-right, 0px)); bottom:calc(12px + env(safe-area-inset-bottom, 0px)); z-index:9999;
+  background:#111827; color:#f9fafb; font:600 13px/1.3 ui-monospace, Consolas, monospace; padding:.4rem .65rem; border-radius:.4rem; }
+#om-timing:empty { display:none; }
+</style>
+<main class="wrap" data-om-static><nav class="top"><a href="index.html" aria-current=page>Home (static)</a><a href="reliability.html">Reliability (static + tool)</a><a href="app.html">Full app (stlite)</a></nav><div class="preview">Temporary performance preview of OpenMeasure running entirely in the browser. The live app is unchanged. The timer in the corner shows how long this page took to become readable and, where there is one, how long its interactive tool took to start.</div><h1>OpenMeasure Lab</h1>
+<div class="caption"><p>An open-source validation toolkit for research data, measures, models, and programs.</p></div>
+<hr>
+<p>OpenMeasure brings together statistical methods, transparent reporting, and
+plain-language interpretation to support validation throughout the research
+process.</p>
+<hr>
+<h3>How To Use OpenMeasure</h3>
+<p>OpenMeasure can be used in multiple ways:</p>
+<p><strong>Learn with Research Journeys</strong>
+Work through real datasets step by step to see how validation decisions
+arise across the research workflow.</p>
+<p><strong>Apply to your research</strong>
+Use validation modules to identify appropriate checks, understand
+assumptions and tradeoffs, interpret results, and document decisions
+for your own analysis.</p>
+<div class="caption"><p>OpenMeasure is designed to support methodological reasoning alongside statistical expertise, domain knowledge, and established analysis tools.</p></div>
+<hr>
+<h3>How OpenMeasure Works</h3>
+<p>OpenMeasure is built from five interacting systems. Each holds one part
+of an analysis, and the boundaries between them are enforced by tests in
+the codebase.</p>
+<div class="caption"><p>The four layers an analysis passes through, and the validation infrastructure that checks each of them.</p></div>
+<p><strong>Research UI</strong>
+Streamlit pages, stage navigation, visual measure explorers, diagrams,
+and controls. This layer presents the results that the scientific logic
+returns.</p>
+<p><strong>Research state</strong>
+What you have selected, what depends on what, what has changed, and what
+still needs review, carried across stages and across workflows.</p>
+<p><strong>Scientific logic</strong>
+Statistical calculations, diagnostics, comparison rules, methodological
+constraints, and the measurement ontology, the vocabulary that connects
+a concept you want to observe to the measures able to observe it. These
+are pure functions, and they run independently of the interface around
+them.</p>
+<p><strong>Evidence and data infrastructure</strong>
+Public datasets, uploads, provenance, literature, artifacts, and the
+handoffs that let one workflow read another workflow's result.</p>
+<p><strong>Validation infrastructure</strong>
+Unit tests against hand-calculable and literature-cited values, edge
+cases that must raise a clear error, page-render tests, and comparison
+against independent reference software for the statistics that have a
+reference implementation.</p>
+<div class="caption"><p>The software computes, organizes, visualizes, and tracks evidence. The researcher retains the methodological judgment.</p></div>
+<hr>
+<h3>Where Each Module Fits</h3>
+<p>The modules below are arranged by the stage of a study where the question
+arises, from framing a question through to interpreting a result. Each card
+also names the kind of validation it performs, which is how the modules are
+grouped in the sidebar and described in their own documentation.</p>
+<div class="caption"><p>What is being asked, and what evidence would answer it?</p></div>
+<div class="caption"><p>Research Journeys and Explore Real Data occupy this stage. Framing a research question is a judgment rather than something a statistic validates, so each walks a real dataset through the questions it can and cannot support.</p></div>
+<p><strong>Research Journeys</strong></p>
+<p>Guided worked examples, grouped by field: Multi-Modal Health Imaging, Social Impact Evaluation, Responsible AI.</p>
+<a class="open" href="app.html">Open Research Journeys &rarr;</a> <span class="caption">(opens the full app)</span>
+<p><strong>Explore Real Data</strong></p>
+<p>Real, citable datasets to practice validation judgment on, with no prescribed columns or expected results.</p>
+<a class="open" href="app.html">Open Explore Real Data &rarr;</a> <span class="caption">(opens the full app)</span>
+<div class="caption"><p>Are the observations there, and can the record be trusted?</p></div>
+<p><strong>Time-Series QA</strong></p>
+<p>Data Validation</p>
+<div class="caption"><p>Version 0.1</p></div>
+<p>Checks whether a time series is complete and regularly sampled enough to analyze: gaps, duplicate timestamps, ordering, and coverage per period.</p>
+<a class="open" href="app.html">Open Time-Series QA &rarr;</a> <span class="caption">(opens the full app)</span>
+<div class="caption"><p>Does the instrument measure the intended construct consistently?</p></div>
+<p><strong>Reliability</strong></p>
+<p>Measurement Validation</p>
+<div class="caption"><p>Version 0.1</p></div>
+<p>Cronbach's alpha, corrected item-total correlations, alpha if item dropped, and split-half reliability for a scale or survey.</p>
+<a class="open" href="reliability.html">Open Reliability &rarr;</a>
+<div class="caption"><p>Is the method appropriate, and who does the result hold for?</p></div>
+<p><strong>Impact Evaluation</strong></p>
+<p>Program Validation</p>
+<div class="caption"><p>Version 0.1</p></div>
+<p>Recommends and runs the comparison that fits your design, then states what the design can and cannot support.</p>
+<a class="open" href="app.html">Open Impact Evaluation &rarr;</a> <span class="caption">(opens the full app)</span>
+<p><strong>Fairness</strong></p>
+<p>Fairness &amp; Model Validation</p>
+<div class="caption"><p>Version 0.05</p></div>
+<p>Compares favorable-outcome rates across groups and explains the assumptions and tradeoffs behind competing fairness definitions.</p>
+<a class="open" href="app.html">Open Fairness &rarr;</a> <span class="caption">(opens the full app)</span>
+<div class="caption"><p>What do these results actually support?</p></div>
+<p><strong>Cross-Analysis Implications</strong></p>
+<p>Cross-Cutting Validation</p>
+<div class="caption"><p>Version 0.1</p></div>
+<p>Shows how much of your data each analysis actually used, so you can see what each result describes.</p>
+<a class="open" href="app.html">Open Cross-Analysis Implications &rarr;</a> <span class="caption">(opens the full app)</span>
+<p><strong>Evidence Review</strong></p>
+<p>Cross-Cutting Validation</p>
+<div class="caption"><p>Version 0.1</p></div>
+<p>Searches public literature for a finding, screens results with transparent criteria, and records what was found and decided.</p>
+<a class="open" href="app.html">Open Evidence Review &rarr;</a> <span class="caption">(opens the full app)</span>
+<hr>
+<h3>Design Principles</h3>
+<p>Every module follows the same principles:</p>
+<ul>
+<li>Transparent statistical methods</li>
+<li>Reproducible analyses</li>
+<li>Plain-language interpretation</li>
+<li>Explicit assumptions and limitations</li>
+<li>Documented references</li>
+<li>Responsible use grounded in established research and professional ethics</li>
+</ul>
+<div class="caption"><p>OpenMeasure is designed for researchers and practitioners working in community health, social services, education, public policy, and applied research. The toolkit emphasizes transparent validation methods that are accessible, reproducible, and adaptable across disciplines.</p></div>
+<hr>
+<h3>Getting Started</h3>
+<p>New to a dataset or question? Start with Research Journeys or Explore Real Data to build validation judgment on real examples.</p>
+<a class="open" href="app.html">Not sure which check fits your question? Open Method Selection &rarr;</a> <span class="caption">(opens the full app)</span>
+<div class="caption"><p>Already know which module you need? Jump straight to it from the sidebar.</p></div>
+<h3>Best-Suited Workflows</h3>
+<p>OpenMeasure fits reproducibility, reliability, fairness, data-quality, and program-evaluation questions on your own research data, models, or programs. It reports each finding on its own terms, alongside the assumptions and tradeoffs behind it, and leaves the methodological judgment and the domain expertise with you.</p>
+<h3>Limitations &amp; Future Directions</h3>
+<p>Current modules cover a defined set of established statistical methods and worked examples, which is narrower than the full range of validation questions and dataset types. Future releases are expected to expand data-validation and fairness coverage and connect further findings across the research workflow.</p>
+<h3>Generative AI Use Statement</h3>
+<p>Portions of this codebase were developed with the assistance of generative AI tools for code drafting, debugging, and documentation; all statistical methods were independently verified, and all design and scope decisions were made by the project's author. See <code>docs/Authorship.md</code> for details.</p>
+<h3>Contact</h3>
+<p>Questions, feedback, or contributions are welcome: please open an issue on the <a href="https://github.com/victoriamccray/openmeasure">GitHub repository</a> before submitting a pull request. See <code>CONTRIBUTING.md</code> for details.</p>
+<p>Feedback</p></main>
+<div id="om-timing" role="status" aria-live="polite"></div>
+<script>
+(() => {
+  const t = () => (performance.now() / 1000).toFixed(1) + "s";
+  const box = document.getElementById("om-timing");
+  const st = window.__om = { readable: null, ready: null, jspi: typeof WebAssembly.Suspending === "function" };
+  const hasTool = !!document.querySelector("[data-om-tool]");
+  const paint = () => {
+    const parts = [];
+    if (st.readable) parts.push("Readable " + st.readable);
+    if (hasTool) parts.push(st.ready ? "Tool ready " + st.ready : "Tool loading…");
+    box.textContent = parts.join("  |  ");
+  };
+  if (document.querySelector("[data-om-static]")) st.readable = t();
+  paint();
+  if (!hasTool) return;
+  const frame = document.querySelector("iframe[data-om-tool]");
+  const poll = setInterval(() => {
+    let doc = document;
+    try { if (frame) doc = frame.contentDocument; } catch (e) { return; }
+    if (doc && doc.querySelector('[data-testid="stMain"] h1')) {
+      st.ready = t(); if (!st.readable) st.readable = st.ready; paint(); clearInterval(poll);
+    }
+  }, 250);
+})();
+</script>

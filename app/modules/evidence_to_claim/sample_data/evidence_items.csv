@@ -1,0 +1,7 @@
+claim_id,indicator_id,source,finding_text,sample_size,has_comparison_group,collection_method,time_lag_days
+CLAIM-G1-01,IND-02,GivingData export,62% of Eastside participants placed within 6 months,180,yes,administrative_record,120
+CLAIM-G1-01,IND-02,Employer verification calls,Independently confirmed placement for a 30-participant sample,30,yes,observation,150
+CLAIM-G1-01,IND-02,Participant follow-up survey,Self-reported employment matches the admin record for 92% of respondents,180,yes,survey,180
+CLAIM-G2-01,IND-01,Rural Senses survey,71% of Northgate participants reported increased confidence,95,no,survey,60
+CLAIM-G3-01,IND-02,internal database,75% of Lakeside participants reported job placement,8,no,survey,90
+CLAIM-G4-01,IND-01,partner-reported,34 Harbor Youth Alliance participants reported confidence gains,34,no,survey,900

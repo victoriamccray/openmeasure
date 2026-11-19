@@ -1,0 +1,2232 @@
+"""
+Multimodal Signal Convergence - a guided research journey, not a workflow.
+
+Teaches a validation question none of the numbered workflows cover: once
+a pipeline can combine more than one signal about the same person or
+process, does the added interpretive value justify the added privacy,
+security, and agency cost of collecting each additional signal? Starts
+with a single neurotech signal (EEG) and adds Autonomic, Muscular,
+Behavioral, Subjective, Environmental, and Institutional modalities one
+at a time, using the same general pipeline shape throughout: Signals ->
+Sensors -> Processing -> Inference -> Decision -> Action -> Feedback.
+
+Like the other Research Journeys, this page records nothing to
+shared/handoff.py, carries no module_key, and is deliberately not a
+numbered page, so it needs no entry in shared/catalog.py.
+
+Core logic (domain-agnostic: any set of signal categories rated on one
+gain dimension and three cost dimensions, not specific to neurotech or
+any one study) lives in modules/signal_pipeline/core; this file is
+presentation only.
+
+Citation-integrity note - read this before trusting any number below:
+unlike GAIA, fMRI QC, or HealthRing, this journey is not anchored to one
+real, cited study. sample_data/modality_profiles.csv contains no value
+any single cited source reports directly. Every interpretive-gain and
+cost rating is an illustrative, author-assigned score informed by the
+cited literature's directional findings (e.g. "location data is highly
+re-identifying," per de Montjoye et al., 2013) - never a number that
+literature reports. See modules/signal_pipeline/README.md for the full
+discussion and modules/signal_pipeline/sample_data/modality_profiles.csv
+for the citation behind every row.
+"""
+
+import math
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+import numpy as np
+import pandas as pd
+import streamlit as st
+import streamlit.components.v1 as components
+
+from modules.signal_pipeline.core import intervention as intervention_core
+from modules.signal_pipeline.core import modality as modality_core
+from modules.signal_pipeline.core import pipeline as pipeline_core
+from modules.signal_pipeline.core import tradeoff as tradeoff_core
+from shared.data_handling import disclosure_for, render_data_handling_summary
+from shared.journey_stages import StageTracker
+from shared.stage_workspace import Stage, StageWorkspace
+from shared.report import caveat, flagged_item_note, section_header
+
+SAMPLE_DIR = ROOT / "modules" / "signal_pipeline" / "sample_data"
+
+# Validated default palette (dataviz skill, references/palette.md), same
+# values used elsewhere in this app (e.g. GAIA_Worked_Example.py).
+INK_SECONDARY = "#52514e"
+GRIDLINE = "#e1e0d9"
+SURFACE = "#fcfcfb"
+MUTED = "#898781"
+
+# Categorical slots 1-7 in the palette's fixed, validated order, one per
+# modality category. "Pipeline" (the shared Processing..Feedback nodes)
+# deliberately does not consume an 8th categorical slot: those nodes are
+# structural, not a competing identity to be told apart from the seven
+# modality colors, so they use the neutral muted ink instead.
+CATEGORY_COLORS = {
+    "Neural": "#2a78d6",
+    "Autonomic": "#eb6834",
+    "Muscular": "#1baf7a",
+    "Behavioral": "#eda100",
+    "Subjective": "#e87ba4",
+    "Environmental": "#008300",
+    "Institutional": "#4a3aa7",
+}
+
+# A second, redundant identity channel alongside color: with up to seven
+# categories visible on screen at once (a "scatter"-like diagram, per the
+# dataviz skill), color alone does not clear the palette's all-pairs CVD
+# floor past three simultaneous series. Shape plus an always-visible text
+# label on every node keeps category identity legible without relying on
+# hue alone.
+CATEGORY_SHAPES = {
+    "Neural": "circle",
+    "Autonomic": "square",
+    "Muscular": "triangle-up",
+    "Behavioral": "diamond",
+    "Subjective": "triangle-down",
+    "Environmental": "cross",
+    "Institutional": "triangle-right",
+}
+
+# Static pictographs, not the animated kind: this project moved away from
+# flickering step animations toward still icons (see GAIA, HealthRing,
+# pyfMRIqc). One per pipeline_core.STAGES entry, in that order - what
+# each stage means in general, not tied to any one modality.
+PIPELINE_STAGE_NOTES = (
+    (":material/waves:", "Signals", "The raw physical signal a body or context produces"),
+    (":material/sensors:", "Sensors", "What a device actually measures from that signal"),
+    (":material/tune:", "Processing", "Cleaning and transforming the raw measurement"),
+    (":material/psychology:", "Inference", "Turning the processed signal into an estimate"),
+    (":material/rule:", "Decision", "Comparing that estimate against a threshold or rule"),
+    (":material/bolt:", "Action", "The system responds based on that decision"),
+    (":material/loop:", "Feedback", "The response changes the signal that comes next"),
+)
+
+# What is actually passed from one stage to the next. The stage names
+# alone said what each stage is, not what crosses the boundary between
+# them, which is the part a reader following the order needs.
+PIPELINE_HANDOFFS = (
+    "a physical signal a sensor can pick up",
+    "a raw measured trace",
+    "a cleaned, transformed signal",
+    "an estimate of a state",
+    "a threshold result",
+    "a response the person experiences",
+)
+PIPELINE_RETURN_HANDOFF = "a changed signal the next time around"
+
+# Anatomy scene layout: an original, simplified biological-illustration
+# style (brain / heart / muscle / soundwave icons on a soft body outline),
+# not a trace or copy of any commercial illustration library's assets -
+# those are copyrighted stock icons this app has no license to reproduce.
+# Pixel coordinates in a fixed 320x380 viewBox. Body-sensed categories get
+# an icon on the figure itself; non-body-sensed categories (Subjective,
+# Environmental, Institutional) are never drawn on the body, since none
+# of the three is actually picked up from the body by a sensor - drawing
+# one there would misrepresent what the modality is.
+SCENE_VIEWBOX = (320, 380)
+HEAD_CENTER_PX = (100, 55)
+HEAD_RADIUS_PX = 30
+ENTRY_POINT_PX = (100, 355)
+BODY_ICON_PX = {
+    "Neural": (100, 55),
+    "Autonomic": (100, 172),
+    "Muscular": (25, 210),
+    "Behavioral": (100, 124),
+}
+EXTERNAL_ICON_PX = {
+    "Subjective": (258, 68),
+    "Environmental": (258, 150),
+    "Institutional": (258, 232),
+}
+# The Privacy view draws the edge of the person: body-sensed signals
+# cross it, and the three non-body-sensed modalities are drawn outside
+# it because they were never inside it to begin with. Sized to enclose
+# the body outline below, and to leave the external icons outside.
+PERSON_BOUNDARY_PX = (12, 14, 178, 346)  # x1, y1, x2, y2
+PRIVACY_CROSSING_PX = (178, 300)
+# Local (0-32 box) canonical icon paths - hand-authored here, simplified
+# and stylized rather than anatomically literal, in the spirit of a clean
+# biological-illustration look. fill takes the category's palette color;
+# stroke_light is a near-white line for contrast on filled shapes.
+_ICON_PATHS = {
+    "Neural": (
+        '<path d="M16 4C10 4 6 8 6 13C4 14 3 16 3 18C3 21 5 23 8 23'
+        "C8 26 11 28 14 28C15 28 16 27 16 27C16 27 17 28 18 28"
+        "C21 28 24 26 24 23C27 23 29 21 29 18C29 16 28 14 26 13"
+        'C26 8 22 4 16 4Z" fill="{fill}"/>'
+        '<path d="M16 6L16 26M11 9C13 10 13 13 11 15M21 9C19 10 19 13 21 15" '
+        'stroke="{stroke_light}" stroke-width="1.2" fill="none" stroke-linecap="round"/>'
+    ),
+    "Autonomic": (
+        '<path d="M16 29C16 29 3 20 3 11C3 6 6 3 10 3C13 3 15 5 16 7'
+        "C17 5 19 3 22 3C26 3 29 6 29 11C29 20 16 29 16 29"
+        'Z" fill="{fill}"/>'
+    ),
+    "Muscular": (
+        '<path d="M7 27C4 20 5 11 12 7C17 4 24 6 27 11C30 16 28 22 24 25'
+        "C23 21 20 22 19 25C17 22 15 23 13 26C11 23 9 25 7 27"
+        'Z" fill="{fill}"/>'
+    ),
+    "Behavioral": (
+        '<g class="sound-bar" style="animation-delay:0s">'
+        '<rect x="9" y="14" width="4" height="9" rx="2" fill="{fill}"/></g>'
+        '<g class="sound-bar" style="animation-delay:0.15s">'
+        '<rect x="15" y="6" width="4" height="21" rx="2" fill="{fill}"/></g>'
+        '<g class="sound-bar" style="animation-delay:0.3s">'
+        '<rect x="21" y="11" width="4" height="13" rx="2" fill="{fill}"/></g>'
+    ),
+    "Subjective": (
+        '<path d="M4 5H26C27 5 28 6 28 7V19C28 20 27 21 26 21H13L7 27V21H4'
+        "C3 21 2 20 2 19V7C2 6 3 5 4 5"
+        'Z" fill="{fill}"/>'
+    ),
+    "Environmental": (
+        '<path d="M16 4C10 4 6 8 6 14C6 21 16 29 16 29C16 29 26 21 26 14'
+        "C26 8 22 4 16 4"
+        'Z" fill="{fill}"/>'
+        '<circle cx="16" cy="14" r="4.2" fill="{stroke_light}"/>'
+    ),
+    "Institutional": (
+        '<rect x="6" y="6" width="20" height="24" rx="3" fill="{fill}"/>'
+        '<rect x="12" y="3" width="8" height="5" rx="1.5" fill="{fill}"/>'
+        '<line x1="10" y1="14" x2="22" y2="14" stroke="{stroke_light}" stroke-width="1.6" stroke-linecap="round"/>'
+        '<line x1="10" y1="19" x2="22" y2="19" stroke="{stroke_light}" stroke-width="1.6" stroke-linecap="round"/>'
+        '<line x1="10" y1="24" x2="18" y2="24" stroke="{stroke_light}" stroke-width="1.6" stroke-linecap="round"/>'
+    ),
+}
+# Body-sensed categories get a looping pulse (amplitude, duration) and a
+# scrolling waveform ticker (a small illustrative, non-recorded pattern
+# tiled twice for a seamless CSS loop); external (non-body-sensed)
+# categories get a gentle float instead of a pulse, and no ticker, since
+# none of them has a raw signal waveform to illustrate.
+_ICON_PULSE = {
+    "Neural": (1.05, "2.4s"),
+    "Autonomic": (1.16, "1.1s"),
+    "Muscular": (1.1, "0.8s"),
+    "Behavioral": (1.0, "1.4s"),  # bars animate themselves; icon stays still
+}
+_TICKER_TILE = {
+    "Neural": "0,0 4,9 8,-8 12,8 16,-7 20,5 24,-9 28,6 32,-5 36,3 40,0",
+    "Autonomic": "0,0 14,0 16,-3 18,10 20,-13 22,6 24,-1 40,0",
+    "Muscular": "0,0 3,-6 5,7 8,-9 10,5 13,-7 16,8 19,-4 22,6 25,-8 28,4 40,0",
+    "Behavioral": "0,-5 5,5 10,-5 15,5 20,-5 25,5 30,-5 35,0 40,0",
+}
+_TICKER_DURATION = {
+    "Neural": "1.0s",
+    "Autonomic": "1.0s",
+    "Muscular": "0.7s",
+    "Behavioral": "1.5s",
+}
+
+PERSPECTIVE_KEY = "signal_pipeline_perspective"
+PERSPECTIVE_BUILD = "Build"
+PERSPECTIVE_PRIVACY = "Privacy"
+PERSPECTIVE_AGENCY = "Agency"
+PERSPECTIVES = (PERSPECTIVE_BUILD, PERSPECTIVE_PRIVACY, PERSPECTIVE_AGENCY)
+PERSPECTIVE_DESCRIPTIONS = {
+    PERSPECTIVE_BUILD: "Build: what the pipeline collects and combines.",
+    PERSPECTIVE_PRIVACY: "Privacy: where each signal is sensitive, or leaves the person.",
+    PERSPECTIVE_AGENCY: (
+        "Agency: where the person can understand, authorize, override, or "
+        "loses the ability to."
+    ),
+}
+CONVERGENCE_PERSPECTIVE_TEXT = {
+    PERSPECTIVE_BUILD: (
+        "In the Build view: convergence is where separate signals stop "
+        "being separate signals and become one combined input the model "
+        "reasons over."
+    ),
+    PERSPECTIVE_PRIVACY: (
+        "In the Privacy view: convergence is exactly where signals that "
+        "were each hard to re-identify on their own can become "
+        "re-identifying in combination - a modality with a low privacy "
+        "cost by itself can still raise the combined risk once it "
+        "converges with others."
+    ),
+    PERSPECTIVE_AGENCY: (
+        "In the Agency view: convergence means a single override no "
+        "longer suffices. Once modalities converge, withdrawing consent "
+        "for one signal does not undo what the model already inferred by "
+        "combining it with the others."
+    ),
+}
+
+TRADEOFF_STEP_KEY = "signal_pipeline_tradeoff_step"
+TRADEOFF_GAIN_ONLY = 0
+TRADEOFF_ADD_PRIVACY = 1
+TRADEOFF_ADD_SECURITY = 2
+TRADEOFF_ADD_AGENCY = 3
+
+_VEGA_CHART_CONFIG = {
+    "background": SURFACE,
+    "axis": {
+        "gridColor": GRIDLINE,
+        "domainColor": "#c3c2b7",
+        "tickColor": "#c3c2b7",
+        "labelColor": "#898781",
+        "titleColor": INK_SECONDARY,
+    },
+    "view": {"stroke": "transparent"},
+}
+
+IENCA_ANDORNO_CITATION = (
+    "Ienca, M., & Andorno, R. (2017). Towards new human rights in the age "
+    "of neuroscience and neurotechnology. Life Sciences, Society and "
+    "Policy, 13, 5. https://doi.org/10.1186/s40504-017-0050-1"
+)
+DE_MONTJOYE_CITATION = (
+    "de Montjoye, Y.-A., Hidalgo, C. A., Verleysen, M., & Blondel, V. D. "
+    "(2013). Unique in the crowd: The privacy bounds of human mobility. "
+    "Scientific Reports, 3, 1376. https://doi.org/10.1038/srep01376"
+)
+KOELSTRA_CITATION = (
+    "Koelstra, S. et al. (2012). DEAP: A Database for Emotion Analysis "
+    "using Physiological Signals. IEEE Transactions on Affective "
+    "Computing, 3(1), 18-31. https://doi.org/10.1109/T-AFFC.2011.15"
+)
+BAGLEY_ET_AL_CITATION = (
+    "Bagley, B. A., Rose, N., Kilbourn, Q., & Canham, M. (2026). Threat "
+    "vectors and the state of the art in defense methods for security "
+    "in neurotechnology. arXiv:2607.10451. "
+    "https://arxiv.org/abs/2607.10451"
+)
+ARMENGOL_URPI_ET_AL_CITATION = (
+    "Armengol-Urpi, A., Kovacs, R., & Sarma, S. E. (2023). Brain-Hack: "
+    "Remotely injecting false brain-waves with RF to take control of a "
+    "brain-computer interface. Proceedings of the 5th Workshop on "
+    "CPS&IoT Security and Privacy (CPSIoTSec). "
+    "https://doi.org/10.1145/3605758.3623497 (the primary study behind "
+    "the RF-injection finding below; Bagley et al., 2026 relays it as "
+    "part of its survey)"
+)
+DENNING_ET_AL_CITATION = (
+    "Denning, T., Matsuoka, Y., & Kohno, T. (2009). Neurosecurity: "
+    "security and privacy for neural devices. Neurosurgical Focus, "
+    "27(1), E7. https://doi.org/10.3171/2009.4.FOCUS0985"
+)
+SANCHEZ_GAMA_ET_AL_CITATION = (
+    "Sánchez Gama, M. de J., Barradas Chacón, L. A., Chacón Gutiérrez, "
+    "L., Fernández Harmony, T., Novo Olivas, C. A., & De La Roca "
+    "Chiapas, J. M. (2024). Resting state EEG with closed eyes and open "
+    "eyes in females from 60 to 80 years old [Data set]. OpenNeuro. "
+    "https://doi.org/10.18112/openneuro.ds005420.v1.0.0 (CC0)"
+)
+BARRY_ET_AL_CITATION = (
+    "Barry, R. J., Clarke, A. R., Johnstone, S. J., Magee, C. A., & "
+    "Rushby, J. A. (2007). EEG differences between eyes-closed and "
+    "eyes-open resting conditions. Clinical Neurophysiology, 118(12), "
+    "2765-2773. https://doi.org/10.1016/j.clinph.2007.07.028"
+)
+
+# Citations are numbered and listed once at the end of the page rather
+# than printed under the sentence they support, where they interrupted
+# the point each stage is making. PAGE_REFERENCE_ORDER fixes the numbers
+# for the references this page cites in its own prose; references that
+# appear only in a modality's data row are appended after these, in
+# modality order, by _reference_registry below.
+PAGE_REFERENCE_ORDER: tuple[str, ...] = (
+    IENCA_ANDORNO_CITATION,
+    DE_MONTJOYE_CITATION,
+    KOELSTRA_CITATION,
+    BAGLEY_ET_AL_CITATION,
+    ARMENGOL_URPI_ET_AL_CITATION,
+    DENNING_ET_AL_CITATION,
+    SANCHEZ_GAMA_ET_AL_CITATION,
+    BARRY_ET_AL_CITATION,
+)
+
+
+def _split_references(text: str) -> tuple[str, ...]:
+    """
+    Split a citation string that holds more than one reference.
+
+    A modality's citation field joins its references with "; ", but a
+    single reference can itself contain a semicolon inside parentheses,
+    so splitting on every semicolon would cut one reference in half.
+    Only top-level semicolons separate references.
+    """
+
+    parts: list[str] = []
+    current: list[str] = []
+    depth = 0
+
+    for char in text:
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth = max(depth - 1, 0)
+
+        if char == ";" and depth == 0:
+            parts.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+
+    parts.append("".join(current))
+
+    return tuple(part.strip() for part in parts if part.strip())
+
+
+BASELINE_MODALITY_NAME = "Neural (EEG)"
+
+STAGE_KEY = "signal_pipeline_stage"
+SELECTED_MODALITIES_KEY = "signal_pipeline_selected_modalities"
+PRIVACY_WEIGHT_KEY = "signal_pipeline_privacy_weight"
+SECURITY_WEIGHT_KEY = "signal_pipeline_security_weight"
+AGENCY_WEIGHT_KEY = "signal_pipeline_agency_weight"
+
+# Where each of the above survives leaving the stage that draws it. A
+# widget's own key is dropped the moment its widget stops being
+# rendered, and every one of these is read by a later stage: the
+# selection by three of them, the weights by the research decision.
+KEPT = {
+    SELECTED_MODALITIES_KEY: "mmsc_kept_modalities",
+    PERSPECTIVE_KEY: "mmsc_kept_perspective",
+    PRIVACY_WEIGHT_KEY: "mmsc_kept_privacy",
+    SECURITY_WEIGHT_KEY: "mmsc_kept_security",
+    AGENCY_WEIGHT_KEY: "mmsc_kept_agency",
+}
+
+
+def _held(widget_key, default):
+    """What a later stage should read instead of the widget's own key."""
+    return st.session_state.get(KEPT[widget_key], default)
+
+
+def _hold(widget_key, value):
+    """Mirror a control's value where a later stage can still find it."""
+    st.session_state[KEPT[widget_key]] = value
+
+    return value
+
+STAGE_RESEARCH_QUESTION = 0
+STAGE_BUILD_PIPELINE = 1
+STAGE_ADD_MODALITIES = 2
+STAGE_CONVERGENCE = 3
+STAGE_WEIGH_TRADEOFF = 4
+STAGE_REAL_SIGNAL = 5
+STAGE_RESEARCH_DECISION = 6
+
+JOURNEY_STAGES = (
+    "Research question",
+    "Build the pipeline",
+    "Add modalities",
+    "Examine convergence",
+    "Weigh the tradeoff",
+    "Protect a real signal",
+    "Research decision",
+)
+
+
+# A second, nested StageTracker: the "Weigh the tradeoff" stage above
+# unlocks its own cost dimensions one at a time (gain alone, then
+# privacy, then security, then agency), which is a gated sequence in its
+# own right rather than part of the top-level journey breadcrumb.
+TRADEOFF_TRACKER = StageTracker(
+    session_key=TRADEOFF_STEP_KEY,
+    stage_labels=("Gain only", "+ Privacy", "+ Security", "+ Agency"),
+)
+
+
+def _to_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() == "true"
+
+
+def _to_str(value) -> str:
+    return "" if pd.isna(value) else str(value)
+
+
+def _load_modalities() -> tuple[modality_core.Modality, ...]:
+    frame = pd.read_csv(SAMPLE_DIR / "modality_profiles.csv")
+    return tuple(
+        modality_core.Modality(
+            name=row["name"],
+            category=row["category"],
+            signal_examples=row["signal_examples"],
+            interpretive_gain=float(row["interpretive_gain"]),
+            privacy_cost=float(row["privacy_cost"]),
+            security_cost=float(row["security_cost"]),
+            agency_cost=float(row["agency_cost"]),
+            citation=str(row["citation"]),
+            is_body_sensed=_to_bool(row["is_body_sensed"]),
+            body_region=_to_str(row["body_region"]),
+            privacy_exit_point=str(row["privacy_exit_point"]),
+            agency_control_point=str(row["agency_control_point"]),
+            notes=str(row["notes"]),
+        )
+        for _, row in frame.iterrows()
+    )
+
+
+def _reference_registry(
+    modalities: tuple[modality_core.Modality, ...],
+) -> tuple[str, ...]:
+    """Every reference this page can cite, in the order it is numbered."""
+
+    ordered = list(PAGE_REFERENCE_ORDER)
+
+    for modality in modalities:
+        for reference in _split_references(modality.citation):
+            if reference not in ordered:
+                ordered.append(reference)
+
+    return tuple(ordered)
+
+
+REFERENCES: tuple[str, ...] = _reference_registry(_load_modalities())
+
+
+def _ref(*citations: str) -> str:
+    """
+    The bracketed reference markers for one or more citations.
+
+    Raises ValueError through list.index if a citation is not in
+    REFERENCES, rather than silently printing a marker that points at no
+    entry in the list at the end of the page.
+    """
+
+    numbers = {
+        REFERENCES.index(reference) + 1
+        for citation in citations
+        for reference in _split_references(citation)
+    }
+
+    return "[" + ", ".join(str(number) for number in sorted(numbers)) + "]"
+
+
+def _pipeline_pictograph_html(pipeline: pipeline_core.SignalPipeline) -> str:
+    """
+    A drawn pictograph of the pipeline: each modality's own icon (the
+    same ones and, where applicable, the same gentle pulse as the
+    anatomy scene above, for one consistent icon language on this page)
+    at its own per-modality stages, converging into one shared, unlabeled
+    node from convergence_stage onward. Static shapes, animated only
+    where the anatomy scene above already animates the same category.
+    """
+
+    stages = pipeline_core.STAGES
+    convergence_index = stages.index(pipeline.convergence_stage)
+    pre_stages = stages[:convergence_index]
+    shared_stages = stages[convergence_index:]
+    modalities = pipeline.modalities
+    n = len(modalities)
+
+    stage_gap, left_margin, row_gap, top_margin = 92, 46, 46, 30
+    stage_x = {stage: left_margin + i * stage_gap for i, stage in enumerate(stages)}
+    row_y = {m.name: top_margin + i * row_gap for i, m in enumerate(modalities)}
+    shared_y = top_margin + (n - 1) * row_gap / 2
+
+    width = left_margin + (len(stages) - 1) * stage_gap + 46
+    height = top_margin + max(n - 1, 0) * row_gap + 46
+
+    lines: list[str] = []
+    icons: list[str] = []
+
+    for m in modalities:
+        y = row_y[m.name]
+        color = CATEGORY_COLORS[m.category]
+
+        if len(pre_stages) > 1:
+            x1, x2 = stage_x[pre_stages[0]], stage_x[pre_stages[-1]]
+            lines.append(
+                f'<line x1="{x1}" y1="{y}" x2="{x2}" y2="{y}" '
+                f'stroke="{color}" stroke-width="2" opacity="0.5"/>'
+            )
+        conv_x = stage_x[shared_stages[0]]
+        lines.append(
+            f'<line x1="{stage_x[pre_stages[-1]]}" y1="{y}" x2="{conv_x}" '
+            f'y2="{shared_y}" stroke="{color}" stroke-width="1.5" opacity="0.4"/>'
+        )
+
+        amt, dur = _ICON_PULSE.get(m.category, (1.08, "1.2s"))
+        pulse_style = f"--pulse-amt:{amt};--pulse-dur:{dur};"
+        pulse_class = "icon-pulse" if m.category in _ICON_PULSE else "icon-float"
+
+        for stage in pre_stages:
+            x = stage_x[stage]
+            icons.append(f'<g style="{pulse_style}cursor:help;">')
+            icons.append(f"<title>{m.name} ({stage})</title>")
+            icons.append(_icon_markup(m.category, x, y, 0.75, pulse_class))
+            icons.append("</g>")
+
+        icons.append(
+            f'<text x="{stage_x[pre_stages[0]]}" y="{y - 22}" text-anchor="middle" '
+            f'font-size="10" fill="{INK_SECONDARY}">{m.name}</text>'
+        )
+
+    if len(shared_stages) > 1:
+        x1, x2 = stage_x[shared_stages[0]], stage_x[shared_stages[-1]]
+        lines.append(
+            f'<line x1="{x1}" y1="{shared_y}" x2="{x2}" y2="{shared_y}" '
+            f'stroke="{MUTED}" stroke-width="2.5"/>'
+        )
+    for stage in shared_stages:
+        x = stage_x[stage]
+        icons.append(
+            f'<circle cx="{x}" cy="{shared_y}" r="6" fill="{MUTED}" '
+            f'style="cursor:help;"><title>{stage}: shared across every '
+            f"modality above from here on.</title></circle>"
+        )
+
+    # Numbered to match _pipeline_timeline_html's nodes: the same stage
+    # carries the same number in both diagrams on this page.
+    stage_labels = "".join(
+        f'<text x="{stage_x[stage]}" y="{height - 8}" text-anchor="middle" '
+        f'font-size="10" fill="{MUTED}">{index + 1}. {stage}</text>'
+        for index, stage in enumerate(stages)
+    )
+
+    return f"""
+    <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+                background:{SURFACE}; border-radius:6px; padding:6px 0;">
+      <style>
+        @keyframes pulseScale {{
+          0%, 100% {{ transform: scale(1); }}
+          50% {{ transform: scale(var(--pulse-amt, 1.08)); }}
+        }}
+        .icon-pulse {{
+          animation: pulseScale var(--pulse-dur, 1.2s) ease-in-out infinite;
+          transform-box: fill-box;
+          transform-origin: center;
+        }}
+        @keyframes floatBob {{
+          0%, 100% {{ transform: translateY(0); }}
+          50% {{ transform: translateY(-3px); }}
+        }}
+        .icon-float {{ animation: floatBob 2.6s ease-in-out infinite; }}
+      </style>
+      <div style="display:flex; justify-content:center;">
+        <svg width="100%" height="{height}" viewBox="0 0 {width} {height}"
+             preserveAspectRatio="xMidYMid meet">
+          {"".join(lines)}
+          {"".join(icons)}
+          {stage_labels}
+        </svg>
+      </div>
+    </div>
+    """
+
+
+def _pipeline_timeline_html() -> str:
+    """
+    A numbered vertical timeline of the seven pipeline stages, with the
+    handoff between each pair of stages named on the connector and the
+    feedback return drawn as an arc back to the first stage.
+
+    This replaced a row of seven equal badges, which showed what each
+    stage is but gave a reader no order to follow and nothing about what
+    crosses the boundary between two stages. The numbers here are the
+    same ones the pipeline pictograph uses for its stage labels, so the
+    two diagrams on this page can be read against each other.
+    """
+
+    stages = PIPELINE_STAGE_NOTES
+    node_x, text_x, radius = 78, 112, 15
+    top, row_gap = 34, 78
+    # Sized to the longest stage note rather than to the container, so
+    # the drawing is not a narrow column against a wide empty margin.
+    width = 420
+    height = top + (len(stages) - 1) * row_gap + 54
+
+    parts: list[str] = []
+
+    for index, (_, label, note) in enumerate(stages):
+        cy = top + index * row_gap
+
+        if index < len(stages) - 1:
+            parts.append(
+                f'<line x1="{node_x}" y1="{cy + radius + 5}" x2="{node_x}" '
+                f'y2="{cy + row_gap - radius - 7}" stroke="{MUTED}" '
+                f'stroke-width="2" marker-end="url(#timeline-arrow)"/>'
+            )
+            parts.append(
+                f'<text x="{text_x}" y="{cy + 48}" font-size="11" '
+                f'fill="{MUTED}" font-style="italic">passes on '
+                f"{PIPELINE_HANDOFFS[index]}</text>"
+            )
+
+        parts.append(
+            f'<circle cx="{node_x}" cy="{cy}" r="{radius}" '
+            f'fill="{INK_SECONDARY}"/>'
+        )
+        parts.append(
+            f'<text x="{node_x}" y="{cy + 5}" text-anchor="middle" '
+            f'font-size="14" font-weight="600" fill="{SURFACE}">'
+            f"{index + 1}</text>"
+        )
+        parts.append(
+            f'<text x="{text_x}" y="{cy + 1}" font-size="14" '
+            f'font-weight="600" fill="{INK_SECONDARY}">{label}</text>'
+        )
+        parts.append(
+            f'<text x="{text_x}" y="{cy + 19}" font-size="11.5" '
+            f'fill="{MUTED}">{note}</text>'
+        )
+
+    first_cy = top
+    last_cy = top + (len(stages) - 1) * row_gap
+    parts.append(
+        f'<path d="M {node_x - radius - 3},{last_cy} C 22,{last_cy} '
+        f'22,{first_cy} {node_x - radius - 7},{first_cy}" fill="none" '
+        f'stroke="{MUTED}" stroke-width="1.5" stroke-dasharray="4 4" '
+        f'opacity="0.8" marker-end="url(#timeline-arrow)"/>'
+    )
+    parts.append(
+        f'<text x="18" y="{(first_cy + last_cy) / 2}" text-anchor="middle" '
+        f'font-size="10.5" fill="{MUTED}" font-style="italic" '
+        f'transform="rotate(-90 18 {(first_cy + last_cy) / 2})">'
+        f"{PIPELINE_RETURN_HANDOFF}</text>"
+    )
+
+    return f"""
+    <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+                background:{SURFACE}; border-radius:6px; padding:4px 0;">
+      <svg width="100%" height="{height}" viewBox="0 0 {width} {height}"
+           preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <marker id="timeline-arrow" viewBox="0 0 8 8" refX="6" refY="4"
+                  markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0,0 L8,4 L0,8 z" fill="{MUTED}"/>
+          </marker>
+        </defs>
+        {"".join(parts)}
+      </svg>
+    </div>
+    """
+
+
+ANATOMY_LEGEND_BUFFER_PX = 56
+
+
+def _icon_markup(category: str, cx: float, cy: float, scale: float, pulse_class: str) -> str:
+    """One category's canonical 0-32 icon, centered at (cx, cy), scaled."""
+
+    path = _ICON_PATHS[category].format(fill=CATEGORY_COLORS[category], stroke_light=SURFACE)
+    tx = cx - 16 * scale
+    ty = cy - 16 * scale
+    return (
+        f'<g class="{pulse_class}">'
+        f'<g transform="translate({tx:.1f},{ty:.1f}) scale({scale:.3f})">{path}</g>'
+        f"</g>"
+    )
+
+
+def _ticker_markup(category: str, x: float, y: float) -> str:
+    """
+    A small, seamlessly-looping waveform strip beside a body-sensed
+    icon. The tile is drawn twice back to back and the pair scrolled by
+    exactly one tile-width via CSS, which is what makes the loop seamless
+    - not a real recording, an illustrative cue that each category
+    "feels" different from the others.
+    """
+
+    tile = _TICKER_TILE[category]
+    points_b = " ".join(
+        f"{float(part.split(',')[0]) + 40:.0f},{part.split(',')[1]}" for part in tile.split()
+    )
+    color = CATEGORY_COLORS[category]
+    duration = _TICKER_DURATION[category]
+    return (
+        f'<svg x="{x:.1f}" y="{y:.1f}" width="86" height="24" viewBox="0 -12 80 24">'
+        f'<g class="ticker-scroll" style="--tick-dur:{duration};">'
+        f'<polyline points="{tile}" fill="none" stroke="{color}" stroke-width="1.6" '
+        f'stroke-linecap="round" stroke-linejoin="round"/>'
+        f'<polyline points="{points_b}" fill="none" stroke="{color}" stroke-width="1.6" '
+        f'stroke-linecap="round" stroke-linejoin="round"/>'
+        f"</g></svg>"
+    )
+
+
+def _agency_gate_markup(
+    cx: float,
+    cy: float,
+    entry_x: float,
+    entry_y: float,
+    agency_cost: float,
+    color: str,
+) -> str:
+    """
+    A gate drawn across a modality's path to the pipeline, its opening
+    narrowing as that modality's illustrative agency cost rises.
+
+    The aperture is a continuous reading of the same 0-to-1 rating the
+    Agency view already reports, not a threshold: nothing here sorts
+    modalities into "controllable" and "not". A fully open gate is a
+    rating of 0, a nearly closed one a rating of 1, and every value in
+    between lands in between.
+
+    Drawn in local coordinates and rotated onto the path, so the gate
+    always reads as crossing the line rather than lying along it. The
+    pale backing keeps it legible where the path runs over the body
+    outline, which is most of the scene.
+    """
+
+    dx, dy = entry_x - cx, entry_y - cy
+    angle = math.degrees(math.atan2(dy, dx))
+    # Far enough along the path to read as sitting on it, not as part of
+    # the icon it leaves.
+    gate_x, gate_y = cx + dx * 0.55, cy + dy * 0.55
+
+    half_span = 14.0
+    half_gap = 2.0 + 8.0 * (1.0 - min(max(agency_cost, 0.0), 1.0))
+
+    bars = "".join(
+        f'<line x1="0" y1="{half_gap * side:.1f}" x2="0" '
+        f'y2="{half_span * side:.1f}" stroke="{color}" stroke-width="3.5" '
+        f'stroke-linecap="round"/>'
+        f'<line x1="-3" y1="{half_span * side:.1f}" x2="3" '
+        f'y2="{half_span * side:.1f}" stroke="{color}" stroke-width="1.6" '
+        f'stroke-linecap="round" opacity="0.7"/>'
+        for side in (1, -1)
+    )
+
+    return (
+        f'<g transform="translate({gate_x:.1f},{gate_y:.1f}) '
+        f'rotate({angle:.1f})">'
+        f'<rect x="-6" y="{-(half_span + 5):.1f}" width="12" '
+        f'height="{2 * (half_span + 5):.1f}" rx="5" fill="{SURFACE}" '
+        f'opacity="0.92"/>'
+        f"{bars}"
+        f"</g>"
+    )
+
+
+def _anatomy_scene_html(
+    modalities: tuple[modality_core.Modality, ...],
+    perspective: str,
+    height: int = 340,
+    show_tickers: bool = True,
+) -> str:
+    """
+    An original, illustrative biological scene - brain / heart / muscle /
+    soundwave icons on a soft body outline for body-sensed modalities,
+    and speech-bubble / map-pin / clipboard icons for modalities that are
+    never sensed from the body. These are hand-authored, simplified
+    shapes, not a trace or copy of any commercial illustration library's
+    assets - this app has no license to reproduce those.
+
+    The three perspectives draw three different structures over the same
+    modalities, rather than one picture at three marker sizes: Build runs
+    every signal into the shared pipeline entry point, Privacy draws the
+    edge of the person and the signals that cross it, and Agency puts a
+    gate on each path whose opening reads that modality's agency cost.
+    None of them changes the underlying data.
+
+    Icons pulse; body-sensed ones also carry a small seamlessly-looping
+    illustrative waveform (see _ticker_markup) shown only in the Build
+    perspective, since the other two spend that same visual attention on
+    the boundary and the gates. show_tickers is
+    turned off for the combined, multi-modality figure: up to seven
+    simultaneous waveforms would crowd each other's fixed body-region
+    slots rather than stay legible, so the ticker is reserved for scenes
+    with one modality on screen (the solo baseline, per-modality
+    expanders, and the decision stage), where there is no crowding risk.
+    """
+
+    width, view_h = SCENE_VIEWBOX
+    entry_x, entry_y = ENTRY_POINT_PX
+    crossing_x, crossing_y = PRIVACY_CROSSING_PX
+
+    icons_svg: list[str] = []
+    connectors_svg: list[str] = []
+    legend_items: list[str] = []
+    has_external = False
+
+    for m in modalities:
+        if m.is_body_sensed:
+            cx, cy = BODY_ICON_PX.get(m.category, (100, 190))
+        else:
+            cx, cy = EXTERNAL_ICON_PX.get(m.category, (258, 190))
+            has_external = True
+
+        # Privacy is the one view where icon size carries the cost. The
+        # Agency view spends that encoding on its gates instead, so
+        # sizing icons by agency cost as well would say the same number
+        # twice and leave the gate looking decorative.
+        if perspective == PERSPECTIVE_PRIVACY:
+            scale = 0.75 + 0.55 * m.privacy_cost
+        else:
+            scale = 0.75 + 0.55 * 0.5
+        # canonical icon is a 32px box; ~24px-42px rendered
+
+        color = CATEGORY_COLORS[m.category]
+
+        if perspective == PERSPECTIVE_PRIVACY:
+            # Where the signal crosses out of the person, which is the
+            # question this view asks. A modality that is never sensed
+            # from the body has no crossing to draw.
+            if m.is_body_sensed:
+                connectors_svg.append(
+                    f'<line x1="{cx}" y1="{cy}" x2="{crossing_x}" '
+                    f'y2="{crossing_y}" stroke="{color}" stroke-width="1.5" '
+                    f'opacity="0.6" marker-end="url(#scene-arrow)"/>'
+                )
+        else:
+            connectors_svg.append(
+                f'<line x1="{cx}" y1="{cy}" x2="{entry_x}" y2="{entry_y}" '
+                f'stroke="{color}" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.55"/>'
+            )
+
+        if perspective == PERSPECTIVE_AGENCY:
+            connectors_svg.append(
+                _agency_gate_markup(cx, cy, entry_x, entry_y, m.agency_cost, color)
+            )
+
+        if m.is_body_sensed:
+            amt, dur = _ICON_PULSE.get(m.category, (1.08, "1.2s"))
+            pulse_style = f"--pulse-amt:{amt};--pulse-dur:{dur};"
+            pulse_class = "icon-pulse"
+        else:
+            pulse_style = ""
+            pulse_class = "icon-float"
+
+        icons_svg.append(f'<g style="{pulse_style}">')
+        icons_svg.append(_icon_markup(m.category, cx, cy, scale, pulse_class))
+        label_x = min(max(cx, 44), width - 44)
+        icons_svg.append(
+            f'<text x="{label_x}" y="{cy - 16 * scale - 8:.1f}" '
+            f'text-anchor="middle" font-size="10" '
+            f'fill="{INK_SECONDARY}">{m.name}</text>'
+        )
+        icons_svg.append("</g>")
+
+        if m.is_body_sensed and perspective == PERSPECTIVE_BUILD and show_tickers:
+            icons_svg.append(_ticker_markup(m.category, cx + 16 * scale + 6, cy - 12))
+
+        legend_items.append(
+            f'<span style="display:inline-flex;align-items:center;gap:5px;">'
+            f'<span style="width:9px;height:9px;border-radius:2px;background:{color};'
+            f'display:inline-block;"></span>{m.category}</span>'
+        )
+
+    external_label = ""
+    if has_external:
+        ex, ey = EXTERNAL_ICON_PX["Subjective"]
+        external_label = (
+            f'<text x="{ex}" y="{ey - 34}" text-anchor="middle" font-size="10" '
+            f'font-style="italic" fill="{MUTED}">Not sensed from the body:</text>'
+        )
+
+    body_svg = f"""
+        <ellipse cx="{HEAD_CENTER_PX[0]}" cy="{HEAD_CENTER_PX[1]}" rx="{HEAD_RADIUS_PX}" ry="{HEAD_RADIUS_PX}"
+            fill="#ece7df" stroke="{MUTED}" stroke-width="1.5" opacity="0.9"/>
+        <rect x="72" y="118" width="56" height="110" rx="24" fill="#ece7df" stroke="{MUTED}" stroke-width="1.5" opacity="0.9"/>
+        <line x1="78" y1="128" x2="30" y2="204" stroke="#ece7df" stroke-width="16" stroke-linecap="round"/>
+        <line x1="122" y1="128" x2="158" y2="182" stroke="#ece7df" stroke-width="16" stroke-linecap="round"/>
+        <line x1="86" y1="224" x2="80" y2="332" stroke="#ece7df" stroke-width="18" stroke-linecap="round"/>
+        <line x1="114" y1="224" x2="120" y2="332" stroke="#ece7df" stroke-width="18" stroke-linecap="round"/>
+    """
+
+    entry_label = ""
+    if perspective != PERSPECTIVE_PRIVACY:
+        entry_label = (
+            f'<text x="{entry_x}" y="{entry_y + 16}" text-anchor="middle" font-size="11" '
+            f'font-weight="bold" fill="{INK_SECONDARY}">&#8594; Signals</text>'
+        )
+
+    boundary_svg = ""
+    if perspective == PERSPECTIVE_PRIVACY:
+        bx1, by1, bx2, by2 = PERSON_BOUNDARY_PX
+        boundary_svg = (
+            f'<rect x="{bx1}" y="{by1}" width="{bx2 - bx1}" '
+            f'height="{by2 - by1}" rx="46" fill="none" stroke="{MUTED}" '
+            f'stroke-width="1.5" stroke-dasharray="6 5" opacity="0.85"/>'
+            f'<line x1="{crossing_x}" y1="{crossing_y}" x2="{crossing_x + 34}" '
+            f'y2="{crossing_y}" stroke="{INK_SECONDARY}" stroke-width="2" '
+            f'marker-end="url(#scene-arrow)"/>'
+            f'<text x="{bx1 + 6}" y="{by1 - 4}" font-size="10" '
+            f'font-style="italic" fill="{MUTED}">the person</text>'
+            f'<text x="{crossing_x + 4}" y="{crossing_y + 20}" font-size="10" '
+            f'font-style="italic" fill="{INK_SECONDARY}">leaves the person</text>'
+        )
+
+    legend_row = "".join(f"<div>{item}</div>" for item in legend_items)
+    scale_factor = height / view_h
+    svg_w = width * scale_factor
+
+    return f"""
+    <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+                background:{SURFACE}; border-radius:6px; padding:6px 0;">
+      <style>
+        @keyframes pulseScale {{
+          0%, 100% {{ transform: scale(1); }}
+          50% {{ transform: scale(var(--pulse-amt, 1.08)); }}
+        }}
+        .icon-pulse {{
+          animation: pulseScale var(--pulse-dur, 1.2s) ease-in-out infinite;
+          transform-box: fill-box;
+          transform-origin: center;
+        }}
+        @keyframes floatBob {{
+          0%, 100% {{ transform: translateY(0); }}
+          50% {{ transform: translateY(-4px); }}
+        }}
+        .icon-float {{ animation: floatBob 2.6s ease-in-out infinite; }}
+        @keyframes barBounce {{
+          0%, 100% {{ transform: scaleY(0.55); }}
+          50% {{ transform: scaleY(1); }}
+        }}
+        .sound-bar {{
+          animation: barBounce 0.9s ease-in-out infinite;
+          transform-box: fill-box;
+          transform-origin: bottom;
+        }}
+        @keyframes tickerScroll {{
+          from {{ transform: translateX(0); }}
+          to {{ transform: translateX(-50%); }}
+        }}
+        .ticker-scroll {{ animation: tickerScroll var(--tick-dur, 1.2s) linear infinite; }}
+      </style>
+      <div style="display:flex; justify-content:center;">
+        <svg width="{svg_w:.0f}" height="{height}" viewBox="0 0 {width} {view_h}">
+          <defs>
+            <marker id="scene-arrow" viewBox="0 0 8 8" refX="7" refY="4"
+                    markerWidth="5" markerHeight="5" orient="auto">
+              <path d="M0,0 L8,4 L0,8 z" fill="{INK_SECONDARY}"/>
+            </marker>
+          </defs>
+          {body_svg}
+          {boundary_svg}
+          {"".join(connectors_svg)}
+          {entry_label}
+          {external_label}
+          {"".join(icons_svg)}
+        </svg>
+      </div>
+      <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:12px; margin-top:2px;
+                  font-size:11px; color:{INK_SECONDARY};">
+        {legend_row}
+      </div>
+    </div>
+    """
+
+
+def _frontier_spec(
+    modalities,
+    weighted_cost: tradeoff_core.WeightedCostResult,
+    frontier: tradeoff_core.GainCostFrontierResult,
+    cost_title: str = "Cost based on your priorities (lower is better)",
+) -> dict:
+    rows = [
+        {
+            "name": m.name,
+            "category": m.category,
+            "cost": weighted_cost.combined_cost[m.name],
+            "gain": m.interpretive_gain,
+            "on_frontier": frontier.is_efficient[m.name],
+            "label": m.name,
+        }
+        for m in modalities
+    ]
+
+    categories_present = [c for c in CATEGORY_COLORS if any(r["category"] == c for r in rows)]
+    color_domain = categories_present
+    color_range = [CATEGORY_COLORS[c] for c in categories_present]
+    shape_domain = categories_present
+    shape_range = [CATEGORY_SHAPES[c] for c in categories_present]
+
+    return {
+        "data": {"values": rows},
+        # A text-label layer was tried here and dropped: with up to seven
+        # modalities, points can sit close enough together that their
+        # labels overlap illegibly. Color + shape + the legend already
+        # carry category identity without relying on hue alone, so
+        # identity for a specific point is read via hover (tooltip)
+        # instead of an always-on label, unlike the DAG diagram above
+        # where each node's label is structural, not redundant.
+        "mark": {"type": "point", "filled": True, "size": 200},
+        "encoding": {
+            "x": {
+                "field": "cost",
+                "type": "quantitative",
+                "title": cost_title,
+                "scale": {"domain": [0, 1]},
+            },
+            "y": {
+                "field": "gain",
+                "type": "quantitative",
+                "title": "What this modality adds (higher is better)",
+                "scale": {"domain": [0, 1]},
+            },
+            "color": {
+                "field": "category",
+                "type": "nominal",
+                "scale": {"domain": color_domain, "range": color_range},
+                "legend": {"title": None, "orient": "bottom", "columns": 4},
+            },
+            "shape": {
+                "field": "category",
+                "type": "nominal",
+                "scale": {"domain": shape_domain, "range": shape_range},
+            },
+            "opacity": {
+                "field": "on_frontier",
+                "type": "ordinal",
+                "sort": [False, True],
+                "scale": {"domain": [False, True], "range": [0.35, 1.0]},
+                "legend": None,
+            },
+            "tooltip": [
+                {"field": "label", "type": "nominal", "title": "Modality"},
+                {"field": "cost", "type": "quantitative", "title": "Combined cost", "format": ".2f"},
+                {"field": "gain", "type": "quantitative", "title": "What it adds", "format": ".2f"},
+                {"field": "on_frontier", "type": "nominal", "title": "On frontier"},
+            ],
+        },
+        "width": "container",
+        "height": 280,
+        "config": _VEGA_CHART_CONFIG,
+    }
+
+
+def _gain_bar_spec(modalities: tuple[modality_core.Modality, ...]) -> dict:
+    """One horizontal bar per modality's interpretive gain alone - the
+    first step of the gradual tradeoff reveal, before any cost enters."""
+
+    rows = [
+        {"name": m.name, "category": m.category, "gain": m.interpretive_gain}
+        for m in modalities
+    ]
+    categories_present = [c for c in CATEGORY_COLORS if any(r["category"] == c for r in rows)]
+
+    return {
+        "data": {"values": rows},
+        "mark": {"type": "bar"},
+        "encoding": {
+            "y": {"field": "name", "type": "nominal", "sort": "-x", "title": None},
+            "x": {
+                "field": "gain",
+                "type": "quantitative",
+                "title": "What this modality adds, on its own (higher is better)",
+                "scale": {"domain": [0, 1]},
+            },
+            "color": {
+                "field": "category",
+                "type": "nominal",
+                "scale": {
+                    "domain": categories_present,
+                    "range": [CATEGORY_COLORS[c] for c in categories_present],
+                },
+                "legend": None,
+            },
+        },
+        "width": "container",
+        "height": 32 * max(len(rows), 1) + 40,
+        "config": _VEGA_CHART_CONFIG,
+    }
+
+
+_CONDITION_COLORS = {"Eyes closed": CATEGORY_COLORS["Neural"], "Eyes open": MUTED}
+_CONDITION_LABEL = {"eyes_closed": "Eyes closed", "eyes_open": "Eyes open"}
+
+
+def _load_eeg_snippet() -> dict[str, np.ndarray]:
+    """
+    Real bundled excerpt: one subject (sub-5), one channel (O1), 15
+    seconds per condition from OpenNeuro ds005420 (CC0). See
+    modules/signal_pipeline/README.md for the extraction details.
+    """
+
+    frame = pd.read_csv(SAMPLE_DIR / "ds005420_sub-5_O1_eyes_snippet.csv")
+    return {
+        condition: frame.loc[frame["condition"] == condition, "voltage_uv"].to_numpy()
+        for condition in ("eyes_closed", "eyes_open")
+    }
+
+
+def _signal_segment_spec(
+    eyes_closed: np.ndarray, eyes_open: np.ndarray, sampling_rate: float, title: str
+) -> dict:
+    """First 3 seconds of each condition, plotted by real elapsed time -
+    the actual retained/degraded waveform, not a stylized pictograph."""
+
+    seconds_shown = 3.0
+    n = max(int(sampling_rate * seconds_shown), 1)
+    rows = []
+    for key, segment in (("eyes_closed", eyes_closed), ("eyes_open", eyes_open)):
+        rows.extend(
+            {"t": i / sampling_rate, "voltage_uv": float(v), "condition": _CONDITION_LABEL[key]}
+            for i, v in enumerate(segment[:n])
+        )
+
+    return {
+        "data": {"values": rows},
+        "mark": {"type": "line", "strokeWidth": 1},
+        "encoding": {
+            "x": {"field": "t", "type": "quantitative", "title": "Seconds"},
+            "y": {"field": "voltage_uv", "type": "quantitative", "title": "Microvolts"},
+            "color": {
+                "field": "condition",
+                "type": "nominal",
+                "scale": {
+                    "domain": list(_CONDITION_COLORS),
+                    "range": list(_CONDITION_COLORS.values()),
+                },
+                "legend": {"title": None, "orient": "top"},
+            },
+        },
+        "title": {"text": title, "fontSize": 11, "color": INK_SECONDARY, "fontWeight": "normal"},
+        "width": "container",
+        "height": 120,
+        "config": _VEGA_CHART_CONFIG,
+    }
+
+
+def _alpha_power_strip_spec(result: "intervention_core.ClassificationResult", title: str) -> dict:
+    """One dot per 1-second window's alpha power, split by condition -
+    how separated the two classes actually are, not just the accuracy
+    number that separation implies."""
+
+    rows = [
+        {"condition": "Eyes closed", "power": p} for p in result.alpha_power_eyes_closed
+    ] + [{"condition": "Eyes open", "power": p} for p in result.alpha_power_eyes_open]
+
+    return {
+        "data": {"values": rows},
+        "mark": {"type": "point", "filled": True, "size": 80, "opacity": 0.75},
+        "encoding": {
+            "y": {"field": "condition", "type": "nominal", "title": None},
+            "x": {
+                "field": "power",
+                "type": "quantitative",
+                "title": "Alpha-band (8-13 Hz) power per 1-second window",
+            },
+            "color": {
+                "field": "condition",
+                "type": "nominal",
+                "scale": {
+                    "domain": list(_CONDITION_COLORS),
+                    "range": list(_CONDITION_COLORS.values()),
+                },
+                "legend": None,
+            },
+        },
+        "title": {"text": title, "fontSize": 11, "color": INK_SECONDARY, "fontWeight": "normal"},
+        "width": "container",
+        "height": 90,
+        "config": _VEGA_CHART_CONFIG,
+    }
+
+
+st.set_page_config(
+    page_title="OpenMeasure · Multimodal Signal Convergence",
+    page_icon=":material/hub:",
+    layout="centered",
+)
+
+st.title("Multimodal Signal Convergence")
+st.caption(
+    "This journey starts with one neurotech signal, EEG "
+    "(electroencephalography, a scalp-recorded brain signal), and adds "
+    "modalities one at a time to a general Signals -> Sensors -> "
+    "Processing -> Inference -> Decision -> Action -> Feedback pipeline."
+)
+st.caption(
+    "A guided illustrative walkthrough: each stage unlocks after you "
+    "make a decision or inspect its consequence."
+)
+st.caption(
+    "Written for early-career researchers learning to validate a study "
+    "design, so every stage states its reasoning in plain language and "
+    "numbers its sources against the References list at the end."
+)
+
+render_data_handling_summary(disclosure_for("pages/Multimodal_Signal_Convergence.py"))
+
+# One stage in the workspace at a time, and the rail is how you move.
+# Reading this used to mean scrolling past every earlier stage, which
+# made seven decisions read as seven sections of a report.
+#
+# No gates. Every stage here is something to read, build, or weigh, and
+# the tradeoff stage already says for itself when it has no modality to
+# compare, which is more use than a locked rail entry.
+WORKSPACE = StageWorkspace(
+    session_key="mmsc",
+    stages=(
+        Stage("question", "Question"),
+        Stage("pipeline", "Pipeline"),
+        Stage("modalities", "Modalities"),
+        Stage("convergence", "Convergence"),
+        Stage("tradeoff", "Tradeoff"),
+        Stage("real_signal", "A Real Signal"),
+        Stage("decision", "Decision"),
+    ),
+)
+
+stage = WORKSPACE.render_rail()
+WORKSPACE.render_review_notice()
+
+st.divider()
+
+# -----------------------------------------------------------------
+# 1. Research question
+# -----------------------------------------------------------------
+
+if stage == STAGE_RESEARCH_QUESTION:
+    # The tracker used to draw this, clearing the modality selection,
+    # the three cost weights, the perspective, and the nested tradeoff
+    # sequence's own position with it.
+    if st.button("Restart study"):
+        for key in [
+            name for name in st.session_state
+            if str(name).startswith("mmsc")
+        ] + [
+            SELECTED_MODALITIES_KEY,
+            PRIVACY_WEIGHT_KEY,
+            SECURITY_WEIGHT_KEY,
+            AGENCY_WEIGHT_KEY,
+            PERSPECTIVE_KEY,
+            TRADEOFF_STEP_KEY,
+        ] + list(KEPT.values()):
+            st.session_state.pop(key, None)
+        st.rerun()
+
+
+    section_header("1. Research Question")
+
+    st.markdown(
+        "### Does Combining Signals Improve Interpretation Enough To Justify "
+        "the Added Privacy, Security, and Agency Cost Of Collecting Them?"
+    )
+
+    st.write(
+        "A neurotech pipeline built around a single signal - EEG, say - can "
+        "always be made 'more informative' by adding another stream: heart "
+        "rate, movement, self-report, even a clinician's notes. Each addition "
+        "can sharpen what the pipeline infers, but each also adds its own "
+        "cost: a new way for the data to be re-identifying (traceable back "
+        "to a specific person, even without a name attached), a new point "
+        "of exposure, a new way the system can act on someone without their "
+        "deliberate say. This journey asks whether an added modality's gain "
+        "is validated as worth its cost, rather than assuming more signal is "
+        "automatically better."
+        + _ref(DE_MONTJOYE_CITATION)
+    )
+
+    rq_col1, rq_col2 = st.columns(2)
+    with rq_col1:
+        st.badge(
+            "What this modality adds",
+            icon=":material/trending_up:",
+            color="blue",
+        )
+    with rq_col2:
+        st.badge("Privacy/security/agency cost", icon=":material/shield:", color="blue")
+
+    with st.expander("Validation Question"):
+        st.write(
+            "Mental privacy and cognitive liberty (the right to control "
+            "access to one's own brain data and mental processes) have been "
+            "proposed as human rights specifically because neural data can "
+            "reveal more about a person than they intended to disclose. The same "
+            "concern scales to any signal that is collected continuously and "
+            "combined with others: the risk is not any one signal alone, but "
+            "what their combination can infer."
+            + _ref(IENCA_ANDORNO_CITATION)
+        )
+        st.write(
+            "Security is a separate concern from privacy, and "
+            "brain-computer interface (BCI) research surveys it across the "
+            "full \"BCI cycle\": acquisition hardware, "
+            "on-device processing, transmission between devices, the machine "
+            "learning models decoding the signal, and the applications or "
+            "cloud services consuming the result. More traditional points of "
+            "exposure in that cycle, such as wireless communication or cloud "
+            "storage, can adopt existing methods (encryption, secure "
+            "communication protocols, differential privacy) directly; the "
+            "closer to the brain a surface is, the more those methods need "
+            "to be modified or replaced entirely."
+            + _ref(BAGLEY_ET_AL_CITATION)
+        )
+
+
+# -----------------------------------------------------------------
+# 2. Build the pipeline
+# -----------------------------------------------------------------
+
+if stage == STAGE_BUILD_PIPELINE:
+    section_header(
+        "2. Build the Pipeline",
+        "One general shape, starting with a single neurotech signal.",
+    )
+
+    st.write(
+        "Every pipeline in this journey has the same seven stages, "
+        "whether it carries one signal or seven: **" + " -> ".join(pipeline_core.STAGES) + "**. "
+        "Adding a modality means adding a Signals/Sensors node to this "
+        "shape, not rebuilding it - the diagram below is the same engine "
+        "used at every later stage of this journey."
+    )
+
+    with st.expander("Using this module with your own modalities"):
+        st.write(
+            "The Multimodal Signal Pipeline core this journey is built "
+            "on (`modules/signal_pipeline/core`) needs, for each "
+            "modality, one interpretive-gain rating (higher is better) "
+            "and three cost ratings, privacy, security, and agency "
+            "(each higher is worse), plus a supporting citation - see "
+            "`modules/signal_pipeline/README.md` for the exact "
+            "`Modality` format and what `combine_costs` and "
+            "`compute_gain_cost_frontier` compute from them."
+        )
+
+    all_modalities = _load_modalities()
+    modalities_by_name = {m.name: m for m in all_modalities}
+    baseline = modalities_by_name[BASELINE_MODALITY_NAME]
+
+    st.caption("Where the signal actually comes from:")
+    components.html(
+        _anatomy_scene_html((baseline,), PERSPECTIVE_BUILD, height=340),
+        height=340 + ANATOMY_LEGEND_BUFFER_PX,
+    )
+    st.caption(
+        f"Signal examples: {baseline.signal_examples}. "
+        f"{_ref(baseline.citation)}"
+    )
+
+    st.caption(f"How {baseline.name}'s signal travels through the pipeline:")
+    components.html(
+        _pipeline_timeline_html(),
+        height=34 + (len(PIPELINE_STAGE_NOTES) - 1) * 78 + 64,
+    )
+
+    st.write(
+        "**Interpretation**: a pipeline with one modality already "
+        "has every stage a multimodal pipeline will have. What changes "
+        "when a modality is added is not the shape of the pipeline, but "
+        "how many signals converge into it, and what that convergence "
+        "costs."
+    )
+
+
+# -----------------------------------------------------------------
+# 3. Add modalities
+# -----------------------------------------------------------------
+
+if stage == STAGE_ADD_MODALITIES:
+    section_header(
+        "3. Add Modalities",
+        "Add categories one at a time; the diagram below updates as you do.",
+    )
+
+    all_modalities = _load_modalities()
+    modalities_by_name = {m.name: m for m in all_modalities}
+    baseline = modalities_by_name[BASELINE_MODALITY_NAME]
+    addable = tuple(m for m in all_modalities if m.name != BASELINE_MODALITY_NAME)
+
+    if SELECTED_MODALITIES_KEY not in st.session_state:
+        st.session_state[SELECTED_MODALITIES_KEY] = list(
+            _held(SELECTED_MODALITIES_KEY, [])
+        )
+
+    selected_names = _hold(
+        SELECTED_MODALITIES_KEY,
+        list(
+            st.multiselect(
+                "Modalities to add to the EEG-only pipeline",
+                options=[m.name for m in addable],
+                key=SELECTED_MODALITIES_KEY,
+            )
+        ),
+    )
+
+    current_modalities = (baseline,) + tuple(
+        modalities_by_name[name] for name in selected_names
+    )
+    current_pipeline = pipeline_core.build_pipeline(current_modalities)
+
+    st.caption(
+        "Perspective - same modalities, different question about them:"
+    )
+    if PERSPECTIVE_KEY not in st.session_state:
+        st.session_state[PERSPECTIVE_KEY] = _held(
+            PERSPECTIVE_KEY, PERSPECTIVE_BUILD
+        )
+
+    perspective = _hold(
+        PERSPECTIVE_KEY,
+        st.segmented_control(
+            "Perspective",
+            options=PERSPECTIVES,
+            key=PERSPECTIVE_KEY,
+            label_visibility="collapsed",
+        )
+        or PERSPECTIVE_BUILD,
+    )
+    st.caption(PERSPECTIVE_DESCRIPTIONS[perspective])
+
+    components.html(
+        _anatomy_scene_html(current_modalities, perspective, height=340, show_tickers=False),
+        height=340 + ANATOMY_LEGEND_BUFFER_PX,
+    )
+    if perspective == PERSPECTIVE_BUILD:
+        st.caption(
+            "Dashed lines show every selected signal feeding the same "
+            "pipeline entry point; illustrative trace shapes are not real "
+            "recordings."
+        )
+    elif perspective == PERSPECTIVE_PRIVACY:
+        st.caption(
+            "The dashed outline is the edge of the person. Each "
+            "body-sensed signal crosses it at the marked point, and a "
+            "modality drawn outside it was never sensed from the body at "
+            "all. Marker size scales with illustrative privacy cost."
+        )
+    else:
+        st.caption(
+            "Each path carries a gate where the person can still "
+            "intervene, and the gate's opening narrows as that "
+            "modality's illustrative agency cost rises. Markers are all "
+            "one size here, so the gate is the only thing reading the "
+            "cost."
+        )
+
+    st.caption("How those signals travel through the pipeline:")
+    pictograph_height = 30 + max(len(current_modalities) - 1, 0) * 46 + 46
+    components.html(
+        _pipeline_pictograph_html(current_pipeline),
+        height=pictograph_height + 10,
+    )
+    st.caption(
+        "Hover an icon for detail. The small gray node marks where "
+        "every selected modality's chain converges into one shared "
+        "pipeline."
+    )
+
+    for name in selected_names:
+        added = modalities_by_name[name]
+        with st.expander(f"{added.name} - what this adds"):
+            components.html(
+                _anatomy_scene_html((added,), perspective, height=220),
+                height=220 + ANATOMY_LEGEND_BUFFER_PX,
+            )
+            if added.is_body_sensed:
+                st.caption(f"Sensed at: {added.body_region}.")
+            else:
+                st.caption("Not sensed from the body - shown as an external marker above.")
+            st.caption(f"Signal examples: {added.signal_examples}.")
+            st.write(
+                f"Interpretive gain (illustrative): **{added.interpretive_gain:.2f}** "
+                f"/ 1.00. Privacy cost: **{added.privacy_cost:.2f}**, "
+                f"security cost: **{added.security_cost:.2f}**, agency "
+                f"cost: **{added.agency_cost:.2f}** (each 0 = negligible, "
+                "1 = severe)."
+            )
+            if perspective == PERSPECTIVE_PRIVACY:
+                st.write(f"**Where it leaves the person**: {added.privacy_exit_point}")
+            elif perspective == PERSPECTIVE_AGENCY:
+                st.write(f"**Where the person retains or loses control**: {added.agency_control_point}")
+            st.caption(f"{added.notes} {_ref(added.citation)}")
+
+    caveat(
+        "These ratings are illustrative, author-assigned scores informed "
+        "by the cited literature's directional findings, not values any "
+        "cited source reports directly - see the page docstring and "
+        "modules/signal_pipeline/README.md."
+    )
+
+    st.write(
+        "**Interpretation**: adding a modality here is visually free - "
+        "gain and cost are drawn as independent per-modality ratings, "
+        "with no link enforced between them."
+    )
+
+    st.write(
+        "**Limitations**: each added node is easy to draw. What "
+        "the diagram does not show on its own is whether the resulting "
+        "pipeline's combined interpretive value is worth its combined "
+        "cost - that comparison is Step 5."
+    )
+
+
+# -----------------------------------------------------------------
+# 4. Examine convergence
+# -----------------------------------------------------------------
+
+if stage == STAGE_CONVERGENCE:
+    section_header(
+        "4. Examine Convergence",
+        "Where the added signals actually meet, and what meets there.",
+    )
+
+    all_modalities = _load_modalities()
+    modalities_by_name = {m.name: m for m in all_modalities}
+    baseline = modalities_by_name[BASELINE_MODALITY_NAME]
+    selected_names = _held(SELECTED_MODALITIES_KEY, [])
+    current_modalities = (baseline,) + tuple(
+        modalities_by_name[name] for name in selected_names
+    )
+    current_pipeline = pipeline_core.build_pipeline(current_modalities)
+
+    convergence = pipeline_core.compute_convergence(current_pipeline, stage="Inference")
+
+    pictograph_height = 30 + max(len(current_modalities) - 1, 0) * 46 + 46
+    components.html(
+        _pipeline_pictograph_html(current_pipeline),
+        height=pictograph_height + 10,
+    )
+    st.caption("The same pipeline from Step 3, for reference while reading convergence below.")
+
+    st.metric("Modalities converging at Inference", convergence.n_modalities)
+    st.write(
+        f"Categories represented: **{', '.join(convergence.categories)}**."
+    )
+
+    st.write(
+        "Every modality's Sensors node feeds the same Processing stage, "
+        "so **Inference is where the pipeline's model, not any single "
+        "sensor, decides what the combination means** - a claim about the "
+        "person or process that no single modality's Sensors node makes "
+        "on its own."
+    )
+
+    if convergence.n_modalities == 1:
+        st.info(
+            "Only the baseline EEG signal is in the pipeline. Go back to "
+            "Step 3 to add modalities and see convergence with more than "
+            "one signal."
+        )
+
+    perspective = _held(PERSPECTIVE_KEY, PERSPECTIVE_BUILD) or PERSPECTIVE_BUILD
+    st.caption(f"Viewed from Step 3's current perspective ({perspective}):")
+    st.write(CONVERGENCE_PERSPECTIVE_TEXT[perspective])
+
+    st.write(
+        "**Implications**: convergence is where a multimodal "
+        "pipeline's distinctive claim to power - and its distinctive "
+        "risk - both live. The model can infer something from the "
+        "combination that it could not infer from any signal alone, "
+        "which is exactly why the combination's cost has to be assessed "
+        "as a combination, not signal by signal."
+    )
+
+
+# -----------------------------------------------------------------
+# 5. Weigh the tradeoff
+# -----------------------------------------------------------------
+
+if stage == STAGE_WEIGH_TRADEOFF:
+    section_header(
+        "5. Weigh the Tradeoff",
+        "More modalities are not automatically better",
+    )
+
+    # The decision first, in words that do not require the vocabulary
+    # the rest of the stage uses. A reader who meets weighted costs, a
+    # frontier and dominated points before meeting the question has to
+    # reverse-engineer what they are deciding.
+    st.write(
+        "Adding a signal can provide new information, but it can also "
+        "introduce new costs. Here you can explore that tradeoff. First "
+        "compare how much each modality might add, then consider "
+        "privacy, security, and participant agency, and finally choose "
+        "how much each cost matters for your study."
+    )
+
+    st.caption(
+        "A modality is useful when the information it adds justifies the "
+        "costs it introduces. Which costs count is your judgment, and "
+        "the chart follows it rather than settling it."
+    )
+
+    all_modalities = _load_modalities()
+    modalities_by_name = {m.name: m for m in all_modalities}
+    baseline = modalities_by_name[BASELINE_MODALITY_NAME]
+    selected_names = _held(SELECTED_MODALITIES_KEY, [])
+    current_modalities = (baseline,) + tuple(
+        modalities_by_name[name] for name in selected_names
+    )
+
+    if len(current_modalities) < 2:
+        st.info(
+            "Add at least one modality in Step 3 to compare gain against "
+            "cost across more than one signal."
+        )
+    else:
+        tradeoff_step = TRADEOFF_TRACKER.current()
+
+        st.caption(
+            "One thing at a time: what each modality adds, then each "
+            "cost on its own, then the picture under your own "
+            "priorities. An illustrative synthesis built on the ratings "
+            "from Step 3, grounded where a real measured result is "
+            "available."
+        )
+
+        st.vega_lite_chart(_gain_bar_spec(current_modalities), width="stretch")
+        st.write(
+            "**Reading this**: further right means a modality is rated "
+            "as adding more independent interpretive value on its own. "
+            "Nothing here yet says anything about what it costs."
+        )
+
+        if any(m.category in ("Autonomic", "Muscular") for m in current_modalities):
+            with st.expander("See the research behind these ratings"):
+                st.info(
+                    "A real, measured result behind these Autonomic/Muscular "
+                    "ratings: on DEAP's own single-trial emotion classifiers, "
+                    "EEG alone scored 0.563 F1 and its bundled peripheral "
+                    "channels (ECG - heart electrical activity, EMG - muscle "
+                    "activity, GSR - skin conductance, plus respiration, "
+                    "skin temperature, and eye movement, not separable into "
+                    "this page's Autonomic and Muscular categories "
+                    "individually) scored 0.608 F1 on valence - not a "
+                    "statistically reliable difference (p=0.41). Fusing "
+                    "peripheral with a third modality this page does not "
+                    "model (multimedia content analysis) reached 0.652 F1, "
+                    "the only fusion result in the paper that was a "
+                    "statistically reliable improvement (p=0.025); fusing "
+                    "all three "
+                    "available modalities together did not improve on that "
+                    "two-modality result. The paper's own conclusion: fusion "
+                    "generally helped, but only slightly, and rarely enough "
+                    "to be a statistically reliable improvement."
+                    + _ref(KOELSTRA_CITATION)
+                )
+
+        if tradeoff_step < TRADEOFF_ADD_PRIVACY:
+            if st.button("Now add privacy cost", type="primary"):
+                TRADEOFF_TRACKER.advance_to(TRADEOFF_ADD_PRIVACY)
+
+        if tradeoff_step >= TRADEOFF_ADD_PRIVACY:
+            st.divider()
+            privacy_only_cost = tradeoff_core.combine_costs(current_modalities, 1.0, 0.0, 0.0)
+            privacy_only_frontier = tradeoff_core.compute_gain_cost_frontier(
+                current_modalities, privacy_only_cost
+            )
+            st.vega_lite_chart(
+                _frontier_spec(
+                    current_modalities,
+                    privacy_only_cost,
+                    privacy_only_frontier,
+                    cost_title="Privacy cost alone (lower is better)",
+                ),
+                width="stretch",
+            )
+            st.write(
+                "**Reading this**: moving right now means more privacy "
+                "cost specifically, not more of everything. A modality "
+                "can sit high on gain and low on privacy cost at once - "
+                "being high on one axis says nothing about the other."
+            )
+
+            if tradeoff_step < TRADEOFF_ADD_SECURITY:
+                if st.button("Now add security cost", type="primary"):
+                    TRADEOFF_TRACKER.advance_to(TRADEOFF_ADD_SECURITY)
+
+        if tradeoff_step >= TRADEOFF_ADD_SECURITY:
+            st.divider()
+            privacy_security_cost = tradeoff_core.combine_costs(current_modalities, 0.5, 0.5, 0.0)
+            privacy_security_frontier = tradeoff_core.compute_gain_cost_frontier(
+                current_modalities, privacy_security_cost
+            )
+            st.vega_lite_chart(
+                _frontier_spec(
+                    current_modalities,
+                    privacy_security_cost,
+                    privacy_security_frontier,
+                    cost_title="Privacy + security cost, equally weighted (lower is better)",
+                ),
+                width="stretch",
+            )
+            st.write(
+                "**Reading this**: a modality can move right here even if "
+                "its privacy cost alone was low, if its security cost is "
+                "high - an intercepted or stolen signal is a different "
+                "kind of harm than a re-identifying one, and this axis "
+                "now carries both at once."
+            )
+
+            if any(m.category == "Neural" for m in current_modalities):
+                with st.expander("See the research behind these ratings"):
+                    st.info(
+                        "A real, demonstrated security threat behind Neural's "
+                        "rating: researchers showed that amplitude-modulated "
+                        "radio-frequency signals from a remote antenna can be "
+                        "picked up by EEG electrode wires acting as unintended "
+                        "antennas and injected into the acquisition hardware "
+                        "as fabricated brain activity - through walls, at "
+                        "roughly three meters, with no access to the BCI "
+                        "software or data. Separately, EEG's own activity "
+                        "patterns are distinctive enough to identify who "
+                        "produced them, so a device collecting EEG for one "
+                        "purpose is, in effect, also collecting a biometric "
+                        "identifier as a byproduct - the same signal serves "
+                        "both purposes at once."
+                        + _ref(
+                            ARMENGOL_URPI_ET_AL_CITATION,
+                            BAGLEY_ET_AL_CITATION,
+                        )
+                    )
+
+            if tradeoff_step < TRADEOFF_ADD_AGENCY:
+                if st.button("Now add agency cost, and set your own weights", type="primary"):
+                    TRADEOFF_TRACKER.advance_to(TRADEOFF_ADD_AGENCY)
+
+        if tradeoff_step >= TRADEOFF_ADD_AGENCY:
+            st.divider()
+            st.caption(
+                "The full picture: all three costs, weighted however you "
+                "choose. Weights are normalized automatically, so they do "
+                "not need to add up to anything in particular."
+            )
+            w1, w2, w3 = st.columns(3)
+            if PRIVACY_WEIGHT_KEY not in st.session_state:
+                st.session_state[PRIVACY_WEIGHT_KEY] = float(
+                    _held(PRIVACY_WEIGHT_KEY, 0.34)
+                )
+
+            privacy_weight = _hold(
+                PRIVACY_WEIGHT_KEY,
+                w1.slider("Privacy weight", 0.0, 1.0, step=0.01, key=PRIVACY_WEIGHT_KEY),
+            )
+            if SECURITY_WEIGHT_KEY not in st.session_state:
+                st.session_state[SECURITY_WEIGHT_KEY] = float(
+                    _held(SECURITY_WEIGHT_KEY, 0.33)
+                )
+
+            security_weight = _hold(
+                SECURITY_WEIGHT_KEY,
+                w2.slider("Security weight", 0.0, 1.0, step=0.01, key=SECURITY_WEIGHT_KEY),
+            )
+            if AGENCY_WEIGHT_KEY not in st.session_state:
+                st.session_state[AGENCY_WEIGHT_KEY] = float(
+                    _held(AGENCY_WEIGHT_KEY, 0.33)
+                )
+
+            agency_weight = _hold(
+                AGENCY_WEIGHT_KEY,
+                w3.slider("Agency weight", 0.0, 1.0, step=0.01, key=AGENCY_WEIGHT_KEY),
+            )
+
+            weighted_cost = tradeoff_core.combine_costs(
+                current_modalities, privacy_weight, security_weight, agency_weight
+            )
+            frontier = tradeoff_core.compute_gain_cost_frontier(current_modalities, weighted_cost)
+
+            st.caption(
+                "Normalized weights used above: "
+                f"privacy {weighted_cost.privacy_weight:.2f}, "
+                f"security {weighted_cost.security_weight:.2f}, "
+                f"agency {weighted_cost.agency_weight:.2f}."
+            )
+
+            st.vega_lite_chart(
+                _frontier_spec(current_modalities, weighted_cost, frontier), width="stretch"
+            )
+            st.caption(
+                "A faded modality has no advantage under your current "
+                "priorities: another option adds at least as much "
+                "information at the same or lower overall cost. That is "
+                "what \"dominated\" means on a chart like this."
+            )
+
+            for m in current_modalities:
+                if not frontier.is_efficient[m.name]:
+                    flagged_item_note(
+                        m.name,
+                        "Another modality here adds at least as much and "
+                        "costs no more under the priorities you set, so "
+                        "these ratings give no reason to prefer this one. "
+                        "Change the priorities and that can change.",
+                    )
+
+            caveat(
+                "A weighted combination of privacy, security, and agency cost "
+                "is only one way to reduce three costs that are not directly "
+                "comparable into a single number for this chart. It reflects "
+                "the weights you set, not a judgment this page is making - a "
+                "low combined cost does not, by itself, mean a modality is "
+                "safe to collect."
+            )
+
+            st.write(
+                "**Implications**: which modalities look worth adding "
+                "depends on the priorities you set, not on the ratings "
+                "alone. One that has no advantage under your current "
+                "priorities can be the obvious choice under different "
+                "ones."
+            )
+
+            st.write(
+                "**What to inspect**: set the privacy weight to 1.0 and "
+                "the others to 0.0, then reverse it. Which modalities "
+                "fade changes as you do, which is the point: this chart "
+                "maps what the ratings imply under a given set of "
+                "priorities, and does not deliver a verdict on any "
+                "modality."
+            )
+
+
+# -----------------------------------------------------------------
+# 6. Protect a real signal
+# -----------------------------------------------------------------
+
+if stage == STAGE_REAL_SIGNAL:
+    section_header(
+        "6. Protect a Real Signal",
+        "Apply one protective measure to a real EEG recording, then "
+        "re-run the same inference to see what that protection actually "
+        "costs it.",
+    )
+
+    st.markdown(
+        ":material/psychology: Neural source &rarr; "
+        ":material/sensors: Acquisition &rarr; "
+        "**:material/tune: Processing (intervene here)** &rarr; "
+        ":material/insights: Inference (re-run) &rarr; "
+        ":material/bolt: Action &rarr; "
+        ":material/cloud: Storage/Sharing"
+    )
+    st.caption(
+        "Where this stage sits in the Signals -> ... -> Feedback pipeline "
+        "above: each intervention below is applied before Processing, "
+        "then Inference is re-run on the changed signal."
+    )
+
+    st.write(
+        "This stage uses a real 15-second-per-condition excerpt of one "
+        "occipital channel (O1, a scalp position at the back of the "
+        "head) from one subject in a public dataset, licensed CC0 (no "
+        "restrictions on reuse), organized in BIDS (Brain Imaging Data "
+        "Structure, the standard file layout for neuroimaging datasets) "
+        "- alternating eyes-closed and eyes-open resting EEG. Unlike "
+        "every rating in this journey so far, the numbers below are "
+        "measured, not author-assigned."
+        + _ref(SANCHEZ_GAMA_ET_AL_CITATION)
+    )
+    st.write(
+        "Occipital alpha power (8-13 Hz) rises when the eyes close and "
+        "falls when they open, a long-established EEG finding: this is "
+        "the real signal the baseline below detects, not something "
+        "fitted to this specific excerpt."
+        + _ref(BARRY_ET_AL_CITATION)
+    )
+    st.write(
+        "Denning, Matsuoka, & Kohno (2009) coined *neurosecurity*: "
+        "protecting a neural device's confidentiality, integrity, and "
+        "availability to preserve a person's neural mechanisms, neural "
+        "computation, and free will. This stage applies that same "
+        "privacy/security/agency vocabulary to one real signal instead "
+        "of an illustrative rating."
+        + _ref(DENNING_ET_AL_CITATION)
+    )
+    with st.expander("Using data like this with other OpenMeasure tools"):
+        st.write(
+            "Single-subject resting-state EEG like this supports "
+            "within-person state-classification questions (does a "
+            "signal distinguish two conditions for one person), not "
+            "between-group or clinical claims, which need many subjects "
+            "and a different design. To reuse a channel like this "
+            "elsewhere in OpenMeasure, it needs the same shape "
+            "Time-Series QA expects: a timestamp or sample-index column "
+            "and one value column per channel, at a known, constant "
+            "sampling rate."
+        )
+
+    snippet = _load_eeg_snippet()
+    eyes_closed_raw = snippet["eyes_closed"]
+    eyes_open_raw = snippet["eyes_open"]
+
+    baseline_result = intervention_core.classify_eyes_state(
+        eyes_closed_raw, eyes_open_raw, intervention_core.SAMPLING_RATE_HZ
+    )
+
+    st.markdown("**Baseline: infer eyes-open/closed from alpha power alone**")
+    st.vega_lite_chart(
+        _signal_segment_spec(
+            eyes_closed_raw, eyes_open_raw, intervention_core.SAMPLING_RATE_HZ,
+            "First 3 seconds of the original recording, by condition",
+        ),
+        width="stretch",
+    )
+    st.vega_lite_chart(
+        _alpha_power_strip_spec(
+            baseline_result, "Alpha power per 1-second window, original signal"
+        ),
+        width="stretch",
+    )
+    st.metric("Baseline classification accuracy", f"{baseline_result.accuracy:.0%}")
+    st.caption(
+        f"{baseline_result.n_windows_eyes_closed} eyes-closed and "
+        f"{baseline_result.n_windows_eyes_open} eyes-open 1-second "
+        "windows, separated by a simple midpoint-of-class-means "
+        "threshold - not a fitted model."
+    )
+
+    st.divider()
+    st.markdown("**Choose one intervention to apply to the signal before it is retained or shared**")
+
+    intervention_choice = st.radio(
+        "Intervention",
+        options=("metadata_removal", "noise", "temporal_degradation"),
+        format_func=lambda k: {
+            "metadata_removal": "Metadata removal",
+            "noise": "Additive signal noise",
+            "temporal_degradation": "Temporal degradation (coarser sampling)",
+        }[k],
+        key="real_signal_intervention_choice",
+    )
+
+    if intervention_choice == "metadata_removal":
+        example_fields = {
+            "device_serial_number": "SN-48213",
+            "recording_timestamp": "2024-03-11T09:42:00Z",
+            "subject_session_code": "sub-5_ses-01",
+            "task": "eyes_closed",
+        }
+        stripped_fields = intervention_core.strip_metadata(example_fields)
+        field_cols = st.columns(2)
+        with field_cols[0]:
+            st.caption("Before")
+            st.json(example_fields)
+        with field_cols[1]:
+            st.caption("After")
+            st.json(dict(stripped_fields))
+        st.caption(
+            "Illustrative of the kind of fields a real recording/sharing "
+            "pipeline attaches - not fields present in the bundled CSV "
+            "itself, whose own BIDS sidecars are already mostly blank."
+        )
+
+        intervened_closed, intervened_open = eyes_closed_raw, eyes_open_raw
+        intervened_rate = intervention_core.SAMPLING_RATE_HZ
+        intervention_summary = (
+            "Metadata removal never touches the signal, so the "
+            "classification below is identical to the baseline by "
+            "construction."
+        )
+
+    elif intervention_choice == "noise":
+        noise_sd = st.slider(
+            "Noise standard deviation (microvolts)", 0.0, 300.0, 80.0, step=10.0
+        )
+        st.caption(
+            "Exploratory signal perturbation, not a differential-privacy "
+            "mechanism: this carries no formal privacy guarantee, only an "
+            "observed effect on this one inference."
+        )
+        intervened_closed = intervention_core.apply_noise(eyes_closed_raw, noise_sd, seed=0)
+        intervened_open = intervention_core.apply_noise(eyes_open_raw, noise_sd, seed=1)
+        intervened_rate = intervention_core.SAMPLING_RATE_HZ
+        intervention_summary = (
+            f"At SD={noise_sd:.0f} µV, noise degrades this inference "
+            "smoothly: rising noise moves accuracy toward chance rather "
+            "than failing at one sharp threshold."
+        )
+
+    else:
+        degradation_factor = st.select_slider(
+            "Downsampling factor", options=(1, 2, 5, 10, 20, 40), value=10
+        )
+        st.caption(
+            "A proper anti-aliased downsample, not simply holding each "
+            "sample longer - it actually removes information a lower "
+            "acquisition rate would never have captured."
+        )
+        intervened_closed, intervened_rate = intervention_core.apply_temporal_degradation(
+            eyes_closed_raw, intervention_core.SAMPLING_RATE_HZ, degradation_factor
+        )
+        intervened_open, _ = intervention_core.apply_temporal_degradation(
+            eyes_open_raw, intervention_core.SAMPLING_RATE_HZ, degradation_factor
+        )
+        intervention_summary = (
+            "Temporal degradation is a cliff, not a smooth cost: accuracy "
+            "should hold close to baseline until the effective sampling "
+            "rate can no longer resolve the 8-13 Hz alpha band at all, "
+            "then the inference fails outright."
+        )
+
+    st.divider()
+    st.markdown("**After the intervention**")
+    st.vega_lite_chart(
+        _signal_segment_spec(
+            intervened_closed, intervened_open, intervened_rate,
+            "First 3 seconds of the intervened signal, by condition",
+        ),
+        width="stretch",
+    )
+
+    try:
+        intervened_result = intervention_core.classify_eyes_state(
+            intervened_closed, intervened_open, intervened_rate
+        )
+    except ValueError as error:
+        st.error(
+            f"Classification failed on the intervened signal: {error} "
+            "Past this point, the intervention has removed the "
+            "information the inference needs, not just degraded it."
+        )
+    else:
+        st.vega_lite_chart(
+            _alpha_power_strip_spec(
+                intervened_result, "Alpha power per 1-second window, intervened signal"
+            ),
+            width="stretch",
+        )
+        before_after_cols = st.columns(2)
+        before_after_cols[0].metric(
+            "Accuracy before", f"{baseline_result.accuracy:.0%}"
+        )
+        before_after_cols[1].metric(
+            "Accuracy after",
+            f"{intervened_result.accuracy:.0%}",
+            delta=f"{(intervened_result.accuracy - baseline_result.accuracy):+.0%}",
+        )
+
+    st.write(f"**Implications**: {intervention_summary}")
+    caveat(
+        "One subject, one channel, one fixed inference task: this shows "
+        "a mechanism, not a population-level estimate of how costly any "
+        "of these interventions would be for a real deployment or a "
+        "different downstream use of the same signal."
+    )
+
+
+# -----------------------------------------------------------------
+# 7. Research decision
+# -----------------------------------------------------------------
+
+if stage == STAGE_RESEARCH_DECISION:
+    section_header(
+        "7. Research Decision",
+        "Which added signal would you keep?",
+    )
+
+    st.write(
+        "You have compared what each modality might add against its "
+        "privacy, security, and agency costs. Based on the priorities you "
+        "set in Step 5, this is where you choose."
+    )
+
+    st.caption(
+        "Step 6 showed one real, measured cost of protecting a signal; "
+        "the ratings below are the illustrative counterpart, extended to "
+        "the modalities you added in Step 3."
+    )
+
+    all_modalities = _load_modalities()
+    modalities_by_name = {m.name: m for m in all_modalities}
+    baseline = modalities_by_name[BASELINE_MODALITY_NAME]
+    selected_names = _held(SELECTED_MODALITIES_KEY, [])
+    current_modalities = (baseline,) + tuple(
+        modalities_by_name[name] for name in selected_names
+    )
+
+    if len(current_modalities) < 2:
+        st.write(
+            "Only EEG is in the pipeline, so there is no added modality "
+            "to decide about yet. Go back to Step 3 to add at least one."
+        )
+    else:
+        privacy_weight = _held(PRIVACY_WEIGHT_KEY, 0.34)
+        security_weight = _held(SECURITY_WEIGHT_KEY, 0.33)
+        agency_weight = _held(AGENCY_WEIGHT_KEY, 0.33)
+
+        weighted_cost = tradeoff_core.combine_costs(
+            current_modalities, privacy_weight, security_weight, agency_weight
+        )
+        frontier = tradeoff_core.compute_gain_cost_frontier(current_modalities, weighted_cost)
+
+        addable_selected = tuple(m for m in current_modalities if m.name != baseline.name)
+
+        decision = st.radio(
+            "Based on the benefits and costs you explored, which added "
+            "modality would you keep for a real deployment?",
+            options=[m.name for m in addable_selected] + ["Insufficient evidence to decide"],
+            index=len(addable_selected),
+        )
+
+        if decision != "Insufficient evidence to decide":
+            components.html(
+                _anatomy_scene_html((modalities_by_name[decision],), PERSPECTIVE_BUILD, height=220),
+                height=220 + ANATOMY_LEGEND_BUFFER_PX,
+            )
+
+        if decision == "Insufficient evidence to decide":
+            st.write(
+                "A reasonable position: these ratings are illustrative "
+                "and informed by literature that was not collected for "
+                "this specific pipeline, population, or deployment "
+                "context, so generalizing to a specific real system is "
+                "not directly supported by what is rated here."
+            )
+        elif frontier.is_efficient.get(decision, False):
+            st.write(
+                f"**{decision} remains a viable option under your "
+                "current priorities.** No other modality in this "
+                "comparison provides at least as much interpretive value "
+                "at the same or lower combined cost."
+            )
+            st.write(
+                f"This does not mean {decision} is the best or safest "
+                "choice for a real deployment. The comparison uses "
+                "illustrative ratings, and a real decision would require "
+                "evidence specific to the system, the participants, and "
+                "the intended use."
+            )
+        else:
+            st.write(
+                f"**Under your current priorities, {decision} has no "
+                "advantage here.** Another modality in this comparison "
+                "provides at least as much interpretive value at the same "
+                "or lower combined cost, so these ratings give no reason "
+                "to prefer it."
+            )
+            st.write(
+                "That is a statement about four illustrative ratings and "
+                "the priorities you set, not about the modality. Change "
+                "the priorities and it can change, and a real deployment "
+                "could turn on factors none of these ratings capture."
+            )
+
+        st.write(
+            "**One more consideration**: validating the signal is not "
+            "enough if the system acts on what it infers. Flagging a "
+            "clinician, triggering a device, or shaping what someone sees "
+            "next each raise a separate question from whether the "
+            "inference was accurate: what happens when it is wrong, and "
+            "whether the person agreed to the action it produces. "
+            "Validating a multimodal pipeline means validating both."
+        )
+
+        st.caption(
+            "Which is the lesson of the whole journey. Choosing a "
+            "modality is not "
+            "\"which signal improves prediction\"; it is whether the "
+            "information it adds justifies what collecting and acting on "
+            "it introduces."
+        )
+
+    st.divider()
+    with st.container(border=True):
+        st.write(
+            "**Implications**: the Signals -> Sensors -> Processing -> "
+            "Inference -> Decision -> Action -> Feedback shape used "
+            "throughout this journey does not change when a modality is "
+            "added - only how many signals converge into it. That is what "
+            "makes 'is this combination worth its cost' an answerable, "
+            "revisitable question instead of a one-time architectural "
+            "decision."
+        )
+
+WORKSPACE.render_navigation()
+
+st.divider()
+
+with st.expander(f"References ({len(REFERENCES)})"):
+    st.caption(
+        "Numbered in the order the journey first cites them. A marker "
+        "such as [4] in any stage above refers to this list."
+    )
+    for number, reference in enumerate(REFERENCES, start=1):
+        st.caption(f"{number}. {reference}")

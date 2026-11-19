@@ -1,0 +1,76 @@
+{
+  "artifact": "OpenMeasure-derived HealthRing journey subset",
+  "is_the_original_dataset": false,
+  "source": {
+    "title": "HealthRing RingDatasetV2.1",
+    "doi": "10.5281/zenodo.18426864",
+    "url": "https://doi.org/10.5281/zenodo.18426864",
+    "license": "CC BY 4.0",
+    "published_md5": "6d96016e45a311b1cfc9108d3df23195",
+    "published_size_bytes": 2582075992,
+    "observed_md5": "6d96016e45a311b1cfc9108d3df23195",
+    "checksum_matches_published": true
+  },
+  "attribution": "HealthRing RingDatasetV2.1, https://doi.org/10.5281/zenodo.18426864, licensed CC BY 4.0. This file is a derived subset produced by OpenMeasure and is not the original dataset.",
+  "transformation": {
+    "ring_design": "ring1",
+    "columns_kept": [
+      "Experiment",
+      "Label",
+      "bvp_hr",
+      "hr",
+      "ir-quality",
+      "quality",
+      "red-quality",
+      "ring",
+      "subject_id"
+    ],
+    "columns_derived": {
+      "quality": "mean of ir-quality and red-quality, the same rule modules/healthring/core/acquisition_robustness.py applies"
+    },
+    "columns_excluded": "Raw, standardized, filtered, difference and Welch variants of the PPG and accelerometer channels, and the fs sampling rate. These are the whole size difference. The Signal Inspection stage of the worked example draws the filtered waveforms and cannot run on this artifact.",
+    "rows_dropped": "none; every intact window for this ring is kept"
+  },
+  "contents": {
+    "n_rows": 1797,
+    "n_subjects": 28,
+    "n_entries_indexed": 56,
+    "n_subject_entries_read": 28,
+    "subject_ids": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      28,
+      29
+    ],
+    "optional_columns_found": [
+      "Experiment"
+    ],
+    "optional_columns_absent": []
+  },
+  "generated_by": "scripts/build_healthring_journey_data.py",
+  "generated_at": "2026-09-06T19:58:44+00:00"
+}
