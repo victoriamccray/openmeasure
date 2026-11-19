@@ -36,6 +36,24 @@ if str(ROOT) not in sys.path:
 from shared.validation import validate_is_dataframe
 
 
+def _category_label(value: object) -> str:
+    """
+    One label per rating, whatever dtype the rating's column was stored as.
+
+    pandas stores a numeric rater column as float as soon as it holds a
+    single missing rating, so the same rating arrives as 5 from one
+    column and 5.0 from another. str() alone would label those "5" and
+    "5.0", splitting one category into two: Fleiss' kappa then raised a
+    KeyError, and Krippendorff's alpha silently counted matching ratings
+    as disagreement. A whole-number float is labelled as the integer it
+    equals; every other value keeps its own str().
+    """
+    if isinstance(value, (float, np.floating)) and float(value).is_integer():
+        return str(int(value))
+
+    return str(value)
+
+
 @dataclass(frozen=True)
 class CohensKappaResult:
     """Pairwise agreement between exactly two raters."""
@@ -137,14 +155,21 @@ def fleiss_kappa(data: pd.DataFrame) -> FleissKappaResult:
             "rater coverage."
         )
 
-    categories = sorted({str(value) for value in data.to_numpy().ravel()}, key=str)
+    # Labels come from one dtype=object array for both the category list
+    # and the per-item counts. Building the list from to_numpy() (which
+    # casts a mixed int/float frame to float) and the counts from
+    # itertuples() (which keeps each column's own type) is what let the
+    # two disagree about the same rating.
+    labels = [[_category_label(value) for value in row] for row in data.to_numpy(dtype=object)]
+
+    categories = sorted({label for row in labels for label in row}, key=str)
     category_index = {category: i for i, category in enumerate(categories)}
 
     counts = np.zeros((data.shape[0], len(categories)), dtype=int)
 
-    for row_index, row in enumerate(data.itertuples(index=False)):
-        for value in row:
-            counts[row_index, category_index[str(value)]] += 1
+    for row_index, row in enumerate(labels):
+        for label in row:
+            counts[row_index, category_index[label]] += 1
 
     kappa = float(_sm_inter_rater.fleiss_kappa(counts, method="fleiss"))
 
@@ -195,7 +220,7 @@ def krippendorff_alpha(data: pd.DataFrame) -> KrippendorffAlphaResult:
     raw = data.to_numpy(dtype=object)
     missing = pd.isna(raw)
 
-    categories = sorted({str(value) for value in raw[~missing]}, key=str)
+    categories = sorted({_category_label(value) for value in raw[~missing]}, key=str)
 
     # krippendorff.alpha expects (raters x units); this DataFrame is
     # (units x raters), so transpose first. The result must be a plain
@@ -207,7 +232,7 @@ def krippendorff_alpha(data: pd.DataFrame) -> KrippendorffAlphaResult:
     # ourselves and handing it over skips that coercion, and every value
     # domain lookup then silently fails to match.
     reliability_data = [
-        [str(value) if pd.notna(value) else np.nan for value in rater_row]
+        [_category_label(value) if pd.notna(value) else np.nan for value in rater_row]
         for rater_row in raw.T
     ]
 

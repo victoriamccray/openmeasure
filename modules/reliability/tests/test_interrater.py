@@ -54,6 +54,16 @@ class TestCohensKappa(unittest.TestCase):
 
         self.assertEqual(result.n_items, 4)
 
+    def test_int_and_float_storage_of_the_same_ratings_agree(self) -> None:
+        # Guards the same mixed-dtype case the other two statistics had
+        # to be fixed for; cohens_kappa was already unaffected.
+        data = pd.DataFrame({"a": [5, 4, 3, 2, 1], "b": [5.0, 4.0, 3.0, 2.0, 2.0]})
+
+        self.assertEqual(
+            ir.cohens_kappa(data, "a", "b").kappa,
+            ir.cohens_kappa(data.astype(int), "a", "b").kappa,
+        )
+
     def test_unknown_rater_column_raises(self) -> None:
         with self.assertRaises(ValueError):
             ir.cohens_kappa(self.data, "rater_a", "not_a_column")
@@ -106,6 +116,32 @@ class TestFleissKappa(unittest.TestCase):
 
         self.assertAlmostEqual(result.kappa, 1.0, places=6)
 
+    def test_known_value_with_numeric_codes_in_mixed_int_and_float_columns(self) -> None:
+        # The same 4-subject, 3-rater table as test_known_value, coded
+        # A=1, B=2, with rater2 stored as float (as pandas stores any
+        # numeric column that held a missing rating before dropna()).
+        # Same hand calculation, so kappa = 1/3. Before labels were
+        # normalized, 1 and 1.0 were separate categories and this raised
+        # KeyError.
+        data = pd.DataFrame(
+            {
+                "rater1": [1, 1, 2, 1],
+                "rater2": [1.0, 1.0, 2.0, 2.0],
+                "rater3": [1, 2, 2, 2],
+            }
+        )
+
+        result = ir.fleiss_kappa(data)
+
+        self.assertEqual(result.categories, ("1", "2"))
+        self.assertAlmostEqual(result.kappa, 1 / 3, places=6)
+
+    def test_int_and_float_storage_of_the_same_ratings_agree(self) -> None:
+        ints = pd.DataFrame({"r1": [5, 4, 3, 2], "r2": [5, 4, 3, 2], "r3": [5, 4, 3, 1]})
+        mixed = ints.astype({"r2": float})
+
+        self.assertEqual(ir.fleiss_kappa(mixed), ir.fleiss_kappa(ints))
+
     def test_fewer_than_three_raters_raises(self) -> None:
         data = pd.DataFrame({"r1": ["A", "B"], "r2": ["A", "B"]})
 
@@ -155,6 +191,31 @@ class TestKrippendorffAlpha(unittest.TestCase):
         result = ir.krippendorff_alpha(data)
 
         self.assertAlmostEqual(result.alpha, 1.0, places=6)
+
+    def test_unanimous_numeric_codes_with_missing_ratings_give_alpha_one(self) -> None:
+        # The realistic upload case: r1 rated every item and loads as
+        # int, r2 and r3 each skipped one and load as float. Every pair
+        # of ratings agrees, so alpha = 1. Before labels were normalized,
+        # 1 and 1.0 were separate categories and agreement read as
+        # disagreement.
+        data = pd.DataFrame(
+            {
+                "r1": [1, 2, 1, 2],
+                "r2": [1.0, 2.0, np.nan, 2.0],
+                "r3": [np.nan, 2.0, 1.0, 2.0],
+            }
+        )
+
+        result = ir.krippendorff_alpha(data)
+
+        self.assertEqual(result.categories, ("1", "2"))
+        self.assertAlmostEqual(result.alpha, 1.0, places=6)
+
+    def test_int_and_float_storage_of_the_same_ratings_agree(self) -> None:
+        ints = pd.DataFrame({"r1": [5, 4, 3, 2], "r2": [5, 4, 3, 2], "r3": [5, 4, 3, 1]})
+        mixed = ints.astype({"r2": float})
+
+        self.assertEqual(ir.krippendorff_alpha(mixed), ir.krippendorff_alpha(ints))
 
     def test_tolerates_partial_rater_coverage(self) -> None:
         # Unlike fleiss_kappa, missing values must not raise here.
