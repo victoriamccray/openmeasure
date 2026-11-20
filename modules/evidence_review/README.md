@@ -5,7 +5,7 @@
 
 ## Purpose
 
-Given a finding from any OpenMeasure workflow (or typed in directly), what does existing published literature say? This module searches a real, public bibliographic API, supports transparent screening with human-recorded decisions, and produces a structured evidence record with full source provenance, on purpose without any generative-AI call: every result is a real, dereferenceable published work, and every relevance judgment names the exact keywords that matched rather than asserting a semantic verdict.
+Given a finding from any OpenMeasure workflow (or typed in directly), what does existing published literature say? This module searches a public bibliographic API, supports transparent screening with human-recorded decisions, and produces a structured evidence record with full source provenance, on purpose without any generative-AI call: every result is a dereferenceable published work, and every relevance judgment names the exact keywords that matched rather than asserting a semantic verdict.
 
 **Use cases:**
 
@@ -17,7 +17,7 @@ Given a finding from any OpenMeasure workflow (or typed in directly), what does 
 
 - `core/record.py` - `LiteratureRecord`, and `from_openalex_work()` to parse a raw OpenAlex API response into that shape.
 - `core/relevance.py` - `score_relevance()`, a deterministic keyword-overlap score between a finding's description and a result's title/abstract. Classic information retrieval, not a semantic or generative model; the matched keywords are always shown, never a bare confidence number.
-- `core/screening.py` - `ScreeningDecision`, `ScreeningSummary`, and `summarize_screening()`, implementing the Include/Exclude/Uncertain screening convention as real typed values for the first time in this codebase (previously only an illustrative docstring example in `modules/reliability/core/interrater.py`), with an optional reason the page prompts for on Exclude.
+- `core/screening.py` - `ScreeningDecision`, `ScreeningSummary`, and `summarize_screening()`, implementing the Include/Exclude/Uncertain screening convention as typed values for the first time in this codebase (previously only an illustrative docstring example in `modules/reliability/core/interrater.py`), with an optional reason the page prompts for on Exclude.
 - The actual network call to OpenAlex's public Works API lives in `pages/6_Evidence_Review.py`, not in `core/`, matching `pages/FMRI_QC_Worked_Example.py`'s existing pattern for a public-remote fetch (`urllib.request`, a custom User-Agent, a timeout, `st.cache_data`).
 
 ## Non-goals

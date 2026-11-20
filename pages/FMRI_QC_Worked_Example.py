@@ -558,7 +558,7 @@ if stage == STAGE_RESEARCH_QUESTION:
 
     st.write(
         "Before analyzing fMRI data, someone has to decide whether each scan "
-        "is usable. This page walks through one real study of that decision: "
+        "is usable. This page walks through one published study of that decision: "
         "four independent, trained raters judged the same scans, and an "
         "existing, unmodified quality-control tool (`pyfMRIqc`) computed its "
         "own metrics for the same scans, independently."
@@ -597,9 +597,9 @@ if stage == STAGE_RESEARCH_QUESTION:
       [PMC9936142](https://pmc.ncbi.nlm.nih.gov/articles/PMC9936142). Data:
       University of Reading Research Data Archive,
       [doi.org/10.17864/1947.000424](https://doi.org/10.17864/1947.000424).
-    - **Real per-subject QC output** used in the Signal Inspection stage
+    - **Per-subject QC output from recorded scans** used in the Signal Inspection stage
       below comes from [github.com/bwilliams96/cinnqc](https://github.com/bwilliams96/cinnqc),
-      which hosts `pyfMRIqc` run on the study's real subjects, identified
+      which hosts `pyfMRIqc` run on the study's recorded subject scans, identified
       only by pseudonymous IDs (e.g. `sub-013`). That repository states no
       license; nothing from it is bundled by this page. It is read directly
       from GitHub at runtime by default, or from a local clone you provide.
@@ -636,7 +636,7 @@ across the whole volume.
 
     st.markdown(_acquisition_diagram_html(), unsafe_allow_html=True)
     st.caption(
-        "A static diagram, not a real scan: five volumes across time, "
+        "A static diagram, not a recorded scan: five volumes across time, "
         "each a stack of slices. Two are typical; the other three carry "
         "the artifact types named above and in the simulated examples "
         "further down this page. Hover a volume for detail."
@@ -668,7 +668,7 @@ across the whole volume.
     st.markdown(
         """
 **`pyfMRIqc`** checks for exactly these things and reports what it
-finds. It is meant to run early, before most preprocessing; the real
+finds. It is meant to run early, before most preprocessing; the recorded
 subject scans this page reads had already had one step (motion
 correction) applied before pyfMRIqc ran on them, so "early" here does
 not mean "completely unprocessed." It does not decide
@@ -708,7 +708,7 @@ decision, and measured how much they agreed with each other.
 if stage == STAGE_SIGNAL_INSPECTION:
     section_header(
         "Signal Inspection",
-        "Real pyfMRIqc output on real study subjects",
+        "pyfMRIqc output on recorded study scans",
     )
 
     st.markdown(
@@ -797,7 +797,7 @@ if stage == STAGE_SIGNAL_INSPECTION:
                 search_attempted = True
 
     if subjects:
-        st.caption(f"{len(subjects)} real subject scans found.")
+        st.caption(f"{len(subjects)} recorded subject scans found.")
 
         labels = [f"{batch} / {subject}" for batch, subject, _ in subjects]
         selected_label = st.selectbox("Which subject to inspect", options=labels)
@@ -1100,16 +1100,16 @@ if stage == STAGE_SIGNAL_INSPECTION:
 if stage == STAGE_SIMULATED_COMPARISON:
     section_header(
         "Compare Simulated Events",
-        "Three known-cause examples, kept separate from the real subject data above",
+        "Three known-cause examples, kept separate from the recorded subject data above",
     )
 
     st.write(
-        "These three examples are simulated, not real research data: "
+        "These three examples are simulated, not recorded research data: "
         "`pyfMRIqc` was run on its own bundled synthetic example files, "
-        "each engineered to show one specific problem. Real fMRI data "
+        "each engineered to show one specific problem. Recorded fMRI data "
         "rarely has a single, isolated, known cause this cleanly -- that "
         "is exactly why these are useful for learning what a signature "
-        "looks like before looking at ambiguous real data."
+        "looks like before looking at ambiguous recorded data."
     )
 
     guess = st.radio(
@@ -1141,9 +1141,9 @@ if stage == STAGE_SIMULATED_COMPARISON:
 
         caveat(
             "These three signatures are clean because the cause was "
-            "engineered and singular. A real scan's QC plot can show "
+            "engineered and singular. A recorded scan's QC plot can show "
             "any of these patterns, several at once, or none clearly -- "
-            "matching a real pattern to one of these examples is a "
+            "matching an observed pattern to one of these examples is a "
             "hypothesis to check, not a diagnosis this page can make "
             "for you."
         )

@@ -57,10 +57,10 @@ Looks across or beyond the other modules. Cross-Analysis Implications connects f
 
 A few pages sit outside the validation-workflow catalog above: they record nothing to the cross-analysis handoff and carry no lifecycle stage, because they are not analyses themselves.
 
-- **Explore Real Data** points to real, citable research datasets and the workflow each fits, without prescribing columns or expected results, so practicing validation judgment on real data stays the point.
-- **Method Selection** is a one-question decision tree that starts from what you're trying to determine (e.g. "Did my program cause the change I'm seeing?") and routes to the workflow or research journey suited to it, explaining why. A reader who does not have a question yet can instead upload a file and let `modules/data_profile`'s column-shape heuristics suggest a starting point, with the reasoning and any real ambiguity stated alongside it.
+- **Explore Data** points to published, citable research datasets and the workflow each fits, without prescribing columns or expected results, so practicing validation judgment on published research data stays the point.
+- **Method Selection** is a one-question decision tree that starts from what you're trying to determine (e.g. "Did my program cause the change I'm seeing?") and routes to the workflow or research journey suited to it, explaining why. A reader who does not have a question yet can instead upload a file and let `modules/data_profile`'s column-shape heuristics suggest a starting point, with the reasoning and any ambiguity stated alongside it.
 - **Resources** lists existing toolkits, methods guides, and dataset directories outside OpenMeasure. See `shared/resources.py`.
-- **Research Journeys** are guided worked examples of what a real dataset supports, grouped by domain (Multi-Modal Health Imaging, Social Impact Evaluation, Responsible AI) in `shared/research_journeys.py`. They occupy the "Research Question" stage that no numbered workflow covers. The **Wearables Research Journey** (v0.1 prototype, HealthRing dataset) is the most built-out of them: each stage unlocks only after a decision or inspection, including a real leakage-consequence comparison between participant-level and window-level train/test splits, a signal-quality retention tradeoff, and a per-condition robustness check, ending in a compact validation record with WIGOR checklist coverage. It is a prototype of OpenMeasure's immersive worked-example architecture, not a general Wearables module, and never bundles or redistributes the underlying dataset. See `modules/healthring/README.md`.
+- **Research Journeys** are guided worked examples of what a dataset supports, grouped by domain (Multi-Modal Health Imaging, Social Impact Evaluation, Responsible AI) in `shared/research_journeys.py`. They occupy the "Research Question" stage that no numbered workflow covers. The **Wearables Research Journey** (v0.1 prototype, HealthRing dataset) is the most built-out of them: each stage unlocks only after a decision or inspection, including a computed leakage-consequence comparison between participant-level and window-level train/test splits, a signal-quality retention tradeoff, and a per-condition robustness check, ending in a compact validation record with WIGOR checklist coverage. It is a prototype of OpenMeasure's immersive worked-example architecture, not a general Wearables module, and never bundles or redistributes the underlying dataset. See `modules/healthring/README.md`.
 
 ## Design principles
 
@@ -232,9 +232,9 @@ Visit the live application: https://openmeasure.streamlit.app
 
 ![Home](docs/images/home.png)
 
-### Explore Real Data & Research Journeys
+### Explore Data & Research Journeys
 
-![Explore Real Data](docs/images/explore_data.png)
+![Explore Data](docs/images/explore_data.png)
 
 ![Wearables Signal Inspection](docs/images/wearables.png)
 

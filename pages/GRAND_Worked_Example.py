@@ -1390,11 +1390,11 @@ st.set_page_config(
     layout="centered",
 )
 
-st.title("GRAND: A Real-Data Multimodal Signal-Flow Example")
+st.title("GRAND: A Multimodal Signal-Flow Example on a Published Dataset")
 st.caption(
-    "This journey uses one real, cited dataset, GRAND (Anderson et al., "
+    "This journey uses one published, cited dataset, GRAND (Anderson et al., "
     "2026), to run the same signal-flow engine built for illustrative "
-    "modalities in Multimodal Signal Convergence, on real structural, "
+    "modalities in Multimodal Signal Convergence, on recorded structural, "
     "functional, and diffusion MRI, a derived connectome, and behavioral "
     "reading/language measures."
 )
@@ -1557,7 +1557,7 @@ if stage == STAGE_ACQUIRE:
         "Structural is static above: it is one anatomical snapshot, not a "
         "dynamic process. The other icons animate gently as a visual cue "
         "that they measure different kinds of things; none of this is "
-        "real recorded activity."
+        "recorded activity."
     )
 
     for m in current_modalities:
@@ -1644,7 +1644,7 @@ if stage == STAGE_ACQUIRE:
     if threshold_estimate is None:
         st.write(
             "Too few reversals occurred in this short a run to estimate a "
-            "threshold; a real study runs more trials or a longer "
+            "threshold; a full study runs more trials or a longer "
             "staircase than this 20-trial illustration."
         )
     else:
@@ -1788,7 +1788,7 @@ if stage == STAGE_PROCESS:
     )
     st.caption(
         "Generic, drawn icons standing in for each modality's own "
-        "processing steps above, not real preprocessed images: each one "
+        "processing steps above, not preprocessed images from the dataset: each one "
         "gestures at what that step changes (for example, uneven "
         "shading becoming even, or scattered points becoming aligned), "
         "in the order named just above."
@@ -1890,9 +1890,9 @@ if stage == STAGE_EVALUATE:
     )
 
     st.write(
-        "For a real sense of whether this kind of pattern shows up in "
+        "For evidence on whether this kind of pattern shows up in "
         "practice: a 2026 study of 450 adults (ages 21-90, the Dallas "
-        "Lifespan Brain Study) found that stacking five real MRI "
+        "Lifespan Brain Study) found that stacking five MRI "
         "modalities (task fMRI, functional connectivity, structural MRI, "
         "diffusion-weighted imaging, and arterial spin labeling) to "
         "predict cognitive functioning explained about half the variance "
@@ -1900,7 +1900,7 @@ if stage == STAGE_EVALUATE:
         "diffusion-weighted imaging and functional connectivity the "
         "next-strongest individually. That is a different dataset, "
         "outcome, and modality set from GRAND's own, so it cannot "
-        "substitute for GRAND's own numbers -- but it is real evidence "
+        "substitute for GRAND's own numbers -- but it is published evidence "
         "that combining modalities can genuinely add predictive value."
     )
     st.caption(KONOPKINA_CITATION)
@@ -1950,7 +1950,7 @@ if stage == STAGE_EVALUATE:
 
     st.vega_lite_chart(_feature_set_spec(real_feature_sets, real_selection), width="stretch")
     st.caption(
-        "Vertical lines show +/- 1 standard error around each real, "
+        "Vertical lines show +/- 1 standard error around each "
         "computed point estimate. R² ≈ 0.003 (Connectome only) "
         "and R² ≈ -0.027 (+ Functional); the chart's tooltip "
         "rounds to two decimals, which is not enough to show that "
@@ -1958,7 +1958,7 @@ if stage == STAGE_EVALUATE:
         "exactly zero."
     )
     st.write(
-        f"**What this shows**: both real R² values are close to "
+        f"**What this shows**: both computed R² values are close to "
         "zero, and adding the functional feature made the "
         "cross-validated estimate worse, not better. Under the "
         "one-standard-error rule, the necessary feature set here is "
@@ -1980,19 +1980,19 @@ if stage == STAGE_EVALUATE:
         if not within:
             flagged_item_note(
                 name,
-                "Not within one standard error of the best real, "
+                "Not within one standard error of the best "
                 "computed feature set's performance.",
             )
 
     caveat(
         "This is a deliberately blunt analysis, not a claim that "
-        "GRAND's connectome or functional data carry no real signal: a "
+        "GRAND's connectome or functional data carry no predictive signal: a "
         "single whole-brain mean throws away almost all spatial "
         "information, and a richer feature set, like the per-region "
         "features a full analysis (or Konopkina et al.'s stacked-"
         "modality model above) would use, could look very different. "
-        "What this real comparison does show honestly is what a fast, "
-        "coarse first pass on real GRAND data actually looks like, not "
+        "What this computed comparison does show honestly is what a fast, "
+        "coarse first pass on the GRAND data actually looks like, not "
         "necessarily the steadily-improving pattern combining modalities "
         "can produce in a larger, richer analysis like Konopkina et "
         "al.'s above."
@@ -2053,9 +2053,9 @@ if stage == STAGE_INTERPRET:
 
     st.write("**Did integration materially improve the result?**")
     st.write(
-        "Per Step 7's real, computed comparison: no. Adding the "
+        "Per Step 7's computed comparison: no. Adding the "
         "functional feature made the cross-validated estimate worse, "
-        "not better, and neither feature set's real R² was clearly "
+        "not better, and neither feature set's computed R² was clearly "
         "distinguishable from zero, so this specific pairing shows no "
         "support for integration mattering, at least for two coarse "
         "global summaries predicting age."
@@ -2063,7 +2063,7 @@ if stage == STAGE_INTERPRET:
 
     st.write("**What can the combined evidence actually support?**")
     st.write(
-        "A statement about whether two coarse, real feature sets "
+        "A statement about whether two coarse feature sets from GRAND "
         "(a connectome-strength summary and a functional-activation "
         "summary) improve prediction of age at MRI in this specific "
         "reduced analysis, not a statement about which modalities are "
@@ -2106,7 +2106,7 @@ if stage == STAGE_RESEARCH_DECISION:
     )
 
     decision = st.radio(
-        "Based on Step 7's real comparison and Step 8's interpretation, "
+        "Based on Step 7's computed comparison and Step 8's interpretation, "
         "would you recommend combining these modalities for a study like "
         "this one?",
         options=decision_options,
@@ -2115,7 +2115,7 @@ if stage == STAGE_RESEARCH_DECISION:
 
     if decision == decision_options[0]:
         st.write(
-            "Step 7's real, computed comparison does not support this for "
+            "Step 7's computed comparison does not support this for "
             "the two coarse global summaries tested here: adding the "
             "functional feature made the cross-validated estimate worse, "
             "not better. That does not rule out combining modalities "
@@ -2124,7 +2124,7 @@ if stage == STAGE_RESEARCH_DECISION:
         )
     elif decision == decision_options[1]:
         st.write(
-            "This matches what Step 7's real comparison showed for these "
+            "This matches what Step 7's computed comparison showed for these "
             "two coarse global summaries. It is a narrower claim than "
             "\"combining modalities doesn't help\": a richer, per-region "
             "feature set, like Konopkina et al.'s stacked-modality model "
@@ -2157,7 +2157,7 @@ if stage == STAGE_RESEARCH_DECISION:
             "found no improvement from adding the functional feature to "
             "the connectome feature in this specific, reduced comparison. "
             "What this supports: a documented example of how to test "
-            "whether integration helps, and one real result for one "
+            "whether integration helps, and one computed result for one "
             "reduced comparison. What it does not support: a general "
             "claim about whether combining structural, functional, "
             "diffusion, and behavioral data helps understand reading and "

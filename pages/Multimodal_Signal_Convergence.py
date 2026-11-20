@@ -420,7 +420,7 @@ JOURNEY_STAGES = (
     "Add modalities",
     "Examine convergence",
     "Weigh the tradeoff",
-    "Protect a real signal",
+    "Protect a recorded signal",
     "Research decision",
 )
 
@@ -1257,7 +1257,7 @@ WORKSPACE = StageWorkspace(
         Stage("modalities", "Modalities"),
         Stage("convergence", "Convergence"),
         Stage("tradeoff", "Tradeoff"),
-        Stage("real_signal", "A Real Signal"),
+        Stage("real_signal", "A Recorded Signal"),
         Stage("decision", "Decision"),
     ),
 )
@@ -1471,7 +1471,7 @@ if stage == STAGE_ADD_MODALITIES:
     if perspective == PERSPECTIVE_BUILD:
         st.caption(
             "Dashed lines show every selected signal feeding the same "
-            "pipeline entry point; illustrative trace shapes are not real "
+            "pipeline entry point; illustrative trace shapes are not "
             "recordings."
         )
     elif perspective == PERSPECTIVE_PRIVACY:
@@ -1658,7 +1658,7 @@ if stage == STAGE_WEIGH_TRADEOFF:
             "One thing at a time: what each modality adds, then each "
             "cost on its own, then the picture under your own "
             "priorities. An illustrative synthesis built on the ratings "
-            "from Step 3, grounded where a real measured result is "
+            "from Step 3, grounded where a measured result is "
             "available."
         )
 
@@ -1672,7 +1672,7 @@ if stage == STAGE_WEIGH_TRADEOFF:
         if any(m.category in ("Autonomic", "Muscular") for m in current_modalities):
             with st.expander("See the research behind these ratings"):
                 st.info(
-                    "A real, measured result behind these Autonomic/Muscular "
+                    "A measured result behind these Autonomic/Muscular "
                     "ratings: on DEAP's own single-trial emotion classifiers, "
                     "EEG alone scored 0.563 F1 and its bundled peripheral "
                     "channels (ECG - heart electrical activity, EMG - muscle "
@@ -1749,7 +1749,7 @@ if stage == STAGE_WEIGH_TRADEOFF:
             if any(m.category == "Neural" for m in current_modalities):
                 with st.expander("See the research behind these ratings"):
                     st.info(
-                        "A real, demonstrated security threat behind Neural's "
+                        "A demonstrated security threat behind Neural's "
                         "rating: researchers showed that amplitude-modulated "
                         "radio-frequency signals from a remote antenna can be "
                         "picked up by EEG electrode wires acting as unintended "
@@ -1873,8 +1873,8 @@ if stage == STAGE_WEIGH_TRADEOFF:
 
 if stage == STAGE_REAL_SIGNAL:
     section_header(
-        "6. Protect a Real Signal",
-        "Apply one protective measure to a real EEG recording, then "
+        "6. Protect a Recorded Signal",
+        "Apply one protective measure to an EEG recording from a public dataset, then "
         "re-run the same inference to see what that protection actually "
         "costs it.",
     )
@@ -1894,7 +1894,7 @@ if stage == STAGE_REAL_SIGNAL:
     )
 
     st.write(
-        "This stage uses a real 15-second-per-condition excerpt of one "
+        "This stage uses a recorded 15-second-per-condition excerpt of one "
         "occipital channel (O1, a scalp position at the back of the "
         "head) from one subject in a public dataset, licensed CC0 (no "
         "restrictions on reuse), organized in BIDS (Brain Imaging Data "
@@ -1907,7 +1907,7 @@ if stage == STAGE_REAL_SIGNAL:
     st.write(
         "Occipital alpha power (8-13 Hz) rises when the eyes close and "
         "falls when they open, a long-established EEG finding: this is "
-        "the real signal the baseline below detects, not something "
+        "the physiological signal the baseline below detects, not something "
         "fitted to this specific excerpt."
         + _ref(BARRY_ET_AL_CITATION)
     )
@@ -1916,7 +1916,7 @@ if stage == STAGE_REAL_SIGNAL:
         "protecting a neural device's confidentiality, integrity, and "
         "availability to preserve a person's neural mechanisms, neural "
         "computation, and free will. This stage applies that same "
-        "privacy/security/agency vocabulary to one real signal instead "
+        "privacy/security/agency vocabulary to one recorded signal instead "
         "of an illustrative rating."
         + _ref(DENNING_ET_AL_CITATION)
     )
@@ -1993,7 +1993,7 @@ if stage == STAGE_REAL_SIGNAL:
             st.caption("After")
             st.json(dict(stripped_fields))
         st.caption(
-            "Illustrative of the kind of fields a real recording/sharing "
+            "Illustrative of the kind of fields a recording/sharing "
             "pipeline attaches - not fields present in the bundled CSV "
             "itself, whose own BIDS sidecars are already mostly blank."
         )
@@ -2087,7 +2087,7 @@ if stage == STAGE_REAL_SIGNAL:
     caveat(
         "One subject, one channel, one fixed inference task: this shows "
         "a mechanism, not a population-level estimate of how costly any "
-        "of these interventions would be for a real deployment or a "
+        "of these interventions would be for a specific deployment or a "
         "different downstream use of the same signal."
     )
 
@@ -2109,7 +2109,7 @@ if stage == STAGE_RESEARCH_DECISION:
     )
 
     st.caption(
-        "Step 6 showed one real, measured cost of protecting a signal; "
+        "Step 6 showed one measured cost of protecting a signal; "
         "the ratings below are the illustrative counterpart, extended to "
         "the modalities you added in Step 3."
     )
@@ -2141,7 +2141,7 @@ if stage == STAGE_RESEARCH_DECISION:
 
         decision = st.radio(
             "Based on the benefits and costs you explored, which added "
-            "modality would you keep for a real deployment?",
+            "modality would you keep for a deployment?",
             options=[m.name for m in addable_selected] + ["Insufficient evidence to decide"],
             index=len(addable_selected),
         )
@@ -2157,7 +2157,7 @@ if stage == STAGE_RESEARCH_DECISION:
                 "A reasonable position: these ratings are illustrative "
                 "and informed by literature that was not collected for "
                 "this specific pipeline, population, or deployment "
-                "context, so generalizing to a specific real system is "
+                "context, so generalizing to a specific deployed system is "
                 "not directly supported by what is rated here."
             )
         elif frontier.is_efficient.get(decision, False):
@@ -2169,8 +2169,8 @@ if stage == STAGE_RESEARCH_DECISION:
             )
             st.write(
                 f"This does not mean {decision} is the best or safest "
-                "choice for a real deployment. The comparison uses "
-                "illustrative ratings, and a real decision would require "
+                "choice for a specific deployment. The comparison uses "
+                "illustrative ratings, and a deployment decision would require "
                 "evidence specific to the system, the participants, and "
                 "the intended use."
             )
@@ -2185,7 +2185,7 @@ if stage == STAGE_RESEARCH_DECISION:
             st.write(
                 "That is a statement about four illustrative ratings and "
                 "the priorities you set, not about the modality. Change "
-                "the priorities and it can change, and a real deployment "
+                "the priorities and it can change, and a specific deployment "
                 "could turn on factors none of these ratings capture."
             )
 

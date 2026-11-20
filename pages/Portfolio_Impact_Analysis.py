@@ -7,7 +7,7 @@ be compared to other results, and what is defensible to report. It
 records nothing to shared/handoff.py, carries no module_key, and is
 deliberately not a numbered page, so it needs no entry in
 shared/catalog.py (see shared/tests/test_catalog.py, which only requires
-a catalog entry for numbered pages). Explore Real Data, Method Selection,
+a catalog entry for numbered pages). Explore Data, Method Selection,
 and the other Research Journeys already establish this "not a workflow"
 pattern.
 
@@ -466,7 +466,7 @@ flagged, not blocked.
 No step issues an automated decision. Each states what the evidence
 supports; the judgment stays with you.
 
-Sample data below is synthetic (no real grantees). It follows the same
+Sample data below is synthetic (the grantees are fictional). It follows the same
 row-per-indicator shape as a typical grant-management or MEL export, and
 the workflow generalizes across domains such as health, education,
 workforce development, environment, or any portfolio that reports

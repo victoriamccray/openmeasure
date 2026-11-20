@@ -119,7 +119,7 @@ JOURNEYS: tuple[ResearchJourney, ...] = (
         domain="Multi-Modal Health Imaging",
         subdomain="Neurocognitive",
         summary=(
-            "How separate imaging and behavioral modalities in a real "
+            "How separate imaging and behavioral modalities in a published "
             "multimodal neuroimaging dataset (GRAND) are quality-checked "
             "on their own before being combined into evidence about a "
             "research question."
@@ -142,7 +142,7 @@ JOURNEYS: tuple[ResearchJourney, ...] = (
         domain="Social Impact Evaluation",
         subdomain="School-based violence prevention",
         summary=(
-            "How a real cluster randomized trial was designed and "
+            "How a cluster randomized trial was designed and "
             "measured, and where its public artifacts stop: the baseline "
             "microdata are open and the reported effect cannot be "
             "recomputed from them."
@@ -168,7 +168,7 @@ JOURNEYS: tuple[ResearchJourney, ...] = (
         summary=(
             "When a more efficient model is appropriate to replace a "
             "larger one, once energy use, CO2, and size are weighed "
-            "alongside predictive performance, using a real "
+            "alongside predictive performance, using a published "
             "knowledge-distillation study (GAIA) as the worked example."
         ),
         page="pages/GAIA_Worked_Example.py",

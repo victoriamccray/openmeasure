@@ -56,7 +56,7 @@ STAGE_REFLECT = 5
 JOURNEY_STAGES = (
     "Research question",
     "Understand measurement",
-    "Real evidence",
+    "Published evidence",
     "Explore the decision",
     "System consequences",
     "Reflect",
@@ -251,7 +251,7 @@ WORKSPACE = StageWorkspace(
     stages=(
         Stage("question", "Question"),
         Stage("measurement", "Measurement"),
-        Stage("evidence", "Real Evidence"),
+        Stage("evidence", "Published Evidence"),
         Stage("decision", "The Decision"),
         Stage("consequences", "Consequences"),
         Stage("reflect", "Reflect"),
@@ -387,7 +387,7 @@ if stage == STAGE_UNDERSTAND_MEASUREMENT:
         st.markdown(_paired_measurement_svg(82, "hypoxemic"), unsafe_allow_html=True)
 
     st.caption(
-        "A static illustration, not a real patient record. The device "
+        "A static illustration, not a patient record. The device "
         "reading (94%) is the same in both cases; only the reference "
         "measurement changes. Hover either icon for detail."
     )
@@ -408,7 +408,7 @@ if stage == STAGE_UNDERSTAND_MEASUREMENT:
 
 if stage == STAGE_REAL_EVIDENCE:
     section_header(
-        "Real Evidence",
+        "Published Evidence",
         "Published occult-hypoxemia rates, exactly as reported",
     )
 
@@ -448,7 +448,7 @@ if stage == STAGE_REAL_EVIDENCE:
         "back below 88%, despite the device reading 92-96%. It is the "
         "outcome this whole page is built around, because it is measured "
         "directly from blood, not inferred, so a longer bar means the "
-        "device missed a real, clinically important low-oxygen reading "
+        "device missed a clinically important low-oxygen reading "
         "more often for that group."
     )
 
@@ -491,17 +491,17 @@ if stage == STAGE_EXPLORE_DECISION:
     st.warning(
         "**Illustrative simulation, not study participant data.** This "
         "stage tests a general property of decision rules, not a new "
-        "empirical claim about real patients: it demonstrates the same "
+        "empirical claim about patients: it demonstrates the same "
         "detection-versus-false-alarm tradeoff named in the Reflect stage "
         "below (Kleinberg, Mullainathan, & Raghavan, 2017; Chouldechova, "
         "2017), applied to a population calibrated to the rates you just "
         "saw. That tradeoff is a mathematical property of any decision "
         "rule facing groups with different underlying rates, so the "
         "result holds regardless of whether the specific patients "
-        "demonstrating it are real."
+        "demonstrating it are simulated or observed."
     )
 
-    with st.expander("Could this be run on real patient-level data instead?"):
+    with st.expander("Could this be run on recorded patient-level data instead?"):
         st.write(
             "Yes, in principle. Sjoding et al.'s multicenter cohort draws "
             "on the eICU Collaborative Research Database, and the related "
@@ -516,7 +516,7 @@ if stage == STAGE_EXPLORE_DECISION:
             "pulse-oximetry bias; a data use agreement and IRB or "
             "not-human-subjects determination are typically expected "
             "before analysis. To run this page's threshold analysis on "
-            "real records, a credentialed user would need one row per "
+            "recorded patient data, a credentialed user would need one row per "
             "patient-measurement with three columns: SpO2 (the "
             "pulse-oximeter reading), a paired SaO2 (the arterial "
             "blood-gas reading, used to derive the true-hypoxemia label "
@@ -530,7 +530,7 @@ if stage == STAGE_EXPLORE_DECISION:
 
     st.caption(
         f"Simulating: **{COHORT_LABELS[cohort_choice]}** (the cohort "
-        "chosen in Real Evidence)."
+        "chosen in Published Evidence)."
     )
     sim_cohort_id = cohort_choice
 

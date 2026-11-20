@@ -193,7 +193,7 @@ class TestWastewaterSourceIsTheActualNetwork(unittest.TestCase):
 
 class TestDoesNotLeakIntoValidationLifecycle(unittest.TestCase):
     """
-    Explore Real Data must never look like a validation workflow.
+    Explore Data must never look like a validation workflow.
 
     A dataset gaining a module_key or a lifecycle stage would let it appear
     on the overview's progress cards or stage strip, which would misstate

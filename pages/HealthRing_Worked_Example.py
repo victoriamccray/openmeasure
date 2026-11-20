@@ -7,7 +7,7 @@ shared/handoff.py, carries no module_key, and is deliberately not a
 numbered page, so it needs no entry in shared/catalog.py (see
 shared/tests/test_catalog.py, which only requires a catalog entry for
 numbered pages) and cannot appear on the overview's progress cards or
-stage strip. Explore Real Data and Method Selection are the existing
+stage strip. Explore Data and Method Selection are the existing
 pages that already establish this "not a workflow" pattern.
 
 Archive I/O lives here, not in modules/healthring/core/, because core is
@@ -1017,15 +1017,15 @@ if stage == STAGE_RESEARCH_QUESTION:
     section_header("Research Question")
 
     st.markdown(
-        "### Can We Trust Ring-Derived Heart Rate Across Real-World Conditions?"
+        "### Can We Trust Ring-Derived Heart Rate Across Activity Conditions?"
     )
 
     st.write(
         "A wearable ring reports a heart-rate number with no error bars "
-        "attached. This page runs a real validation of one ring's heart-rate "
-        "estimate against a reference device, across real activity "
-        "conditions. It uses real data, not a demonstration built to make a "
-        "model look good, and it explains each term as it comes up."
+        "attached. This page validates one ring's heart-rate estimate "
+        "against a reference device, across recorded activity conditions. "
+        "It uses recorded data from the HealthRing dataset and explains "
+        "each term as it comes up."
     )
 
     rq_col1, rq_col2 = st.columns(2)
@@ -1143,7 +1143,7 @@ does not include HRV, so it is not analyzed on this page.
     components.html(_measurement_legend_html(), height=90)
     st.caption(
         "Original, static icons standing in for the vocabulary above and "
-        "its real unit or scale, not a real recorded waveform or a "
+        "its unit or scale, not a recorded waveform or a "
         "device's actual display."
     )
 
@@ -1170,7 +1170,7 @@ The pipeline behind `hr` and the quality score generally looks like:
 Filtering here means reducing unwanted parts of the signal, such as slow
 drift or high-frequency noise. Filtering does not delete observations;
 it reshapes the signal that is still there. A filter tuned to remove
-noise can also remove real, useful signal if it is too aggressive.
+noise can also remove useful signal if it is too aggressive.
 
 That is a different operation from a decision later on this page:
 choosing a minimum signal-quality threshold to decide which whole
@@ -1417,14 +1417,14 @@ Each measurement window in this dataset carries:
 if stage == STAGE_SIGNAL_INSPECTION:
     section_header(
         "Signal Inspection",
-        "Walk through one real measurement window end to end",
+        "Walk through one recorded measurement window end to end",
     )
 
     st.write(
-        "This stage follows one real window from activity, to movement, "
+        "This stage follows one recorded window from activity, to movement, "
         "to the PPG signal, to the ring's own signal-quality score, to "
         "the HR estimate, to the error against reference HR. Everything "
-        "shown here is real HealthRing data for the participant and "
+        "shown here is recorded HealthRing data for the participant and "
         "window you pick, not a simulated waveform."
     )
 
@@ -1438,7 +1438,7 @@ if stage == STAGE_SIGNAL_INSPECTION:
         # waveform charts need the archive, and the renderer says so
         # where they would have been.
         st.caption(
-            "One real measurement window at a time: what the participant "
+            "One recorded measurement window at a time: what the participant "
             "was doing, how good the signal was, what the ring estimated, "
             "what the reference measured, and only then the error between "
             "them. Loading the original archive adds the PPG and "
@@ -2360,7 +2360,7 @@ beyond this dataset.
             ":material/radio_button_unchecked:",
             "gray",
             "This page has no battery-life, comfort, or "
-            "real-world-deployment data to draw on.",
+            "field-deployment data to draw on.",
         ),
     )
 

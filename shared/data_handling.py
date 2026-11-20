@@ -302,11 +302,11 @@ DISCLOSURES: tuple[DataHandlingDisclosure, ...] = (
         processing=(PROCESSING_IN_MEMORY,),
         persistent_storage=PERSISTENT_STORAGE_NONE,
         data_accessed=(
-            "No dataset file of any kind, real or bundled. The evidence "
+            "No dataset file of any kind, downloaded or bundled. The evidence "
             "stage shows only published aggregate rates, hardcoded from "
             "Sjoding et al. (2020); the interactive threshold stage "
             "generates a synthetic patient-level cohort in memory at "
-            "runtime, calibrated to those rates - never real patient data."
+            "runtime, calibrated to those rates, and made up entirely of synthetic patients."
         ),
         redistribution=REDISTRIBUTION_NOT_APPLICABLE,
         notes=(
@@ -325,16 +325,16 @@ DISCLOSURES: tuple[DataHandlingDisclosure, ...] = (
         persistent_storage=PERSISTENT_STORAGE_NONE,
         data_accessed=(
             "Bundled sample_data/modality_profiles.csv (illustrative "
-            "ratings, no real data) plus "
-            "sample_data/ds005420_sub-5_O1_eyes_snippet.csv, a real, "
-            "small, single-subject/single-channel EEG excerpt; no user "
+            "ratings, no measured data) plus "
+            "sample_data/ds005420_sub-5_O1_eyes_snippet.csv, a small, "
+            "recorded, single-subject/single-channel EEG excerpt from a public dataset; no user "
             "data of any kind."
         ),
         redistribution=REDISTRIBUTION_BUNDLED,
         notes=(
             "Unlike modality_profiles.csv, whose ratings are illustrative "
             "and author-assigned, ds005420_sub-5_O1_eyes_snippet.csv is a "
-            "real excerpt (15 seconds per condition, one subject, one "
+            "recorded, unmodified excerpt (15 seconds per condition, one subject, one "
             "channel) of OpenNeuro ds005420 (Sánchez Gama et al., 2024), "
             "CC0-licensed and redistributed here in full compliance with "
             "that license."

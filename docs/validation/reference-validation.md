@@ -96,7 +96,7 @@ Datasets (also defined in `scripts/validation/reliability_reference.py`):
 
 Datasets A and B are qualitatively unremarkable (moderate-to-high,
 well-behaved alpha). The next five are deliberately constructed to probe
-specific statistical behavior rather than to look like a plausible real
+specific statistical behavior rather than to look like a plausible observed
 scale, so that any discrepancy is interpretable against the property
 being tested:
 

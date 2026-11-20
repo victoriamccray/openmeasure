@@ -28,7 +28,7 @@ A weighted score is one way to combine two incommensurable quantities into a sin
 
 ## The GAIA worked example
 
-`pages/GAIA_Worked_Example.py` uses this module with real (and, in two places, real-but-approximated) data from:
+`pages/GAIA_Worked_Example.py` uses this module with published (and, in two places, published-but-approximated) data from:
 
 > Jallais, M., Mancini, M., & Palombo, M. (2026). *GAIA - Green Artificial Intelligence for Accelerated medical imaging: Sustainable and Efficient Diffusion MRI Analysis.* Research output, Cardiff University Brain Research Imaging Centre (CUBRIC). https://doi.org/10.13140/RG.2.2.15336.12807 - an early-stage research output (e.g. a conference abstract), not confirmed as peer-reviewed.
 
@@ -45,7 +45,7 @@ GAIA compares three 3D U-Nets on predicting high-b-value diffusion MRI signals f
 1. Which models are Pareto-efficient (`compute_frontier`), and which are strictly dominated.
 2. Which model a chosen performance/resource weighting favors (`rank_by_preference`), with the weight itself always shown alongside.
 3. A deployment-scale projection of an already-known per-unit resource difference.
-4. A worked example (GAIA) demonstrating all of the above with a real study, explicit about which of its numbers are exact and which are estimated.
+4. A worked example (GAIA) demonstrating all of the above with a published study, explicit about which of its numbers are exact and which are estimated.
 
 ```
 modules/

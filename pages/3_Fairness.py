@@ -946,7 +946,7 @@ else:
                         "same numbers as the table above, in one column). "
                         "It exists to compare every group in the data at "
                         "once, not just the two selected in Result above - "
-                        "a real dataset can have more than two groups, and "
+                        "a dataset can have more than two groups, and "
                         "a pairwise comparison alone can miss a group with "
                         "a strikingly different rate."
                     )
@@ -965,7 +965,7 @@ else:
   the current calculation.
 - It does not show whether labels are valid, unbiased, or measured
   consistently across groups.
-- It does not determine which fairness metric should govern a real
+- It does not determine which fairness metric should govern a
   decision without considering the application and affected communities.
 """
                 )

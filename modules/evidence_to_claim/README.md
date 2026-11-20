@@ -32,7 +32,7 @@ Program validation (Impact Evaluation) asks whether an observed change is attrib
 - **Examine limitations** - flag every failed validation check, plus a method-bias check (all evidence sharing one collection method) that validation alone does not cover.
 - **Portfolio context** - compare one grantee's indicator value against the rest of a portfolio (median, quartiles, Tukey fences), and flag indicators reported in incompatible units across grantees.
 - **Evidence record** - a leadership-ready summary sentence plus a full technical-detail record.
-- Accepts evidence and indicators in a row-per-observation shape close to what a grant-management or MEL system export looks like, so real data can be substituted using the same columns. v0.1 ships with a small synthetic portfolio; see `sample_data/`.
+- Accepts evidence and indicators in a row-per-observation shape close to what a grant-management or MEL system export looks like, so a program's own data can be substituted using the same columns. v0.1 ships with a small synthetic portfolio; see `sample_data/`.
 
 ## Bringing your own data
 
@@ -43,7 +43,7 @@ Two CSVs can be uploaded in place of the bundled sample data (see `sample_data/`
 
 ## Relationship to Evidence Review
 
-`pages/6_Evidence_Review.py` can preview this module's Nesta grading directly on its own screened-in literature, once at least one result is marked Include. That preview builds a `ClaimDraft` and `EvidenceItem`(s) using this module's own `core/` functions, but `indicator_id`, `program_id`, and `level` are arbitrary stand-in values, stated as such on the page, because Evidence Review has no portfolio or indicator taxonomy of its own. It is a preview of what the grading would show, not a substitute for assembling real evidence here with a real indicator and program.
+`pages/6_Evidence_Review.py` can preview this module's Nesta grading directly on its own screened-in literature, once at least one result is marked Include. That preview builds a `ClaimDraft` and `EvidenceItem`(s) using this module's own `core/` functions, but `indicator_id`, `program_id`, and `level` are arbitrary stand-in values, stated as such on the page, because Evidence Review has no portfolio or indicator taxonomy of its own. It is a preview of what the grading would show, not a substitute for assembling your own evidence here with your own indicator and program.
 
 ## Non-goals for v0.1
 

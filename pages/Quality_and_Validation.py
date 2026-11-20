@@ -195,7 +195,7 @@ with st.container(border=True):
             "1-item scale. OpenMeasure reports this case as "
             "unavailable rather than showing a number. The comparison "
             "software returned a number for the same case, but that "
-            "number was not internally consistent with a real "
+            "number was not internally consistent with a well-defined "
             "reliability coefficient, and the same software errors "
             "when asked to evaluate a genuine 1-item scale directly. "
             "OpenMeasure kept its unavailable result, because a "

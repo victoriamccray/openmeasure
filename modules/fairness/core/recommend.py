@@ -230,7 +230,7 @@ FAIRNESS_GOALS = {
                 relevance=(
                     "Risk scores used to inform decisions raise this "
                     "concern, since the same score implying different "
-                    "real-world risk across groups would undermine what "
+                    "observed risk across groups would undermine what "
                     "the score is supposed to mean."
                 ),
             ),

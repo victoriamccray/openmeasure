@@ -1,8 +1,8 @@
 # Simulated pyfMRIqc example outputs
 
-These six PNGs are `pyfMRIqc`'s own generated output, run locally on `pyfMRIqc`'s own bundled *simulated* example files (motion artifact, local signal loss, global intensity loss). They are bundled here because, unlike the real fMRI Open QC Project subject data this journey also reads (never bundled, read from a local path you provide), these come from synthetic, purpose-built demonstration signals that ship with `pyfMRIqc` itself for exactly this reason.
+These six PNGs are `pyfMRIqc`'s own generated output, run locally on `pyfMRIqc`'s own bundled *simulated* example files (motion artifact, local signal loss, global intensity loss). They are bundled here because, unlike the recorded fMRI Open QC Project subject data this journey also reads (never bundled, read from a local path you provide), these come from synthetic, purpose-built demonstration signals that ship with `pyfMRIqc` itself for exactly this reason.
 
-No real research participant data appears in these images.
+No recorded research participant data appears in these images.
 
 ## Provenance
 

@@ -483,7 +483,7 @@ class TestFrontDoorReverseLinks(unittest.TestCase):
 class TestCrossAnalysisWhatThisMeans(unittest.TestCase):
     """
     The "What this means" section is Interpretation -> Implications ->
-    Real-world takeaway (Interpretation/Implications via shared/report.py's
+    Practical takeaway (Interpretation/Implications via shared/report.py's
     interpretation_note()/implications(), consistent with every other
     page's guidance labels, rather than this page's own former "Observation"
     / "Why it matters" headings). This covers that the labels and the
@@ -513,7 +513,7 @@ class TestCrossAnalysisWhatThisMeans(unittest.TestCase):
     def _run_cross_analysis_page(self, store: dict) -> AppTest:
         # Cross-Analysis Implications now calls st.page_link via the
         # lifecycle tracker, so it needs the navigation Home.py declares,
-        # the same reason Overview and Explore Real Data already do.
+        # the same reason Overview and Explore Data already do.
         app = AppTest.from_file(
             str(ENTRYPOINT), default_timeout=LOAD_TIMEOUT_SECONDS
         )
@@ -532,7 +532,7 @@ class TestCrossAnalysisWhatThisMeans(unittest.TestCase):
         rendered = " ".join(str(item.value) for item in app.markdown)
         self.assertIn("Interpretation", rendered)
         self.assertIn("Implications", rendered)
-        self.assertIn("Real-world takeaway", rendered)
+        self.assertIn("Practical takeaway", rendered)
 
         infos = " ".join(str(item.value) for item in app.info)
         self.assertIn("165", infos)  # from REAL_WORLD_TAKEAWAY
@@ -633,7 +633,7 @@ class TestCrossAnalysisOtherRecordedSignals(unittest.TestCase):
 
 class TestExploreRealDataPage(unittest.TestCase):
     """
-    Explore Real Data calls st.page_link and so needs navigation context,
+    Explore Data calls st.page_link and so needs navigation context,
     the same reason every page is now driven through the entrypoint above
     rather than run as a standalone script.
     """
@@ -646,7 +646,7 @@ class TestExploreRealDataPage(unittest.TestCase):
 
         self.assertFalse(
             app.exception,
-            "Explore Real Data raised on load.",
+            "Explore Data raised on load.",
         )
 
         return app
@@ -655,7 +655,7 @@ class TestExploreRealDataPage(unittest.TestCase):
         app = self._run_explore_page()
 
         self.assertIn(
-            "Explore Real Data",
+            "Explore Data",
             [str(item.value) for item in app.title],
         )
 
