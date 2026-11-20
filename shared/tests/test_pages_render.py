@@ -479,6 +479,25 @@ class TestFrontDoorReverseLinks(unittest.TestCase):
         links = [link for link in app.get("page_link") if link.page == "Method_Selection"]
         self.assertEqual(len(links), 1)
 
+    def test_research_journeys_links_to_become_the_signal(self):
+        # The 3D experience is hosted outside the app, so it is a link
+        # button to its published address rather than a page link.
+        app = AppTest.from_file(
+            str(ENTRYPOINT), default_timeout=LOAD_TIMEOUT_SECONDS
+        )
+        app.run()
+        app.switch_page("pages/Research_Journeys.py")
+        app.run()
+
+        self.assertFalse(app.exception)
+
+        buttons = [b for b in app.get("link_button") if "Become the Signal" in str(b.proto.label)]
+        self.assertEqual(len(buttons), 1)
+        self.assertEqual(
+            buttons[0].proto.url,
+            "https://victoriamccray.github.io/openmeasure/become-the-signal/",
+        )
+
 
 class TestCrossAnalysisWhatThisMeans(unittest.TestCase):
     """
