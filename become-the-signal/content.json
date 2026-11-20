@@ -1,6 +1,6 @@
 {
  "title": "Become the Signal",
- "subtitle": "EEG: From Signal to Inference. One real brain signal travels through a neurotechnology system.",
+ "subtitle": "EEG: From Signal to Inference. One EEG recording from a public dataset travels through a neurotechnology system.",
  "audience": "For interdisciplinary students and early-career researchers. Each term is defined where it first appears. About five minutes.",
  "beginning": "You are a recording of brain activity from a public EEG dataset. EEG, short for electroencephalography, measures the brain's electrical activity through electrodes on the scalp. Over seven stages you are measured, transformed, labelled, requested, and acted on. At each stage your form changes, and so does the set of people and systems able to read you.",
  "takeaway": "As biological information becomes digital data, its capabilities and risks change. Protecting agency requires understanding the entire information pathway.",
