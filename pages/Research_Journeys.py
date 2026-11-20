@@ -33,15 +33,15 @@ st.set_page_config(
 
 st.title("Research Journeys")
 st.caption(
-    "Guided worked examples of what a real dataset supports, grouped by "
-    "field. Pick a domain, then a journey."
+    "Explore research questions through data, interactive experiences, "
+    "and evidence."
 )
 
 st.markdown(
     """
-Each journey walks a real (or, where marked, illustrative) dataset
-through a validation question none of OpenMeasure's numbered workflows
-cover on their own: what a dataset's evidence can and cannot support.
+Follow information from measurement to interpretation, investigate
+methodological decisions, and discover how those choices shape what we
+can conclude.
 """
 )
 
