@@ -2,7 +2,8 @@
 
 A transparent research-validation environment that helps researchers decide what checks are appropriate, run them reproducibly, understand what the results permit them to conclude, and preserve the reasoning behind those decisions.
 
-[![Live Demo](https://img.shields.io/badge/Live-Demo-64748B?style=flat)](https://openmeasure.streamlit.app)
+[![Live Demo](https://img.shields.io/badge/Live-Demo-64748B?style=flat)](https://victoriamccray.github.io/openmeasure/app.html)
+[![Become the Signal](https://img.shields.io/badge/Become_the_Signal-Experience-64748B?style=flat)](https://victoriamccray.github.io/openmeasure/become-the-signal/)
 [![GitHub](https://img.shields.io/badge/GitHub-Repository-64748B?style=flat&logo=github&logoColor=white)](https://github.com/victoriamccray/openmeasure)
 
 Those four things are the whole design, and each is somewhere specific in the repository.
@@ -226,7 +227,15 @@ connect further findings across the research workflow.
 
 ## Interface
 
-Visit the live application: https://openmeasure.streamlit.app
+Visit the live application: https://victoriamccray.github.io/openmeasure/app.html
+
+The application runs in the browser from GitHub Pages. The same application also runs on Streamlit Community Cloud at https://openmeasure.streamlit.app.
+
+### Become the Signal
+
+https://victoriamccray.github.io/openmeasure/become-the-signal/
+
+An interactive 3D journey through a neurotechnology system, told from the point of view of one EEG recording from a public dataset (OpenNeuro ds005420). The recording passes through seven stages, from signal to sensor, features, inference, an access decision, action, and feedback. Learners choose safeguards and see what each protects and leaves exposed, and every copy made of the recording stays on the map. Every number is computed by `modules/signal_pipeline/core` and exported by `scripts/build_become_the_signal_data.py`. The source is in `experiences/become-the-signal/`, and the page includes a text view.
 
 ### Home
 
