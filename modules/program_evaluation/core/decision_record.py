@@ -29,6 +29,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from shared.decision_record import (  # noqa: E402
+    ORIGIN_RESEARCHER,
     ORIGIN_SUGGESTION_ACCEPTED,
     STATUS_HELD_BY_DESIGN,
     STATUS_NOT_CHECKED,
@@ -153,6 +154,7 @@ def build_decision_record(
     software_version: str,
     generated_at: str,
     researcher_choices: tuple[ResearcherChoice, ...] = (),
+    question: Question | None = None,
 ) -> DecisionRecord:
     """
     Build the Decision Record for one Impact Evaluation analysis.
@@ -161,6 +163,10 @@ def build_decision_record(
     ``_col`` name the columns the analysis used. ``researcher_choices``
     comes from the caller because only the page knows whether a column
     was picked by the researcher or left at the page's suggestion.
+
+    ``question`` is the researcher's own, from evaluation_question(). When
+    it is None, the record states the question the chosen analysis
+    answers, with no origin, since nobody stated it.
 
     Raises ValueError for a method that is not mapped yet, and TypeError
     when the result does not belong to the recommended method.
@@ -186,7 +192,7 @@ def build_decision_record(
             f"methods: {', '.join(MAPPED_METHODS)}."
         )
 
-    question, method_record, assumptions, result_record, supports, does_not, alternatives, extra = parts
+    implied_question, method_record, assumptions, result_record, supports, does_not, alternatives, extra = parts
 
     handling = DataHandling(
         evidence_label=dataset.label,
@@ -210,7 +216,7 @@ def build_decision_record(
 
     return DecisionRecord(
         record_id=record_id,
-        question=question,
+        question=question if question is not None else implied_question,
         evidence=(dataset,),
         decision=Decision(
             statement=f"Analyze with {recommendation.display_name}.",
@@ -236,6 +242,35 @@ def build_decision_record(
         ),
         unplaced=unplaced,
     )
+
+
+# The Evaluation Question stage's fields, in the order the stage asks
+# for them and with its own labels.
+_QUESTION_FIELDS = (
+    ("program", "Program or intervention"),
+    ("population", "Population"),
+    ("outcome", "Outcome"),
+    ("comparison", "Comparison"),
+    ("timing", "Timing"),
+)
+
+
+def evaluation_question(entered: Mapping[str, str]) -> Question | None:
+    """
+    The researcher's evaluation question, as they entered it.
+
+    Joined field by field with the stage's own labels rather than
+    rewritten into a sentence, so the record never words the question
+    differently from how the researcher did. Returns None when nothing
+    was entered.
+    """
+    values = {key: str(entered.get(key) or "").strip().rstrip(".") for key, _ in _QUESTION_FIELDS}
+    parts = [f"{label}: {values[key]}" for key, label in _QUESTION_FIELDS if values[key]]
+
+    if not parts:
+        return None
+
+    return Question(text=". ".join(parts) + ".", origin=ORIGIN_RESEARCHER)
 
 
 def _columns_used(columns: Mapping[str, str]) -> tuple[str, ...]:
@@ -355,9 +390,9 @@ def _two_group_parts(result: TwoGroupResult, columns: Mapping[str, str]):
         )
 
     does_not_support = (
-        "That the program caused the difference. Whether a difference can "
-        "be attributed to the program depends on the study design, not on "
-        "the p-value.",
+        "A causal claim about the program. Whether a difference, or the "
+        "lack of one, can be attributed to the program depends on the "
+        "study design, not on the p-value.",
         f"A claim about the groups at any other time. The outcome, "
         f"{outcome}, was measured once.",
     )

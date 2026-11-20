@@ -7,6 +7,7 @@ user confirm or override before running it. Core logic lives in
 modules/program_evaluation/core, this file is presentation only.
 """
 
+import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -25,6 +26,7 @@ from modules.data_profile.core.suggest import (
     default_prepost_columns,
 )
 from modules.program_evaluation.core import comparison as comp
+from modules.program_evaluation.core import decision_record as pe_record
 from modules.program_evaluation.core import designs
 from modules.program_evaluation.core import did as did_core
 from modules.program_evaluation.core import domains
@@ -46,6 +48,7 @@ from shared.handoff import (
     RetentionItem,
     fingerprint_dataframe,
 )
+from shared.decision_record import EvidenceItem, Fingerprint, to_markdown
 from shared.data_handling import disclosure_for, render_data_handling_summary
 from shared.stage_workspace import Gate, Stage, StageWorkspace
 from shared import literature
@@ -918,6 +921,94 @@ def render_did_interpretation(result) -> None:
             st.write(f"- {item}")
 
 
+@st.cache_resource
+def software_version() -> str:
+    """
+    The commit this app is running, for a Decision Record's provenance.
+
+    OpenMeasure has no release version, so the commit is the most precise
+    identifier there is. Cached for the process: the running code does not
+    change without a restart.
+    """
+    import subprocess
+
+    try:
+        completed = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "unrecorded (no git checkout found)"
+
+    commit = completed.stdout.strip()
+    return commit if completed.returncode == 0 and commit else "unrecorded (no git checkout found)"
+
+
+def record_dataset_evidence(frame, source_name: str, is_sample: bool) -> EvidenceItem:
+    """
+    The analyzed dataset as Decision Record evidence.
+
+    Holds the fingerprint, not the rows. Neither an upload nor the bundled
+    sample documents whether its data are real, so both say "unknown"
+    rather than OpenMeasure guessing.
+    """
+    fingerprint = fingerprint_dataframe(frame, source_name)
+
+    return EvidenceItem(
+        kind="dataset",
+        label=source_name,
+        status="unknown",
+        description=(
+            "OpenMeasure's bundled example dataset. Its origin is not documented."
+            if is_sample
+            else "Uploaded by the researcher. OpenMeasure cannot tell whether it is real or synthetic."
+        ),
+        fingerprint=Fingerprint(
+            algorithm=(
+                "sha256 over pandas row hashes, column names, and dtypes, "
+                "first 12 hex characters"
+            ),
+            digest=fingerprint.digest,
+            n_rows=fingerprint.n_rows,
+            n_columns=fingerprint.n_columns,
+            columns=fingerprint.column_names,
+        ),
+    )
+
+
+def render_decision_record(inputs, result, entered_question) -> None:
+    """
+    The Decision Record for the analysis that was run, readable and as JSON.
+
+    Both come from one DecisionRecord object, so the download is exactly
+    what is on screen. The caller shows it only for the methods in
+    pe_record.MAPPED_METHODS; build_decision_record raises for any other.
+    """
+    record = pe_record.build_decision_record(
+        record_id=inputs["record_id"],
+        result=result,
+        recommendation=inputs["recommendation"],
+        columns=inputs["context"],
+        dataset=inputs["dataset"],
+        software_version=software_version(),
+        generated_at=inputs["analyzed_at"],
+        question=pe_record.evaluation_question(entered_question),
+    )
+
+    with st.container(border=True):
+        st.markdown(to_markdown(record))
+
+    st.download_button(
+        "Download the record as JSON",
+        data=json.dumps(record.to_dict(), indent=2),
+        file_name=f"{inputs['record_id']}.json",
+        mime="application/json",
+    )
+
+
 def record_comparison(frame, source_name, analysis_context, recommendation, result) -> None:
     """
     Record this analysis for the Cross-Analysis Implications page.
@@ -1537,6 +1628,7 @@ if stage == STAGE_ANALYZE:
                 "pe_result",
                 "pe_method",
                 "pe_uploaded_file_id",
+                "pe_record_inputs",
             )
             if st.session_state.pop(slot, None) is not None
         ]
@@ -1566,6 +1658,7 @@ if stage == STAGE_ANALYZE:
         # dataset's heading.
         st.session_state.pop("pe_result", None)
         st.session_state.pop("pe_method", None)
+        st.session_state.pop("pe_record_inputs", None)
 
     # The portrait leads, then the values, then the detail. A row count and
     # five rows of raw values were the focal point here, and neither says
@@ -2157,6 +2250,34 @@ if stage == STAGE_ANALYZE:
                     # the page.
                     workspace.publish("pe_method", method)
                     workspace.publish("pe_result", result)
+
+                    # What the Decision Record needs beyond the result,
+                    # held with it because the interpretation stage has
+                    # neither the rows nor a guarantee that the stored
+                    # recommendation still matches this result. Written
+                    # once per analysis, not on every rerun, so the
+                    # record's time and identifier stay put while the
+                    # reader works through the page.
+                    analysis_key = (
+                        loaded.token,
+                        method,
+                        tuple(sorted((str(k), str(v)) for k, v in context.items())),
+                    )
+                    held = st.session_state.get("pe_record_inputs")
+                    if held is None or held["key"] != analysis_key:
+                        dataset = record_dataset_evidence(df, loaded.name, loaded.is_sample)
+                        analyzed_at = datetime.now(timezone.utc)
+                        st.session_state["pe_record_inputs"] = {
+                            "key": analysis_key,
+                            "recommendation": recommendation,
+                            "context": dict(context),
+                            "dataset": dataset,
+                            "analyzed_at": analyzed_at.isoformat(timespec="seconds"),
+                            "record_id": (
+                                f"impact-evaluation-{dataset.fingerprint.digest[:8]}-"
+                                f"{analyzed_at.strftime('%Y%m%dT%H%M%SZ')}"
+                            ),
+                        }
             except (ValueError, TypeError) as e:
                 st.error(str(e))
 
@@ -2201,6 +2322,23 @@ if stage == STAGE_INTERPRET:
             "These are properties of the design, not of the numbers. A "
             "smaller p-value does not retire any of them."
         )
+
+    # Its own section, after the interpretation and apart from the
+    # analysis results, because it documents the analysis rather than
+    # adding to it.
+    # Only for the methods the record is mapped for. The others get no
+    # section at all, rather than a record with parts missing.
+    record_inputs = st.session_state.get("pe_record_inputs")
+    if (
+        record_inputs is not None
+        and result is not None
+        and record_inputs["recommendation"].method in pe_record.MAPPED_METHODS
+    ):
+        section_header(
+            "Decision Record",
+            "The question, method, result, and limits of this analysis, as one record",
+        )
+        render_decision_record(record_inputs, result, entered)
 
 
 workspace.render_navigation()

@@ -39,6 +39,7 @@ from shared.decision_record import (  # noqa: E402
     Result,
     RetentionEntry,
     Software,
+    to_markdown,
 )
 
 SCHEMA_DIR = ROOT / "docs" / "decision-record"
@@ -196,6 +197,52 @@ class TestConstructionRules(unittest.TestCase):
     def test_unknown_origin_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "origin 'automatic'"):
             Decision(statement="Compare two groups.", origin="automatic")
+
+
+class TestMarkdown(unittest.TestCase):
+    def test_every_section_appears_in_schema_order(self):
+        text = to_markdown(minimal_record())
+        headings = [line[5:] for line in text.splitlines() if line.startswith("#### ")]
+
+        self.assertEqual(
+            headings,
+            [
+                "Question",
+                "Evidence",
+                "Decision",
+                "Method",
+                "Assumptions",
+                "Result",
+                "Supports",
+                "Does Not Support",
+                "Provenance",
+            ],
+        )
+
+    def test_claims_and_counts_are_carried_over(self):
+        text = to_markdown(minimal_record())
+
+        self.assertIn("- The groups differed on this outcome.", text)
+        self.assertIn("- That the program caused the difference.", text)
+        self.assertIn("6 of 7 rows used", text)
+        self.assertIn("Difference in means: 3", text)
+
+    def test_empty_lists_say_none_recorded(self):
+        text = to_markdown(minimal_record())
+        assumptions = text.split("#### Assumptions")[1].split("####")[0]
+
+        self.assertIn("None recorded.", assumptions)
+
+    def test_question_without_origin_says_it_was_implied(self):
+        self.assertIn("not stated by the researcher", to_markdown(minimal_record()))
+
+    def test_dollar_signs_are_escaped_so_they_do_not_render_as_math(self):
+        record = minimal_record(question=Question(text="Did cost_$ fall by $5?"))
+
+        self.assertIn("cost\_\$ fall by \$5", to_markdown(record))
+
+    def test_unplaced_section_only_when_there_is_something_in_it(self):
+        self.assertNotIn("Recorded Outside the Schema", to_markdown(minimal_record()))
 
 
 if __name__ == "__main__":

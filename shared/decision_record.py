@@ -404,3 +404,182 @@ def _serialize(value: Any) -> Any:
     if hasattr(value, "item"):
         return value.item()
     raise TypeError(f"Cannot serialize a {type(value).__name__} into a Decision Record.")
+
+
+# -- the readable rendering ---------------------------------------------
+#
+# Built from the same DecisionRecord object as to_dict(), and from nothing
+# else, so the two representations cannot disagree: a page shows this text
+# and offers to_dict() as the download.
+
+_STATUS_LABELS = {
+    STATUS_HELD_BY_DESIGN: "Held by how the data are structured",
+    STATUS_CHECKED_CONSISTENT: "Checked, data consistent with it",
+    STATUS_CHECKED_INCONSISTENT: "Checked, data not consistent with it",
+    STATUS_CHECKED_INCONCLUSIVE: "Checked, inconclusive",
+    STATUS_NOT_TESTABLE: "Not testable with these data",
+    STATUS_REQUIRES_SETTING: "Answered by knowledge of the setting, not by these data",
+    STATUS_NOT_CHECKED: "Not checked",
+}
+
+_ORIGIN_LABELS = {
+    ORIGIN_RESEARCHER: "set by the researcher",
+    ORIGIN_DEFAULT: "software default, left in place",
+    ORIGIN_SUGGESTION_ACCEPTED: "suggested by the software, accepted by the researcher",
+    ORIGIN_FIXED_BY_METHOD: "fixed by the method",
+}
+
+NONE_RECORDED = "None recorded."
+
+# Characters markdown would read as formatting. "$" matters most: Streamlit
+# renders text between two of them as math, which would swallow a column
+# name like "cost_$".
+_MARKDOWN_SPECIALS = "\`*_$#|<>[]"
+
+
+def _md(text: object) -> str:
+    out = str(text)
+    for character in _MARKDOWN_SPECIALS:
+        out = out.replace(character, "\\" + character)
+    return out
+
+
+def _number(value: float | None) -> str:
+    if value is None:
+        return "not computed"
+    return f"{value:.4g}"
+
+
+def _bullets(lines: list[str]) -> list[str]:
+    return [f"- {line}" for line in lines] if lines else [NONE_RECORDED]
+
+
+def to_markdown(record: DecisionRecord) -> str:
+    """The record as readable markdown, section by section in schema order."""
+
+    sections: list[tuple[str, list[str]]] = []
+
+    question = _md(record.question.text)
+    if record.question.origin is not None:
+        question += f" *({_ORIGIN_LABELS[record.question.origin]})*"
+    else:
+        question += " *(implied by the analysis chosen; not stated by the researcher)*"
+    sections.append(("Question", [question]))
+
+    evidence = []
+    for item in record.evidence:
+        line = f"**{_md(item.label)}** ({item.kind}"
+        line += f", {item.status})" if item.status else ")"
+        if item.description:
+            line += f". {_md(item.description)}"
+        if item.fingerprint is not None:
+            line += f" Fingerprint `{item.fingerprint.digest}`."
+        evidence.append(line)
+    sections.append(("Evidence", _bullets(evidence)))
+
+    decision = [
+        f"{_md(record.decision.statement)} *({_ORIGIN_LABELS[record.decision.origin]})*",
+        "",
+        "Alternatives:",
+        "",
+    ] + _bullets(
+        [
+            f"**{_md(a.option)}**" + (f". {_md(a.tradeoff)}" if a.tradeoff else "")
+            for a in record.decision.alternatives
+        ]
+    )
+    sections.append(("Decision", decision))
+
+    method = [f"**{_md(record.method.name)}**"]
+    method += _bullets(
+        [f"{_md(name)}: {_md(value)}" for name, value in record.method.parameters.items()]
+    )
+    if record.method.citations:
+        method += [""] + [f"*{_md(citation)}*" for citation in record.method.citations]
+    sections.append(("Method", method))
+
+    assumptions = []
+    for a in record.assumptions:
+        line = f"**{_md(a.name)}** ({_STATUS_LABELS[a.status]}). {_md(a.statement)}"
+        if a.check:
+            line += f" Checked by: {_md(a.check)}"
+        if a.citation:
+            line += f" *{_md(a.citation)}*"
+        assumptions.append(line)
+    sections.append(("Assumptions", _bullets(assumptions)))
+
+    result = [_md(record.result.summary), ""]
+    for q in record.result.quantities:
+        line = f"{_md(q.name)}: {_number(q.value)}"
+        if q.unit:
+            line += f" {_md(q.unit)}"
+        if q.interval is not None:
+            line += (
+                f" ({q.interval.level:.0%} interval {_number(q.interval.low)} to "
+                f"{_number(q.interval.high)}, {_md(q.interval.method)})"
+            )
+        if q.n is not None:
+            line += f", n = {q.n}"
+        if q.value_note:
+            line += f". {_md(q.value_note)}"
+        result.append(f"- {line}")
+    for r in record.result.readings:
+        result.append(
+            f"- Reading of {_md(r.quantity)}: {_md(r.text)} "
+            f"*Convention: {_md(r.convention.name)}, {_md(r.convention.citation)}*"
+        )
+    if record.result.observations:
+        result += ["", "Observations:"] + _bullets([_md(o) for o in record.result.observations])
+    sections.append(("Result", result))
+
+    sections.append(("Supports", _bullets([_md(s) for s in record.supports])))
+    sections.append(("Does Not Support", _bullets([_md(s) for s in record.does_not_support])))
+
+    software = record.provenance.software
+    provenance = [
+        f"- Software: {_md(software.name)} {_md(software.version)}"
+        + (f", {_md(software.component)}" if software.component else ""),
+        f"- Generated: {_md(record.provenance.generated_at)}",
+    ]
+    for h in record.provenance.data_handling:
+        if h.n_retained_rows is not None:
+            used = f"{h.n_retained_rows} of {h.n_input_rows} rows used"
+        else:
+            used = f"{h.n_input_rows} rows expanded to {h.n_expanded_observations} observations"
+        line = f"- {_md(h.evidence_label)}: {used}"
+        if h.columns_used:
+            line += f", columns {', '.join(_md(c) for c in h.columns_used)}"
+        provenance.append(line)
+        for entry in h.retention:
+            provenance.append(
+                f"    - {_md(entry.label)}: {entry.count} ({entry.kind.replace('_', ' ')}, "
+                f"{_md(entry.mechanism)})"
+            )
+    choices = [
+        f"{_md(c.choice)}: {_md(c.value)} ({_ORIGIN_LABELS[c.origin]})"
+        for c in record.provenance.researcher_choices
+    ]
+    provenance += ["", "Researcher choices:", ""] + _bullets(choices)
+    sections.append(("Provenance", provenance))
+
+    if record.unplaced:
+        sections.append(
+            (
+                "Recorded Outside the Schema",
+                [
+                    "Content that no v0.1 field fits, kept as evidence for the next revision.",
+                    "",
+                ]
+                + _bullets(
+                    [
+                        f"{_md(u.content)} *Why no field fits: {_md(u.why_no_field_fits)}*"
+                        for u in record.unplaced
+                    ]
+                ),
+            )
+        )
+
+    lines = [f"*Decision Record v{record.record_version}, {_md(record.record_id)}*", ""]
+    for heading, body in sections:
+        lines += [f"#### {heading}", ""] + body + [""]
+    return "\n".join(lines).rstrip() + "\n"

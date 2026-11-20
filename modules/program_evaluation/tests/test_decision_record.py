@@ -128,7 +128,7 @@ class TestTwoGroupRecord(unittest.TestCase):
         record = two_group_record()
 
         self.assertTrue(
-            any("caused" in entry for entry in record.does_not_support)
+            any("causal claim" in entry for entry in record.does_not_support)
         )
 
     def test_mann_whitney_is_recorded_as_an_alternative(self):
@@ -187,6 +187,33 @@ class TestDiDRecord(unittest.TestCase):
         estimand = interpret.interpret_did(result).estimand
 
         self.assertIn(estimand, [u.content for u in did_record().unplaced])
+
+
+class TestEvaluationQuestion(unittest.TestCase):
+    def test_entered_fields_are_kept_in_the_stage_order(self):
+        question = decision_record.evaluation_question(
+            {"outcome": "kept appointments", "program": "SMS reminders."}
+        )
+
+        self.assertEqual(
+            question.text,
+            "Program or intervention: SMS reminders. Outcome: kept appointments.",
+        )
+        self.assertEqual(question.origin, "researcher")
+
+    def test_nothing_entered_gives_no_question(self):
+        self.assertIsNone(decision_record.evaluation_question({"program": "  ", "timing": None}))
+
+    def test_entered_question_replaces_the_implied_one(self):
+        question = decision_record.evaluation_question({"program": "SMS reminders"})
+
+        record = two_group_record(question=question)
+
+        self.assertEqual(record.question, question)
+        self.assertEqual(VALIDATOR.is_valid(record.to_dict()), True)
+
+    def test_without_an_entered_question_the_origin_is_left_out(self):
+        self.assertIsNone(two_group_record().question.origin)
 
 
 class TestEdgeCases(unittest.TestCase):
