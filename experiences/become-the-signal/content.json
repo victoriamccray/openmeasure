@@ -1,0 +1,165 @@
+{
+ "title": "Become the Signal",
+ "subtitle": "EEG: From Signal to Inference. Travel through a neurotechnology system as one real brain signal.",
+ "audience": "For interdisciplinary students and early-career researchers. No neuroscience or security background is assumed. About five minutes.",
+ "takeaway": "As biological information becomes digital data, its capabilities and risks change. Protecting agency requires understanding the entire information pathway.",
+ "perspectives": {
+  "agency": {"label": "Agency", "question": "Who controls the signal and its use?"},
+  "privacy": {"label": "Privacy", "question": "Who can access or infer information?"},
+  "build": {"label": "Build", "question": "How can the system be validated and secured?"}
+ },
+ "stages": [
+  {
+   "name": "Signals",
+   "environment": "Inside the visual cortex",
+   "you_are": "An 8 to 13 Hz rhythm in the visual cortex at the back of the head, called alpha. You grow stronger when the eyes close and weaker when they open.",
+   "lesson": "Right now you exist only inside the person. Nothing outside the body can read you, store you, or infer anything from you.",
+   "handoff": "a physical signal a sensor can pick up",
+   "interaction": "waveform",
+   "refs": ["barry", "sanchez_gama"],
+   "perspectives": {
+    "agency": "The person does not decide to produce you. Closing the eyes changes you as a side effect, and that side effect is what later stages will read.",
+    "privacy": "Nothing has crossed the edge of the body yet, so no one outside it has access to you.",
+    "build": "Your real properties set every later limit. A system that samples too slowly, or adds too much noise, loses the 8 to 13 Hz band you live in."
+   }
+  },
+  {
+   "name": "Sensors",
+   "environment": "A scalp electrode, position O1",
+   "you_are": "A voltage at one scalp electrode, O1, sampled 500 times a second and written down in microvolts.",
+   "lesson": "Crossing the scalp turns you from activity into a record, and the device stores it. That stored recording is the first copy of you, and it stays here when you move on.",
+   "handoff": "a raw measured trace",
+   "interaction": "threat",
+   "copy": "The device's stored recording",
+   "threat": {
+    "title": "Threat: False Brain Activity, Injected From Outside",
+    "text": "Researchers showed that amplitude-modulated radio signals from an antenna about three meters away, through walls, can be picked up by EEG electrode wires acting as unintended antennas. The signals enter the acquisition hardware as fabricated brain activity, with no access to the software or the data.",
+    "kind": "Integrity",
+    "refs": ["armengol_urpi", "bagley"]
+   },
+   "refs": ["sanchez_gama", "armengol_urpi", "bagley"],
+   "perspectives": {
+    "agency": "If false activity can enter here, a system acting on this trace may act on activity the person never produced.",
+    "privacy": "You have left the body. Whoever holds this recording holds a copy of you.",
+    "build": "Integrity has to be established at acquisition, because every later stage inherits whatever this trace contains."
+   }
+  },
+  {
+   "name": "Processing",
+   "environment": "The transformation engine",
+   "you_are": "Features: one number for each second of you, your power in the alpha band.",
+   "lesson": "Processing cuts the raw trace into one-second windows and measures how much of each window's energy sits between 8 and 13 Hz. The wave you were becomes a row of pillars.",
+   "handoff": "a cleaned, transformed signal",
+   "interaction": "features",
+   "refs": ["barry"],
+   "perspectives": {
+    "agency": "Which features are computed decides what later stages can learn. The person has no say in that choice.",
+    "privacy": "A feature is smaller than the trace, but it keeps the part of you an inference needs.",
+    "build": "Every later number depends on choices made here: the window length, the band edges, the method used to estimate power."
+   }
+  },
+  {
+   "name": "Inference",
+   "environment": "The inference landscape",
+   "you_are": "An estimate of a state: eyes closed or eyes open, decided for each second by whether your pillar clears one threshold.",
+   "lesson": "The model labels each second. Most labels are right and some are wrong, and a wrong label looks exactly as confident as a right one. An inference is an estimate, not an observation of the person.",
+   "handoff": "an estimate of a state",
+   "interaction": "infer",
+   "second_inference": {
+    "title": "A Second Inference Rides Along",
+    "text": "EEG activity patterns are distinctive enough to identify who produced them. A recording collected for one purpose also carries a biometric identifier, whether or not anyone intended it to.",
+    "refs": ["bagley"]
+   },
+   "caveat": "One subject, one channel, one fixed task. This shows a mechanism, not how a model would perform for other people or tasks.",
+   "refs": ["barry", "bagley"],
+   "perspectives": {
+    "agency": "The estimate is about the person, made without asking them whether their eyes were closed.",
+    "privacy": "Here the inferred state is mild. The same route, reading a state from a pattern in the signal, is the one more sensitive inferences take.",
+    "build": "The classifier is a midpoint threshold, not a fitted model, so its accuracy reflects how separable the two conditions are in this recording."
+   }
+  },
+  {
+   "name": "Decision",
+   "environment": "The access junction",
+   "you_are": "A threshold result, and the stored recording it came from.",
+   "lesson": "The system compares its estimate with a rule. At the same junction, a request arrives for the stored recording from an organization the person never dealt with. Choose a safeguard, then see what it protects and what it does not.",
+   "handoff": "a threshold result",
+   "interaction": "safeguard",
+   "request": "An outside organization requests the stored recording to run its own analyses.",
+   "safeguards": {
+    "noise": {
+     "label": "Add noise before storage",
+     "copy": "The requester's copy, with noise added",
+     "protects": "The eyes-state inference drops for the requester, by the measured amount below.",
+     "does_not": "The legitimate system runs the same inference on the same noisy recording, so its accuracy drops by exactly the same amount. Whether the recording still identifies the person was not measured here. This is exploratory perturbation, not differential privacy, and carries no formal privacy guarantee."
+    },
+    "downsample": {
+     "label": "Store at a lower sampling rate",
+     "copy": "The requester's copy, at a lower rate",
+     "protects": "Information above the new rate's limit is removed from every copy, including the requester's.",
+     "does_not": "Until the rate is too low to resolve the 8 to 13 Hz alpha band, the eyes-state inference is unaffected. Past that point it fails for everyone, the legitimate system included."
+    },
+    "metadata": {
+     "label": "Remove identifying metadata",
+     "copy": "The requester's copy, without metadata",
+     "protects": "The device serial number, recording timestamp, and session code no longer travel with the recording.",
+     "does_not": "The signal is untouched, so the eyes-state inference is unchanged. EEG patterns can themselves identify a person, so removing the labels does not remove the identifier."
+    },
+    "purpose": {
+     "label": "Allow limited, purpose-specific access",
+     "copy": "The requester's copy, under a purpose limit",
+     "protects": "Only the approved research use is authorized.",
+     "does_not": "A full copy still leaves, and nothing in the recording enforces the purpose. Whether the limit is respected depends on agreements, audits, and technical controls that still need verification."
+    },
+    "deny": {
+     "label": "Deny the request",
+     "copy": null,
+     "protects": "No new copy is made for the requester.",
+     "does_not": "The device's stored recording still exists, and so does any copy made before this request. Denying new access does not reach information already disclosed."
+    }
+   },
+   "refs": ["bagley", "rothstein"],
+   "perspectives": {
+    "agency": "Once a copy leaves, the person cannot pull it back. Withdrawing consent later does not undo what a receiver already inferred.",
+    "privacy": "Each receiver can run its own inferences on whatever arrives, including ones nobody had in mind when you were recorded.",
+    "build": "Consent, ownership, access rights, and technical control are different things, and a safeguard usually covers only one of them."
+   }
+  },
+  {
+   "name": "Action",
+   "environment": "The physical world",
+   "you_are": "A response the person experiences. In a brain-computer interface, the decision becomes a command: a cursor moves, a device responds.",
+   "lesson": "Here information leaves the system and acts on the physical world. The injected activity you met at the sensor was demonstrated as a way to take control of a brain-computer interface.",
+   "handoff": "a response the person experiences",
+   "interaction": "action",
+   "refs": ["armengol_urpi", "denning"],
+   "perspectives": {
+    "agency": "If the trace was manipulated at the sensor, the action happens without the person's intent.",
+    "privacy": "An action is often visible to others, and a visible action can reveal the state behind it.",
+    "build": "Validation at the sensor and at inference is what stands between a manipulated trace and an action."
+   }
+  },
+  {
+   "name": "Feedback",
+   "environment": "The return loop",
+   "you_are": "A changed signal, the next time around. The person sees or feels the response, and that changes the activity the sensor reads next.",
+   "lesson": "The loop closes, and you start again as a new signal. The copies made of you on this pass are still where they were left.",
+   "handoff": "a changed signal the next time around",
+   "interaction": "loop",
+   "refs": ["denning"],
+   "perspectives": {
+    "agency": "Over repeated loops the system and the person adapt to each other, and it becomes harder to say who is steering.",
+    "privacy": "Every loop produces another recording, so copies accumulate for as long as the system runs.",
+    "build": "Validating one pass is not validating the loop. A system that adapts needs checks that repeat."
+   }
+  }
+ ],
+ "references": {
+  "barry": {"text": "Barry, R. J., Clarke, A. R., Johnstone, S. J., Magee, C. A., & Rushby, J. A. (2007). EEG differences between eyes-closed and eyes-open resting conditions. Clinical Neurophysiology, 118(12), 2765-2773.", "url": "https://doi.org/10.1016/j.clinph.2007.07.028"},
+  "sanchez_gama": {"text": "Sánchez Gama, M. de J., Barradas Chacón, L. A., Chacón Gutiérrez, L., Fernández Harmony, T., Novo Olivas, C. A., & De La Roca Chiapas, J. M. (2024). Resting state EEG with closed eyes and open eyes in females from 60 to 80 years old [Data set]. OpenNeuro. CC0.", "url": "https://doi.org/10.18112/openneuro.ds005420.v1.0.0"},
+  "armengol_urpi": {"text": "Armengol-Urpi, A., Kovacs, R., & Sarma, S. E. (2023). Brain-Hack: Remotely injecting false brain-waves with RF to take control of a brain-computer interface. Proceedings of the 5th Workshop on CPS&IoT Security and Privacy.", "url": "https://doi.org/10.1145/3605758.3623497"},
+  "bagley": {"text": "Bagley, B. A., Rose, N., Kilbourn, Q., & Canham, M. (2026). Threat vectors and the state of the art in defense methods for security in neurotechnology. arXiv:2607.10451.", "url": "https://arxiv.org/abs/2607.10451"},
+  "denning": {"text": "Denning, T., Matsuoka, Y., & Kohno, T. (2009). Neurosecurity: security and privacy for neural devices. Neurosurgical Focus, 27(1), E7.", "url": "https://doi.org/10.3171/2009.4.FOCUS0985"},
+  "rothstein": {"text": "Rothstein, M. A. (2010). Is deidentification sufficient to protect health privacy in research? American Journal of Bioethics, 10(9), 3-11.", "url": "https://doi.org/10.1080/15265161.2010.494215"}
+ }
+}
