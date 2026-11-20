@@ -136,6 +136,7 @@ class TestContentMatchesItsSources(unittest.TestCase):
             for key in ("threat", "second_inference", "future_inference"):
                 used.update((stage.get(key) or {}).get("refs", []))
             used.update(stage.get("refs", []))
+            used.update(stage.get("mechanism_refs", []))
 
         self.assertEqual(sorted(used - set(references)), [])
         self.assertEqual(sorted(set(references) - used), [])
