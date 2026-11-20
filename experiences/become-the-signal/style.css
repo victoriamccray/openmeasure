@@ -255,6 +255,9 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .legend i { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 2px; margin-right: 0.3rem; vertical-align: -1px; }
 
 .wave svg { width: 100%; height: auto; display: block; }
+.wave { opacity: 0.35; transition: opacity 0.2s; }
+.wave.selected { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .wave { transition: none; } }
 .wave-label { font-size: 0.75rem; color: var(--muted); margin: 0.2rem 0 0.5rem; }
 
 /* perspectives */

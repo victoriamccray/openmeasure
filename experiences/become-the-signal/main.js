@@ -274,6 +274,14 @@ const stations = STAGES.map((_, i) => {
   return group;
 });
 
+// Measured average alpha power per condition, from the same windows the
+// Inference stage classifies.
+const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
+const ALPHA_MEAN = {
+  eyes_closed: mean(data.baseline.alpha_power_eyes_closed),
+  eyes_open: mean(data.baseline.alpha_power_eyes_open),
+};
+
 const waveMax = Math.max(
   ...data.waveform.eyes_closed.map(Math.abs),
   ...data.waveform.eyes_open.map(Math.abs),
@@ -289,7 +297,8 @@ function seeded(seed) {
   const g = stations[0];
   const rand = seeded(7);
   const count = 160;
-  const cells = new THREE.InstancedMesh(new THREE.SphereGeometry(0.22, 12, 12), glow(0xff6f91, 0.5), count);
+  const cells = new THREE.InstancedMesh(new THREE.SphereGeometry(0.22, 12, 12), glow(0xff6f91, 1), count);
+  cells.material.transparent = true;
   const m = new THREE.Matrix4();
   const positions = [];
   for (let i = 0; i < count; i++) {
@@ -313,22 +322,39 @@ function seeded(seed) {
   // One second of the recording at a time, scrolling at real speed and
   // looping over the two seconds exported. Every point is a recorded value.
   const shownPoints = Math.round(data.waveform.eyes_closed.length / data.waveform.seconds);
-  const livePositions = new Float32Array(shownPoints * 3);
+  // Drawn as a ribbon, two vertices per sample, so it reads at any size.
+  const livePositions = new Float32Array(shownPoints * 2 * 3);
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(livePositions, 3));
-  const live = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: COLORS.closed }));
+  const index = [];
+  for (let k = 0; k < shownPoints - 1; k++) {
+    const a = k * 2;
+    index.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+  }
+  geometry.setIndex(index);
+  const live = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: COLORS.closed, side: THREE.DoubleSide }));
   live.position.y = 2.2;
   g.add(live);
   const pointsPerSecond = shownPoints;
+  const thickness = 0.14;
+  // The tissue glows in proportion to the selected condition's measured
+  // average alpha power, so closing the eyes brightens it.
+  const glowFor = (eyes) => 0.15 + 0.85 * (ALPHA_MEAN[eyes] / ALPHA_MEAN.eyes_closed);
   animate(0, (t) => {
     const values = data.waveform[state.eyes];
     const start = Number.isFinite(t) ? Math.floor(t * pointsPerSecond) % values.length : 0;
     for (let k = 0; k < shownPoints; k++) {
       const v = values[(start + k) % values.length];
-      livePositions.set([(k / (shownPoints - 1) - 0.5) * 18, (v / waveMax) * 2.2, 0], k * 3);
+      const x = (k / (shownPoints - 1) - 0.5) * 18;
+      const y = (v / waveMax) * 2.2;
+      livePositions.set([x, y - thickness / 2, 0, x, y + thickness / 2, 0], k * 6);
     }
     geometry.attributes.position.needsUpdate = true;
     live.material.color.set(state.eyes === "eyes_closed" ? COLORS.closed : COLORS.open);
+    const target = glowFor(state.eyes);
+    const m = cells.material;
+    m.emissiveIntensity = Number.isFinite(t) ? THREE.MathUtils.lerp(m.emissiveIntensity, target, 0.08) : target;
+    m.opacity = 0.35 + 0.65 * target;
   });
 })();
 
@@ -778,9 +804,16 @@ function waveformSvg(closed, open, maxAbs = waveMax) {
     const n = values.length;
     return values.map((v, i) => `${i === 0 ? "M" : "L"}${((i / (n - 1)) * w).toFixed(1)},${(h / 2 - (v / maxAbs) * (h / 2 - 2)).toFixed(1)}`).join("");
   };
-  const row = (values, color, label) =>
-    `<div class="wave"><svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${label}"><path d="${path(values)}" fill="none" stroke="${color}" stroke-width="1.2"/></svg><p class="wave-label">${label}</p></div>`;
-  return row(closed, "var(--closed)", "Eyes closed: alpha is strong") + row(open, "var(--open)", "Eyes open: alpha is weak");
+  const row = (values, color, label, key) => {
+    const selected = state.eyes === key;
+    return `<div class="wave${selected ? " selected" : ""}"><svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${label}"><path d="${path(values)}" fill="none" stroke="${color}" stroke-width="${selected ? 2 : 1}"/></svg>
+      <p class="wave-label">${label}. Average alpha power ${ALPHA_MEAN[key].toFixed(1)} µV².</p></div>`;
+  };
+  return (
+    row(closed, "var(--closed)", "Eyes closed", "eyes_closed") +
+    row(open, "var(--open)", "Eyes open", "eyes_open") +
+    `<p>Average alpha power is about ${(ALPHA_MEAN.eyes_closed / ALPHA_MEAN.eyes_open).toFixed(0)} times higher with the eyes closed in this recording.${refMarks(["barry"])}</p>`
+  );
 }
 
 function perspectivesHtml(stage) {
