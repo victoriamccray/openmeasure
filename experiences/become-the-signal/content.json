@@ -1,0 +1,209 @@
+{
+ "title": "Become the Signal",
+ "subtitle": "EEG: From Signal to Inference. One EEG recording from a public dataset travels through a neurotechnology system.",
+ "audience": "For interdisciplinary students and early-career researchers. Each term is defined where it first appears. About five minutes.",
+ "beginning": "You are a recording of brain activity from a public EEG dataset. EEG, short for electroencephalography, measures the brain's electrical activity through electrodes on the scalp. Over seven stages you are measured, transformed, labelled, requested, and acted on. At each stage your form changes, and so does the set of people and systems able to read you.",
+ "takeaway": "As biological information becomes digital data, its capabilities and risks change. Protecting agency requires understanding the entire information pathway.",
+ "ending": "You began as activity carried only by the person. You end as a stored recording, thirty features, thirty labels, and every copy made along the way. Each copy stays with its holder after the loop closes, and each one supports the inferences measured here and any that later methods make possible.",
+ "perspectives": {
+  "agency": {"label": "Agency", "question": "Who controls the signal and its use?"},
+  "privacy": {"label": "Privacy", "question": "Who can access or infer information?"},
+  "build": {"label": "Build", "question": "How can the system be validated and secured?"}
+ },
+ "about_data": {
+  "title": "About This Recording",
+  "source": "OpenNeuro ds005420: resting-state EEG with eyes closed and eyes open, recorded from women aged 60 to 80. Licensed CC0 for unrestricted reuse.",
+  "excerpt": "This journey uses 15 seconds per condition from one participant (sub-5) at one electrode (O1), sampled 500 times per second. The voltages are the recorded values, unfiltered.",
+  "questions": "Best suited to within-person questions, such as whether a signal separates two states for one person. Questions about groups, age effects, or clinical conditions require many participants and a design built for them.",
+  "shape": "OpenMeasure's Time-Series QA module reads one row per sample. Each row needs a time or sample-index column and one value column per electrode, recorded at a known, constant sampling rate. Filtering and artifact removal happen earlier, in EEG tools such as MNE-Python or EEGLAB.",
+  "refs": ["sanchez_gama", "gramfort", "delorme"]
+ },
+ "stages": [
+  {
+   "name": "Signals",
+   "environment": "Visual cortex, at the back of the head",
+   "you_are": "Alpha rhythm: electrical activity in the visual cortex that repeats 8 to 13 times per second (8 to 13 Hz, hertz). Alpha grows stronger when the eyes close and weaker when they open.",
+   "lesson": "Activity at this stage stays inside the person's body. Reading it requires a sensor. Switch between eyes closed and eyes open to see the rhythm change in the recorded data.",
+   "what_changed": "This is the starting point. You are activity in the brain.",
+   "mechanism": "Scalp EEG is the summed activity of many neurons firing together. When they fall out of step, the sum shrinks.",
+   "mechanism_refs": ["buzsaki", "barry"],
+   "handoff": "a physical signal a sensor can pick up",
+   "interaction": "waveform",
+   "refs": ["barry", "sanchez_gama"],
+   "perspectives": {
+    "agency": "The person produces you as a side effect of closing or opening the eyes. Later stages read that side effect.",
+    "privacy": "Your information stays inside the body until a sensor records it.",
+    "build": "Your frequency range sets the limits for every later stage. A device must sample fast enough, and add little enough noise, to keep the 8 to 13 Hz band."
+   }
+  },
+  {
+   "name": "Sensors",
+   "environment": "Scalp electrode at position O1",
+   "you_are": "A voltage measured at one scalp electrode, O1, which sits over the visual cortex. The device samples the voltage 500 times per second and stores each sample in microvolts (µV, millionths of a volt).",
+   "lesson": "Sampling turns continuous activity into a sequence of numbers. The device stores that sequence. The stored recording is the first copy of you, and it stays at this stage when you move on.",
+   "what_changed": "A continuous rhythm became 500 numbers per second. Numbers can be stored and copied.",
+   "handoff": "a raw measured trace",
+   "interaction": "threat",
+   "copy": "The device's stored recording",
+   "threat": {
+    "title": "Threat: Injected Brain Activity",
+    "text": "Researchers transmitted amplitude-modulated radio signals from an antenna about three meters away, through walls. EEG electrode wires received the signals as antennas do, and the acquisition hardware recorded them as brain activity. The attack reached the hardware through the air alone.",
+    "kind": "Integrity",
+    "definition": "Integrity means a recording matches the activity it claims to measure.",
+    "refs": ["armengol_urpi", "bagley"]
+   },
+   "refs": ["sanchez_gama", "armengol_urpi", "bagley"],
+   "perspectives": {
+    "agency": "Injected activity enters the same recording as the person's own. A system acting on this recording may act on activity that came from an antenna.",
+    "privacy": "You are outside the body now. Any holder of this recording holds a copy of you.",
+    "build": "Integrity checks belong at acquisition. Every later stage inherits the contents of this recording."
+   }
+  },
+  {
+   "name": "Processing",
+   "environment": "Feature extraction",
+   "you_are": "Features: one number for each second of you. Each number is your alpha power, the strength of the 8 to 13 Hz rhythm in that second, in µV².",
+   "lesson": "Processing cuts the recording into one-second windows. For each window it estimates how the signal's energy spreads across frequencies, using Welch's method, and sums the energy between 8 and 13 Hz. The wave becomes a row of thirty pillars.",
+   "what_changed": "Each second of 500 numbers became one number, its alpha power. Detail outside the alpha band is discarded, and the part the inference uses is kept.",
+   "handoff": "a cleaned, transformed signal",
+   "interaction": "features",
+   "refs": ["welch", "barry"],
+   "perspectives": {
+    "agency": "The features computed here decide what later stages can learn. The system's designers make that choice.",
+    "privacy": "A feature is smaller than the recording and keeps the part of you an inference uses.",
+    "build": "Every later number depends on three choices made here: window length, band edges, and the method used to estimate power."
+   }
+  },
+  {
+   "name": "Inference",
+   "environment": "Classification",
+   "you_are": "An estimate of a state. For each second, the model labels the eyes closed when your alpha power is above one threshold, and open when it is at or below it.",
+   "lesson": "The threshold sits halfway between the average alpha power of the eyes-closed seconds and that of the eyes-open seconds. Most labels match the recorded condition. A wrong label carries the same confidence as a correct one. An inference is an estimate about the person.",
+   "what_changed": "Thirty numbers became thirty labels. Each label is a claim about the person, and three of the claims are wrong.",
+   "handoff": "an estimate of a state",
+   "interaction": "infer",
+   "reading_note": "Labelling 27 of 30 seconds correctly describes classification performance on a mild research task. It shows that this state can be read from this signal. Whether a reading counts as a privacy breach depends on who reads it and what the person agreed to.",
+   "second_inference": {
+    "title": "A Second Inference Travels With You",
+    "text": "EEG signals vary enough between people, and stay stable enough within one person, to support biometric identification: recognizing who produced a recording. A recording collected to read eyes state also carries this identifying information.",
+    "refs": ["bagley"]
+   },
+   "caveat": "One participant, one electrode, one task. The result demonstrates a mechanism. Performance for other people and tasks requires its own measurement.",
+   "refs": ["barry", "bagley"],
+   "perspectives": {
+    "agency": "The model labels the person's state from the recording alone.",
+    "privacy": "The state inferred here is mild. More sensitive inferences follow the same route: a pattern in the signal, read as a state.",
+    "build": "The classifier is a midpoint threshold, the simplest possible rule. Its accuracy measures how separable the two conditions are in this recording."
+   }
+  },
+  {
+   "name": "Decision",
+   "environment": "Access junction",
+   "you_are": "A label, and the stored recording it came from.",
+   "lesson": "The system compares its estimate with a rule. At the same junction, an organization outside the study requests the stored recording. Choose a safeguard, then compare what it protects with what it leaves exposed.",
+   "what_changed": "A label and its recording became shareable. The destination decides who else can read you.",
+   "handoff": "a threshold result",
+   "interaction": "safeguard",
+   "request": "An organization outside the study requests the stored recording to run its own analyses.",
+   "future_inference": {
+    "title": "Stored Copies and Future Methods",
+    "text": "Researchers describe an inferential threat to stored neural data: a recording collected today can yield new inferences as decoding methods improve. A copy shared now supports the inferences measured here and any that later methods make possible.",
+    "refs": ["bagley"]
+   },
+   "safeguards_note": "Safeguards act on different parts of the system. Safeguards on the signal change what every reader can infer, the legitimate system included. Safeguards on labels or on access leave the legitimate system's accuracy at its starting level.",
+   "safeguards": {
+    "noise": {
+     "label": "Add noise before storage",
+     "copy": "The requester's copy, with noise added",
+     "acts_on": "The signal itself",
+     "levels": [
+      {"value": 50.0, "label": "Light noise, 50 µV"},
+      {"value": 250.0, "label": "Heavy noise, 250 µV"}
+     ],
+     "protects": "The requester's eyes-state accuracy falls by the measured amount above. Heavy noise brings it to chance.",
+     "does_not": "The legitimate system reads the same noisy recording, so its accuracy falls by the same amount. This trade-off belongs to safeguards that change the signal. Identification from the noisy recording was outside this measurement. The noise here is a demonstration, and its effect is measured for one inference only."
+    },
+    "downsample": {
+     "label": "Store at a lower sampling rate",
+     "copy": "The requester's copy, at a lower rate",
+     "acts_on": "The signal itself",
+     "levels": [
+      {"value": 20, "label": "Store at 25 Hz"},
+      {"value": 40, "label": "Store at 12.5 Hz"}
+     ],
+     "protects": "Frequencies above half the new rate are removed from every copy, the requester's included.",
+     "does_not": "At 25 Hz the copy keeps alpha up to 12.5 Hz, and eyes-state accuracy stays at 90% for both readers. At 12.5 Hz the copy keeps frequencies up to 6.25 Hz, below the alpha band, and the inference fails for both readers."
+    },
+    "metadata": {
+     "label": "Remove identifying metadata",
+     "copy": "The requester's copy, with metadata removed",
+     "acts_on": "Labels that travel with the signal",
+     "protects": "The device serial number, recording time, and session code are removed from the shared copy.",
+     "does_not": "The signal stays the same, so eyes-state accuracy stays at 90%. The EEG signal itself can identify a person, so the shared copy still carries identifying information."
+    },
+    "purpose": {
+     "label": "Allow limited, purpose-specific access",
+     "copy": "The requester's copy, under a purpose limit",
+     "acts_on": "Who receives a copy, and for what use",
+     "protects": "Only the approved research use is authorized.",
+     "does_not": "A full copy leaves the system. Enforcement of the purpose depends on agreements, audits, and technical controls, each of which needs verification."
+    },
+    "deny": {
+     "label": "Deny the request",
+     "copy": null,
+     "acts_on": "Who receives a copy",
+     "protects": "The requester's copy is withheld.",
+     "does_not": "The device's stored recording remains, along with every copy made before this request. Denial applies to new access only."
+    }
+   },
+   "refs": ["bagley", "rothstein"],
+   "perspectives": {
+    "agency": "A copy that leaves stays with its receiver. Withdrawing consent later leaves the receiver's earlier inferences in place.",
+    "privacy": "Each receiver can run its own inferences on what arrives, including inferences planned after the recording.",
+    "build": "Consent, ownership, access rights, and technical control are separate mechanisms. A single safeguard usually covers one of them."
+   }
+  },
+  {
+   "name": "Action",
+   "environment": "Device output",
+   "you_are": "A response the person experiences. In a brain-computer interface (BCI), a system that turns brain signals into commands, the label becomes a command: a cursor moves or a device responds.",
+   "lesson": "Information leaves the system here and acts on the physical world. The injection attack from the sensor stage was demonstrated on three BCI applications: a virtual keyboard, a drone controller, and a meditation feedback interface.",
+   "what_changed": "A label became a command that acts in the world.",
+   "handoff": "a response the person experiences",
+   "interaction": "action",
+   "refs": ["armengol_urpi", "bagley", "denning"],
+   "perspectives": {
+    "agency": "A manipulated recording at the sensor carries the antenna's activity into the person's device as a command.",
+    "privacy": "Actions are often visible to others, and a visible action can reveal the state behind it.",
+    "build": "Validation at the sensor and at inference stands between a manipulated recording and an action."
+   }
+  },
+  {
+   "name": "Feedback",
+   "environment": "Return loop",
+   "you_are": "The next signal. The person sees or feels the response, and the response changes the activity the sensor reads next.",
+   "lesson": "The loop closes, and a new signal begins. The copies made on this pass remain with their holders.",
+   "what_changed": "The command's effect becomes part of the next signal.",
+   "handoff": "a changed signal the next time around",
+   "interaction": "loop",
+   "refs": ["denning"],
+   "perspectives": {
+    "agency": "Over repeated loops the person and the system adapt to each other, and control becomes shared.",
+    "privacy": "Each loop produces another recording, so copies accumulate while the system runs.",
+    "build": "Each pass needs its own validation, because an adaptive system changes between passes."
+   }
+  }
+ ],
+ "references": {
+  "barry": {"text": "Barry, R. J., Clarke, A. R., Johnstone, S. J., Magee, C. A., & Rushby, J. A. (2007). EEG differences between eyes-closed and eyes-open resting conditions. Clinical Neurophysiology, 118(12), 2765-2773.", "url": "https://doi.org/10.1016/j.clinph.2007.07.028"},
+  "sanchez_gama": {"text": "Sánchez Gama, M. de J., Barradas Chacón, L. A., Chacón Gutiérrez, L., Fernández Harmony, T., Novo Olivas, C. A., & De La Roca Chiapas, J. M. (2024). Resting state EEG with closed eyes and open eyes in females from 60 to 80 years old [Data set]. OpenNeuro. CC0.", "url": "https://doi.org/10.18112/openneuro.ds005420.v1.0.0"},
+  "armengol_urpi": {"text": "Armengol-Urpi, A., Kovacs, R., & Sarma, S. E. (2023). Brain-Hack: Remotely injecting false brain-waves with RF to take control of a brain-computer interface. Proceedings of the 5th Workshop on CPS&IoT Security and Privacy.", "url": "https://doi.org/10.1145/3605758.3623497"},
+  "bagley": {"text": "Bagley, B. A., Rose, N., Kilbourn, Q., & Canham, M. (2026). Threat vectors and the state of the art in defense methods for security in neurotechnology. arXiv:2607.10451.", "url": "https://arxiv.org/abs/2607.10451"},
+  "buzsaki": {"text": "Buzsáki, G., Anastassiou, C. A., & Koch, C. (2012). The origin of extracellular fields and currents: EEG, ECoG, LFP and spikes. Nature Reviews Neuroscience, 13(6), 407-420.", "url": "https://doi.org/10.1038/nrn3241"},
+  "welch": {"text": "Welch, P. D. (1967). The use of fast Fourier transform for the estimation of power spectra: A method based on time averaging over short, modified periodograms. IEEE Transactions on Audio and Electroacoustics, 15(2), 70-73.", "url": "https://doi.org/10.1109/TAU.1967.1161901"},
+  "denning": {"text": "Denning, T., Matsuoka, Y., & Kohno, T. (2009). Neurosecurity: Security and privacy for neural devices. Neurosurgical Focus, 27(1), E7.", "url": "https://doi.org/10.3171/2009.4.FOCUS0985"},
+  "rothstein": {"text": "Rothstein, M. A. (2010). Is deidentification sufficient to protect health privacy in research? American Journal of Bioethics, 10(9), 3-11.", "url": "https://doi.org/10.1080/15265161.2010.494215"},
+  "gramfort": {"text": "Gramfort, A., Luessi, M., Larson, E., Engemann, D. A., Strohmeier, D., Brodbeck, C., Goj, R., Jas, M., Brooks, T., Parkkonen, L., & Hämäläinen, M. (2013). MEG and EEG data analysis with MNE-Python. Frontiers in Neuroscience, 7, 267.", "url": "https://doi.org/10.3389/fnins.2013.00267"},
+  "delorme": {"text": "Delorme, A., & Makeig, S. (2004). EEGLAB: An open source toolbox for analysis of single-trial EEG dynamics including independent component analysis. Journal of Neuroscience Methods, 134(1), 9-21.", "url": "https://doi.org/10.1016/j.jneumeth.2003.10.009"}
+ }
+}
