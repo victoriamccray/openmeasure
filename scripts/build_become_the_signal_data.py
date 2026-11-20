@@ -8,7 +8,7 @@ so the experience runs as a static page with no Python behind it.
 
 Every number the experience shows comes from this file, and every number
 in this file is computed by modules/signal_pipeline/core from the bundled
-real EEG excerpt (OpenNeuro ds005420, sub-5, channel O1, CC0). Nothing
+recorded EEG excerpt (OpenNeuro ds005420, sub-5, channel O1, CC0). Nothing
 here is an illustrative rating. The stage names are taken from
 pipeline.STAGES, so the experience's levels are the module's stages.
 
@@ -48,7 +48,7 @@ NOISE_SEEDS = {"eyes_closed": 0, "eyes_open": 1}
 DOWNSAMPLE_FACTORS = (1, 2, 5, 10, 20, 40)
 
 # How much of each condition the experience draws. Every point is a
-# real sample; only the count drawn is reduced, by keeping every
+# recorded sample; only the count drawn is reduced, by keeping every
 # DISPLAY_STRIDE-th one, and the file says so.
 DISPLAY_SECONDS = 2.0
 DISPLAY_STRIDE = 2
@@ -151,7 +151,7 @@ def build() -> dict:
             "stride": DISPLAY_STRIDE,
             "note": (
                 f"The first {DISPLAY_SECONDS:g} seconds of each condition, "
-                f"keeping one sample in {DISPLAY_STRIDE}. Values are real "
+                f"keeping one sample in {DISPLAY_STRIDE}. Values are recorded "
                 "microvolt readings."
             ),
             **waveform,

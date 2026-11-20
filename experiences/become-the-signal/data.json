@@ -26,7 +26,7 @@
  "waveform": {
   "seconds": 2.0,
   "stride": 2,
-  "note": "The first 2 seconds of each condition, keeping one sample in 2. Values are real microvolt readings.",
+  "note": "The first 2 seconds of each condition, keeping one sample in 2. Values are recorded microvolt readings.",
   "eyes_closed": [
    5.65,
    7.02,

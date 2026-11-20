@@ -359,6 +359,42 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   padding-left: 0.7rem;
 }
 
+/* rail groups: measured, interpreted, acted upon */
+.rail-group { display: flex; flex-direction: column; align-items: stretch; }
+.rail-group-steps { display: flex; align-items: flex-start; }
+.rail-group-label {
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+  margin: 0 0.5rem 0.25rem;
+  padding-bottom: 0.1rem;
+}
+.rail-group.active .rail-group-label { color: var(--accent); border-color: var(--accent); }
+
+/* exposure cards */
+.copy-cards { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.45rem; }
+.copy-card { border: 1px solid var(--border); border-radius: 8px; padding: 0.45rem 0.6rem; }
+.copy-name { font-weight: 600; font-size: 0.85rem; color: var(--text); }
+.copy-holder { font-size: 0.78rem; color: var(--muted); margin-bottom: 0.3rem; }
+.copy-icons { display: flex; gap: 0.7rem; align-items: center; }
+.icon { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--text); }
+.icon svg, .icon-key svg { width: 1.05rem; height: 1.05rem; vertical-align: -0.2rem; color: var(--muted); }
+.icon svg { color: var(--text); }
+.icon.dim { opacity: 0.25; }
+.icon.on svg { color: var(--does-not); }
+.meter { position: relative; width: 4.2rem; height: 0.45rem; border-radius: 999px; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
+.meter i { position: absolute; inset: 0 auto 0 0; background: var(--accent); }
+.meter b { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--text); opacity: 0.7; }
+.icon-key { font-size: 0.72rem; color: var(--muted); margin: 0.45rem 0 0; }
+.why summary { cursor: pointer; list-style: none; }
+.why summary::-webkit-details-marker { display: none; }
+.why summary h3 { display: inline; font-size: 0.9rem; }
+.why summary::after { content: " +"; color: var(--accent); }
+.why[open] summary::after { content: " \2212"; }
+
 /* ---- evidence dialog ---- */
 .refs {
   max-width: 42rem;
@@ -401,6 +437,9 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   .topbar { flex-wrap: wrap; gap: 0.4rem; padding: 0.5rem 0.75rem; }
   .rail { order: 3; flex-basis: 100%; justify-content: space-between; }
   .rail-btn { min-width: 0; font-size: 0; padding: 0; }
+  .rail-group { flex: 1; }
+  .rail-group:last-child { flex: 1.1; }
+  .rail-group-label { font-size: 0.55rem; margin: 0 0.2rem 0.2rem; }
   .rail-btn .rail-num { margin: 0; }
   .rail-link { width: auto; flex: 1; margin-top: 0; align-self: center; }
   .rail-step { flex: 1; }

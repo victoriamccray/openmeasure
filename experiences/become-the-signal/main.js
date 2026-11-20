@@ -2,7 +2,7 @@
 //
 // Two files drive everything here. content.json holds the words, with a
 // citation key on every claim taken from a source. data.json holds the
-// numbers, every one computed by modules/signal_pipeline/core from a real
+// numbers, every one computed by modules/signal_pipeline/core from a recorded
 // public EEG recording (scripts/build_become_the_signal_data.py). This
 // file draws them and computes nothing about the signal itself, so the
 // 3D scene, the panel, and the text view can never disagree.
@@ -195,14 +195,14 @@ function line(points, color, opacity = 1) {
   return new THREE.Line(geometry, new THREE.LineBasicMaterial({ color, transparent: opacity < 1, opacity }));
 }
 
-// A trace drawn from real samples, centred on the origin.
+// A trace drawn from recorded samples, centred on the origin.
 function traceLine(values, width, height, color, maxAbs) {
   const n = values.length;
   const points = values.map((v, i) => new THREE.Vector3((i / (n - 1) - 0.5) * width, (v / maxAbs) * height, 0));
   return line(points, color);
 }
 
-// A row of pillars from real alpha powers. Heights are scaled to the
+// A row of pillars from measured alpha powers. Heights are scaled to the
 // largest value in the set, which the panel states.
 function pillarSet(result, { spacing = 0.55, height = 6, radius = 0.18, showWrong = true } = {}) {
   const group = new THREE.Group();
@@ -251,6 +251,81 @@ function pillarSet(result, { spacing = 0.55, height = 6, radius = 0.18, showWron
   return group;
 }
 
+// A short label in the world, drawn once to a canvas.
+function labelSprite(text, color = "#e8ebf7") {
+  const c = document.createElement("canvas");
+  c.width = 512;
+  c.height = 96;
+  const ctx = c.getContext("2d");
+  ctx.font = "600 52px system-ui, sans-serif";
+  ctx.fillStyle = color;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, 256, 48);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
+  sprite.scale.set(5.2, 0.98, 1);
+  return sprite;
+}
+
+// A fingerprint mark: the identifying information carried by the signal
+// itself, which travels with every copy whatever happens to its labels.
+const fingerprintTexture = (() => {
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const ctx = c.getContext("2d");
+  ctx.strokeStyle = "#ffcf6b";
+  ctx.lineWidth = 5;
+  for (let r = 10; r <= 56; r += 11) {
+    ctx.beginPath();
+    ctx.ellipse(64, 70, r * 0.78, r, 0, Math.PI * 0.95, Math.PI * 2.05);
+    ctx.stroke();
+  }
+  return new THREE.CanvasTexture(c);
+})();
+function fingerprint() {
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: fingerprintTexture, transparent: true, depthWrite: false }));
+  sprite.scale.set(0.9, 0.9, 1);
+  sprite.userData.inspect = "The signal itself can identify the person. This travels with every copy.";
+  return sprite;
+}
+
+// A tall column of light over a copy, so copies stay visible from far
+// along the pathway. Thin up close, broad in the overview.
+const beacons = new Set();
+function beacon() {
+  const geometry = new THREE.CylinderGeometry(0.18, 0.18, 40, 12, 1, true);
+  geometry.translate(0, 20, 0);
+  const mesh = new THREE.Mesh(
+    geometry,
+    new THREE.MeshBasicMaterial({
+      color: COLORS.copy,
+      transparent: true,
+      opacity: 0.55,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+    }),
+  );
+  beacons.add(mesh);
+  return mesh;
+}
+
+// An inference landscape, or a flattened one when the inference fails.
+function landscape(result, options) {
+  if (result.accuracy !== null) return pillarSet(result, options);
+  const group = new THREE.Group();
+  const flat = new THREE.MeshStandardMaterial({ color: 0x555a66, roughness: 0.9 });
+  for (const z of [-1.2, 1.2]) {
+    for (let i = 0; i < 15; i++) {
+      const disc = new THREE.Mesh(new THREE.CylinderGeometry(options.radius ?? 0.18, options.radius ?? 0.18, 0.05, 12), flat);
+      disc.position.set((i - 7) * options.spacing, 0.03, z);
+      disc.userData.inspect = "The inference fails here: the signal no longer contains the alpha band.";
+      group.add(disc);
+    }
+  }
+  return group;
+}
+
 function ghost(scale = 1) {
   const mesh = new THREE.Mesh(
     new THREE.IcosahedronGeometry(0.55 * scale, 1),
@@ -293,7 +368,7 @@ function seeded(seed) {
   return () => ((s = (s * 16807) % 2147483647) / 2147483647);
 }
 
-// 1. Signals: neural tissue, with the real trace running through it.
+// 1. Signals: neural tissue, with the recorded trace running through it.
 (function buildSignals() {
   const g = stations[0];
   const rand = seeded(7);
@@ -501,11 +576,20 @@ const deviceGhosts = new THREE.Group();
   g.add(pillarSet(data.baseline));
 })();
 
-// 5. Decision: the junction, the system road, and the requester.
-const requesterGroup = new THREE.Group();
+// 5. Decision: the junction, with the legitimate system's inference on
+// one side and the requester's on the other. A safeguard rebuilds both
+// from measured data, so its effect on each reader is seen side by side.
+const systemLand = new THREE.Group();
+const requesterLand = new THREE.Group();
 const requesterGhosts = new THREE.Group();
 const branchPath = new THREE.Group();
+const fallenTags = new THREE.Group();
+const purposeFence = new THREE.Group();
 const denyBar = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.25, 0.25), glow(COLORS.wrong, 1));
+const SYSTEM_AT = new THREE.Vector3(-8, 0, -6);
+const REQUESTER_AT = new THREE.Vector3(10, 0, -6);
+let landsBuiltAt = -Infinity;
+let barDropStart = -Infinity;
 (function buildDecision() {
   const g = stations[4];
   for (const x of [-2, 2]) {
@@ -516,32 +600,58 @@ const denyBar = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.25, 0.25), glow(COLO
   const lintel = new THREE.Mesh(new THREE.BoxGeometry(4.9, 0.4, 0.6), glow(0xffc46b, 0.6));
   lintel.position.y = 5.1;
   g.add(lintel);
-  const building = new THREE.Mesh(new THREE.BoxGeometry(5, 9, 5), matte(0x2b2414));
-  building.position.set(13, 4.5, -8);
+  const building = new THREE.Mesh(new THREE.BoxGeometry(8, 9, 4), matte(0x2b2414));
+  building.position.set(REQUESTER_AT.x, 4.5, REQUESTER_AT.z - 5);
   g.add(building);
   for (let row = 0; row < 5; row++) {
-    for (let col = 0; col < 3; col++) {
+    for (let col = 0; col < 5; col++) {
       const win = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.8), glow(0xffc46b, 0.35));
-      win.position.set(11.8 + col * 1.2, 1.6 + row * 1.6, -5.49);
+      win.position.set(REQUESTER_AT.x - 2.8 + col * 1.4, 1.6 + row * 1.6, REQUESTER_AT.z - 2.99);
       g.add(win);
     }
   }
-  requesterGroup.position.set(13, 9.2, -8);
-  requesterGroup.scale.setScalar(0.7);
-  requesterGhosts.position.set(9.5, 1.4, -4.8);
-  // The junction, in the requester group's own coordinates.
-  const junction = new THREE.Vector3(-9.5, 0, 6.8);
+  const systemLabel = labelSprite("Legitimate system");
+  systemLabel.position.copy(SYSTEM_AT).add(new THREE.Vector3(0, 6.8, 0));
+  const requesterLabel = labelSprite("Requester", "#ffcf6b");
+  requesterLabel.position.copy(REQUESTER_AT).add(new THREE.Vector3(0, 10, -3));
+  systemLand.position.copy(SYSTEM_AT);
+  requesterLand.position.copy(REQUESTER_AT);
+  requesterGhosts.position.set(REQUESTER_AT.x - 5, 1.4, REQUESTER_AT.z + 2.5);
+  g.add(systemLabel, requesterLabel, systemLand, requesterLand, requesterGhosts, branchPath, fallenTags, purposeFence, denyBar);
+
+  // The gate to the requester, raised until a request is denied.
+  denyBar.position.set(REQUESTER_AT.x - 7, 6, REQUESTER_AT.z + 4);
+  denyBar.rotation.y = -0.4;
+
+  const junction = new THREE.Vector3(0, 1.4, 2).sub(requesterGhosts.position);
   animate(4, (_t, now) => {
-    const flight = Number.isFinite(now) ? THREE.MathUtils.clamp((now - copyFlightStart) / 1.4, 0, 1) : 1;
+    const moving = Number.isFinite(now);
+    // A new copy travels from the junction to the requester.
+    const flight = moving ? THREE.MathUtils.clamp((now - copyFlightStart) / 1.4, 0, 1) : 1;
     for (const ghostMesh of requesterGhosts.children) {
       if (!ghostMesh.userData.rest) continue;
       if (ghostMesh.userData.flies) ghostMesh.position.lerpVectors(junction, ghostMesh.userData.rest, ease(flight));
       else ghostMesh.position.copy(ghostMesh.userData.rest);
     }
+    // Both landscapes regrow when a safeguard changes them.
+    for (const land of [systemLand, requesterLand]) {
+      land.traverse((c) => {
+        if (c.geometry?.type !== "CylinderGeometry" || c.userData.height === undefined) return;
+        const grown = moving ? THREE.MathUtils.clamp((now - landsBuiltAt - 0.2 - c.userData.order * 0.03) / 0.5, 0.001, 1) : 1;
+        c.scale.y = grown;
+        c.position.y = (c.userData.height * grown) / 2;
+      });
+    }
+    // Removed labels fall from the copy to the ground.
+    for (const tag of fallenTags.children) {
+      const fall = moving ? THREE.MathUtils.clamp((now - tag.userData.start) / 0.9, 0, 1) : 1;
+      tag.position.y = THREE.MathUtils.lerp(tag.userData.fromY, 0.15, fall * fall);
+      tag.rotation.z = fall * tag.userData.spin;
+    }
+    // A denial drops the gate.
+    const drop = moving ? THREE.MathUtils.clamp((now - barDropStart) / 0.6, 0, 1) : 1;
+    denyBar.position.y = THREE.MathUtils.lerp(6, 1.6, current().safeguard === "deny" ? ease(drop) : 0);
   });
-  denyBar.position.set(9, 1.6, -4.4);
-  denyBar.rotation.y = -0.55;
-  g.add(requesterGroup, requesterGhosts, branchPath, denyBar);
 })();
 
 // 6. Action: a decision becomes a command on a screen.
@@ -647,31 +757,107 @@ function syncHistoryRings() {
   });
 }
 
+// Identifying labels on a copy: three small tags.
+function tagsFor(target) {
+  for (let k = 0; k < 3; k++) {
+    const tag = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.22, 0.05), glow(0xffc46b, 0.9));
+    tag.position.set(-0.55 + k * 0.55, 0.95, 0);
+    tag.userData.inspect = "Identifying labels: device serial number, recording time, session code.";
+    target.add(tag);
+  }
+}
+
+function dressCopy(mesh, c) {
+  mesh.add(beacon());
+  const mark = fingerprint();
+  mark.position.set(0, -0.05, 0.62);
+  mesh.add(mark);
+  if (c.labels) tagsFor(mesh);
+}
+
 function syncCopies() {
+  beacons.clear();
   deviceGhosts.clear();
   requesterGhosts.clear();
+  for (const label of overviewLabels.splice(0)) label.removeFromParent();
   branchPath.clear();
-  requesterGroup.clear();
+  purposeFence.clear();
   copies().forEach((c) => {
     const g = ghost(0.8);
-    g.userData.inspect = `${c.label}. Held by: ${c.holder.toLowerCase()}. Can the person recall it? ${c.recall}.`;
+    g.userData.inspect = `${c.label}. Held by ${c.holder.toLowerCase()}. ${c.recall}.`;
+    dressCopy(g, c);
     if (c.where === "Sensors") {
-      g.position.set(deviceGhosts.children.length * 1.1, 0, 0);
+      g.position.set(deviceGhosts.children.length * 1.6, 0, 0);
       deviceGhosts.add(g);
     } else {
-      g.position.set(requesterGhosts.children.length * 1.1, 0, 0);
+      g.position.set(requesterGhosts.children.length * 1.6, 0, 0);
       g.userData.rest = g.position.clone();
       g.userData.flies = c.pass === state.pass;
       requesterGhosts.add(g);
     }
   });
-  const outcome = safeguardOutcome();
-  denyBar.visible = current().safeguard === "deny";
-  if (outcome?.requester) {
-    branchPath.add(line([new THREE.Vector3(0, 0.6, 2), new THREE.Vector3(9.5, 0.6, -4.8), new THREE.Vector3(13, 0.6, -6)], COLORS.copy, 0.8));
+  for (const [group, text] of [[deviceGhosts, "Device copies"], [requesterGhosts, "Requester copies"]]) {
+    if (!group.children.length) continue;
+    const label = labelSprite(`${text}: ${group.children.length}`, "#b9f5ff");
+    label.scale.set(44, 8.3, 1);
+    label.position.set(0, 47, 0);
+    label.visible = false;
+    group.add(label);
+    overviewLabels.push(label);
   }
-  if (outcome?.requester && outcome.requester.accuracy !== null) {
-    requesterGroup.add(pillarSet(outcome.requester, { spacing: 0.5, height: 5 }));
+  const record = current();
+  denyBar.visible = record.safeguard === "deny";
+  const outcome = safeguardOutcome();
+  if (outcome?.requester) {
+    branchPath.add(line([new THREE.Vector3(0, 0.6, 2), requesterGhosts.position.clone().setY(0.6), REQUESTER_AT.clone().setY(0.6)], COLORS.copy, 0.8));
+  }
+  if (record.safeguard === "purpose") {
+    // The approved use, drawn as a boundary. The full copy sits inside it.
+    const wall = new THREE.Mesh(
+      new THREE.CylinderGeometry(7.5, 7.5, 3.2, 48, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0x6fe3b0, transparent: true, opacity: 0.14, side: THREE.DoubleSide, depthWrite: false }),
+    );
+    wall.position.set(REQUESTER_AT.x - 2, 1.6, REQUESTER_AT.z + 1);
+    wall.userData.inspect = "Approved use only. Enforcement depends on agreements, audits, and technical controls.";
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(7.5, 0.05, 6, 96), glow(0x6fe3b0, 1));
+    rim.rotation.x = Math.PI / 2;
+    rim.position.set(REQUESTER_AT.x - 2, 0.05, REQUESTER_AT.z + 1);
+    purposeFence.add(wall, rim);
+  }
+}
+
+// The two landscapes, rebuilt from measured data when the safeguard or
+// its level changes, and the labels a metadata safeguard removes.
+function syncLandscapes(changed) {
+  systemLand.clear();
+  requesterLand.clear();
+  const record = current();
+  const outcome = outcomeFor(record);
+  const options = { spacing: 0.42, height: 5, radius: 0.14 };
+  const order = (land) => {
+    let k = 0;
+    land.traverse((c) => {
+      if (c.geometry?.type === "CylinderGeometry" && c.geometry.parameters.height > 0.06) {
+        c.userData.height = c.geometry.parameters.height;
+        c.userData.order = k++;
+      }
+    });
+  };
+  systemLand.add(landscape(outcome.legitimate, options));
+  order(systemLand);
+  if (record.safeguard && outcome.requester) {
+    requesterLand.add(landscape(outcome.requester, options));
+    order(requesterLand);
+  }
+  if (changed) landsBuiltAt = clock.elapsedTime;
+  fallenTags.clear();
+  if (record.safeguard === "metadata") {
+    for (let k = 0; k < 3; k++) {
+      const tag = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.22, 0.05), glow(0xffc46b, 0.5));
+      tag.position.copy(requesterGhosts.position).add(new THREE.Vector3(-0.55 + k * 0.55, 0.95, 0));
+      tag.userData = { start: clock.elapsedTime + 1.4, fromY: tag.position.y, spin: (k - 1) * 1.2, inspect: "A removed label, left behind." };
+      fallenTags.add(tag);
+    }
   }
 }
 
@@ -692,7 +878,12 @@ function framing(i) {
   // bottom on narrow ones, so the subject is framed away from it.
   const look = narrow.matches ? station.clone().add(new THREE.Vector3(0, -5.5, 0)) : station.clone().add(new THREE.Vector3(5, 2, 0));
   const eye = station.clone().add(new THREE.Vector3(0, narrow.matches ? 7 : 5.5, narrow.matches ? 22 : 17));
-  if (i === 4) look.add(new THREE.Vector3(3, 1, -2));
+  if (i === 4) {
+    // Wide enough for both inference landscapes and the gate between them.
+    return narrow.matches
+      ? { eye: station.clone().add(new THREE.Vector3(1, 18, 36)), look: station.clone().add(new THREE.Vector3(1, -6, -6)) }
+      : { eye: station.clone().add(new THREE.Vector3(3, 12, 25)), look: station.clone().add(new THREE.Vector3(7, 2, -6)) };
+  }
   return { eye, look };
 }
 
@@ -718,6 +909,22 @@ function moveCamera(i, instant) {
   view.pitch = 0;
 }
 
+// The view over the whole pathway that ends the journey, and how far
+// into it the camera has risen.
+// Looking back along the pathway from above its end, so every stage
+// and every copy is in view, the nearest stages largest.
+const OVERVIEW = {
+  eye: new THREE.Vector3(-30, 85, -410),
+  look: new THREE.Vector3(-34, 0, -175),
+};
+// Who holds the copies, named only in the overview.
+const overviewLabels = [];
+function overviewAmount(now) {
+  if (state.stage !== STAGES.length - 1 || trip.t < 1) return 0;
+  if (reducedMotion.matches) return 1;
+  return ease(THREE.MathUtils.clamp((now - arrivedAt - 1.5) / 3.5, 0, 1));
+}
+
 // Camera, look target, and packet position for the current moment of a
 // trip. At both ends it is the stage framing; in between, the camera
 // follows the packet along the pathway.
@@ -728,7 +935,10 @@ function pose() {
   const eye = a.eye.lerp(b.eye, e);
   const look = a.look.lerp(b.look, e);
   const rest = packetSpot(trip.from).lerp(packetSpot(trip.to), e);
-  if (trip.t >= 1 || trip.from === trip.to) return { eye, look, packetAt: rest };
+  if (trip.t >= 1 || trip.from === trip.to) {
+    const w = overviewAmount(clock.elapsedTime);
+    return { eye: eye.lerp(OVERVIEW.eye, w), look: look.lerp(OVERVIEW.look, w), packetAt: rest, overview: w };
+  }
 
   const u = THREE.MathUtils.lerp(stageU(trip.from), stageU(trip.to), e);
   const direction = Math.sign(trip.to - trip.from);
@@ -741,6 +951,7 @@ function pose() {
     eye: eye.lerp(chaseEye, w),
     look: look.lerp(ahead, w),
     packetAt: rest.lerp(ride, w),
+    overview: 0,
   };
 }
 
@@ -795,7 +1006,11 @@ const fogColor = new THREE.Color();
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
   if (trip.t < 1) trip.t = Math.min(1, trip.t + dt / trip.seconds);
-  const { eye, look, packetAt } = pose();
+  const { eye, look, packetAt, overview } = pose();
+  // The fog thins as the camera rises, so the whole pathway shows.
+  scene.fog.density = THREE.MathUtils.lerp(0.028, 0.0012, overview);
+  for (const label of overviewLabels) label.visible = overview > 0.4;
+  for (const b of beacons) b.scale.set(1 + 5 * overview, 1, 1 + 5 * overview);
   currentLook.copy(look);
 
   // Drag orbits the eye around what it is looking at.
@@ -873,18 +1088,36 @@ function perspectivesHtml(stage) {
     <p class="persp-q">${esc(p.question)}</p><p>${esc(stage.perspectives[state.perspective])}</p></div>`;
 }
 
+const ICON = {
+  eye: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>',
+  tag: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="7.5" cy="8" r="1.6" fill="currentColor"/></svg>',
+  print: '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 15c0-5 2.5-8 6-8s6 3 6 8"/><path d="M9 17c0-4 1-7 3-7s3 3 3 7"/><path d="M12 13v7"/><path d="M4 11c1-5 4-8 8-8s7 3 8 8"/></g></svg>',
+  lock: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
+  away: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20 20 4M9 4h11v11" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
+};
+
+function copyCard(c) {
+  const readable = c.accuracy === null ? 0 : c.accuracy;
+  const reads = c.accuracy === null ? "Eyes state unreadable" : `Eyes state readable at ${pct(c.accuracy)}, chance is 50%`;
+  const labels = c.labels ? "Identifying labels attached" : "Identifying labels removed";
+  const away = c.where === "Sensors" ? ICON.lock : ICON.away;
+  return `<li class="copy-card">
+    <div class="copy-name">${esc(c.label)}${state.pass > 1 ? ` <span class="caveat">pass ${c.pass}</span>` : ""}</div>
+    <div class="copy-holder">${esc(c.holder)}</div>
+    <div class="copy-icons">
+      <span class="icon" title="${reads}" aria-label="${reads}">${ICON.eye}<span class="meter"><i style="width:${readable * 100}%"></i><b></b></span></span>
+      <span class="icon${c.labels ? "" : " dim"}" title="${labels}" aria-label="${labels}">${ICON.tag}</span>
+      <span class="icon on" title="Identifiable from the signal itself" aria-label="Identifiable from the signal itself">${ICON.print}</span>
+      <span class="icon" title="${esc(c.recall)}" aria-label="${esc(c.recall)}">${away}</span>
+    </div></li>`;
+}
+
 function copiesHtml() {
   const list = copies();
   if (!list.length) return `<div class="box copies"><h3>Your Exposure</h3><p class="caveat">You exist only inside the person.</p></div>`;
-  const items = list
-    .map(
-      (c) => `<li><strong>${esc(c.label)}</strong>${state.pass > 1 ? ` (pass ${c.pass})` : ""}<br>
-        Held by ${esc(c.holder.toLowerCase())}. Eyes state readable: ${pct(c.accuracy)}.
-        Identifying labels attached: ${c.labels ? "yes" : "no"}. Identifiable from the signal itself: possible.${refMarks(["bagley"])}
-        After sharing: ${esc(c.recall)}.</li>`,
-    )
-    .join("");
-  return `<div class="box copies"><h3>Your Exposure: ${list.length} ${list.length === 1 ? "Copy" : "Copies"}</h3><ol>${items}</ol></div>`;
+  return `<div class="box copies"><h3>Your Exposure: ${list.length} ${list.length === 1 ? "Copy" : "Copies"}</h3>
+    <ol class="copy-cards">${list.map(copyCard).join("")}</ol>
+    <p class="icon-key">${ICON.eye} readable ${ICON.tag} labels ${ICON.print} identifiable ${ICON.lock} deletable by holder ${ICON.away} stays with receiver${refMarks(["bagley"])}</p></div>`;
 }
 
 function exposureHud() {
@@ -917,7 +1150,7 @@ function interactionHtml(stage) {
           <div class="metric"><span>Window length</span><strong>${data.window_seconds} s</strong></div>
           <div class="metric"><span>Band</span><strong>${data.alpha_band_hz[0]} to ${data.alpha_band_hz[1]} Hz</strong></div>
         </div>
-        <p class="caveat">On the left, ${data.waveform.seconds} seconds of the real trace, cut at each second. On the right, all ${n} windows as pillars. Heights are scaled to the tallest pillar.</p>`;
+        <p class="caveat">On the left, ${data.waveform.seconds} seconds of the recorded trace, cut at each second. On the right, all ${n} windows as pillars. Heights are scaled to the tallest pillar.</p>`;
     }
     case "infer": {
       const wrong = misclassified(base);
@@ -967,13 +1200,16 @@ function safeguardHtml(stage) {
       </div>
       <p class="caveat">Before any safeguard, both were ${pct(data.baseline.accuracy)}. With equal numbers of each condition, 50% is chance.</p>
       ${failure}
-      <div class="outcome"><div class="box protects"><h3>What It Protects</h3><p>${esc(s.protects)}</p></div>
-      <div class="box does-not"><h3>What It Leaves Exposed</h3><p>${esc(s.does_not)}${record.safeguard === "metadata" ? refMarks(["bagley", "rothstein"]) : ""}</p></div></div>
-      ${metadata}`;
+      <details class="box why"><summary><h3>What It Protects and Leaves Exposed</h3></summary>
+        <p><strong>Protects.</strong> ${esc(s.protects)}</p>
+        <p><strong>Leaves exposed.</strong> ${esc(s.does_not)}${record.safeguard === "metadata" ? refMarks(["bagley", "rothstein"]) : ""}</p>
+        ${metadata}
+        <p>${esc(stage.safeguards_note)}</p>
+        <p>${esc(stage.future_inference.text)}${refMarks(stage.future_inference.refs)}</p>
+      </details>`;
   }
   return `<div class="box threat"><span class="tag">Unauthorized access attempt</span><p>${esc(stage.request)}</p></div>
-    <div class="box"><h3>${esc(stage.future_inference.title)}</h3><p>${esc(stage.future_inference.text)}${refMarks(stage.future_inference.refs)}</p></div>
-    <p class="caveat">${esc(stage.safeguards_note)}</p>
+    <p class="caveat">Left: the legitimate system's inference. Right: the requester's. Each safeguard rebuilds both from measured data.</p>
     <div class="choices" role="group" aria-label="Safeguard">${choices}</div>${levels}${outcome}`;
 }
 
@@ -1027,9 +1263,19 @@ function renderPanel() {
     </div>`;
 }
 
+const RAIL_GROUPS = [
+  { label: "Measured", stages: [0, 1, 2] },
+  { label: "Interpreted", stages: [3] },
+  { label: "Acted Upon", stages: [4, 5, 6] },
+];
+
 function renderRail() {
-  $("rail").innerHTML = STAGES.map(
-    (s, i) => `<div class="rail-step"><button type="button" class="rail-btn ${state.visited.has(i) ? "visited" : ""}" data-stage="${i}" ${i === state.stage ? 'aria-current="step"' : ""} title="${i + 1}. ${esc(s.name)}, passes on ${esc(s.handoff)}"><span class="rail-num">${i + 1}</span>${esc(s.name)}</button>${i < STAGES.length - 1 ? '<span class="rail-link" aria-hidden="true"></span>' : ""}</div>`,
+  const step = (i) => {
+    const s = STAGES[i];
+    return `<div class="rail-step"><button type="button" class="rail-btn ${state.visited.has(i) ? "visited" : ""}" data-stage="${i}" ${i === state.stage ? 'aria-current="step"' : ""} title="${i + 1}. ${esc(s.name)}, passes on ${esc(s.handoff)}"><span class="rail-num">${i + 1}</span>${esc(s.name)}</button>${i < STAGES.length - 1 ? '<span class="rail-link" aria-hidden="true"></span>' : ""}</div>`;
+  };
+  $("rail").innerHTML = RAIL_GROUPS.map(
+    (g) => `<div class="rail-group${g.stages.includes(state.stage) ? " active" : ""}"><span class="rail-group-label">${g.label}</span><div class="rail-group-steps">${g.stages.map(step).join("")}</div></div>`,
   ).join("");
 }
 
@@ -1046,6 +1292,7 @@ function goTo(i) {
     key.color.set(WORLD[i].light);
     syncHistoryRings();
     syncCopies();
+    syncLandscapes(false);
     moveCamera(i);
   }
   renderRail();
@@ -1061,14 +1308,21 @@ function setSafeguard(k) {
   record.safeguard = k;
   const levels = DECISION.safeguards[k].levels;
   record.level = levels ? levels[0].value : null;
-  if (renderer) syncCopies();
+  if (k === "deny") barDropStart = clock.elapsedTime;
+  if (renderer) {
+    syncCopies();
+    syncLandscapes(true);
+  }
   renderPanel();
   exposureHud();
 }
 
 function setLevel(value) {
   current().level = value;
-  if (renderer) syncCopies();
+  if (renderer) {
+    syncCopies();
+    syncLandscapes(true);
+  }
   renderPanel();
   exposureHud();
 }
