@@ -60,6 +60,59 @@ class TestDataIsCurrent(unittest.TestCase):
         self.assertIn("cannot resolve", lowest["failure"])
 
 
+class TestScientificReading(unittest.TestCase):
+    """The labels and accuracy the experience shows, rederived from the alpha powers."""
+
+    def test_accuracy_follows_from_the_alpha_powers_and_threshold(self):
+        # The page labels a second eyes closed when its alpha power is
+        # above the threshold, the same rule classify_eyes_state applies.
+        base = DATA["baseline"]
+        closed, opened, t = base["alpha_power_eyes_closed"], base["alpha_power_eyes_open"], base["threshold"]
+        correct = sum(p > t for p in closed) + sum(p <= t for p in opened)
+
+        self.assertEqual((correct, len(closed) + len(opened)), (27, 30))
+        self.assertAlmostEqual(correct / 30, base["accuracy"], places=4)
+
+    def test_threshold_is_the_midpoint_of_the_class_means(self):
+        base = DATA["baseline"]
+        mean = lambda xs: sum(xs) / len(xs)  # noqa: E731
+        midpoint = (mean(base["alpha_power_eyes_closed"]) + mean(base["alpha_power_eyes_open"])) / 2
+
+        self.assertAlmostEqual(base["threshold"], midpoint, places=2)
+
+    def test_alpha_is_higher_with_eyes_closed(self):
+        # The direction Barry et al. (2007) report, which the Signals stage states.
+        base = DATA["baseline"]
+
+        self.assertGreater(
+            sum(base["alpha_power_eyes_closed"]) / 15, sum(base["alpha_power_eyes_open"]) / 15
+        )
+
+    def test_every_offered_level_has_a_measured_result(self):
+        decision = next(s for s in CONTENT["stages"] if s["name"] == "Decision")
+        noise = {n["sd_uv"] for n in DATA["noise"]}
+        factors = {d["factor"] for d in DATA["downsample"]}
+
+        for level in decision["safeguards"]["noise"]["levels"]:
+            self.assertIn(level["value"], noise)
+        for level in decision["safeguards"]["downsample"]["levels"]:
+            self.assertIn(level["value"], factors)
+
+    def test_25_hz_keeps_the_inference_and_12_5_hz_loses_it(self):
+        # What the downsampling safeguard's text claims, checked against the data.
+        by_factor = {d["factor"]: d for d in DATA["downsample"]}
+
+        self.assertEqual(by_factor[20]["effective_rate_hz"], 25.0)
+        self.assertEqual(by_factor[20]["accuracy"], DATA["baseline"]["accuracy"])
+        self.assertIsNone(by_factor[40]["accuracy"])
+
+    def test_heavy_noise_reaches_chance(self):
+        # What the noise safeguard's text claims.
+        heavy = next(n for n in DATA["noise"] if n["sd_uv"] == 250.0)
+
+        self.assertEqual(heavy["accuracy"], 0.5)
+
+
 class TestContentMatchesItsSources(unittest.TestCase):
     def test_stages_are_the_pipeline_stages(self):
         from modules.signal_pipeline.core import pipeline
@@ -93,6 +146,12 @@ class TestContentMatchesItsSources(unittest.TestCase):
             with self.subTest(safeguard=key):
                 self.assertTrue(safeguard["protects"].strip())
                 self.assertTrue(safeguard["does_not"].strip())
+                self.assertTrue(safeguard["acts_on"].strip())
+
+    def test_every_stage_says_what_changed(self):
+        for stage in CONTENT["stages"]:
+            with self.subTest(stage=stage["name"]):
+                self.assertTrue(stage["what_changed"].strip())
 
     def test_every_stage_has_all_three_perspectives(self):
         for stage in CONTENT["stages"]:

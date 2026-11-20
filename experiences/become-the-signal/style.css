@@ -307,6 +307,40 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .nav { display: flex; justify-content: space-between; gap: 0.6rem; margin-top: 1rem; }
 .nav button { flex: 1; }
 
+/* ---- exposure tracker and inspection ---- */
+.hud {
+  position: fixed;
+  left: 1rem;
+  top: 4.6rem;
+  z-index: 4;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  backdrop-filter: blur(8px);
+  max-width: calc(100% - 2rem);
+}
+.hud strong { color: var(--text); }
+.inspect {
+  position: fixed;
+  z-index: 6;
+  max-width: 17rem;
+  background: var(--surface-solid);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 0.5rem 0.7rem;
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+.inspect[hidden] { display: none; }
+.changed { border-color: rgba(124, 196, 255, 0.4); }
+.acts-on { font-size: 0.85rem; color: var(--muted); margin: 0 0 0.5rem; }
+.acts-on strong { color: var(--text); }
+.levels { grid-template-columns: 1fr 1fr; }
+.copies li { margin-bottom: 0.45rem; }
+
 /* ---- evidence dialog ---- */
 .refs {
   max-width: 42rem;
@@ -364,4 +398,5 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   .intro-card { padding: 1.4rem; }
   .intro h1 { font-size: 1.8rem; }
   .text-view { padding-top: 7rem; }
+  .hud { top: 6.1rem; left: 0.75rem; font-size: 0.78rem; }
 }

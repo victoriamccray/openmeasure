@@ -42,20 +42,17 @@ const WORLD = [
   { fog: 0x100619, light: 0xd08cff },
 ];
 
-const SAFEGUARD_NOISE_LEVELS = data.noise.filter((n) => n.waveform).map((n) => n.sd_uv).filter((sd) => sd > 0);
-const SAFEGUARD_FACTORS = data.downsample.map((d) => d.factor).filter((f) => f > 1);
+const DECISION = STAGES.find((s) => s.interaction === "safeguard");
 
 const state = {
   stage: 0,
   visited: new Set([0]),
   perspective: "agency",
-  safeguard: null,
-  noiseSd: 100,
-  factor: 10,
   pass: 1,
-  // One entry per pass: whether the device recorded, and the requester's
-  // copy if one was made. Earlier passes are never cleared.
-  passes: { 1: { device: false, requester: null } },
+  // One entry per pass: whether the device recorded, and the safeguard
+  // chosen at the junction with its level. Earlier passes are never
+  // cleared, so their copies stay on the map.
+  passes: { 1: { device: false, safeguard: null, level: null } },
   textView: false,
 };
 
@@ -86,33 +83,61 @@ function downsampleEntry(factor) {
   return data.downsample.find((d) => d.factor === factor);
 }
 
-// What the requester's copy supports, for the chosen safeguard.
-function safeguardOutcome() {
+const current = () => state.passes[state.pass];
+
+// What each copy supports, for a pass's safeguard. Noise and a lower rate
+// change the stored recording, so the device's copy and the legitimate
+// system change with it; the other safeguards leave both untouched.
+function outcomeFor(record) {
   const base = data.baseline;
-  switch (state.safeguard) {
+  switch (record.safeguard) {
     case "noise": {
-      const e = noiseEntry(state.noiseSd);
-      return { requester: e, legitimate: e, detail: `${state.noiseSd} µV of noise` };
+      const e = noiseEntry(record.level);
+      return { requester: e, legitimate: e };
     }
     case "downsample": {
-      const e = downsampleEntry(state.factor);
-      return { requester: e, legitimate: e, detail: `${e.effective_rate_hz} Hz, down from ${data.source.sampling_rate_hz} Hz` };
+      const e = downsampleEntry(record.level);
+      return { requester: e, legitimate: e };
     }
     case "metadata":
     case "purpose":
-      return { requester: base, legitimate: base, detail: "" };
+      return { requester: base, legitimate: base };
     case "deny":
-      return { requester: null, legitimate: base, detail: "" };
+      return { requester: null, legitimate: base };
     default:
-      return null;
+      return { requester: null, legitimate: base };
   }
 }
+const safeguardOutcome = () => (current().safeguard ? outcomeFor(current()) : null);
 
+// Every copy of the learner, with who holds it, what it still supports,
+// and whether the person can take it back. Concrete facts, not a score.
 function copies() {
   const list = [];
   for (const [pass, record] of Object.entries(state.passes)) {
-    if (record.device) list.push({ pass: Number(pass), where: "Sensors", label: content.stages[1].copy });
-    if (record.requester) list.push({ pass: Number(pass), where: "Decision", label: record.requester });
+    const outcome = outcomeFor(record);
+    if (record.device) {
+      list.push({
+        pass: Number(pass),
+        where: "Sensors",
+        label: STAGES[1].copy,
+        holder: "The recording device",
+        accuracy: outcome.legitimate.accuracy,
+        labels: true,
+        recall: "Only by whoever runs the device",
+      });
+    }
+    if (record.safeguard && record.safeguard !== "deny") {
+      list.push({
+        pass: Number(pass),
+        where: "Decision",
+        label: DECISION.safeguards[record.safeguard].copy,
+        holder: "An outside organization",
+        accuracy: outcome.requester.accuracy,
+        labels: record.safeguard !== "metadata",
+        recall: "No. It has left the system",
+      });
+    }
   }
   return list;
 }
@@ -189,6 +214,9 @@ function pillarSet(result, { spacing = 0.55, height = 6, radius = 0.18, showWron
         glow(predicted === "closed" ? COLORS.closed : COLORS.open, wrong ? 0.25 : 0.6),
       );
       pillar.position.set((i - (row.values.length - 1) / 2) * spacing, h / 2, row.z);
+      pillar.userData.inspect =
+        `Second ${i + 1}, eyes ${row.truth}. Alpha power ${power.toFixed(1)} µV². ` +
+        `Labelled eyes ${predicted}${wrong ? ", which is wrong" : ""}.`;
       group.add(pillar);
       if (wrong && showWrong) {
         const ring = new THREE.Mesh(new THREE.TorusGeometry(radius * 2.2, 0.05, 8, 24), glow(COLORS.wrong, 1.2));
@@ -415,11 +443,34 @@ const denyBar = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.25, 0.25), glow(COLO
   g.add(head);
 })();
 
-// The pathway joining every station.
-(function buildPath() {
-  const points = STAGES.map((_, i) => stationPos(i).add(new THREE.Vector3(0, -0.4, 6)));
-  const curve = new THREE.CatmullRomCurve3(points);
-  scene.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 300, 0.12, 8), glow(COLORS.path, 0.5)));
+// The pathway joining every station. The camera and the packet travel
+// along this same curve, so moving between stages is a journey through
+// the worlds in between rather than a cut from one to the next.
+const pathCurve = new THREE.CatmullRomCurve3(STAGES.map((_, i) => stationPos(i).add(new THREE.Vector3(0, -0.4, 6))));
+const stageU = (i) => i / (STAGES.length - 1);
+scene.add(new THREE.Mesh(new THREE.TubeGeometry(pathCurve, 400, 0.12, 8), glow(COLORS.path, 0.5)));
+
+// Drifting matter around the pathway, coloured by the nearest world. It
+// does not move; travelling past it is what gives the sense of speed.
+(function buildParticles() {
+  const rand = seeded(11);
+  const count = 3000;
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+  const c = new THREE.Color();
+  for (let k = 0; k < count; k++) {
+    const u = rand();
+    const p = pathCurve.getPoint(u);
+    const angle = rand() * Math.PI * 2;
+    const radius = 4 + rand() * 16;
+    positions.set([p.x + Math.cos(angle) * radius, p.y + Math.sin(angle) * radius * 0.6 + 3, p.z + (rand() - 0.5) * 6], k * 3);
+    c.set(WORLD[Math.round(u * (STAGES.length - 1))].light);
+    colors.set([c.r, c.g, c.b], k * 3);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  scene.add(new THREE.Points(geometry, new THREE.PointsMaterial({ size: 0.09, vertexColors: true, transparent: true, opacity: 0.75 })));
 })();
 
 // The learner: a packet that changes form at each stage and keeps a ring
@@ -455,8 +506,9 @@ function syncCopies() {
   requesterGhosts.clear();
   branchPath.clear();
   requesterGroup.clear();
-  copies().forEach((c, k) => {
+  copies().forEach((c) => {
     const g = ghost(0.8);
+    g.userData.inspect = `${c.label}. Held by: ${c.holder.toLowerCase()}. Can the person recall it? ${c.recall}.`;
     if (c.where === "Sensors") {
       g.position.set(deviceGhosts.children.length * 1.1, 0, 0);
       deviceGhosts.add(g);
@@ -465,10 +517,9 @@ function syncCopies() {
       requesterGhosts.add(g);
     }
   });
-  const current = state.passes[state.pass];
   const outcome = safeguardOutcome();
-  denyBar.visible = state.safeguard === "deny";
-  if (current.requester) {
+  denyBar.visible = current().safeguard === "deny";
+  if (outcome?.requester) {
     branchPath.add(line([new THREE.Vector3(0, 0.6, 2), new THREE.Vector3(9.5, 0.6, -4.8), new THREE.Vector3(13, 0.6, -6)], COLORS.copy, 0.8));
   }
   if (outcome?.requester && outcome.requester.accuracy !== null) {
@@ -477,95 +528,143 @@ function syncCopies() {
 }
 
 // ------------------------------------------------------------------
-// Camera
+// Camera, travel, and inspection
 // ------------------------------------------------------------------
 
 const view = { yaw: 0, pitch: 0 };
-const camFrom = new THREE.Vector3();
-const camTo = new THREE.Vector3();
-const lookFrom = new THREE.Vector3();
-const lookTo = new THREE.Vector3();
-let travel = 1;
-const TRAVEL_SECONDS = 1.8;
+const trip = { from: 0, to: 0, t: 1, seconds: 2 };
+const currentLook = new THREE.Vector3();
+const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
 function framing(i) {
   const station = stationPos(i);
   // The panel covers the right of the screen on wide layouts and the
   // bottom on narrow ones, so the subject is framed away from it.
-  const look = narrow.matches ? station.clone().add(new THREE.Vector3(0, 0.5, 0)) : station.clone().add(new THREE.Vector3(5, 2, 0));
+  const look = narrow.matches ? station.clone().add(new THREE.Vector3(0, -5.5, 0)) : station.clone().add(new THREE.Vector3(5, 2, 0));
   const eye = station.clone().add(new THREE.Vector3(0, narrow.matches ? 7 : 5.5, narrow.matches ? 22 : 17));
   if (i === 4) look.add(new THREE.Vector3(3, 1, -2));
   return { eye, look };
 }
 
-function moveCamera(i, instant) {
+// Where the packet rests at a stage: just in front of the camera, low and
+// to the left, so it is in view and never over the stage's subject.
+function packetSpot(i) {
   const { eye, look } = framing(i);
-  camFrom.copy(camera.position);
-  lookFrom.copy(currentLook);
-  camTo.copy(eye);
-  lookTo.copy(look);
-  travel = instant || reducedMotion.matches ? 1 : 0;
-  if (travel === 1) {
-    camera.position.copy(eye);
-    currentLook.copy(look);
-  }
+  const forward = look.clone().sub(eye).normalize();
+  const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+  const up = new THREE.Vector3().crossVectors(right, forward);
+  return eye
+    .addScaledVector(forward, 8)
+    .addScaledVector(right, narrow.matches ? -1.55 : -3.6)
+    .addScaledVector(up, narrow.matches ? 1.9 : -1.6);
+}
+
+function moveCamera(i, instant) {
+  trip.from = instant ? i : state.previous ?? i;
+  trip.to = i;
+  trip.seconds = Math.min(1.8 + 0.6 * Math.abs(trip.to - trip.from), 4.2);
+  trip.t = instant || reducedMotion.matches || trip.from === trip.to ? 1 : 0;
   view.yaw = 0;
   view.pitch = 0;
 }
 
-const currentLook = new THREE.Vector3();
+// Camera, look target, and packet position for the current moment of a
+// trip. At both ends it is the stage framing; in between, the camera
+// follows the packet along the pathway.
+function pose() {
+  const e = ease(trip.t);
+  const a = framing(trip.from);
+  const b = framing(trip.to);
+  const eye = a.eye.lerp(b.eye, e);
+  const look = a.look.lerp(b.look, e);
+  const rest = packetSpot(trip.from).lerp(packetSpot(trip.to), e);
+  if (trip.t >= 1 || trip.from === trip.to) return { eye, look, packetAt: rest };
 
-// Where the packet sits: just in front of the destination camera, low and
-// to the left, so it is always in view and never over the stage's subject.
-function packetSpot() {
-  const forward = lookTo.clone().sub(camTo).normalize();
-  const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
-  const up = new THREE.Vector3().crossVectors(right, forward);
-  return camTo.clone()
-    .addScaledVector(forward, 8)
-    .addScaledVector(right, narrow.matches ? -1.4 : -3.6)
-    .addScaledVector(up, narrow.matches ? 1.2 : -1.6);
+  const u = THREE.MathUtils.lerp(stageU(trip.from), stageU(trip.to), e);
+  const direction = Math.sign(trip.to - trip.from);
+  const ride = pathCurve.getPoint(u).add(new THREE.Vector3(0, 1.6, 0));
+  const ahead = pathCurve.getPoint(THREE.MathUtils.clamp(u + direction * 0.02, 0, 1)).add(new THREE.Vector3(0, 1.2, 0));
+  const heading = ahead.clone().sub(ride).normalize();
+  const chaseEye = ride.clone().addScaledVector(heading, -7).add(new THREE.Vector3(0, 2.4, 0));
+  const w = Math.sin(Math.PI * trip.t);
+  return {
+    eye: eye.lerp(chaseEye, w),
+    look: look.lerp(ahead, w),
+    packetAt: rest.lerp(ride, w),
+  };
 }
-const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+
+// Inspection: tapping a pillar or a copy says what it is.
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+function inspectableAt(clientX, clientY) {
+  pointer.set((clientX / window.innerWidth) * 2 - 1, -(clientY / window.innerHeight) * 2 + 1);
+  raycaster.setFromCamera(pointer, camera);
+  for (const hit of raycaster.intersectObjects(scene.children, true)) {
+    if (hit.object.userData.inspect && hit.object.visible) return hit.object;
+  }
+  return null;
+}
+function showInspect(text, x, y) {
+  const tip = $("inspect");
+  if (!text) {
+    tip.hidden = true;
+    return;
+  }
+  tip.textContent = text;
+  tip.hidden = false;
+  tip.style.left = `${Math.min(x + 14, window.innerWidth - tip.offsetWidth - 8)}px`;
+  tip.style.top = `${Math.max(y - tip.offsetHeight - 10, 8)}px`;
+}
 
 let dragging = null;
 canvas.addEventListener("pointerdown", (e) => {
-  dragging = { x: e.clientX, y: e.clientY, yaw: view.yaw, pitch: view.pitch };
+  dragging = { x: e.clientX, y: e.clientY, yaw: view.yaw, pitch: view.pitch, moved: false };
   canvas.setPointerCapture(e.pointerId);
 });
 canvas.addEventListener("pointermove", (e) => {
-  if (!dragging) return;
+  if (!dragging) {
+    canvas.style.cursor = inspectableAt(e.clientX, e.clientY) ? "pointer" : "";
+    return;
+  }
+  if (Math.hypot(e.clientX - dragging.x, e.clientY - dragging.y) > 6) dragging.moved = true;
   view.yaw = THREE.MathUtils.clamp(dragging.yaw - (e.clientX - dragging.x) * 0.005, -1.1, 1.1);
   view.pitch = THREE.MathUtils.clamp(dragging.pitch + (e.clientY - dragging.y) * 0.004, -0.35, 0.5);
 });
-canvas.addEventListener("pointerup", () => (dragging = null));
+canvas.addEventListener("pointerup", (e) => {
+  if (dragging && !dragging.moved) {
+    const hit = inspectableAt(e.clientX, e.clientY);
+    showInspect(hit?.userData.inspect, e.clientX, e.clientY);
+  }
+  dragging = null;
+});
 canvas.addEventListener("pointercancel", () => (dragging = null));
 
 const clock = new THREE.Clock();
 const fogColor = new THREE.Color();
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
-  if (travel < 1) travel = Math.min(1, travel + dt / TRAVEL_SECONDS);
-  const t = ease(travel);
-  const eye = camFrom.clone().lerp(camTo, t);
-  currentLook.copy(lookFrom.clone().lerp(lookTo, t));
+  if (trip.t < 1) trip.t = Math.min(1, trip.t + dt / trip.seconds);
+  const { eye, look, packetAt } = pose();
+  currentLook.copy(look);
 
   // Drag orbits the eye around what it is looking at.
-  const offset = eye.clone().sub(currentLook);
+  const offset = eye.clone().sub(look);
   offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), view.yaw);
   const side = new THREE.Vector3().crossVectors(offset, new THREE.Vector3(0, 1, 0)).normalize();
   offset.applyAxisAngle(side, view.pitch);
-  camera.position.copy(currentLook).add(offset);
-  camera.lookAt(currentLook);
+  camera.position.copy(look).add(offset);
+  camera.lookAt(look);
 
-  const station = stationPos(state.stage);
-  packet.position.lerp(packetSpot(), reducedMotion.matches ? 1 : Math.min(1, dt * 2.2));
-  packet.scale.setScalar(narrow.matches ? 0.42 : 0.55);
+  packet.position.copy(packetAt);
+  packet.scale.setScalar(narrow.matches ? 0.3 : 0.55);
   if (!reducedMotion.matches) historyRings.rotation.y += dt * 0.25;
-  key.position.copy(station).add(new THREE.Vector3(0, 8, 6));
 
-  fogColor.set(WORLD[state.stage].fog);
-  scene.fog.color.lerp(fogColor, reducedMotion.matches ? 1 : Math.min(1, dt * 1.5));
+  // The world's colour follows where the camera actually is on the path.
+  const nearest = Math.round(THREE.MathUtils.lerp(trip.from, trip.to, ease(trip.t)));
+  key.position.copy(stationPos(nearest)).add(new THREE.Vector3(0, 8, 6));
+  fogColor.set(WORLD[nearest].fog);
+  scene.fog.color.lerp(fogColor, reducedMotion.matches ? 1 : Math.min(1, dt * 2.5));
   scene.background.copy(scene.fog.color);
 
   renderer.render(scene, camera);
@@ -608,9 +707,24 @@ function perspectivesHtml(stage) {
 
 function copiesHtml() {
   const list = copies();
-  if (!list.length) return `<div class="box copies"><h3>Copies of You</h3><p class="caveat">None yet. You exist only inside the person.</p></div>`;
-  const items = list.map((c) => `<li>${esc(c.label)}, made at ${esc(c.where)}${state.pass > 1 ? `, pass ${c.pass}` : ""}</li>`).join("");
-  return `<div class="box copies"><h3>Copies of You (${list.length})</h3><ol>${items}</ol></div>`;
+  if (!list.length) return `<div class="box copies"><h3>Your Exposure</h3><p class="caveat">No copies yet. You exist only inside the person.</p></div>`;
+  const items = list
+    .map(
+      (c) => `<li><strong>${esc(c.label)}</strong>${state.pass > 1 ? ` (pass ${c.pass})` : ""}<br>
+        Held by ${esc(c.holder.toLowerCase())}. Eyes state readable: ${pct(c.accuracy)}.
+        Identifying labels attached: ${c.labels ? "yes" : "no"}. Identifiable from the signal itself: possible.${refMarks(["bagley"])}
+        Recall by the person: ${esc(c.recall)}.</li>`,
+    )
+    .join("");
+  return `<div class="box copies"><h3>Your Exposure: ${list.length} ${list.length === 1 ? "Copy" : "Copies"}</h3><ol>${items}</ol></div>`;
+}
+
+function exposureHud() {
+  const list = copies();
+  const holders = [...new Set(list.map((c) => c.holder.toLowerCase()))];
+  $("hud").innerHTML = list.length
+    ? `<strong>${list.length}</strong> ${list.length === 1 ? "copy" : "copies"} of you · held by ${esc(holders.join(" and "))}`
+    : "No copies of you yet";
 }
 
 function interactionHtml(stage) {
@@ -638,7 +752,8 @@ function interactionHtml(stage) {
           <div class="metric"><span>Seconds labelled correctly</span><strong>${wrong.total - errors} of ${wrong.total}</strong></div>
           <div class="metric"><span>Accuracy</span><strong>${pct(base.accuracy)}</strong></div>
         </div>
-        <p>${wrong.closedAsOpen} eyes-closed seconds fell below the threshold and were labelled eyes open${wrong.openAsClosed ? `, and ${wrong.openAsClosed} eyes-open seconds were labelled eyes closed` : ""}. Back row: eyes closed. Front row: eyes open. The flat plane is the threshold.</p>
+        <p>${wrong.closedAsOpen} eyes-closed seconds fell below the threshold and were labelled eyes open${wrong.openAsClosed ? `, and ${wrong.openAsClosed} eyes-open seconds were labelled eyes closed` : ""}. Back row: eyes closed. Front row: eyes open. The flat plane is the threshold. Tap a pillar to inspect it.</p>
+        <p>${esc(stage.reading_note)}</p>
         <div class="box"><h3>${esc(stage.second_inference.title)}</h3><p>${esc(stage.second_inference.text)}${refMarks(stage.second_inference.refs)}</p></div>
         <p class="caveat">${esc(stage.caveat)}</p>`;
     }
@@ -650,49 +765,45 @@ function interactionHtml(stage) {
 }
 
 function safeguardHtml(stage) {
+  const record = current();
   const choices = Object.entries(stage.safeguards)
-    .map(([k, s]) => `<button type="button" class="choice" data-safeguard="${k}" aria-pressed="${state.safeguard === k}">${esc(s.label)}</button>`)
+    .map(([k, s]) => `<button type="button" class="choice" data-safeguard="${k}" aria-pressed="${record.safeguard === k}">${esc(s.label)}</button>`)
     .join("");
-  let level = "";
-  if (state.safeguard === "noise") {
-    const i = SAFEGUARD_NOISE_LEVELS.indexOf(state.noiseSd);
-    level = `<div class="level"><label for="noise-level">Noise: ${state.noiseSd} µV standard deviation</label>
-      <input id="noise-level" type="range" min="0" max="${SAFEGUARD_NOISE_LEVELS.length - 1}" step="1" value="${i}"></div>`;
-  }
-  if (state.safeguard === "downsample") {
-    const i = SAFEGUARD_FACTORS.indexOf(state.factor);
-    const e = downsampleEntry(state.factor);
-    level = `<div class="level"><label for="factor-level">Stored at ${e.effective_rate_hz} Hz (one sample in ${state.factor})</label>
-      <input id="factor-level" type="range" min="0" max="${SAFEGUARD_FACTORS.length - 1}" step="1" value="${i}"></div>`;
-  }
+  let levels = "";
   let outcome = "";
-  if (state.safeguard) {
-    const s = stage.safeguards[state.safeguard];
-    const o = safeguardOutcome();
-    const reqAcc = o.requester ? (o.requester.accuracy === null ? "fails" : pct(o.requester.accuracy)) : "no copy";
-    const legAcc = o.legitimate.accuracy === null ? "fails" : pct(o.legitimate.accuracy);
+  if (record.safeguard) {
+    const s = stage.safeguards[record.safeguard];
+    if (s.levels) {
+      levels = `<div class="choices levels" role="group" aria-label="Level">${s.levels
+        .map((l) => `<button type="button" class="choice" data-level="${l.value}" aria-pressed="${record.level === l.value}">${esc(l.label)}</button>`)
+        .join("")}</div>`;
+    }
+    const o = outcomeFor(record);
+    const reqAcc = o.requester ? pct(o.requester.accuracy) : "no copy";
+    const failure = o.requester && o.requester.accuracy === null ? `<p class="caveat">${esc(o.requester.failure)}</p>` : "";
     const metadata =
-      state.safeguard === "metadata"
+      record.safeguard === "metadata"
         ? `<p class="caveat">Removed: ${Object.keys(data.metadata.illustrative_fields).filter((k) => !(k in data.metadata.after_removal)).join(", ")}. Kept: ${Object.keys(data.metadata.after_removal).join(", ")}. ${esc(data.metadata.note)}</p>`
         : "";
-    const failure = o.requester && o.requester.accuracy === null ? `<p class="caveat">${esc(o.requester.failure)}</p>` : "";
-    outcome = `<div class="metric-row">
-        <div class="metric"><span>Requester's eyes-state accuracy</span><strong>${reqAcc}</strong></div>
-        <div class="metric"><span>Legitimate system's accuracy</span><strong>${legAcc}</strong></div>
+    outcome = `<p class="acts-on">Acts on: <strong>${esc(s.acts_on)}</strong></p>
+      <div class="metric-row">
+        <div class="metric"><span>Requester can read eyes state</span><strong>${reqAcc}</strong></div>
+        <div class="metric"><span>Legitimate system reads eyes state</span><strong>${pct(o.legitimate.accuracy)}</strong></div>
       </div>
       <p class="caveat">Before any safeguard, both were ${pct(data.baseline.accuracy)}. With equal numbers of each condition, 50% is chance.</p>
       ${failure}
       <div class="outcome"><div class="box protects"><h3>What It Protects</h3><p>${esc(s.protects)}</p></div>
-      <div class="box does-not"><h3>What It Does Not</h3><p>${esc(s.does_not)}${state.safeguard === "metadata" ? refMarks(["bagley", "rothstein"]) : ""}</p></div></div>
+      <div class="box does-not"><h3>What It Does Not</h3><p>${esc(s.does_not)}${record.safeguard === "metadata" ? refMarks(["bagley", "rothstein"]) : ""}</p></div></div>
       ${metadata}`;
   }
   return `<div class="box threat"><span class="tag">Unauthorized access attempt</span><p>${esc(stage.request)}</p></div>
-    <div class="choices" role="group" aria-label="Safeguard">${choices}</div>${level}${outcome}`;
+    <p class="caveat">${esc(stage.safeguards_note)}</p>
+    <div class="choices" role="group" aria-label="Safeguard">${choices}</div>${levels}${outcome}`;
 }
 
 function loopSummaryHtml() {
   if (STAGES[state.stage].interaction !== "loop") return "";
-  const sg = state.safeguard ? STAGES[4].safeguards[state.safeguard].label : "No safeguard chosen";
+  const sg = current().safeguard ? DECISION.safeguards[current().safeguard].label : "No safeguard chosen";
   return `<div class="box"><h3>Your Pass</h3><p>Safeguard: ${esc(sg)}.</p>
     <button type="button" class="ghost" id="new-pass">Travel again as a new signal</button></div>`;
 }
@@ -711,6 +822,7 @@ function renderPanel() {
     <p class="environment">${esc(stage.environment)}</p>
     <div class="you-are"><b>You are</b>${esc(stage.you_are)}</div>
     <p>${esc(stage.lesson)}${refMarks(stage.interaction === "threat" || stage.interaction === "infer" ? [] : stage.refs)}</p>
+    <div class="box changed"><h3>What Changed</h3><p>${esc(stage.what_changed)}</p></div>
     ${interactionHtml(stage)}
     ${loopSummaryHtml()}
     ${perspectivesHtml(stage)}
@@ -730,7 +842,9 @@ function renderRail() {
 
 function goTo(i) {
   if (i < 0 || i >= STAGES.length) return;
+  state.previous = state.stage;
   state.stage = i;
+  showInspect(null);
   state.visited.add(i);
   if (i >= 1) state.passes[state.pass].device = true;
   if (renderer) {
@@ -743,22 +857,31 @@ function goTo(i) {
   }
   renderRail();
   renderPanel();
+  exposureHud();
   $("panel").scrollTop = 0;
   if (state.textView) renderTextView();
 }
 
 function setSafeguard(k) {
-  state.safeguard = k;
-  const s = STAGES[4].safeguards[k];
-  state.passes[state.pass].requester = s.copy;
+  const record = current();
+  record.safeguard = k;
+  const levels = DECISION.safeguards[k].levels;
+  record.level = levels ? levels[0].value : null;
   if (renderer) syncCopies();
   renderPanel();
+  exposureHud();
+}
+
+function setLevel(value) {
+  current().level = value;
+  if (renderer) syncCopies();
+  renderPanel();
+  exposureHud();
 }
 
 function newPass() {
   state.pass += 1;
-  state.passes[state.pass] = { device: false, requester: null };
-  state.safeguard = null;
+  state.passes[state.pass] = { device: false, safeguard: null, level: null };
   state.visited = new Set([0]);
   goTo(0);
 }
@@ -776,17 +899,20 @@ function renderTextView() {
     if (s.interaction === "infer") {
       const w = misclassified(data.baseline);
       extra += `<p>Measured: ${w.total - w.closedAsOpen - w.openAsClosed} of ${w.total} one-second windows labelled correctly (${pct(data.baseline.accuracy)}).</p>`;
+      extra += `<p>${esc(s.reading_note)}</p>`;
       extra += `<p><strong>${esc(s.second_inference.title)}.</strong> ${esc(s.second_inference.text)}${refMarks(s.second_inference.refs)}</p><p class="caveat">${esc(s.caveat)}</p>`;
     }
     if (s.safeguards) {
       extra += `<p><strong>Request:</strong> ${esc(s.request)}</p>`;
-      extra += Object.values(s.safeguards).map((g) => `<h3>${esc(g.label)}</h3><p><strong>Protects:</strong> ${esc(g.protects)}</p><p><strong>Does not:</strong> ${esc(g.does_not)}</p>`).join("");
+      extra += `<p>${esc(s.safeguards_note)}</p>`;
+      extra += Object.values(s.safeguards).map((g) => `<h3>${esc(g.label)}</h3><p><strong>Acts on:</strong> ${esc(g.acts_on)}.</p><p><strong>Protects:</strong> ${esc(g.protects)}</p><p><strong>Does not:</strong> ${esc(g.does_not)}</p>`).join("");
       extra += `<h3>Measured Effect of Noise</h3><table><thead><tr><th>Noise SD (µV)</th><th>Eyes-state accuracy</th></tr></thead><tbody>${noiseRows}</tbody></table>`;
       extra += `<h3>Measured Effect of a Lower Sampling Rate</h3><table><thead><tr><th>One sample in</th><th>Rate (Hz)</th><th>Eyes-state accuracy</th></tr></thead><tbody>${downRows}</tbody></table>`;
     }
     const persp = Object.entries(content.perspectives).map(([k, p]) => `<li><strong>${esc(p.label)}.</strong> ${esc(s.perspectives[k])}</li>`).join("");
     return `<section><p class="stage-kicker">Stage ${i + 1} of ${STAGES.length}</p><h2>${esc(s.name)}</h2>
-      <p><strong>You are:</strong> ${esc(s.you_are)}</p><p>${esc(s.lesson)}${refMarks(s.refs)}</p>${extra}
+      <p><strong>You are:</strong> ${esc(s.you_are)}</p><p>${esc(s.lesson)}${refMarks(s.refs)}</p>
+      <p><strong>What changed:</strong> ${esc(s.what_changed)}</p>${extra}
       <ul>${persp}</ul><p class="handoff">Passes on: <strong>${esc(s.handoff)}</strong></p></section>`;
   }).join("");
   $("text-view").innerHTML = `<h1>${esc(content.title)}</h1><p>${esc(content.subtitle)}</p><p class="caveat">${esc(content.audience)}</p>
@@ -799,6 +925,8 @@ function setTextView(on) {
   $("toggle-text").textContent = on ? "3D view" : "Text view";
   $("text-view").hidden = !on;
   $("panel").hidden = on;
+  $("hud").hidden = on;
+  showInspect(null);
   if (on) renderTextView();
 }
 
@@ -838,6 +966,7 @@ document.addEventListener("click", (e) => {
     return renderPanel();
   }
   if (t.dataset.safeguard) return setSafeguard(t.dataset.safeguard);
+  if (t.dataset.level) return setLevel(Number(t.dataset.level));
   switch (t.id) {
     case "next":
       if (state.stage === STAGES.length - 1) return $("new-pass")?.focus();
@@ -861,20 +990,6 @@ document.addEventListener("click", (e) => {
   }
 });
 
-document.addEventListener("input", (e) => {
-  if (e.target.id === "noise-level") {
-    state.noiseSd = SAFEGUARD_NOISE_LEVELS[Number(e.target.value)];
-  } else if (e.target.id === "factor-level") {
-    state.factor = SAFEGUARD_FACTORS[Number(e.target.value)];
-  } else {
-    return;
-  }
-  if (renderer) syncCopies();
-  const id = e.target.id;
-  renderPanel();
-  $(id)?.focus({ preventScroll: true });
-});
-
 document.addEventListener("keydown", (e) => {
   if ($("refs").open || !$("intro").hidden || e.target.matches("input")) return;
   if (e.key === "ArrowRight") goTo(state.stage + 1);
@@ -895,7 +1010,6 @@ if (renderer) {
   resize();
   goTo(0);
   moveCamera(0, true);
-  packet.position.copy(packetSpot());
   requestAnimationFrame(frame);
 } else {
   // No WebGL: the text view is the experience.
