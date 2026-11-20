@@ -72,6 +72,7 @@ const refOrder = [];
 for (const stage of STAGES) {
   const keys = [
     ...(stage.refs || []),
+    ...(stage.mechanism_refs || []),
     ...(stage.threat?.refs || []),
     ...(stage.threat ? content.about_data.refs : []),
     ...(stage.second_inference?.refs || []),
@@ -297,8 +298,10 @@ function seeded(seed) {
   const g = stations[0];
   const rand = seeded(7);
   const count = 160;
-  const cells = new THREE.InstancedMesh(new THREE.SphereGeometry(0.22, 12, 12), glow(0xff6f91, 1), count);
-  cells.material.transparent = true;
+  const cells = new THREE.InstancedMesh(new THREE.SphereGeometry(0.22, 12, 12), new THREE.MeshBasicMaterial({ color: 0xffffff }), count);
+  // Each neuron's place in the cycle, from -0.5 to 0.5 of a cycle. How far
+  // these spread is what separates in-step from out-of-step firing.
+  const offsets = Array.from({ length: count }, () => rand() - 0.5);
   const m = new THREE.Matrix4();
   const positions = [];
   for (let i = 0; i < count; i++) {
@@ -307,6 +310,7 @@ function seeded(seed) {
     const s = 0.5 + rand() * 1.4;
     m.compose(p, new THREE.Quaternion(), new THREE.Vector3(s, s, s));
     cells.setMatrixAt(i, m);
+    cells.setColorAt(i, new THREE.Color(0xff6f91));
   }
   g.add(cells);
   const links = [];
@@ -337,10 +341,56 @@ function seeded(seed) {
   g.add(live);
   const pointsPerSecond = shownPoints;
   const thickness = 0.14;
-  // The tissue glows in proportion to the selected condition's measured
-  // average alpha power, so closing the eyes brightens it.
-  const glowFor = (eyes) => 0.15 + 0.85 * (ALPHA_MEAN[eyes] / ALPHA_MEAN.eyes_closed);
-  animate(0, (t) => {
+  // A schematic simulation of why the scalp sees alpha (Buzsaki et al.,
+  // 2012): scalp EEG sums the activity of many neurons. Firing in step,
+  // their activity adds up; out of step, it cancels. Eyes closed puts the
+  // simulated neurons in step and eyes open spreads them out, which is the
+  // desynchronization Barry et al. (2007) describe. It runs slowed to one
+  // cycle per second: alpha's real 8 to 13 Hz would flash faster than the
+  // three-per-second limit accessibility guidelines set.
+  const SIM_HZ = 1;
+  const SPREAD = { eyes_closed: 0.08, eyes_open: 1 };
+  let spread = SPREAD[state.eyes];
+  const sumPoints = 140;
+  const sumPositions = new Float32Array(sumPoints * 2 * 3);
+  const sumGeometry = new THREE.BufferGeometry();
+  sumGeometry.setAttribute("position", new THREE.BufferAttribute(sumPositions, 3));
+  const sumIndex = [];
+  for (let k = 0; k < sumPoints - 1; k++) {
+    const a = k * 2;
+    sumIndex.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+  }
+  sumGeometry.setIndex(sumIndex);
+  const sum = new THREE.Mesh(sumGeometry, new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide }));
+  sum.position.y = 6.2;
+  g.add(sum);
+  const pink = new THREE.Color(0xff6f91);
+  const shade = new THREE.Color();
+  let lastNow = null;
+  animate(0, (t, now) => {
+    const moving = Number.isFinite(t);
+    // Eased by elapsed time, so the change settles in about a second
+    // however fast the device draws.
+    const dt = moving && lastNow !== null ? Math.min(now - lastNow, 0.1) : 0;
+    lastNow = moving ? now : null;
+    spread = moving ? THREE.MathUtils.lerp(spread, SPREAD[state.eyes], 1 - Math.exp(-dt * 4)) : SPREAD[state.eyes];
+    const time = moving ? t : 0;
+    for (let i = 0; i < count; i++) {
+      const activity = 0.5 + 0.5 * Math.cos(2 * Math.PI * (SIM_HZ * time + offsets[i] * spread));
+      cells.setColorAt(i, shade.copy(pink).multiplyScalar(0.3 + 0.7 * activity));
+    }
+    cells.instanceColor.needsUpdate = true;
+    // The summed activity over the next three simulated cycles.
+    for (let k = 0; k < sumPoints; k++) {
+      const ahead = (k / (sumPoints - 1)) * 3;
+      let total = 0;
+      for (let i = 0; i < count; i++) total += Math.cos(2 * Math.PI * (SIM_HZ * time + ahead + offsets[i] * spread));
+      const x = (k / (sumPoints - 1) - 0.5) * 18;
+      const y = (total / count) * 1.6;
+      sumPositions.set([x, y - 0.06, 0, x, y + 0.06, 0], k * 6);
+    }
+    sumGeometry.attributes.position.needsUpdate = true;
+
     const values = data.waveform[state.eyes];
     const start = Number.isFinite(t) ? Math.floor(t * pointsPerSecond) % values.length : 0;
     for (let k = 0; k < shownPoints; k++) {
@@ -351,10 +401,6 @@ function seeded(seed) {
     }
     geometry.attributes.position.needsUpdate = true;
     live.material.color.set(state.eyes === "eyes_closed" ? COLORS.closed : COLORS.open);
-    const target = glowFor(state.eyes);
-    const m = cells.material;
-    m.emissiveIntensity = Number.isFinite(t) ? THREE.MathUtils.lerp(m.emissiveIntensity, target, 0.08) : target;
-    m.opacity = 0.35 + 0.65 * target;
   });
 })();
 
@@ -855,6 +901,8 @@ function interactionHtml(stage) {
           <button type="button" class="choice" data-eyes="eyes_closed" aria-pressed="${state.eyes === "eyes_closed"}">Eyes closed</button>
           <button type="button" class="choice" data-eyes="eyes_open" aria-pressed="${state.eyes === "eyes_open"}">Eyes open</button>
         </div>
+        <p>${esc(stage.mechanism)}${refMarks(stage.mechanism_refs)}</p>
+        <div class="legend"><span><i style="background:#fff"></i>Simulated sum of the neurons, slowed</span><span><i style="background:var(--${state.eyes === "eyes_closed" ? "closed" : "open"})"></i>Recorded signal</span></div>
         ${waveformSvg(data.waveform.eyes_closed, data.waveform.eyes_open)}
         <p class="caveat">${esc(data.waveform.note)} ${esc(data.source.subject)}, channel ${esc(data.source.channel)}, ${esc(data.source.dataset)}.${refMarks(["sanchez_gama"])}</p>`;
     case "threat":
@@ -1057,7 +1105,7 @@ function renderTextView() {
     const persp = Object.entries(content.perspectives).map(([k, p]) => `<li><strong>${esc(p.label)}.</strong> ${esc(s.perspectives[k])}</li>`).join("");
     return `<section><p class="stage-kicker">Stage ${i + 1} of ${STAGES.length}</p><h2>${esc(s.name)}</h2>
       <p><strong>You are:</strong> ${esc(s.you_are)}</p><p>${esc(s.lesson)}${refMarks(s.refs)}</p>
-      <p><strong>What changed:</strong> ${esc(s.what_changed)}</p>${extra}${s.threat ? aboutDataHtml() : ""}
+      <p><strong>What changed:</strong> ${esc(s.what_changed)}</p>${s.mechanism ? `<p>${esc(s.mechanism)}${refMarks(s.mechanism_refs)}</p>` : ""}${extra}${s.threat ? aboutDataHtml() : ""}
       <ul>${persp}</ul><p class="handoff">Passes on: <strong>${esc(s.handoff)}</strong></p></section>`;
   }).join("");
   $("text-view").innerHTML = `<h1>${esc(content.title)}</h1><p>${esc(content.subtitle)}</p><p class="caveat">${esc(content.audience)}</p>
