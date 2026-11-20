@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Become the Signal · OpenMeasure</title>
+  <meta name="description" content="Travel through a neurotechnology system as one real EEG signal, and see where it is copied, inferred from, and protected.">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+  </script>
+</head>
+<body>
+  <canvas id="scene" aria-hidden="true"></canvas>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span>Become the Signal</span>
+    </div>
+    <nav class="rail" id="rail" aria-label="Pipeline stages"></nav>
+    <div class="topbar-actions">
+      <button type="button" class="ghost" id="toggle-text" aria-pressed="false">Text view</button>
+      <button type="button" class="ghost" id="open-refs">Evidence</button>
+    </div>
+  </header>
+
+  <section class="intro" id="intro" aria-labelledby="intro-title">
+    <div class="intro-card">
+      <p class="eyebrow">OpenMeasure · Neurosecurity</p>
+      <h1 id="intro-title">Become the Signal</h1>
+      <p class="intro-sub" id="intro-sub"></p>
+      <p class="intro-audience" id="intro-audience"></p>
+      <ul class="intro-facts">
+        <li><strong>You are real data.</strong> One person's brain activity, from a public EEG recording.</li>
+        <li><strong>Every number is measured.</strong> Nothing you see is an assigned score.</li>
+        <li><strong>Copies of you stay on the map.</strong> Moving on does not take them with you.</li>
+      </ul>
+      <div class="intro-actions">
+        <button type="button" class="primary" id="begin">Begin</button>
+        <button type="button" class="ghost" id="begin-text">Read as text instead</button>
+      </div>
+      <p class="hint">Arrow keys or the buttons move between stages. Drag to look around. Tap a pillar or a copy to inspect it.</p>
+    </div>
+  </section>
+
+  <div class="hud" id="hud" role="status" aria-live="polite"></div>
+  <div class="inspect" id="inspect" role="status" hidden></div>
+
+  <aside class="panel" id="panel" aria-live="polite"></aside>
+
+  <main class="text-view" id="text-view" hidden></main>
+
+  <dialog class="refs" id="refs" aria-labelledby="refs-title">
+    <div class="refs-head">
+      <h2 id="refs-title">Evidence</h2>
+      <button type="button" class="ghost" id="close-refs">Close</button>
+    </div>
+    <p class="refs-note" id="refs-source"></p>
+    <ol id="refs-list"></ol>
+  </dialog>
+
+  <noscript><p class="noscript">This experience needs JavaScript. The same content is on the OpenMeasure Multimodal Signal Convergence page.</p></noscript>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>
