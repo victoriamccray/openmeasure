@@ -5,13 +5,13 @@ OpenMeasure.
 Not a workflow: no catalog entry, no module_key, no lifecycle stage - same
 "reference page declared directly in Home.py" pattern as
 pages/Explore_Real_Data.py, pages/Method_Selection.py, and
-pages/Privacy_and_Data_Access.py. Grouped with Explore Real Data, Method
+pages/Privacy_and_Data_Access.py. Grouped with Explore Data, Method
 Selection, and Research Journeys under Home.py's "Getting Started"
 section: all four orient a reader before or around running an analysis,
 each in a distinct way (discover external resources, see methods
 applied to real data, pick an analysis, understand the broader process).
 
-Distinct from Explore Real Data: that page's entries each pair with one
+Distinct from Explore Data: that page's entries each pair with one
 specific OpenMeasure workflow (shared/datasets.py's try_with requires it).
 This page is for tools, methods guides, and dataset directories that do
 not make that specific a pairing, or that are not a dataset at all.

@@ -5,7 +5,7 @@ workflow or research journey.
 This is a discovery aid, not a workflow. It carries no module_key, is
 never passed to shared/handoff.py, and its page is not part of
 shared/catalog.py's lifecycle stages, for the same reason
-shared/datasets.py's Explore Real Data catalog sits outside them: routing
+shared/datasets.py's Explore Data catalog sits outside them: routing
 a user to a destination is not itself an analysis.
 
 The entry question is deliberately phrased as what a researcher is trying

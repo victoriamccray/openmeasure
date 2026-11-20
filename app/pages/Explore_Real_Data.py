@@ -1,5 +1,5 @@
 """
-Explore Real Data - discovery page pointing to real research datasets.
+Explore Data - discovery page pointing to published research datasets.
 
 This page is a pointer, not a workflow. It records nothing to
 shared/handoff.py and carries no module_key, so it cannot appear on the
@@ -10,7 +10,7 @@ for numbered pages, so this one needs none.
 Each card names an open-ended validation question rather than steps to
 follow. Columns, procedures, and expected results are left for the user to
 find, because the point of this page is to practice validation judgment on
-real data, not to reproduce a worked example.
+published research data, not to reproduce a worked example.
 """
 
 from __future__ import annotations
@@ -31,20 +31,21 @@ from shared.datasets import DATASETS
 from shared.portraits import catalog_portrait_svg
 
 st.set_page_config(
-    page_title="OpenMeasure - Explore Real Data",
+    page_title="OpenMeasure - Explore Data",
     layout="centered",
 )
 
-st.title("Explore Real Data")
+st.title("Explore Data")
 st.caption(
-    "Real research datasets to try against OpenMeasure's existing "
+    "Published research datasets to try against OpenMeasure's existing "
     "workflows."
 )
 
 st.markdown(
     """
-These measurement datasets reflect real-world complexities rather than
-standardized benchmarks. Consequently, you should anticipate missing
+These measurement datasets come from published studies and data
+repositories, and they carry the complexity of how they were collected.
+Expect missing
 values, condition-dependent traits, and outcomes that vary based on
 data filtering and splitting. Rather than addressing questions with a
 single definitive answer, they are best suited for validation

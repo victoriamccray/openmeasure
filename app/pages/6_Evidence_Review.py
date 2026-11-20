@@ -95,7 +95,7 @@ st.set_page_config(
 st.title("Evidence Review")
 st.subheader("Cross-Cutting Validation")
 st.caption(
-    "Compare a finding against real published literature, with a "
+    "Compare a finding against published literature, with a "
     "transparent search and no generative AI call."
 )
 
@@ -110,7 +110,7 @@ with st.expander("What this page does"):
         """
 Type a finding, and this page searches [OpenAlex](https://openalex.org) -- a
 fully open, keyless bibliographic index -- for published works that share its
-keywords. Every result is real and dereferenceable: a title, authors, year,
+keywords. Every result is an indexed, dereferenceable record: a title, authors, year,
 venue, DOI, and abstract, exactly as OpenAlex reports them.
 
 Relevance is a **keyword-overlap score**, not a semantic judgment: it counts
@@ -149,8 +149,8 @@ as support for anything.
 - Its Nesta-level preview uses arbitrary stand-in values for the indicator,
   program, and claim level, stated as such where they appear, because this
   page has no portfolio or indicator taxonomy of its own. It previews what
-  the grading would show; it is not a substitute for assembling real evidence
-  in Portfolio Impact Analysis with a real indicator and program.
+  the grading would show; it is not a substitute for assembling your own evidence
+  in Portfolio Impact Analysis with your own indicator and program.
 """
     )
 
@@ -615,7 +615,7 @@ if included_items:
     caveat(
         "Illustrative only. The indicator, program, and level identifiers "
         "below are arbitrary stand-in values, because this page has no "
-        "portfolio or indicator taxonomy of its own. Assemble real "
+        "portfolio or indicator taxonomy of its own. Assemble your own "
         "evidence in Portfolio Impact Analysis for a claim that is not a "
         "preview."
     )

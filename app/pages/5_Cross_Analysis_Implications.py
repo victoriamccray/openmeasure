@@ -548,7 +548,7 @@ interpretation_note(
 
 implications(summary.shared_implication)
 
-st.markdown("**Real-world takeaway**")
+st.markdown("**Practical takeaway**")
 st.info(summary.real_world_takeaway)
 
 for limitation in summary.limitations:

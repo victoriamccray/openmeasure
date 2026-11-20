@@ -565,7 +565,7 @@ def _render_workflow_suggestions(suggestions: tuple[WorkflowSuggestion, ...]) ->
         "These are structural matches, not a determination of "
         "methodological appropriateness: shape alone can't establish "
         "your actual research question or intent. If more than one "
-        "workflow is shown, that reflects a real ambiguity structure "
+        "workflow is shown, that reflects an ambiguity structure "
         "can't resolve on its own, not an error."
     )
 
@@ -581,7 +581,7 @@ def _render_workflow_suggestions(suggestions: tuple[WorkflowSuggestion, ...]) ->
 
     st.page_link(
         "pages/Explore_Real_Data.py",
-        label="Browse real datasets shaped like these workflows",
+        label="Browse published datasets shaped like these workflows",
         icon=":material/dataset:",
     )
 
@@ -1753,7 +1753,7 @@ else:
                 "the marker was placed, not a continuous number."
             )
             st.caption(
-                "An abstract drawing, not a real body map: marker "
+                "An abstract drawing, not an anatomical body map: marker "
                 "placement is user-chosen, drawn for legibility, not "
                 "measured."
             )
@@ -2128,8 +2128,8 @@ else:
             "Pain states, pain ratings, physiological signals and the "
             "coupling between them below are this scenario's, and are "
             "illustrative. The sliders are assumptions about what is "
-            "*true* in it, not facts a real version would already know: a "
-            "real study would need pilot data or published estimates to "
+            "*true* in it, not facts known in advance: a study run with "
+            "participants would need pilot data or published estimates to "
             "set them credibly."
         )
 
@@ -2203,7 +2203,7 @@ else:
         st.warning(
             "**Synthetic data, not study participant data.** "
             "modules/research_design/core/simulate.py documents the "
-            "exact generative model and which real-world confounders "
+            "exact generative model and which participant-level confounders "
             "(medication, activity, sleep, stress) v0.1 does not model."
         )
 
@@ -2375,7 +2375,7 @@ else:
             "This is one analysis aligned to this simulated design (a "
             "within-person correlation difference), not a general "
             "measure of the design's quality and not a recommended "
-            "analysis for a real version of this study."
+            "analysis for this study run with participants."
         )
 
 
@@ -2404,7 +2404,7 @@ else:
         caveat(
             "Simulated precision and uncertainty describe this "
             "simulation under these assumptions. They are not a "
-            "guarantee about how a real study, even one matching these "
+            "guarantee about how a study run with participants, even one matching these "
             "settings closely, would actually perform."
         )
 
@@ -2480,7 +2480,7 @@ else:
 - **Fairness** would matter if coupling were compared across a
   demographic or clinical subgroup, not just across a participant's own
   pain states.
-- **Evidence Review** is where a real version of this study would start:
+- **Evidence Review** is where a participant study of this design would start:
   finding what related work already exists on EDA/HR-pain coupling
   before running a new study.
 
@@ -2608,7 +2608,7 @@ Limitations
 -----------
 Observational, not experimental: cannot establish causation. Does not
 model medication, activity, sleep, or stress. Simulated precision does
-not guarantee real-world performance. Synthetic data, not study
+not guarantee performance in a study run with participants. Synthetic data, not study
 participant data. Part 2 of this record describes the worked example
 throughout; a builder that assembles a design from your own question is
 not yet built.

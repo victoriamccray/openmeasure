@@ -155,7 +155,8 @@ st.markdown("OpenMeasure can be used in multiple ways:")
 st.markdown(
     """
 **Learn with Research Journeys**
-Work through real datasets step by step to see how validation decisions
+Work through published datasets and labelled illustrative examples step
+by step to see how validation decisions
 arise across the research workflow.
 
 **Apply to your research**
@@ -277,12 +278,12 @@ for stage in LIFECYCLE_STAGES:
         # No numbered workflow covers this stage (shared/catalog.py's
         # STAGES_WITHOUT_WORKFLOWS), because framing a research question is
         # not something a statistic validates. Research Journeys and
-        # Explore Real Data occupy it instead -- see
+        # Explore Data occupy it instead -- see
         # shared/research_journeys.py's docstring for the fuller reasoning.
         st.caption(
-            "Research Journeys and Explore Real Data occupy this stage. "
+            "Research Journeys and Explore Data occupy this stage. "
             "Framing a research question is a judgment rather than "
-            "something a statistic validates, so each walks a real "
+            "something a statistic validates, so each walks a "
             "dataset through the questions it can and cannot support."
         )
 
@@ -299,14 +300,14 @@ for stage in LIFECYCLE_STAGES:
             )
 
         with st.container(border=True):
-            st.markdown("**Explore Real Data**")
+            st.markdown("**Explore Data**")
             st.write(
-                "Real, citable datasets to practice validation judgment "
+                "Published, citable datasets to practice validation judgment "
                 "on, with no prescribed columns or expected results."
             )
             st.page_link(
                 "pages/Explore_Real_Data.py",
-                label="Open Explore Real Data",
+                label="Open Explore Data",
                 icon=":material/arrow_forward:",
             )
         continue
@@ -378,7 +379,8 @@ st.divider()
 st.subheader("Getting Started")
 st.markdown(
     "New to a dataset or question? Start with Research Journeys or "
-    "Explore Real Data to build validation judgment on real examples."
+    "Explore Data to build validation judgment on worked examples and "
+    "published datasets."
 )
 st.page_link(
     "pages/Method_Selection.py",

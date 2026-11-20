@@ -507,7 +507,7 @@ DATASETS: tuple[RealDataset, ...] = (
             "130 US hospitals, with 47 features covering demographics, "
             "admission and discharge details, diagnoses, medications and "
             "whether the patient was readmitted within 30 days. It records "
-            "what happened to real patients, and contains no predictions "
+            "observed outcomes for patients, and contains no predictions "
             "from any deployed model, which is what decides the fairness "
             "questions it can answer. Race is recorded and has missing "
             "values, documented as such at source."

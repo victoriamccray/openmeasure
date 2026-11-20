@@ -447,7 +447,7 @@ def _boundary_svg(boundary) -> str:
 st.title("Right To Play")
 st.subheader("Evaluating a School-Based Violence Prevention Program")
 st.caption(
-    "How a real published evaluation was built, and where its public "
+    "How a published evaluation was built, and where its public "
     "artifacts stop."
 )
 

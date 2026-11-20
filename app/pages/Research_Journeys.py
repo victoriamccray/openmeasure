@@ -33,19 +33,42 @@ st.set_page_config(
 
 st.title("Research Journeys")
 st.caption(
-    "Guided worked examples of what a real dataset supports, grouped by "
-    "field. Pick a domain, then a journey."
+    "Explore research questions through data, interactive experiences, "
+    "and evidence."
 )
 
 st.markdown(
     """
-Each journey walks a real (or, where marked, illustrative) dataset
-through a validation question none of OpenMeasure's numbered workflows
-cover on their own: what a dataset's evidence can and cannot support.
+Follow information from measurement to interpretation, investigate
+methodological decisions, and discover how those choices shape what we
+can conclude.
 """
 )
 
 st.divider()
+
+# Become the Signal is a static 3D experience hosted on GitHub Pages, so
+# it has no page in this app's navigation. It is shown beside its
+# Streamlit companion, Multimodal Signal Convergence, as an external link.
+BECOME_THE_SIGNAL_URL = "https://victoriamccray.github.io/openmeasure/become-the-signal/"
+BECOME_THE_SIGNAL_AFTER = "pages/Multimodal_Signal_Convergence.py"
+
+
+def render_become_the_signal() -> None:
+    with st.container(border=True):
+        st.markdown("**Become the Signal**")
+        st.caption("Privacy & Neurosecurity, interactive 3D experience")
+        st.write(
+            "Travel through a neurotechnology system as one EEG recording "
+            "from a public dataset, choose safeguards, and see what each "
+            "protects and leaves exposed."
+        )
+        st.link_button(
+            "Open Become the Signal",
+            BECOME_THE_SIGNAL_URL,
+            icon=":material/open_in_new:",
+        )
+
 
 for domain, journeys in journeys_by_domain().items():
     st.markdown(f"#### {domain}")
@@ -60,6 +83,9 @@ for domain, journeys in journeys_by_domain().items():
                 label=f"Open {journey.title}",
                 icon=":material/arrow_forward:",
             )
+
+        if journey.page == BECOME_THE_SIGNAL_AFTER:
+            render_become_the_signal()
 
 st.divider()
 

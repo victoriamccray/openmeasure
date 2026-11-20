@@ -10,7 +10,7 @@ That makes the catalog the single source for the sidebar, the overview
 cards, and the drift test in shared/tests/test_catalog.py, so a workflow
 cannot exist in one and be missing from another.
 
-Explore Real Data, Method Selection, Research Resources, Privacy & Data
+Explore Data, Method Selection, Research Resources, Privacy & Data
 Access, Meta-Validation, Research Journeys, and Home itself are
 declared separately, below, rather than through the catalog. None of
 them is a validation workflow: they have no lifecycle stage, no
@@ -39,13 +39,15 @@ page's own heading spells out what it means for a reader who has not
 seen the term before.
 
 Research Resources (pages/Resources.py - the file and url_path keep
-their original name; only the displayed title changed), Explore Real
-Data, Method Selection, and Research Journeys are grouped together
+their original name; only the displayed title changed), Explore Data
+(pages/Explore_Real_Data.py - the file and url_path keep their original
+name; only the displayed title changed), Method Selection, and Research
+Journeys are grouped together
 under a "Getting Started" section, each serving a distinct purpose a
 reader needs before or around running an analysis:
 
 - Research Resources: discover useful external research resources.
-- Explore Real Data: see methods applied to real datasets.
+- Explore Data: see methods applied to published research datasets.
 - Method Selection: determine which analysis fits a research
   question/data.
 - Research Journeys: understand the broader research process and
@@ -115,7 +117,7 @@ sections: dict[str, list[st.Page]] = {
 }
 
 # Getting Started is the umbrella for every pre-analysis entry point:
-# discover external resources, browse a real dataset, pick an analysis,
+# discover external resources, browse a published dataset, pick an analysis,
 # or understand the broader research process. Placed right after Home
 # and before the workflow categories, so a new reader meets "get
 # oriented / get started" before "here are the workflows."
@@ -127,7 +129,7 @@ sections["Getting Started"] = [
     ),
     st.Page(
         "pages/Explore_Real_Data.py",
-        title="Explore Real Data",
+        title="Explore Data",
         url_path="Explore_Real_Data",
     ),
     st.Page(
