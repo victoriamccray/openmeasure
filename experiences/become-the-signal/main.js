@@ -339,16 +339,18 @@ function seeded(seed) {
   const live = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: COLORS.closed, side: THREE.DoubleSide }));
   live.position.y = 2.2;
   g.add(live);
-  const pointsPerSecond = shownPoints;
+  // Shown at a quarter of real speed, so the waves can be followed by eye.
+  const PLAYBACK_SPEED = 0.25;
+  const pointsPerSecond = shownPoints * PLAYBACK_SPEED;
   const thickness = 0.14;
   // A schematic simulation of why the scalp sees alpha (Buzsaki et al.,
   // 2012): scalp EEG sums the activity of many neurons. Firing in step,
   // their activity adds up; out of step, it cancels. Eyes closed puts the
   // simulated neurons in step and eyes open spreads them out, which is the
   // desynchronization Barry et al. (2007) describe. It runs slowed to one
-  // cycle per second: alpha's real 8 to 13 Hz would flash faster than the
+  // cycle every two seconds: alpha's real 8 to 13 Hz would flash faster than the
   // three-per-second limit accessibility guidelines set.
-  const SIM_HZ = 1;
+  const SIM_HZ = 0.5;
   const SPREAD = { eyes_closed: 0.08, eyes_open: 1 };
   let spread = SPREAD[state.eyes];
   const sumPoints = 140;
@@ -902,7 +904,7 @@ function interactionHtml(stage) {
           <button type="button" class="choice" data-eyes="eyes_open" aria-pressed="${state.eyes === "eyes_open"}">Eyes open</button>
         </div>
         <p>${esc(stage.mechanism)}${refMarks(stage.mechanism_refs)}</p>
-        <div class="legend"><span><i style="background:#fff"></i>Simulated sum of the neurons, slowed</span><span><i style="background:var(--${state.eyes === "eyes_closed" ? "closed" : "open"})"></i>Recorded signal</span></div>
+        <div class="legend"><span><i style="background:#fff"></i>Simulated sum of the neurons, slowed about 20 times</span><span><i style="background:var(--${state.eyes === "eyes_closed" ? "closed" : "open"})"></i>Recorded signal, at quarter speed</span></div>
         ${waveformSvg(data.waveform.eyes_closed, data.waveform.eyes_open)}
         <p class="caveat">${esc(data.waveform.note)} ${esc(data.source.subject)}, channel ${esc(data.source.channel)}, ${esc(data.source.dataset)}.${refMarks(["sanchez_gama"])}</p>`;
     case "threat":
