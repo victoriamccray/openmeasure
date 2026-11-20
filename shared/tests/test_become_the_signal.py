@@ -131,10 +131,11 @@ class TestContentMatchesItsSources(unittest.TestCase):
 
     def test_every_citation_key_has_a_reference(self):
         references = CONTENT["references"]
-        used = set()
+        used = set(CONTENT["about_data"]["refs"])
         for stage in CONTENT["stages"]:
-            for block in (stage, stage.get("threat") or {}, stage.get("second_inference") or {}):
-                used.update(block.get("refs", []))
+            for key in ("threat", "second_inference", "future_inference"):
+                used.update((stage.get(key) or {}).get("refs", []))
+            used.update(stage.get("refs", []))
 
         self.assertEqual(sorted(used - set(references)), [])
         self.assertEqual(sorted(set(references) - used), [])
@@ -147,6 +148,32 @@ class TestContentMatchesItsSources(unittest.TestCase):
                 self.assertTrue(safeguard["protects"].strip())
                 self.assertTrue(safeguard["does_not"].strip())
                 self.assertTrue(safeguard["acts_on"].strip())
+
+    def test_prose_has_no_spaced_dashes_or_negating_definitions(self):
+        # The page's style rule: no dashes as punctuation, and nothing
+        # described by what it is not.
+        import re
+
+        def prose(value):
+            if isinstance(value, dict):
+                for key, item in value.items():
+                    if key not in ("references", "refs"):
+                        yield from prose(item)
+            elif isinstance(value, list):
+                for item in value:
+                    yield from prose(item)
+            elif isinstance(value, str):
+                yield value
+
+        pattern = re.compile(r" - |–|—|, not |not an? |rather than", re.I)
+        offenders = [text for text in prose(CONTENT) if pattern.search(text)]
+
+        self.assertEqual(offenders, [])
+
+    def test_the_story_has_a_beginning_and_an_end(self):
+        for key in ("beginning", "ending", "takeaway"):
+            with self.subTest(part=key):
+                self.assertTrue(CONTENT[key].strip())
 
     def test_every_stage_says_what_changed(self):
         for stage in CONTENT["stages"]:

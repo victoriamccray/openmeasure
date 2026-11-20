@@ -48,6 +48,7 @@ const state = {
   stage: 0,
   visited: new Set([0]),
   perspective: "agency",
+  eyes: "eyes_closed",
   pass: 1,
   // One entry per pass: whether the device recorded, and the safeguard
   // chosen at the junction with its level. Earlier passes are never
@@ -69,7 +70,13 @@ const pct = (value) => (value === null || value === undefined ? "fails" : `${Mat
 // numbers read in order as the learner moves forward.
 const refOrder = [];
 for (const stage of STAGES) {
-  const keys = [...(stage.refs || []), ...(stage.threat?.refs || []), ...(stage.second_inference?.refs || [])];
+  const keys = [
+    ...(stage.refs || []),
+    ...(stage.threat?.refs || []),
+    ...(stage.threat ? content.about_data.refs : []),
+    ...(stage.second_inference?.refs || []),
+    ...(stage.future_inference?.refs || []),
+  ];
   for (const key of keys) if (!refOrder.includes(key)) refOrder.push(key);
 }
 const refNumber = (key) => refOrder.indexOf(key) + 1;
@@ -124,7 +131,7 @@ function copies() {
         holder: "The recording device",
         accuracy: outcome.legitimate.accuracy,
         labels: true,
-        recall: "Only by whoever runs the device",
+        recall: "Deletable by whoever runs the device",
       });
     }
     if (record.safeguard && record.safeguard !== "deny") {
@@ -135,7 +142,7 @@ function copies() {
         holder: "An outside organization",
         accuracy: outcome.requester.accuracy,
         labels: record.safeguard !== "metadata",
-        recall: "No. It has left the system",
+        recall: "Stays with the receiver",
       });
     }
   }
@@ -251,6 +258,15 @@ function ghost(scale = 1) {
   return mesh;
 }
 
+// Explanatory motion. Each entry animates one stage's transformation and
+// runs only while that stage is on screen. Under reduced motion every
+// entry is drawn once, at its settled state.
+const animations = [];
+const animate = (stage, update) => animations.push({ stage, update });
+let arrivedAt = 0;
+let settledStage = -1;
+let copyFlightStart = -Infinity;
+
 const stations = STAGES.map((_, i) => {
   const group = new THREE.Group();
   group.position.copy(stationPos(i));
@@ -294,11 +310,26 @@ function seeded(seed) {
     new THREE.BufferGeometry().setFromPoints(links),
     new THREE.LineBasicMaterial({ color: 0xff8fb0, transparent: true, opacity: 0.25 }),
   ));
-  const closed = traceLine(data.waveform.eyes_closed, 18, 1.6, COLORS.closed, waveMax);
-  closed.position.y = 3.4;
-  const open = traceLine(data.waveform.eyes_open, 18, 1.6, COLORS.open, waveMax);
-  open.position.y = 0.6;
-  g.add(closed, open);
+  // One second of the recording at a time, scrolling at real speed and
+  // looping over the two seconds exported. Every point is a recorded value.
+  const shownPoints = Math.round(data.waveform.eyes_closed.length / data.waveform.seconds);
+  const livePositions = new Float32Array(shownPoints * 3);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(livePositions, 3));
+  const live = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: COLORS.closed }));
+  live.position.y = 2.2;
+  g.add(live);
+  const pointsPerSecond = shownPoints;
+  animate(0, (t) => {
+    const values = data.waveform[state.eyes];
+    const start = Number.isFinite(t) ? Math.floor(t * pointsPerSecond) % values.length : 0;
+    for (let k = 0; k < shownPoints; k++) {
+      const v = values[(start + k) % values.length];
+      livePositions.set([(k / (shownPoints - 1) - 0.5) * 18, (v / waveMax) * 2.2, 0], k * 3);
+    }
+    geometry.attributes.position.needsUpdate = true;
+    live.material.color.set(state.eyes === "eyes_closed" ? COLORS.closed : COLORS.open);
+  });
 })();
 
 // 2. Sensors: scalp, electrode, wire, the recording device, and the
@@ -325,6 +356,16 @@ const deviceGhosts = new THREE.Group();
     new THREE.Vector3(6.4, 1.3, -2.6),
   ]);
   g.add(new THREE.Mesh(new THREE.TubeGeometry(wireCurve, 40, 0.06, 8), matte(0x9fb4b8)));
+  // Each dot is a sample on its way to storage: acquisition, drawn.
+  const samples = Array.from({ length: 14 }, () => {
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 10), glow(0x6fe3d0, 1.2));
+    g.add(dot);
+    return dot;
+  });
+  animate(1, (t) => {
+    const phase = Number.isFinite(t) ? t * 0.35 : 0;
+    samples.forEach((dot, k) => dot.position.copy(wireCurve.getPoint((phase + k / samples.length) % 1)));
+  });
   // The antenna, about three meters away in the study, placed off to the
   // side with static arcs toward the wire.
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 6, 8), matte(0x5b2230));
@@ -367,6 +408,15 @@ const deviceGhosts = new THREE.Group();
   pillars.children.filter((c) => c.geometry?.type === "PlaneGeometry" || c.type === "Line").forEach((c) => (c.visible = false));
   pillars.position.set(6.5, 0, 0);
   g.add(pillars);
+  const columns = pillars.children.filter((c) => c.geometry?.type === "CylinderGeometry");
+  columns.forEach((c) => (c.userData.height = c.geometry.parameters.height));
+  animate(2, (t) => {
+    columns.forEach((c, k) => {
+      const grown = Number.isFinite(t) ? THREE.MathUtils.clamp((t - 0.3 - k * 0.05) / 0.5, 0.001, 1) : 1;
+      c.scale.y = grown;
+      c.position.y = (c.userData.height * grown) / 2;
+    });
+  });
 })();
 
 // 4. Inference: every window as a pillar, the threshold as a plane.
@@ -405,6 +455,16 @@ const denyBar = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.25, 0.25), glow(COLO
   requesterGroup.position.set(13, 9.2, -8);
   requesterGroup.scale.setScalar(0.7);
   requesterGhosts.position.set(9.5, 1.4, -4.8);
+  // The junction, in the requester group's own coordinates.
+  const junction = new THREE.Vector3(-9.5, 0, 6.8);
+  animate(4, (_t, now) => {
+    const flight = Number.isFinite(now) ? THREE.MathUtils.clamp((now - copyFlightStart) / 1.4, 0, 1) : 1;
+    for (const ghostMesh of requesterGhosts.children) {
+      if (!ghostMesh.userData.rest) continue;
+      if (ghostMesh.userData.flies) ghostMesh.position.lerpVectors(junction, ghostMesh.userData.rest, ease(flight));
+      else ghostMesh.position.copy(ghostMesh.userData.rest);
+    }
+  });
   denyBar.position.set(9, 1.6, -4.4);
   denyBar.rotation.y = -0.55;
   g.add(requesterGroup, requesterGhosts, branchPath, denyBar);
@@ -426,6 +486,12 @@ const denyBar = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.25, 0.25), glow(COLO
   cursor.rotation.z = Math.PI * 0.8;
   cursor.position.set(-3, 2.5, -1.9);
   g.add(cursor);
+  const cursorFrom = new THREE.Vector3(-3, 2.5, -1.9);
+  const cursorTo = new THREE.Vector3(2.4, 4.2, -1.9);
+  animate(5, (t) => {
+    const moved = Number.isFinite(t) ? THREE.MathUtils.clamp((t - 0.4) / 1.6, 0, 1) : 1;
+    cursor.position.lerpVectors(cursorFrom, cursorTo, ease(moved));
+  });
   g.add(line([new THREE.Vector3(-3, 2.5, -1.9), new THREE.Vector3(2.4, 4.2, -1.9)], 0x7ef0a0, 0.6));
 })();
 
@@ -441,6 +507,12 @@ const denyBar = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.25, 0.25), glow(COLO
   head.position.set(Math.cos(angle) * 6, 4 + Math.sin(angle) * 6, -3);
   head.rotation.z = angle;
   g.add(head);
+  const pulse = new THREE.Mesh(new THREE.SphereGeometry(0.35, 16, 16), glow(0xffffff, 1.2));
+  loop.add(pulse);
+  animate(6, (t) => {
+    const a = Number.isFinite(t) ? ((t * 0.35) % 1) * Math.PI * 1.6 : Math.PI * 0.8;
+    pulse.position.set(Math.cos(a) * 6, Math.sin(a) * 6, 0);
+  });
 })();
 
 // The pathway joining every station. The camera and the packet travel
@@ -514,6 +586,8 @@ function syncCopies() {
       deviceGhosts.add(g);
     } else {
       g.position.set(requesterGhosts.children.length * 1.1, 0, 0);
+      g.userData.rest = g.position.clone();
+      g.userData.flies = c.pass === state.pass;
       requesterGhosts.add(g);
     }
   });
@@ -534,7 +608,9 @@ function syncCopies() {
 const view = { yaw: 0, pitch: 0 };
 const trip = { from: 0, to: 0, t: 1, seconds: 2 };
 const currentLook = new THREE.Vector3();
-const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+function ease(t) {
+  return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+}
 
 function framing(i) {
   const station = stationPos(i);
@@ -657,6 +733,17 @@ function frame() {
   camera.lookAt(look);
 
   packet.position.copy(packetAt);
+
+  const now = clock.elapsedTime;
+  if (trip.t >= 1 && settledStage !== trip.to) {
+    settledStage = trip.to;
+    arrivedAt = now;
+  }
+  for (const a of animations) {
+    if (a.stage !== state.stage) continue;
+    if (reducedMotion.matches) a.update(Infinity, Infinity);
+    else a.update(trip.t >= 1 ? now - arrivedAt : 0, now);
+  }
   packet.scale.setScalar(narrow.matches ? 0.3 : 0.55);
   if (!reducedMotion.matches) historyRings.rotation.y += dt * 0.25;
 
@@ -707,13 +794,13 @@ function perspectivesHtml(stage) {
 
 function copiesHtml() {
   const list = copies();
-  if (!list.length) return `<div class="box copies"><h3>Your Exposure</h3><p class="caveat">No copies yet. You exist only inside the person.</p></div>`;
+  if (!list.length) return `<div class="box copies"><h3>Your Exposure</h3><p class="caveat">You exist only inside the person.</p></div>`;
   const items = list
     .map(
       (c) => `<li><strong>${esc(c.label)}</strong>${state.pass > 1 ? ` (pass ${c.pass})` : ""}<br>
         Held by ${esc(c.holder.toLowerCase())}. Eyes state readable: ${pct(c.accuracy)}.
         Identifying labels attached: ${c.labels ? "yes" : "no"}. Identifiable from the signal itself: possible.${refMarks(["bagley"])}
-        Recall by the person: ${esc(c.recall)}.</li>`,
+        After sharing: ${esc(c.recall)}.</li>`,
     )
     .join("");
   return `<div class="box copies"><h3>Your Exposure: ${list.length} ${list.length === 1 ? "Copy" : "Copies"}</h3><ol>${items}</ol></div>`;
@@ -724,17 +811,22 @@ function exposureHud() {
   const holders = [...new Set(list.map((c) => c.holder.toLowerCase()))];
   $("hud").innerHTML = list.length
     ? `<strong>${list.length}</strong> ${list.length === 1 ? "copy" : "copies"} of you · held by ${esc(holders.join(" and "))}`
-    : "No copies of you yet";
+    : "You exist only inside the person";
 }
 
 function interactionHtml(stage) {
   const base = data.baseline;
   switch (stage.interaction) {
     case "waveform":
-      return `${waveformSvg(data.waveform.eyes_closed, data.waveform.eyes_open)}
+      return `<div class="choices levels" role="group" aria-label="Recorded condition">
+          <button type="button" class="choice" data-eyes="eyes_closed" aria-pressed="${state.eyes === "eyes_closed"}">Eyes closed</button>
+          <button type="button" class="choice" data-eyes="eyes_open" aria-pressed="${state.eyes === "eyes_open"}">Eyes open</button>
+        </div>
+        ${waveformSvg(data.waveform.eyes_closed, data.waveform.eyes_open)}
         <p class="caveat">${esc(data.waveform.note)} ${esc(data.source.subject)}, channel ${esc(data.source.channel)}, ${esc(data.source.dataset)}.${refMarks(["sanchez_gama"])}</p>`;
     case "threat":
-      return `<div class="box threat"><span class="tag">${esc(stage.threat.kind)}</span><h3>${esc(stage.threat.title)}</h3><p>${esc(stage.threat.text)}${refMarks(stage.threat.refs)}</p></div>`;
+      return `<div class="box threat"><span class="tag">${esc(stage.threat.kind)}</span><h3>${esc(stage.threat.title)}</h3><p>${esc(stage.threat.text)}${refMarks(stage.threat.refs)}</p><p class="caveat">${esc(stage.threat.definition)}</p></div>
+        ${aboutDataHtml()}`;
     case "features": {
       const n = base.alpha_power_eyes_closed.length + base.alpha_power_eyes_open.length;
       return `<div class="metric-row">
@@ -779,7 +871,7 @@ function safeguardHtml(stage) {
         .join("")}</div>`;
     }
     const o = outcomeFor(record);
-    const reqAcc = o.requester ? pct(o.requester.accuracy) : "no copy";
+    const reqAcc = o.requester ? pct(o.requester.accuracy) : "copy withheld";
     const failure = o.requester && o.requester.accuracy === null ? `<p class="caveat">${esc(o.requester.failure)}</p>` : "";
     const metadata =
       record.safeguard === "metadata"
@@ -793,18 +885,36 @@ function safeguardHtml(stage) {
       <p class="caveat">Before any safeguard, both were ${pct(data.baseline.accuracy)}. With equal numbers of each condition, 50% is chance.</p>
       ${failure}
       <div class="outcome"><div class="box protects"><h3>What It Protects</h3><p>${esc(s.protects)}</p></div>
-      <div class="box does-not"><h3>What It Does Not</h3><p>${esc(s.does_not)}${record.safeguard === "metadata" ? refMarks(["bagley", "rothstein"]) : ""}</p></div></div>
+      <div class="box does-not"><h3>What It Leaves Exposed</h3><p>${esc(s.does_not)}${record.safeguard === "metadata" ? refMarks(["bagley", "rothstein"]) : ""}</p></div></div>
       ${metadata}`;
   }
   return `<div class="box threat"><span class="tag">Unauthorized access attempt</span><p>${esc(stage.request)}</p></div>
+    <div class="box"><h3>${esc(stage.future_inference.title)}</h3><p>${esc(stage.future_inference.text)}${refMarks(stage.future_inference.refs)}</p></div>
     <p class="caveat">${esc(stage.safeguards_note)}</p>
     <div class="choices" role="group" aria-label="Safeguard">${choices}</div>${levels}${outcome}`;
 }
 
+function aboutDataHtml() {
+  const a = content.about_data;
+  return `<details class="box about"><summary><h3>${esc(a.title)}</h3></summary>
+    <p>${esc(a.source)}${refMarks(["sanchez_gama"])}</p><p>${esc(a.excerpt)}</p>
+    <p><strong>Research questions.</strong> ${esc(a.questions)}</p>
+    <p><strong>Data shape.</strong> ${esc(a.shape)}${refMarks(["gramfort", "delorme"])}</p></details>`;
+}
+
 function loopSummaryHtml() {
   if (STAGES[state.stage].interaction !== "loop") return "";
-  const sg = current().safeguard ? DECISION.safeguards[current().safeguard].label : "No safeguard chosen";
-  return `<div class="box"><h3>Your Pass</h3><p>Safeguard: ${esc(sg)}.</p>
+  const sg = current().safeguard ? DECISION.safeguards[current().safeguard].label : "None chosen";
+  const w = misclassified(data.baseline);
+  const list = copies();
+  const holders = [...new Set(list.map((c) => c.holder.toLowerCase()))];
+  return `<div class="box ending"><h3>End of the Journey</h3><p>${esc(content.ending)}</p>
+    <ul>
+      <li>Labels: ${w.total - w.closedAsOpen - w.openAsClosed} of ${w.total} seconds correct.</li>
+      <li>Safeguard at the junction: ${esc(sg)}.</li>
+      <li>Copies of you: ${list.length}, held by ${esc(holders.join(" and "))}.</li>
+    </ul>
+    <p class="takeaway">${esc(content.takeaway)}</p>
     <button type="button" class="ghost" id="new-pass">Travel again as a new signal</button></div>`;
 }
 
@@ -864,6 +974,7 @@ function goTo(i) {
 
 function setSafeguard(k) {
   const record = current();
+  if (!record.safeguard || record.safeguard === "deny") copyFlightStart = clock.elapsedTime;
   record.safeguard = k;
   const levels = DECISION.safeguards[k].levels;
   record.level = levels ? levels[0].value : null;
@@ -895,7 +1006,7 @@ function renderTextView() {
   const downRows = data.downsample.map((d) => `<tr><td>${d.factor}</td><td>${d.effective_rate_hz}</td><td>${pct(d.accuracy)}</td></tr>`).join("");
   const stages = STAGES.map((s, i) => {
     let extra = "";
-    if (s.threat) extra += `<p><strong>${esc(s.threat.title)}.</strong> ${esc(s.threat.text)}${refMarks(s.threat.refs)}</p>`;
+    if (s.threat) extra += `<p><strong>${esc(s.threat.title)}.</strong> ${esc(s.threat.text)}${refMarks(s.threat.refs)} ${esc(s.threat.definition)}</p>`;
     if (s.interaction === "infer") {
       const w = misclassified(data.baseline);
       extra += `<p>Measured: ${w.total - w.closedAsOpen - w.openAsClosed} of ${w.total} one-second windows labelled correctly (${pct(data.baseline.accuracy)}).</p>`;
@@ -904,19 +1015,21 @@ function renderTextView() {
     }
     if (s.safeguards) {
       extra += `<p><strong>Request:</strong> ${esc(s.request)}</p>`;
+      extra += `<p><strong>${esc(s.future_inference.title)}.</strong> ${esc(s.future_inference.text)}${refMarks(s.future_inference.refs)}</p>`;
       extra += `<p>${esc(s.safeguards_note)}</p>`;
-      extra += Object.values(s.safeguards).map((g) => `<h3>${esc(g.label)}</h3><p><strong>Acts on:</strong> ${esc(g.acts_on)}.</p><p><strong>Protects:</strong> ${esc(g.protects)}</p><p><strong>Does not:</strong> ${esc(g.does_not)}</p>`).join("");
+      extra += Object.values(s.safeguards).map((g) => `<h3>${esc(g.label)}</h3><p><strong>Acts on:</strong> ${esc(g.acts_on)}.</p><p><strong>Protects:</strong> ${esc(g.protects)}</p><p><strong>Leaves exposed:</strong> ${esc(g.does_not)}</p>`).join("");
       extra += `<h3>Measured Effect of Noise</h3><table><thead><tr><th>Noise SD (µV)</th><th>Eyes-state accuracy</th></tr></thead><tbody>${noiseRows}</tbody></table>`;
       extra += `<h3>Measured Effect of a Lower Sampling Rate</h3><table><thead><tr><th>One sample in</th><th>Rate (Hz)</th><th>Eyes-state accuracy</th></tr></thead><tbody>${downRows}</tbody></table>`;
     }
     const persp = Object.entries(content.perspectives).map(([k, p]) => `<li><strong>${esc(p.label)}.</strong> ${esc(s.perspectives[k])}</li>`).join("");
     return `<section><p class="stage-kicker">Stage ${i + 1} of ${STAGES.length}</p><h2>${esc(s.name)}</h2>
       <p><strong>You are:</strong> ${esc(s.you_are)}</p><p>${esc(s.lesson)}${refMarks(s.refs)}</p>
-      <p><strong>What changed:</strong> ${esc(s.what_changed)}</p>${extra}
+      <p><strong>What changed:</strong> ${esc(s.what_changed)}</p>${extra}${s.threat ? aboutDataHtml() : ""}
       <ul>${persp}</ul><p class="handoff">Passes on: <strong>${esc(s.handoff)}</strong></p></section>`;
   }).join("");
   $("text-view").innerHTML = `<h1>${esc(content.title)}</h1><p>${esc(content.subtitle)}</p><p class="caveat">${esc(content.audience)}</p>
-    ${stages}<section><h2>Takeaway</h2><p>${esc(content.takeaway)}</p></section>`;
+    <p>${esc(content.beginning)}</p>
+    ${stages}<section><h2>End of the Journey</h2><p>${esc(content.ending)}</p><p class="takeaway">${esc(content.takeaway)}</p></section>`;
 }
 
 function setTextView(on) {
@@ -967,6 +1080,10 @@ document.addEventListener("click", (e) => {
   }
   if (t.dataset.safeguard) return setSafeguard(t.dataset.safeguard);
   if (t.dataset.level) return setLevel(Number(t.dataset.level));
+  if (t.dataset.eyes) {
+    state.eyes = t.dataset.eyes;
+    return renderPanel();
+  }
   switch (t.id) {
     case "next":
       if (state.stage === STAGES.length - 1) return $("new-pass")?.focus();
@@ -1003,6 +1120,7 @@ document.addEventListener("keydown", (e) => {
 
 $("intro-sub").textContent = content.subtitle;
 $("intro-audience").textContent = content.audience;
+$("intro-beginning").textContent = content.beginning;
 renderRefs();
 
 if (renderer) {

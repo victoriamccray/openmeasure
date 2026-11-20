@@ -164,9 +164,9 @@ def build() -> dict:
             "illustrative_fields": example_metadata,
             "after_removal": dict(intervention.strip_metadata(example_metadata)),
             "note": (
-                "Illustrative of the fields a recording and sharing "
-                "pipeline attaches. They are not in the bundled excerpt, "
-                "whose own BIDS sidecars are mostly blank."
+                "Illustrative fields of the kind a recording and sharing "
+                "pipeline attaches. The dataset's own metadata files are "
+                "mostly blank."
             ),
         },
     }
