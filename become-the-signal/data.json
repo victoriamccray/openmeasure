@@ -12331,6 +12331,6 @@
   "after_removal": {
    "task": "eyes_closed"
   },
-  "note": "Illustrative of the fields a recording and sharing pipeline attaches. They are not in the bundled excerpt, whose own BIDS sidecars are mostly blank."
+  "note": "Illustrative fields of the kind a recording and sharing pipeline attaches. The dataset's own metadata files are mostly blank."
  }
 }
