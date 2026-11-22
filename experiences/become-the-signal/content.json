@@ -21,14 +21,15 @@
  "stages": [
   {
    "name": "Signals",
-   "environment": "Visual cortex, at the back of the head",
-   "you_are": "Alpha rhythm: electrical activity in the visual cortex that repeats 8 to 13 times per second (8 to 13 Hz, hertz). Alpha grows stronger when the eyes close and weaker when they open.",
+   "environment": "Cortical and thalamic networks, over the back of the head",
+   "you_are": "Alpha rhythm: electrical activity that repeats 8 to 13 times per second (8 to 13 Hz, hertz), usually strongest over the back of the head. In relaxed, awake adults, alpha typically grows stronger when the eyes close and weaker when they open.",
    "lesson": "Activity at this stage stays inside the person's body. Reading it requires a sensor. Switch between eyes closed and eyes open to see the rhythm change in the recorded data.",
    "what_changed": "This is the starting point. You are activity in the brain.",
    "mechanism": "Scalp EEG is the summed activity of many neurons firing together. When they fall out of step, the sum shrinks.",
    "mechanism_refs": ["buzsaki", "barry"],
    "handoff": "a physical signal a sensor can pick up",
    "interaction": "waveform",
+   "anatomy": {"view": "modalities", "title": "Where You Are in the Brain", "text": "You start over the occipital lobe at the back of the head, carried by networks that link cortex and thalamus. Choose a sensor to see where it gets a signal, what kind of signal that is, and what else it captures. Tap a region to learn what it does."},
    "refs": ["barry", "sanchez_gama"],
    "perspectives": {
     "agency": "The person produces you as a side effect of closing or opening the eyes. Later stages read that side effect.",
@@ -39,11 +40,12 @@
   {
    "name": "Sensors",
    "environment": "Scalp electrode at position O1",
-   "you_are": "A voltage measured at one scalp electrode, O1, which sits over the visual cortex. The device samples the voltage 500 times per second and stores each sample in microvolts (µV, millionths of a volt).",
+   "you_are": "A voltage measured at one scalp electrode, O1, which sits over the left occipital region. It records the voltage difference from a reference electrode, a blend of nearby sources. The device samples the voltage 500 times per second and stores each sample in microvolts (µV, millionths of a volt).",
    "lesson": "Sampling turns continuous activity into a sequence of numbers. The device stores that sequence. The stored recording is the first copy of you, and it stays at this stage when you move on.",
    "what_changed": "A continuous rhythm became 500 numbers per second. Numbers can be stored and copied.",
    "handoff": "a raw measured trace",
    "interaction": "threat",
+   "anatomy": {"view": "electrode", "title": "Where the Sensor Sits", "text": "Electrode positions follow the 10-20 system, which places each electrode at 10 or 20 percent of the distance across the head. Each label tells you the region and the side. This map uses the modern names T7, T8, P7, and P8 for the classic T3, T4, T5, and T6. Tap any electrode to read its label."},
    "copy": "The device's stored recording",
    "threat": {
     "title": "Threat: Injected Brain Activity",

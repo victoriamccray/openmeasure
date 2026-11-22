@@ -6,6 +6,9 @@ Build the measured data behind the Become the Signal experience.
 Writes experiences/become-the-signal/data.json. The output is committed,
 so the experience runs as a static page with no Python behind it.
 
+The neuroanatomy figure's facts (systems, electrode site, and what each
+modality reaches) come from modules/signal_pipeline/core/neuroanatomy.py.
+
 Every number the experience shows comes from this file, and every number
 in this file is computed by modules/signal_pipeline/core from the bundled
 recorded EEG excerpt (OpenNeuro ds005420, sub-5, channel O1, CC0). Nothing
@@ -23,6 +26,7 @@ a number fails a test until this script is rerun.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import sys
 from pathlib import Path
@@ -37,7 +41,7 @@ if str(ROOT) not in sys.path:
 
 # The full package path, not a bare "core": several modules each have a
 # top-level package of that name, and the shared tests import this file.
-from modules.signal_pipeline.core import intervention, pipeline  # noqa: E402
+from modules.signal_pipeline.core import intervention, neuroanatomy, pipeline, power_explainer, resting_state  # noqa: E402
 
 SNIPPET = MODULE_DIR / "sample_data" / "ds005420_sub-5_O1_eyes_snippet.csv"
 OUTPUT = ROOT / "experiences" / "become-the-signal" / "data.json"
@@ -83,6 +87,85 @@ def _classification(closed: np.ndarray, opened: np.ndarray, rate: float) -> dict
         "threshold": round(result.threshold, 4),
         "alpha_power_eyes_closed": _round(result.alpha_power_eyes_closed),
         "alpha_power_eyes_open": _round(result.alpha_power_eyes_open),
+    }
+
+
+# Slider steps for the "Why the Math Works" explainer. Each step's
+# numbers are computed by core/power_explainer.py, so the page only draws.
+EXPLAINER_AMPLITUDES_UV = (0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0)
+EXPLAINER_ALPHA_UV = (0.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0)
+
+
+def _spectrum_dict(spectrum) -> dict:
+    keep = [i for i, f in enumerate(spectrum.freqs_hz) if f <= power_explainer.DISPLAY_MAX_HZ]
+    return {
+        "freqs_hz": [spectrum.freqs_hz[i] for i in keep],
+        "density": _round([spectrum.density[i] for i in keep], 4),
+        "alpha_power": round(spectrum.alpha_power, 4),
+        "total_power": round(spectrum.total_power, 4),
+        "tapered_mean_square": round(spectrum.tapered_mean_square, 4),
+        "mean_square": round(spectrum.mean_square, 4),
+    }
+
+
+def _explainer(signal: dict) -> dict:
+    square = []
+    for amplitude in EXPLAINER_AMPLITUDES_UV:
+        r = power_explainer.mean_and_mean_square(amplitude)
+        square.append({
+            "amplitude": amplitude,
+            "mean": round(r.mean, 6),
+            "mean_square": round(r.mean_square, 4),
+            "values": _round(r.values[::5], 3),
+        })
+    mixture = []
+    for amplitude in EXPLAINER_ALPHA_UV:
+        r = power_explainer.mixture_spectrum(amplitude)
+        mixture.append({"alpha_amplitude": amplitude, "values": _round(r.values[::2], 2), "spectrum": _spectrum_dict(r.spectrum)})
+    rate = intervention.SAMPLING_RATE_HZ
+    recorded = {}
+    for condition, values in signal.items():
+        window = values[: int(rate)]
+        recorded[condition] = {
+            "values": _round(window[::2], 2),
+            "spectrum": _spectrum_dict(power_explainer.window_spectrum(window, rate)),
+        }
+    return {
+        "steps": [dataclasses.asdict(s) for s in power_explainer.STEPS],
+        "square": {"frequency_hz": 2.0, "seconds": 1.0, "levels": square},
+        "mixture": {
+            "alpha_hz": power_explainer.MIXTURE_ALPHA_HZ,
+            "fixed_components": [list(c) for c in power_explainer.MIXTURE_COMPONENTS_HZ_UV],
+            "noise_sd_uv": power_explainer.MIXTURE_NOISE_SD_UV,
+            "levels": mixture,
+        },
+        "recorded": recorded,
+        "alpha_band_hz": list(intervention.ALPHA_BAND_HZ),
+    }
+
+
+def _resting_state(baseline: dict) -> dict:
+    """The study, measures, ranges, and dichotomies, with this recording's own numbers."""
+    closed = baseline["alpha_power_eyes_closed"]
+    opened = baseline["alpha_power_eyes_open"]
+    n_trials = len(closed) + len(opened)
+    n_correct = round(baseline["accuracy"] * n_trials)
+    react = resting_state.reactivity(closed, opened)
+    odds = resting_state.chance(n_correct, n_trials)
+    return {
+        "study": dataclasses.asdict(resting_state.STUDY),
+        "ageing": dataclasses.asdict(resting_state.AGEING_NOTE),
+        "measures": [dataclasses.asdict(m) for m in resting_state.MEASURES],
+        "bands": [dataclasses.asdict(b) for b in resting_state.BANDS],
+        "band_caveat": resting_state.BAND_CAVEAT,
+        "band_refs": list(resting_state.BAND_REFS),
+        "axis_poles": {k: list(v) for k, v in resting_state.AXIS_POLES.items()},
+        "dichotomies": [dataclasses.asdict(d) for d in resting_state.DICHOTOMIES],
+        "references": [dataclasses.asdict(r) for r in resting_state.REFERENCES],
+        "reactivity": {k: (round(v, 4) if isinstance(v, float) else v) for k, v in dataclasses.asdict(react).items()},
+        "chance": {k: (round(v, 6) if isinstance(v, float) else v) for k, v in dataclasses.asdict(odds).items()},
+        "threshold": {"value": round(react.midpoint, 4), "text": resting_state.explain_threshold(react).text},
+        "source_labels": dict(resting_state.SOURCE_LABEL),
     }
 
 
@@ -140,6 +223,8 @@ def build() -> dict:
         "task": "eyes_closed",
     }
 
+    baseline = _classification(signal["eyes_closed"], signal["eyes_open"], rate)
+
     return {
         "generated_by": "scripts/build_become_the_signal_data.py",
         "stages": list(pipeline.STAGES),
@@ -156,10 +241,20 @@ def build() -> dict:
             ),
             **waveform,
         },
-        "baseline": _classification(signal["eyes_closed"], signal["eyes_open"], rate),
+        "baseline": baseline,
+        # Barry et al. (2007) and what the numbers mean, for the study room
+        # and the measures panel at the Signals stage.
+        "resting_state": _resting_state(baseline),
+        # "Why the Math Works": mean versus mean square, a mixture's
+        # spectrum, and the first recorded second's spectrum.
+        "explainer": _explainer(signal),
         "noise": noise,
         "noise_seeds": NOISE_SEEDS,
         "downsample": downsample,
+        # Which brain system the recording comes from, which electrode
+        # picked it up, and what other modalities reach, for the anatomy
+        # figure at the Signals and Sensors stages.
+        "neuroanatomy": dataclasses.asdict(neuroanatomy.atlas()),
         "metadata": {
             "illustrative_fields": example_metadata,
             "after_removal": dict(intervention.strip_metadata(example_metadata)),
