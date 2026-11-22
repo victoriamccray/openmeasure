@@ -57,7 +57,8 @@ class TestComputeAlphaPower(unittest.TestCase):
             spectrum[1:-1] *= 2
             freqs = np.fft.rfftfreq(window.size, 1 / fs)
             band = (freqs >= 8) & (freqs <= 13)
-            return float(np.trapezoid(spectrum[band], freqs[band])) if hasattr(np, "trapezoid") else float(np.trapz(spectrum[band], freqs[band]))
+            # The module's own alias, which works on NumPy 1 and 2.
+            return float(iv._trapezoid(spectrum[band], freqs[band]))
 
         for condition in ("eyes_closed", "eyes_open"):
             signal = frame.loc[frame["condition"] == condition, "voltage_uv"].to_numpy()
