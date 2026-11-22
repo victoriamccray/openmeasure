@@ -23,10 +23,30 @@ YES, NO, NOT_STATED = "yes", "no", "not stated"
 ANSWERS = (YES, NO, NOT_STATED)
 
 QUESTIONS = (
-    ("stop", "Can stop it"),
-    ("each_time", "Needs them each time"),
-    ("undo", "Can correct or retract it"),
+    ("stop", "Can they stop it?"),
+    ("each_time", "Asked each time?"),
+    ("undo", "Can they undo it?"),
 )
+
+# A plain sentence for every question and answer, so a reader never has to
+# decode a symbol or a bare "not stated".
+PLAIN: dict[str, dict[str, str]] = {
+    "stop": {
+        YES: "Yes. The person can stop the recording themselves.",
+        NO: "No. The person cannot stop it themselves; someone else controls it.",
+        NOT_STATED: "Unknown. The sources do not say whether the person can stop it.",
+    },
+    "each_time": {
+        YES: "Yes. Nothing is recorded unless the person does something each time.",
+        NO: "No. It can keep recording without asking the person each time.",
+        NOT_STATED: "Unknown. The sources do not say whether the person is asked each time.",
+    },
+    "undo": {
+        YES: "Yes. The person can correct or take back what was recorded.",
+        NO: "No. Once recorded, the person cannot correct it or take it back.",
+        NOT_STATED: "Unknown. The sources do not say whether the person can correct or take it back.",
+    },
+}
 
 
 class UnknownCategoryError(ValueError):
@@ -39,6 +59,7 @@ class AgencyAnswer:
     question: str
     answer: str
     evidence: str  # the supporting phrase from agency_control_point; empty when not stated
+    plain: str  # the answer as one plain sentence
 
 
 @dataclass(frozen=True)
@@ -96,5 +117,5 @@ def agency_profile(category: str) -> AgencyProfile:
     row = _EVIDENCE[category]
     return AgencyProfile(
         category=category,
-        answers=tuple(AgencyAnswer(key, label, *row[key]) for key, label in QUESTIONS),
+        answers=tuple(AgencyAnswer(key, label, *row[key], PLAIN[key][row[key][0]]) for key, label in QUESTIONS),
     )

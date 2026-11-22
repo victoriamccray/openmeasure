@@ -45,6 +45,15 @@ class TestKnownAnswers(unittest.TestCase):
         self.assertEqual(keys, ("stop", "each_time", "undo"))
 
 
+class TestPlainReading(unittest.TestCase):
+    def test_every_answer_reads_as_a_sentence_that_leads_with_it(self):
+        lead = {"yes": "Yes.", "no": "No.", "not stated": "Unknown."}
+        for category in agency.CATEGORIES:
+            for a in agency.agency_profile(category).answers:
+                with self.subTest(category=category, question=a.key):
+                    self.assertTrue(a.plain.startswith(lead[a.answer]))
+
+
 class TestUnknownCategory(unittest.TestCase):
     def test_an_unknown_category_raises_a_typed_error(self):
         with self.assertRaises(agency.UnknownCategoryError):

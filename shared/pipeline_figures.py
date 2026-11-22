@@ -439,12 +439,16 @@ def _mark(cx: float, cy: float, answer: str, color: str) -> str:
 _AGENCY_TOP = 408
 _AGENCY_ROW = 24
 _AGENCY_COLS = (196, 254, 312)
-_AGENCY_HEAD = (("Can stop", "it"), ("Needs them", "each time"), ("Can correct", "or retract"))
+_AGENCY_HEAD = (("Can they", "stop it?"), ("Asked", "each time?"), ("Can they", "undo it?"))
 
 
 def _agency_table(modalities, agency, colors) -> tuple[str, float]:
     """Rows of modalities by the three questions; returns the markup and its bottom edge."""
-    out = [f'<line x1="14" y1="{_AGENCY_TOP - 4}" x2="346" y2="{_AGENCY_TOP - 4}" stroke="{MUTED}" stroke-opacity="0.4"/>']
+    out = [
+        f'<line x1="14" y1="{_AGENCY_TOP - 4}" x2="346" y2="{_AGENCY_TOP - 4}" stroke="{MUTED}" stroke-opacity="0.4"/>'
+        f'<text x="16" y="{_AGENCY_TOP + 12}" font-size="10.5" font-weight="700" fill="{INK}">How much control</text>'
+        f'<text x="16" y="{_AGENCY_TOP + 24}" font-size="10.5" font-weight="700" fill="{INK}">does the person have?</text>'
+    ]
     for (a, b), cx in zip(_AGENCY_HEAD, _AGENCY_COLS):
         out.append(
             f'<text x="{cx}" y="{_AGENCY_TOP + 12}" font-size="9.5" font-weight="600" fill="{INK}" text-anchor="middle">{a}</text>'
@@ -469,13 +473,13 @@ def agency_table_height(n_modalities: int) -> float:
 
 
 def _agency_list(profile) -> str:
-    items = "".join(
-        f"<li>{escape(a.question)}: <strong>{escape(a.answer)}</strong>"
-        + (f" (\u201c{escape(a.evidence)}\u201d)" if a.evidence else "")
-        + "</li>"
+    rows = "".join(
+        f"<p style='margin:6px 0 0'><strong>{escape(a.question)}</strong> {escape(a.plain)}"
+        + (f"<br><span style='opacity:.75'>Source text: \u201c{escape(a.evidence)}\u201d</span>" if a.evidence else "")
+        + "</p>"
         for a in profile.answers
     )
-    return f"<ul style='margin:4px 0 0 16px;padding:0'>{items}</ul>"
+    return rows
 
 
 def body_html(modalities, perspective: str, colors: dict[str, str], agency=None) -> str:
@@ -530,7 +534,7 @@ def body_html(modalities, perspective: str, colors: dict[str, str], agency=None)
             where = "Never sensed from the body."
             sx, sy = sx - 22, sy
         if perspective == "Agency":
-            payload[key] = f"<strong>{escape(m.name)}</strong>" + _agency_list(agency[m.category])
+            payload[key] = f"<strong>{escape(m.name)}: how much control does the person have?</strong>" + _agency_list(agency[m.category])
         elif perspective == "Privacy":
             payload[key] = (
                 f"<strong>{escape(m.name)}</strong> · {escape(m.signal_examples)} {where}"
@@ -584,7 +588,7 @@ def body_html(modalities, perspective: str, colors: dict[str, str], agency=None)
     caveat = {
         "Build": "Build view: every signal, sensed from the body or not, runs into the same pipeline entry.",
         "Privacy": "Privacy view: body-sensed signals cross the edge of the person at their sensor; the others were never inside it.",
-        "Agency": "\u2713 yes \u00b7 \u2715 no \u00b7 ? the cited sources do not say. Tap a row for the source text.",
+        "Agency": "\u2713 yes \u00b7 \u2715 no \u00b7 ? unknown: the cited sources do not say. Tap a row to read each answer in a sentence, with the source text.",
     }[perspective]
-    info = "Tap a row to see the text behind each answer." if perspective == "Agency" else "Tap a sensor or a card to see what it measures."
+    info = "Tap a row to read what each mark means for that signal." if perspective == "Agency" else "Tap a sensor or a card to see what it measures."
     return _panel(svg, legend, caveat, info, payload, max_width=460)
