@@ -67,7 +67,8 @@ def participant_svg(eyes_closed: bool) -> str:
 <ellipse cx="236" cy="177" rx="10" ry="6" fill="#d8a988" stroke="#b98a6b"/>
 <rect x="242" y="171" width="7" height="4" rx="1.5" fill="#c9d1e8" stroke="#2b2f45"/><rect x="242" y="178" width="7" height="4" rx="1.5" fill="#c9d1e8" stroke="#2b2f45"/>
 <path d="M249,173 C290,170 300,214 330,226 M249,180 C286,184 296,220 330,232" fill="none" stroke="#8890b0" stroke-width="1.6"/>
-<rect x="330" y="214" width="66" height="34" rx="5" fill="#eceae3" stroke="{LINE}"/><text x="363" y="235" font-size="10" fill="{MUTED}" text-anchor="middle">Skin cond.</text>
+<rect x="330" y="214" width="66" height="34" rx="5" fill="#eceae3" stroke="{MUTED}" stroke-dasharray="4 3"/><text x="363" y="235" font-size="10" fill="{MUTED}" text-anchor="middle">Skin cond.</text>
+<text x="363" y="262" font-size="8.5" fill="{MUTED}" text-anchor="middle">published finding</text>
 <rect x="150" y="104" width="22" height="18" fill="#d8a988"/>
 <circle cx="164" cy="80" r="34" fill="#d8a988" stroke="#b98a6b" stroke-width="1.2"/>
 <ellipse cx="160" cy="86" rx="5" ry="8" fill="#d8a988" stroke="#b98a6b"/>
@@ -81,6 +82,7 @@ def participant_svg(eyes_closed: bool) -> str:
 <rect x="16" y="214" width="76" height="34" rx="5" fill="#eceae3" stroke="{LINE}"/>
 <text x="54" y="229" font-size="10" fill="{MUTED}" text-anchor="middle">EEG amplifier</text>
 <text x="54" y="241" font-size="8.5" fill="{MUTED}" text-anchor="middle">500 samples/s</text>
+<text x="54" y="262" font-size="8.5" fill="{MUTED}" text-anchor="middle">recorded here</text>
 <text x="232" y="34" font-size="11" font-weight="600" fill="{INK}">{state}, at rest</text>
 <text x="232" y="50" font-size="8.5" fill="{MUTED}">No task. Sitting still.</text>"""
     return _svg("0 0 420 300", label, body, max_width=560)

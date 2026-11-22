@@ -1131,7 +1131,8 @@
     "refs": [
      "chiang",
      "klimesch"
-    ]
+    ],
+    "source": "convention"
    },
    {
     "key": "voltage",
@@ -1139,20 +1140,21 @@
     "unit": "\u00b5V (microvolts), millionths of a volt",
     "what_it_is": "The electrical potential at one electrode, measured against a reference electrode.",
     "how_computed": "The amplifier samples it 500 times per second. Each sample is one number.",
-    "how_to_read": "Larger swings mean more neurons firing in step under that electrode. The sign depends on the reference.",
+    "how_to_read": "Larger swings mean more synchronized activity near that electrode. Timing matters as much as numbers: neurons firing out of step cancel each other at the scalp. The sign depends on the reference.",
     "range_kind": "within person",
     "expected": "Compare conditions within one recording. Absolute voltages change with the reference, the amplifier, and the person.",
     "what_shifts_it": "The reference electrode, skull and scalp thickness, electrode contact, filtering, and movement or blink artifacts.",
     "refs": [
      "buzsaki"
-    ]
+    ],
+    "source": "recorded"
    },
    {
     "key": "alpha_power",
     "name": "Alpha power",
     "unit": "\u00b5V\u00b2 (microvolts squared)",
     "what_it_is": "How strong the 8 to 13 Hz rhythm is in one second of signal.",
-    "how_computed": "Welch's method estimates power at each frequency for each 1-second window, and the area under that spectrum from 8 to 13 Hz is the alpha power. Power comes from squared voltage, which is why the unit is \u00b5V\u00b2.",
+    "how_computed": "Each 1-second window (500 samples) gets one Hann-windowed power spectrum, using Welch's method with a single segment, so there is no overlap or averaging. The spectrum has 1 Hz steps. Alpha power is the area under it from 8 to 13 Hz. Power comes from squared voltage, which is why the unit is \u00b5V\u00b2.",
     "how_to_read": "Higher means a stronger alpha rhythm in that second. Each dot on the strip is one second.",
     "range_kind": "within person",
     "expected": "Read it within a person, across conditions. Absolute alpha power has no single normal value.",
@@ -1161,7 +1163,8 @@
      "welch",
      "chiang",
      "klimesch"
-    ]
+    ],
+    "source": "recorded"
    },
    {
     "key": "reactivity",
@@ -1176,21 +1179,23 @@
     "refs": [
      "barry",
      "barry_2017"
-    ]
+    ],
+    "source": "recorded"
    },
    {
     "key": "accuracy",
     "name": "Accuracy against chance",
     "unit": "Percent of 1-second windows labeled correctly",
     "what_it_is": "How often the threshold rule labeled a second as eyes closed or eyes open correctly.",
-    "how_computed": "Correct windows divided by all windows.",
+    "how_computed": "Each second is labeled eyes closed when its alpha power is above a threshold, set at the midpoint of the two condition means. Accuracy is correct windows divided by all windows.",
     "how_to_read": "With equal numbers of each condition, guessing gets 50% on average. A small sample can beat 50% by luck, so the bar to clear depends on how many windows there are.",
     "range_kind": "calculated",
     "expected": "Chance is 50% by design. For 30 windows, 20 correct (67%) is the smallest count that luck alone reaches less than 5% of the time.",
     "what_shifts_it": "The number of windows, how the threshold was set, and whether it was tested on separate data.",
     "refs": [
      "combrisson"
-    ]
+    ],
+    "source": "recorded"
    },
    {
     "key": "skin_conductance",
@@ -1200,13 +1205,14 @@
     "how_computed": "Two electrodes, often on the fingers, with a small constant voltage between them. The recording in this journey has no skin conductance channel.",
     "how_to_read": "Higher means more sympathetic arousal. A slow level (tonic) and quick responses to events (phasic) are read separately.",
     "range_kind": "within person",
-    "expected": "Rises from eyes closed to eyes open. Absolute levels vary widely between people and setups, so studies compare within a person.",
+    "expected": "Barry et al. (2007) found it rises from eyes closed to eyes open. Absolute levels vary widely between people and setups, so studies compare within a person.",
     "what_shifts_it": "Temperature, electrode site and gel, hydration, medication, and exercise.",
     "refs": [
      "barry",
      "boucsein",
      "critchley"
-    ]
+    ],
+    "source": "published"
    }
   ],
   "bands": [
@@ -1376,7 +1382,8 @@
    "mean_closed": 77.8408,
    "mean_open": 9.2448,
    "ratio": 8.4199,
-   "direction_as_expected": true
+   "direction_as_expected": true,
+   "midpoint": 43.5428
   },
   "chance": {
    "n_correct": 27,
@@ -1389,6 +1396,15 @@
    "p_value": 4e-06,
    "significance": 0.05,
    "exceeds_threshold": true
+  },
+  "threshold": {
+   "value": 43.5428,
+   "text": "The threshold is the midpoint of the two condition means in this recording: (77.8 + 9.2) / 2 = 43.5 \u00b5V\u00b2. It fits this recording only, and another person or device would need its own. It was set from the same windows it labels, so accuracy on new data would likely be lower."
+  },
+  "source_labels": {
+   "recorded": "Computed from this recording",
+   "published": "Published finding",
+   "convention": "Field convention"
   }
  },
  "noise": [

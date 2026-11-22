@@ -41,6 +41,18 @@ RANGE_DIRECTION = "direction"
 RANGE_WITHIN_PERSON = "within person"
 RANGE_KINDS = (RANGE_BY_DESIGN, RANGE_CALCULATED, RANGE_DIRECTION, RANGE_WITHIN_PERSON)
 
+# Where a number on the page comes from. A learner should never mistake
+# a published finding for something measured in this recording.
+SOURCE_RECORDED = "recorded"
+SOURCE_PUBLISHED = "published"
+SOURCE_CONVENTION = "convention"
+SOURCES = (SOURCE_RECORDED, SOURCE_PUBLISHED, SOURCE_CONVENTION)
+SOURCE_LABEL = {
+    SOURCE_RECORDED: "Computed from this recording",
+    SOURCE_PUBLISHED: "Published finding",
+    SOURCE_CONVENTION: "Field convention",
+}
+
 AXIS_STATE = "state"
 AXIS_SCOPE = "scope"
 AXES = (AXIS_STATE, AXIS_SCOPE)
@@ -92,8 +104,11 @@ class Measure:
     expected: str
     what_shifts_it: str
     refs: tuple[str, ...]
+    source: str = SOURCE_RECORDED
 
     def __post_init__(self) -> None:
+        if self.source not in SOURCES:
+            raise ValueError(f"{self.key}: source must be one of {SOURCES}; got {self.source!r}.")
         if self.range_kind not in RANGE_KINDS:
             raise ValueError(f"{self.key}: range_kind must be one of {RANGE_KINDS}; got {self.range_kind!r}.")
         if not self.refs:
@@ -135,6 +150,15 @@ class Reactivity:
     mean_open: float
     ratio: float
     direction_as_expected: bool
+    midpoint: float
+
+
+@dataclass(frozen=True)
+class ThresholdExplanation:
+    """How the eyes-closed / eyes-open threshold was set, in plain words."""
+
+    threshold: float
+    text: str
 
 
 @dataclass(frozen=True)
@@ -310,6 +334,7 @@ MEASURES: tuple[Measure, ...] = (
         "in older adults, and it runs faster over the back of the head. Many people show more than "
         "one alpha peak.",
         refs=("chiang", "klimesch"),
+        source=SOURCE_CONVENTION,
     ),
     Measure(
         key="voltage",
@@ -318,8 +343,9 @@ MEASURES: tuple[Measure, ...] = (
         what_it_is="The electrical potential at one electrode, measured against a reference "
         "electrode.",
         how_computed="The amplifier samples it 500 times per second. Each sample is one number.",
-        how_to_read="Larger swings mean more neurons firing in step under that electrode. The sign "
-        "depends on the reference.",
+        how_to_read="Larger swings mean more synchronized activity near that electrode. Timing "
+        "matters as much as numbers: neurons firing out of step cancel each other at the scalp. "
+        "The sign depends on the reference.",
         range_kind=RANGE_WITHIN_PERSON,
         expected="Compare conditions within one recording. Absolute voltages change with the "
         "reference, the amplifier, and the person.",
@@ -332,9 +358,10 @@ MEASURES: tuple[Measure, ...] = (
         name="Alpha power",
         unit="µV² (microvolts squared)",
         what_it_is="How strong the 8 to 13 Hz rhythm is in one second of signal.",
-        how_computed="Welch's method estimates power at each frequency for each 1-second window, "
-        "and the area under that spectrum from 8 to 13 Hz is the alpha power. Power comes from "
-        "squared voltage, which is why the unit is µV².",
+        how_computed="Each 1-second window (500 samples) gets one Hann-windowed power spectrum, "
+        "using Welch's method with a single segment, so there is no overlap or averaging. The "
+        "spectrum has 1 Hz steps. Alpha power is the area under it from 8 to 13 Hz. Power comes "
+        "from squared voltage, which is why the unit is µV².",
         how_to_read="Higher means a stronger alpha rhythm in that second. Each dot on the strip is "
         "one second.",
         range_kind=RANGE_WITHIN_PERSON,
@@ -364,7 +391,9 @@ MEASURES: tuple[Measure, ...] = (
         unit="Percent of 1-second windows labeled correctly",
         what_it_is="How often the threshold rule labeled a second as eyes closed or eyes open "
         "correctly.",
-        how_computed="Correct windows divided by all windows.",
+        how_computed="Each second is labeled eyes closed when its alpha power is above a "
+        "threshold, set at the midpoint of the two condition means. Accuracy is correct windows "
+        "divided by all windows.",
         how_to_read="With equal numbers of each condition, guessing gets 50% on average. A small "
         "sample can beat 50% by luck, so the bar to clear depends on how many windows there are.",
         range_kind=RANGE_CALCULATED,
@@ -385,10 +414,11 @@ MEASURES: tuple[Measure, ...] = (
         how_to_read="Higher means more sympathetic arousal. A slow level (tonic) and quick responses "
         "to events (phasic) are read separately.",
         range_kind=RANGE_WITHIN_PERSON,
-        expected="Rises from eyes closed to eyes open. Absolute levels vary widely between people "
-        "and setups, so studies compare within a person.",
+        expected="Barry et al. (2007) found it rises from eyes closed to eyes open. Absolute "
+        "levels vary widely between people and setups, so studies compare within a person.",
         what_shifts_it="Temperature, electrode site and gel, hydration, medication, and exercise.",
         refs=("barry", "boucsein", "critchley"),
+        source=SOURCE_PUBLISHED,
     ),
 )
 
@@ -484,7 +514,24 @@ def reactivity(alpha_closed, alpha_open) -> Reactivity:
     if mean_open == 0:
         raise RestingStateError("Mean eyes-open alpha power is zero, so the ratio is undefined.")
     ratio = mean_closed / mean_open
-    return Reactivity(mean_closed, mean_open, ratio, ratio > 1)
+    return Reactivity(mean_closed, mean_open, ratio, ratio > 1, (mean_closed + mean_open) / 2)
+
+
+def explain_threshold(result: Reactivity) -> ThresholdExplanation:
+    """
+    How the classification threshold was set, with this recording's numbers.
+
+    The threshold is the midpoint of the two condition means, the rule
+    intervention.classify_eyes_state applies. It is specific to the
+    recording, and it was set from the same windows it then labels.
+    """
+    text = (
+        f"The threshold is the midpoint of the two condition means in this recording: "
+        f"({result.mean_closed:.1f} + {result.mean_open:.1f}) / 2 = {result.midpoint:.1f} µV². "
+        "It fits this recording only, and another person or device would need its own. It was "
+        "set from the same windows it labels, so accuracy on new data would likely be lower."
+    )
+    return ThresholdExplanation(result.midpoint, text)
 
 
 def chance(

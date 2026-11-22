@@ -1091,16 +1091,40 @@ function resize() {
 // Panel
 // ------------------------------------------------------------------
 
-function waveformSvg(closed, open, maxAbs = waveMax) {
+// A recorded trace with labeled axes: microvolts up the side, seconds
+// along the bottom. Every point is a recorded sample from data.waveform.
+function traceSvg(values, { color, width = 1.4, height = 70, maxAbs = waveMax, label, cls = "" }) {
+  const left = 38;
+  const right = 8;
   const w = 360;
-  const h = 46;
-  const path = (values) => {
-    const n = values.length;
-    return values.map((v, i) => `${i === 0 ? "M" : "L"}${((i / (n - 1)) * w).toFixed(1)},${(h / 2 - (v / maxAbs) * (h / 2 - 2)).toFixed(1)}`).join("");
-  };
+  const plotW = w - left - right;
+  const plotH = height;
+  const total = plotH + 18;
+  const mid = plotH / 2;
+  const y = (v) => (mid - (v / maxAbs) * (mid - 3)).toFixed(1);
+  const n = values.length;
+  const d = values.map((v, i) => `${i ? "L" : "M"}${(left + (i / (n - 1)) * plotW).toFixed(1)},${y(v)}`).join("");
+  const top = Math.round(maxAbs);
+  const secs = data.waveform.seconds;
+  const xTicks = Array.from({ length: secs + 1 }, (_, s) => s)
+    .map((s) => `<text x="${(left + (s / secs) * plotW).toFixed(1)}" y="${plotH + 13}" text-anchor="middle" class="ax">${s} s</text>`)
+    .join("");
+  return `<svg viewBox="0 0 ${w} ${total}" role="img" aria-label="${esc(label)}: recorded voltage at O1 in microvolts over ${secs} seconds" class="trace-svg">
+    <line x1="${left}" y1="${mid}" x2="${w - right}" y2="${mid}" class="ax-line zero"/>
+    <line x1="${left}" y1="0" x2="${left}" y2="${plotH}" class="ax-line"/>
+    <line x1="${left}" y1="${plotH}" x2="${w - right}" y2="${plotH}" class="ax-line"/>
+    <text x="${left - 4}" y="8" text-anchor="end" class="ax">+${top}</text>
+    <text x="${left - 4}" y="${mid + 3}" text-anchor="end" class="ax">0 µV</text>
+    <text x="${left - 4}" y="${plotH}" text-anchor="end" class="ax">−${top}</text>
+    ${xTicks}
+    <path d="${d}" fill="none" stroke="${color}" stroke-width="${width}" class="${cls}"${cls ? ' pathLength="1"' : ""}/>
+  </svg>`;
+}
+
+function waveformSvg(closed, open, maxAbs = waveMax) {
   const row = (values, color, label, key) => {
     const selected = state.eyes === key;
-    return `<div class="wave${selected ? " selected" : ""}"><svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${label}"><path d="${path(values)}" fill="none" stroke="${color}" stroke-width="${selected ? 2 : 1}"/></svg>
+    return `<div class="wave${selected ? " selected" : ""}">${traceSvg(values, { color, width: selected ? 2 : 1, height: 46, maxAbs, label })}
       <p class="wave-label">${label}. Average alpha power ${ALPHA_MEAN[key].toFixed(1)} µV².</p></div>`;
   };
   return (
@@ -1350,7 +1374,8 @@ function participantSvg() {
     <ellipse cx="236" cy="177" rx="10" ry="6" class="skin"/>
     <rect x="242" y="171" width="7" height="4" rx="1.5" class="scl"/><rect x="242" y="178" width="7" height="4" rx="1.5" class="scl"/>
     <path d="M249,173 C290,170 300,214 330,226 M249,180 C286,184 296,220 330,232" class="wire"/>
-    <rect x="330" y="214" width="66" height="34" rx="5" class="box"/><text x="363" y="235" class="lbl" text-anchor="middle">Skin cond.</text>
+    <rect x="330" y="214" width="66" height="34" rx="5" class="box dashed"/><text x="363" y="235" class="lbl" text-anchor="middle">Skin cond.</text>
+    <text x="363" y="262" class="lbl small" text-anchor="middle">published finding</text>
     <rect x="150" y="104" width="22" height="18" class="skin"/>
     <circle cx="164" cy="80" r="34" class="skin head"/>
     <path d="M196,80 L204,92 L196,95 M188,104 q4,2 8,0 M180,76 q6,-3 12,0" class="feature"/>
@@ -1362,6 +1387,7 @@ function participantSvg() {
     <circle cx="131" cy="96" r="4.5" class="site o1"/><text x="104" y="118" class="lbl strong">O1</text>
     <path d="M130,80 C90,90 60,160 54,214" class="wire"/>
     <rect x="16" y="214" width="76" height="34" rx="5" class="box"/><text x="54" y="229" class="lbl" text-anchor="middle">EEG amplifier</text><text x="54" y="241" class="lbl small" text-anchor="middle">500 samples/s</text>
+    <text x="54" y="262" class="lbl small" text-anchor="middle">recorded here</text>
     <text x="232" y="34" class="lbl strong">${closed ? "Eyes closed" : "Eyes open"}, at rest</text>
     <text x="232" y="50" class="lbl small">No task. Sitting still.</text>
   </svg>`;
@@ -1369,20 +1395,16 @@ function participantSvg() {
 
 function liveTraceHtml() {
   const values = data.waveform[state.eyes];
-  const w = 360;
-  const h = 70;
-  const step = w / (values.length - 1);
-  const d = values.map((v, i) => `${i ? "L" : "M"}${(i * step).toFixed(1)},${(h / 2 - (v / waveMax) * (h / 2 - 3)).toFixed(1)}`).join("");
   const r = RS.reactivity;
   const mean = state.eyes === "eyes_closed" ? r.mean_closed : r.mean_open;
   const pctOfMax = (mean / Math.max(r.mean_closed, r.mean_open)) * 100;
   return `<div class="live">
-    <p class="live-label">EEG at O1, recorded (${data.waveform.seconds} s, quarter speed)</p>
-    <svg viewBox="0 0 ${w} ${h}" class="trace" role="img" aria-label="Recorded EEG trace, ${state.eyes === "eyes_closed" ? "eyes closed" : "eyes open"}."><path d="${d}" pathLength="1" class="trace-path ${state.eyes}"/></svg>
+    <p class="live-label"><span class="src recorded">${esc(RS.source_labels.recorded)}</span> EEG at O1</p>
+    <div class="trace">${traceSvg(values, { color: state.eyes === "eyes_closed" ? "var(--closed)" : "var(--open)", label: state.eyes === "eyes_closed" ? "Eyes closed" : "Eyes open", cls: `trace-path ${state.eyes}` })}</div>
     <p class="live-label">Mean alpha power: <strong>${mean.toFixed(1)} µV²</strong></p>
     <div class="meter-bar"><i class="${state.eyes}" style="width:${pctOfMax.toFixed(0)}%"></i></div>
-    <p class="live-label">Skin conductance: <strong>${state.eyes === "eyes_closed" ? "lower" : "higher"}</strong> ${state.eyes === "eyes_closed" ? "↓" : "↑"}</p>
-    <p class="caveat">Direction from Barry et al. (2007). This dataset has no skin conductance channel, so no value is shown.${refMarks(["barry"])}</p>
+    <p class="live-label"><span class="src published">${esc(RS.source_labels.published)}</span> Skin conductance: <strong>${state.eyes === "eyes_closed" ? "lower" : "higher"}</strong> ${state.eyes === "eyes_closed" ? "↓" : "↑"}</p>
+    <p class="caveat">Barry et al. (2007) measured this in 28 students. This dataset has no skin conductance channel, so no value is shown for this recording.${refMarks(["barry"])}</p>
   </div>`;
 }
 
@@ -1399,8 +1421,8 @@ function studyCard(s, title) {
 function roomHtml() {
   const steps = [
     ["Seated at rest", "Cap on, electrodes checked, no task."],
-    ["Eyes closed", "Alpha strongest. Skin conductance lower."],
-    ["Eyes open", "Alpha drops. Skin conductance rises."],
+    ["Eyes closed", "Alpha strongest. Skin conductance lower (published finding)."],
+    ["Eyes open", "Alpha drops. Skin conductance rises (published finding)."],
     ["Compare", "Same person, two conditions, second by second."],
   ];
   return `<div class="choices levels" role="group" aria-label="Condition">
@@ -1466,7 +1488,7 @@ function alphaStripSvg() {
     ${row(b.alpha_power_eyes_closed, 16, "eyes_closed", "Closed")}
     ${row(b.alpha_power_eyes_open, 40, "eyes_open", "Open")}
     <line x1="${x(b.threshold)}" y1="4" x2="${x(b.threshold)}" y2="50" class="axis dashed"/>
-    <text x="${x(b.threshold) + 3}" y="60" class="lbl small">threshold ${b.threshold.toFixed(0)} µV²</text>
+    <text x="${x(b.threshold) + 3}" y="60" class="lbl small">threshold ${b.threshold.toFixed(1)} µV² = midpoint of the two means</text>
     <text x="350" y="72" text-anchor="end" class="lbl small">µV² per second →</text></svg>`;
 }
 
@@ -1488,8 +1510,10 @@ function numbersHtml() {
   const cards = RS.measures
     .map((m) => {
       const graphic = MEASURE_GRAPHIC[m.key] ? MEASURE_GRAPHIC[m.key]() : "";
+      const note = m.key === "alpha_power" || m.key === "accuracy" ? `<p class="caveat">${esc(RS.threshold.text)}</p>` : "";
       return `<details class="box measure"${m.key === "reactivity" ? " open" : ""}><summary><h3>${esc(m.name)}</h3><span class="unit">${esc(m.unit)}</span></summary>
-        ${graphic}
+        <p><span class="src ${m.source}">${esc(RS.source_labels[m.source])}</span></p>
+        ${graphic}${note}
         <dl class="modality-facts">
           <dt>What it is</dt><dd>${esc(m.what_it_is)}</dd>
           <dt>How it is computed</dt><dd>${esc(m.how_computed)}</dd>
@@ -1534,7 +1558,7 @@ function openStudy(tab) {
 
 function studyTextHtml() {
   const measures = RS.measures
-    .map((m) => `<li><strong>${esc(m.name)} (${esc(m.unit)}).</strong> ${esc(m.what_it_is)} ${esc(m.how_computed)} ${esc(m.how_to_read)} <em>${esc(RANGE_LABEL[m.range_kind])}:</em> ${esc(m.expected)} What shifts it: ${esc(m.what_shifts_it)}${refMarks(m.refs)}</li>`)
+    .map((m) => `<li><strong>${esc(m.name)} (${esc(m.unit)}).</strong> <em>${esc(RS.source_labels[m.source])}.</em> ${esc(m.what_it_is)} ${esc(m.how_computed)} ${esc(m.how_to_read)} <em>${esc(RANGE_LABEL[m.range_kind])}:</em> ${esc(m.expected)} What shifts it: ${esc(m.what_shifts_it)}${refMarks(m.refs)}</li>`)
     .join("");
   const r = RS.reactivity;
   const c = RS.chance;
@@ -1545,7 +1569,7 @@ function studyTextHtml() {
     ${studyCard(RS.study, "The Study: Barry et al. (2007)")}
     ${studyCard(RS.ageing, "Does It Hold With Age? Barry and De Blasio (2017)")}
     <h3>This Recording's Numbers</h3>
-    <p>Mean alpha power ${r.mean_closed.toFixed(1)} µV² with the eyes closed and ${r.mean_open.toFixed(1)} µV² with them open, a ratio of ${r.ratio.toFixed(1)}. Accuracy ${c.n_correct} of ${c.n_trials}; chance is ${Math.round(c.chance_accuracy * 100)}%, and ${c.threshold_correct} of ${c.n_trials} is needed to beat it.${refMarks(["combrisson"])}</p>
+    <p>Mean alpha power ${r.mean_closed.toFixed(1)} µV² with the eyes closed and ${r.mean_open.toFixed(1)} µV² with them open, a ratio of ${r.ratio.toFixed(1)}. Accuracy ${c.n_correct} of ${c.n_trials}; chance is ${Math.round(c.chance_accuracy * 100)}%, and ${c.threshold_correct} of ${c.n_trials} is needed to beat it.${refMarks(["combrisson"])}</p><p>${esc(RS.threshold.text)}</p>
     <h3>What the Numbers Mean</h3><ul>${measures}</ul>
     <h3>Resting vs Task, Domain-General vs Domain-Specific</h3>
     <div class="table-wrap"><table><thead><tr><th>Modality</th><th>Axis</th><th>First pole</th><th>Second pole</th></tr></thead><tbody>${dich}</tbody></table></div></section>`;

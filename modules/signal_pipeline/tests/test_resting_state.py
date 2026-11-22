@@ -62,6 +62,30 @@ class TestReactivity(unittest.TestCase):
         self.assertEqual((result.mean_closed, result.mean_open, result.ratio), (20.0, 5.0, 4.0))
         self.assertTrue(result.direction_as_expected)
 
+    def test_midpoint_is_the_classifier_threshold(self):
+        # Hand-calculable: (77.8408 + 9.2448) / 2 = 43.5428, the threshold
+        # intervention.classify_eyes_state reports for the bundled recording.
+        result = rs.reactivity([77.8408], [9.2448])
+
+        self.assertAlmostEqual(result.midpoint, 43.5428, places=4)
+        explanation = rs.explain_threshold(result)
+        self.assertIn("(77.8 + 9.2) / 2 = 43.5 µV²", explanation.text)
+        self.assertIn("same windows it labels", explanation.text)
+
+    def test_midpoint_matches_the_pipeline_threshold(self):
+        import numpy as np
+        import pandas as pd
+        from core import intervention
+
+        frame = pd.read_csv(
+            os.path.join(os.path.dirname(__file__), "..", "sample_data", "ds005420_sub-5_O1_eyes_snippet.csv")
+        )
+        signal = {c: frame.loc[frame["condition"] == c, "voltage_uv"].to_numpy() for c in ("eyes_closed", "eyes_open")}
+        classified = intervention.classify_eyes_state(signal["eyes_closed"], signal["eyes_open"], intervention.SAMPLING_RATE_HZ)
+        result = rs.reactivity(classified.alpha_power_eyes_closed, classified.alpha_power_eyes_open)
+
+        self.assertTrue(np.isclose(result.midpoint, classified.threshold))
+
     def test_reversed_direction_is_reported(self):
         self.assertFalse(rs.reactivity([1], [2]).direction_as_expected)
 
@@ -104,6 +128,18 @@ class TestContent(unittest.TestCase):
             with self.subTest(modality=modality):
                 self.assertEqual(axes, set(rs.AXES))
 
+    def test_skin_conductance_is_labeled_a_published_finding(self):
+        # The recording has no skin conductance channel.
+        sources = {m.key: m.source for m in rs.MEASURES}
+
+        self.assertEqual(sources.pop("skin_conductance"), rs.SOURCE_PUBLISHED)
+        self.assertEqual(sources.pop("frequency"), rs.SOURCE_CONVENTION)
+        self.assertEqual(set(sources.values()), {rs.SOURCE_RECORDED})
+
+    def test_voltage_reading_credits_synchrony(self):
+        self.assertIn("synchronized", rs.measure("voltage").how_to_read)
+        self.assertNotIn("more neurons", rs.measure("voltage").how_to_read)
+
     def test_every_cited_key_has_a_reference(self):
         self.assertEqual(set(rs.cited_keys()), {r.key for r in rs.REFERENCES})
 
@@ -114,6 +150,7 @@ class TestContent(unittest.TestCase):
             texts += [study.participants, study.protocol, study.interpretation, *study.findings, *study.recordings]
         for m in rs.MEASURES:
             texts += [m.what_it_is, m.how_computed, m.how_to_read, m.expected, m.what_shifts_it]
+        texts.append(rs.explain_threshold(rs.reactivity([77.8], [9.2])).text)
         for d in rs.DICHOTOMIES:
             texts += [d.first, d.second]
 

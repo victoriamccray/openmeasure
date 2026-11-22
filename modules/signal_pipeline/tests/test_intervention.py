@@ -36,6 +36,46 @@ class TestComputeAlphaPower(unittest.TestCase):
         power = iv.compute_alpha_power(_sine_window(2.0), SAMPLING_RATE_HZ)
         self.assertLess(power, 1e-6)
 
+    def test_matches_an_independent_periodogram_on_recorded_eeg(self):
+        # Cross-implementation check: a Hann-windowed periodogram written
+        # directly with numpy's FFT (one-sided PSD in uV^2/Hz, integrated
+        # over 8-13 Hz) must agree with the scipy-based core function on
+        # the bundled recording. One 1-second segment of 500 samples means
+        # Welch's method reduces to this periodogram: no overlap, no
+        # averaging, 1 Hz bins.
+        import pandas as pd
+
+        frame = pd.read_csv(
+            os.path.join(os.path.dirname(__file__), "..", "sample_data", "ds005420_sub-5_O1_eyes_snippet.csv")
+        )
+        fs = iv.SAMPLING_RATE_HZ
+
+        def numpy_alpha(window):
+            centered = window - window.mean()
+            hann = np.hanning(window.size + 1)[:-1]  # periodic Hann, scipy's default
+            spectrum = np.abs(np.fft.rfft(centered * hann)) ** 2 / (fs * np.sum(hann**2))
+            spectrum[1:-1] *= 2
+            freqs = np.fft.rfftfreq(window.size, 1 / fs)
+            band = (freqs >= 8) & (freqs <= 13)
+            return float(np.trapezoid(spectrum[band], freqs[band])) if hasattr(np, "trapezoid") else float(np.trapz(spectrum[band], freqs[band]))
+
+        for condition in ("eyes_closed", "eyes_open"):
+            signal = frame.loc[frame["condition"] == condition, "voltage_uv"].to_numpy()
+            for start in (0, 2500, 7000):
+                window = signal[start : start + 500]
+                with self.subTest(condition=condition, start=start):
+                    self.assertAlmostEqual(
+                        iv.compute_alpha_power(window, fs), numpy_alpha(window), places=6
+                    )
+
+    def test_off_bin_alpha_tone_keeps_its_power(self):
+        # A 10.5 Hz tone falls between 1 Hz bins; the band integral should
+        # still recover A^2/2 = 200 uV^2 to within 0.5%.
+        t = np.arange(500) / 500.0
+        power = iv.compute_alpha_power(20 * np.sin(2 * np.pi * 10.5 * t), 500.0)
+
+        self.assertAlmostEqual(power / 200.0, 1.0, delta=0.005)
+
     def test_raises_when_nyquist_cannot_resolve_the_band(self):
         with self.assertRaises(ValueError):
             iv.compute_alpha_power(_sine_window(10.0, sampling_rate=10.0), 10.0)

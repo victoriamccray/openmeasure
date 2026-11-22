@@ -681,18 +681,23 @@ def _render_resting_study() -> None:
             components.html(resting_state_figure.participant_svg(closed), height=330)
             mean = react.mean_closed if closed else react.mean_open
             st.markdown(
-                f"Mean alpha power at O1 in this recording: **{mean:.1f} µV²**. "
+                f":blue-badge[{resting_core.SOURCE_LABEL[resting_core.SOURCE_RECORDED]}] "
+                f"Mean alpha power at O1: **{mean:.1f} µV²**."
+            )
+            st.markdown(
+                f":orange-badge[{resting_core.SOURCE_LABEL[resting_core.SOURCE_PUBLISHED]}] "
                 f"Skin conductance: **{'lower' if closed else 'higher'}**."
             )
             st.caption(
-                "The skin conductance direction comes from Barry et al. (2007). This dataset has "
-                f"no skin conductance channel, so no value is shown. {_resting_ref('barry')}"
+                "Barry et al. (2007) measured skin conductance in 28 students. This dataset has no "
+                "skin conductance channel, so no value is shown for this recording. "
+                f"{_resting_ref('barry')}"
             )
             steps = st.columns(4)
             for col, (title, text) in zip(steps, (
                 ("1. Seated at rest", "Cap on, electrodes checked, no task."),
-                ("2. Eyes closed", "Alpha strongest. Skin conductance lower."),
-                ("3. Eyes open", "Alpha drops. Skin conductance rises."),
+                ("2. Eyes closed", "Alpha strongest. Skin conductance lower (published finding)."),
+                ("3. Eyes open", "Alpha drops. Skin conductance rises (published finding)."),
                 ("4. Compare", "Same person, two conditions, second by second."),
             )):
                 col.markdown(f"**{title}**")
@@ -716,8 +721,17 @@ def _render_resting_study() -> None:
                 "accuracy": lambda: resting_state_figure.accuracy_svg(odds),
                 "skin_conductance": resting_state_figure.skin_conductance_svg,
             }
+            threshold_note = resting_core.explain_threshold(react).text
+            badge = {
+                resting_core.SOURCE_RECORDED: "blue",
+                resting_core.SOURCE_PUBLISHED: "orange",
+                resting_core.SOURCE_CONVENTION: "gray",
+            }
             for m in resting_core.MEASURES:
                 with st.expander(f"{m.name}: {m.unit}", expanded=m.key == "reactivity"):
+                    st.markdown(f":{badge[m.source]}-badge[{resting_core.SOURCE_LABEL[m.source]}]")
+                    if m.key in ("alpha_power", "accuracy"):
+                        st.caption(threshold_note)
                     if m.key in graphics:
                         components.html(graphics[m.key](), height=120)
                     elif m.key == "alpha_power":
@@ -1485,7 +1499,18 @@ def _alpha_power_strip_spec(result: "intervention_core.ClassificationResult", ti
         {"condition": "Eyes closed", "power": p} for p in result.alpha_power_eyes_closed
     ] + [{"condition": "Eyes open", "power": p} for p in result.alpha_power_eyes_open]
 
-    return {
+    # The threshold the labels come from: the midpoint of the two means.
+    threshold_layer = {
+        "data": {"values": [{"threshold": result.threshold, "label": f"threshold {result.threshold:.1f} µV² (midpoint of means)"}]},
+        "layer": [
+            {"mark": {"type": "rule", "strokeDash": [4, 3], "color": INK_SECONDARY},
+             "encoding": {"x": {"field": "threshold", "type": "quantitative"}}},
+            {"mark": {"type": "text", "align": "left", "dx": 4, "dy": -4, "baseline": "bottom", "fontSize": 10, "color": INK_SECONDARY, "y": 0},
+             "encoding": {"x": {"field": "threshold", "type": "quantitative"}, "text": {"field": "label"}}},
+        ],
+    }
+
+    points = {
         "data": {"values": rows},
         "mark": {"type": "point", "filled": True, "size": 80, "opacity": 0.75},
         "encoding": {
@@ -1509,9 +1534,13 @@ def _alpha_power_strip_spec(result: "intervention_core.ClassificationResult", ti
                 "legend": None,
             },
         },
+    }
+
+    return {
+        "layer": [points, threshold_layer],
         "title": {"text": title, "fontSize": 11, "color": INK_SECONDARY, "fontWeight": "normal"},
         "width": "container",
-        "height": 90,
+        "height": 100,
         "config": _VEGA_CHART_CONFIG,
     }
 

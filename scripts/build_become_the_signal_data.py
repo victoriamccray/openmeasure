@@ -110,6 +110,8 @@ def _resting_state(baseline: dict) -> dict:
         "references": [dataclasses.asdict(r) for r in resting_state.REFERENCES],
         "reactivity": {k: (round(v, 4) if isinstance(v, float) else v) for k, v in dataclasses.asdict(react).items()},
         "chance": {k: (round(v, 6) if isinstance(v, float) else v) for k, v in dataclasses.asdict(odds).items()},
+        "threshold": {"value": round(react.midpoint, 4), "text": resting_state.explain_threshold(react).text},
+        "source_labels": dict(resting_state.SOURCE_LABEL),
     }
 
 
