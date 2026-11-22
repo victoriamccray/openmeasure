@@ -195,3 +195,40 @@ REFERENCES: dict[str, tuple[str, str]] = {
         "https://doi.org/10.1016/j.neuroimage.2008.10.065",
     ),
 }
+
+
+def response_components(
+    event_times,
+    duration: float = 40.0,
+    rate_hz: float = DEFAULT_RATE_HZ,
+) -> tuple[tuple[float, ...], ...]:
+    """
+    One copy of the response per event, in event order.
+
+    Their sum is hemodynamic_response(...).response: convolution adds one
+    shifted copy of k per event, which the step-through shows one at a time.
+    """
+    combined = hemodynamic_response(event_times, duration, rate_hz)
+    return tuple(
+        hemodynamic_response([e], duration, rate_hz).response for e in combined.event_times
+    )
+
+
+CONVOLUTION_STEPS = (
+    ("First event", "A brief burst of neural activity. EEG records it as it happens."),
+    ("Its blood response", "One copy of the slow response k(t) starts at the event and peaks 5 s later."),
+    ("Second event", "A second burst, 3 s later. EEG records it as it happens too."),
+    ("Its blood response", "A second copy of k(t) starts at the second event."),
+    ("Add them up", "The blood response h(t) is the sum of the copies. Events 3 s apart blur into one "
+     "broad bump, while EEG kept them apart."),
+)
+STEP_EVENTS = (5.0, 8.0)
+
+SYMBOLS = {
+    "h": "The blood-oxygen response that fNIRS or fMRI records, over time.",
+    "n": "The neural events: brief bursts of activity, the part EEG sees directly.",
+    "k": "The response function: the slow blood response to one brief event.",
+    "conv": "Convolution: place a copy of k at every event, scaled by its size, and add the copies.",
+    "tau": "The time of an event; the integral sums over every event time.",
+    "t": "The time at which the response is read.",
+}

@@ -804,64 +804,158 @@ def _assumption_rows(rows: list[tuple[str, str, str]]) -> None:
         st.markdown(f":{_ASSUMPTION_BADGE[status]}-badge[{status}] **{name}.** {why}")
 
 
+def _annotated_formula(mathml: str, symbols: dict[str, str], labels: dict[str, str], height: int = 112) -> None:
+    """
+    A formula whose symbols can be tapped to show what each one stands for.
+
+    Streamlit's st.latex is static, so the formula is MathML in a small
+    embedded panel; each symbol is an <mrow data-sym="key">. Definitions
+    come from the lesson's core SYMBOLS. A plain symbol list follows for
+    screen readers and in case the panel does not load.
+    """
+    import html as _html
+    import json as _json
+
+    defs = {k: {"label": labels.get(k, k), "text": v} for k, v in symbols.items()}
+    page = f"""<div style="font-family:system-ui,sans-serif;background:{SURFACE};color:{INK_SECONDARY};border:1px solid {GRIDLINE};border-radius:8px;padding:10px 14px">
+<div style="font-size:22px;text-align:center;color:#1f1e1c">{mathml}</div>
+<p id="note" aria-live="polite" style="font-size:13px;margin:8px 0 0;border-left:3px solid {CATEGORY_COLORS['Autonomic']};padding-left:8px">Tap a symbol in the formula to see what it stands for.</p></div>
+<style>.sym{{cursor:pointer;border-radius:4px;padding:0 2px}}.sym:hover,.sym:focus{{background:#dbe7f7;outline:none}}.sym.on{{background:#fbd9c4}}</style>
+<script>
+const D = {_json.dumps(defs)};
+const note = document.getElementById("note");
+function pick(el) {{
+  document.querySelectorAll(".sym").forEach(s => s.classList.toggle("on", s === el));
+  const d = D[el.dataset.sym];
+  note.innerHTML = "<strong style='color:#1f1e1c'>" + d.label + "</strong> " + d.text;
+}}
+document.querySelectorAll(".sym").forEach(el => {{
+  el.setAttribute("tabindex", "0"); el.setAttribute("role", "button");
+  el.setAttribute("aria-label", D[el.dataset.sym].label + ": " + D[el.dataset.sym].text);
+  el.addEventListener("click", () => pick(el));
+  el.addEventListener("keydown", e => {{ if (e.key === "Enter" || e.key === " ") {{ e.preventDefault(); pick(el); }} }});
+}});
+</script>"""
+    components.html(page, height=height)
+    with st.expander("Symbols in this formula"):
+        for key, info in defs.items():
+            st.markdown(f"- **{_html.escape(info['label'])}**: {info['text']}")
+
+
+def _sym(key: str, inner: str) -> str:
+    return f'<mrow class="sym" data-sym="{key}">{inner}</mrow>'
+
+
+_CONVOLUTION_MATHML = (
+    "<math display='block'>"
+    + _sym("h", "<mi>h</mi><mo>(</mo><mi>t</mi><mo>)</mo>")
+    + "<mo>=</mo><mo>(</mo>" + _sym("n", "<mi>n</mi>") + _sym("conv", "<mo>∗</mo>") + _sym("k", "<mi>k</mi>")
+    + "<mo>)</mo><mo>(</mo>" + _sym("t", "<mi>t</mi>") + "<mo>)</mo><mo>=</mo><mo>∫</mo>"
+    + _sym("n", "<mi>n</mi><mo>(</mo><mi>τ</mi><mo>)</mo>") + "<mspace width='0.2em'/>"
+    + _sym("k", "<mi>k</mi><mo>(</mo><mi>t</mi><mo>−</mo><mi>τ</mi><mo>)</mo>")
+    + "<mspace width='0.2em'/>" + _sym("tau", "<mi>d</mi><mi>τ</mi>") + "</math>"
+)
+_CONVOLUTION_LABELS = {"h": "h(t)", "n": "n(τ)", "k": "k(t − τ)", "conv": "∗", "tau": "dτ", "t": "t"}
+
+_CORRELATION_MATHML = (
+    "<math display='block'>" + _sym("r", "<mi>r</mi>") + "<mo>=</mo><mfrac>"
+    + _sym("cov", "<mi>Cov</mi><mo>(</mo><mi>X</mi><mo>,</mo><mi>Y</mi><mo>)</mo>")
+    + "<mrow>" + _sym("sigma_x", "<msub><mi>σ</mi><mi>X</mi></msub>") + _sym("sigma_y", "<msub><mi>σ</mi><mi>Y</mi></msub>")
+    + "</mrow></mfrac></math>"
+)
+_CORRELATION_LABELS = {"r": "r", "cov": "Cov(X, Y)", "sigma_x": "σX", "sigma_y": "σY"}
+
+_HEMO_STEP_KEY = "mmsc_lesson_hemo_step"
+
+
+def _hemo_step(delta: int) -> None:
+    last = len(hemo_core.CONVOLUTION_STEPS) - 1
+    st.session_state[_HEMO_STEP_KEY] = max(0, min(last, st.session_state.get(_HEMO_STEP_KEY, 0) + delta))
+
+
 def _render_hemodynamics_lesson() -> None:
     lesson = hemo_core.LESSON
     with st.expander("Lesson: why does fNIRS respond more slowly than EEG?"):
         st.markdown(f"**The question.** {lesson['question']}")
         st.markdown(f"**The obstacle.** {lesson['obstacle']}")
 
-        st.markdown("**Try it.** Two brief neural events. Move them closer together.")
-        gap = st.select_slider(
-            "Seconds between the two events", options=[1, 2, 3, 4, 5, 6, 8, 10], value=8,
-            key="mmsc_lesson_hemo_gap",
-        )
-        result = hemo_core.hemodynamic_response([5.0, 5.0 + gap], duration=40.0)
-        rows = [
-            {"t": t, "value": v, "signal": "Blood-oxygen response (model)"}
-            for t, v in zip(result.times, result.response)
-        ]
-        events = [{"t": e, "signal": "Neural event (what EEG sees)"} for e in result.event_times]
-        spec = {
-            "layer": [
-                {"data": {"values": events}, "mark": {"type": "rule", "strokeWidth": 2, "color": CATEGORY_COLORS["Neural"]},
-                 "encoding": {"x": {"field": "t", "type": "quantitative"}}},
-                {"data": {"values": rows}, "mark": {"type": "line", "strokeWidth": 2, "color": "#8a5cc9"},
-                 "encoding": {
-                     "x": {"field": "t", "type": "quantitative", "title": "Seconds", "scale": {"domain": [0, 40]}},
-                     "y": {"field": "value", "type": "quantitative", "title": "Response (arbitrary units)"},
-                     "tooltip": [{"field": "t", "title": "Seconds", "format": ".1f"},
-                                 {"field": "value", "title": "Response", "format": ".2f"}]}},
-            ],
-            "title": {"text": "Blue lines: neural events. Purple: the slow blood-oxygen response they cause.",
-                      "fontSize": 11, "color": INK_SECONDARY, "fontWeight": "normal"},
-            "width": "container", "height": 160, "config": _VEGA_CHART_CONFIG,
-        }
-        _chart(spec)
-        cols = st.columns(2)
-        cols[0].metric("First visible peak after the first event", f"{result.first_peak_delay:.1f} s")
-        cols[1].metric("Two separate responses?", "Yes" if result.separable else "No, they merge")
-        st.caption(
-            "EEG would show each event within milliseconds. In this model a single event's blood "
-            "response peaks 5 s later. Events closer than about 5 s merge into one bump. "
-            "Separate means the dip between peaks falls below 75% of the smaller peak, a teaching "
-            "rule of thumb."
-        )
+        step = st.session_state.get(_HEMO_STEP_KEY, 0)
+        title, text = hemo_core.CONVOLUTION_STEPS[step]
+        events = hemo_core.STEP_EVENTS
+        parts = hemo_core.response_components(events, duration=30.0)
+        result = hemo_core.hemodynamic_response(events, duration=30.0)
+        times = result.times
 
-        st.markdown("**The formula.**")
-        st.latex(r"h(t) = (n * k)(t) = \int n(\tau)\, k(t - \tau)\, d\tau")
-        st.caption(
-            f"{lesson['formula_plain']} Here k(t) is a double gamma that peaks at 5 s with a small "
-            f"undershoot after. {_lesson_ref('boynton', 'friston_1998')}"
-        )
+        st.markdown(f"**Step {step + 1} of {len(hemo_core.CONVOLUTION_STEPS)}: {title}.** {text}")
+        shown_events = events[: 1 if step < 2 else 2]
+        eeg_rows = [{"t": e} for e in shown_events]
+        eeg_spec = {
+            "data": {"values": eeg_rows},
+            "mark": {"type": "rule", "strokeWidth": 3, "color": CATEGORY_COLORS["Neural"]},
+            "encoding": {"x": {"field": "t", "type": "quantitative", "title": None, "scale": {"domain": [0, 30]}}},
+            "title": {"text": "What EEG sees: each event as it happens", "fontSize": 11, "color": INK_SECONDARY, "fontWeight": "normal"},
+            "width": "container", "height": 40, "config": _VEGA_CHART_CONFIG,
+        }
+        _chart(eeg_spec)
+
+        series = []
+        if step >= 1:
+            series.append(("Copy of k(t) for event 1", parts[0], "#c4b0e3" if step == 4 else "#8a5cc9", [4, 3] if step == 4 else None))
+        if step >= 3:
+            series.append(("Copy of k(t) for event 2", parts[1], "#c4b0e3" if step == 4 else "#b07cd9", [4, 3] if step == 4 else None))
+        if step == 4:
+            series.append(("Sum h(t): what fNIRS sees", result.response, "#5b2a9e", None))
+        layers = []
+        for name, values, color, dash in series:
+            mark = {"type": "line", "strokeWidth": 2.5 if name.startswith("Sum") else 1.8, "color": color}
+            if dash:
+                mark["strokeDash"] = dash
+            layers.append({
+                "data": {"values": [{"t": t, "v": v, "s": name} for t, v in zip(times, values)]},
+                "mark": mark,
+                "encoding": {
+                    "x": {"field": "t", "type": "quantitative", "title": "Seconds", "scale": {"domain": [0, 30]}},
+                    "y": {"field": "v", "type": "quantitative", "title": "Blood-oxygen response", "scale": {"domain": [-0.3, 2.0]}},
+                    "tooltip": [{"field": "s", "title": "Curve"}, {"field": "t", "title": "Seconds", "format": ".1f"},
+                                {"field": "v", "title": "Response", "format": ".2f"}],
+                },
+            })
+        if not layers:
+            layers.append({"data": {"values": [{"t": 0, "v": 0}]}, "mark": {"type": "point", "opacity": 0},
+                           "encoding": {"x": {"field": "t", "type": "quantitative", "title": "Seconds", "scale": {"domain": [0, 30]}},
+                                        "y": {"field": "v", "type": "quantitative", "title": "Blood-oxygen response", "scale": {"domain": [-0.3, 2.0]}}}})
+        _chart({
+            "layer": layers,
+            "title": {"text": "What fNIRS sees: the same events, seconds later (model)", "fontSize": 11, "color": INK_SECONDARY, "fontWeight": "normal"},
+            "width": "container", "height": 150, "config": _VEGA_CHART_CONFIG,
+        })
+        back, forward = st.columns(2)
+        back.button("Previous step", on_click=_hemo_step, args=(-1,), disabled=step == 0, key="mmsc_hemo_back", width="stretch")
+        forward.button("Next step", on_click=_hemo_step, args=(1,), disabled=step == len(hemo_core.CONVOLUTION_STEPS) - 1,
+                       key="mmsc_hemo_next", type="primary", width="stretch")
+        if step == len(hemo_core.CONVOLUTION_STEPS) - 1:
+            st.caption(
+                f"Peak {result.first_peak_delay:.1f} s after the first event. The two events, "
+                f"{events[1] - events[0]:g} s apart, leave one bump in the blood response, while EEG "
+                "kept them apart."
+            )
+
+            st.markdown("**The formula.** Tap a symbol.")
+            _annotated_formula(_CONVOLUTION_MATHML, hemo_core.SYMBOLS, _CONVOLUTION_LABELS)
+            st.caption(
+                f"{lesson['formula_plain']} Here k(t) is a double gamma that peaks at 5 s with a small "
+                f"undershoot after. {_lesson_ref('boynton', 'friston_1998')}"
+            )
 
         st.markdown("**Limitations.**")
         for item in lesson["limitations"]:
             st.markdown(f"- {item}")
         st.markdown("**Assumptions in this experiment.**")
         _assumption_rows([
-            ("Linear response", "violated" if gap < 4 else "unverified",
-             "Holds approximately for events at least about 4 s apart; this setting is "
-             + ("closer than that, so the model is outside its range." if gap < 4 else "within that range, though this page does not test it.")),
+            ("Linear response", "violated",
+             f"Holds approximately for events at least about 4 s apart. These events are "
+             f"{events[1] - events[0]:g} s apart, inside the range where measured responses stop "
+             "adding linearly (Glover, 1999), so real data would differ from this sum."),
             ("Response shape", "assumed", "A standard double gamma; real shapes vary by region and person."),
             ("fNIRS follows the BOLD shape", "assumed", "A common modeling choice for oxygenated hemoglobin."),
         ])
@@ -923,8 +1017,8 @@ def _render_correlation_lesson() -> None:
                 "with only one source present."
             )
 
-        st.markdown("**The formula.**")
-        st.latex(r"r = \frac{\operatorname{Cov}(X, Y)}{\sigma_X\, \sigma_Y}")
+        st.markdown("**The formula.** Tap a symbol.")
+        _annotated_formula(_CORRELATION_MATHML, corr_core.SYMBOLS, _CORRELATION_LABELS, height=130)
         st.caption(lesson["formula_plain"])
         st.latex(r"\text{common input: } r = \frac{a^2}{a^2 + s^2} \qquad \text{direct link: } r = \frac{b}{\sqrt{b^2 + s^2}}")
         st.caption("Expected values for unit-variance sources and noise of standard deviation s, which the panels above check.")

@@ -176,3 +176,10 @@ REFERENCES: dict[str, tuple[str, str]] = {
         "https://doi.org/10.1016/s0013-4694(97)00066-7",
     ),
 }
+
+SYMBOLS = {
+    "r": "The correlation: from minus 1 to 1, how closely the two signals move together.",
+    "cov": "The covariance: the average product of the two signals' deviations from their means.",
+    "sigma_x": "The standard deviation of signal X: its typical deviation from its mean.",
+    "sigma_y": "The standard deviation of signal Y.",
+}

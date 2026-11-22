@@ -115,6 +115,26 @@ class TestMixture(unittest.TestCase):
             pe.mixture_spectrum(-1.0)
 
 
+class TestWelchSteps(unittest.TestCase):
+    def test_steps_reproduce_the_pipeline(self):
+        window = _recorded("eyes_closed")
+        steps = pe.welch_steps(window)
+
+        self.assertAlmostEqual(steps.alpha_power, intervention.compute_alpha_power(window, 500.0), places=9)
+        self.assertTrue(np.allclose(steps.density, pe.window_spectrum(window).density))
+
+    def test_each_step_follows_from_the_last(self):
+        steps = pe.welch_steps(_recorded("eyes_open", 2000))
+        self.assertAlmostEqual(float(np.mean(steps.centered)), 0.0, places=9)
+        self.assertTrue(np.allclose(np.array(steps.centered) * np.array(steps.taper), steps.tapered))
+        self.assertEqual(steps.taper[0], 0.0)  # the taper fades the edge to zero
+        self.assertEqual(sum(steps.in_band), 6)  # bins at 8, 9, 10, 11, 12, 13 Hz
+
+    def test_five_steps_and_every_symbol_defined(self):
+        self.assertEqual([s.key for s in pe.WELCH_STEPS], ["record", "taper", "fft", "power", "area"])
+        self.assertTrue({"P_alpha", "S_xx", "f", "x_t", "T", "A"} <= set(pe.SYMBOLS))
+
+
 class TestSteps(unittest.TestCase):
     def test_three_steps_in_order(self):
         self.assertEqual([s.key for s in pe.STEPS], ["square", "separate", "integrate"])
@@ -123,7 +143,8 @@ class TestSteps(unittest.TestCase):
         import re
 
         pattern = re.compile(r" - |–|—|, not |not an? |rather than", re.I)
-        texts = [t for s in pe.STEPS for t in (s.title, s.question, s.explanation, s.takeaway)]
+        texts = [t for s in (*pe.STEPS, *pe.WELCH_STEPS) for t in (s.title, s.question, s.explanation, s.takeaway)]
+        texts += list(pe.SYMBOLS.values())
 
         self.assertEqual([t for t in texts if pattern.search(t)], [])
 

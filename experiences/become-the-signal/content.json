@@ -45,6 +45,7 @@
    "what_changed": "A continuous rhythm became 500 numbers per second. Numbers can be stored and copied.",
    "handoff": "a raw measured trace",
    "interaction": "threat",
+   "uncertainty": "sources",
    "anatomy": {"view": "electrode", "title": "Where the Sensor Sits", "text": "Electrode positions follow the 10-20 system, which places each electrode at 10 or 20 percent of the distance across the head. Each label tells you the region and the side. This map uses the modern names T7, T8, P7, and P8 for the classic T3, T4, T5, and T6. Tap any electrode to read its label."},
    "copy": "The device's stored recording",
    "threat": {
@@ -69,6 +70,7 @@
    "what_changed": "Each second of 500 numbers became one number, its alpha power. Detail outside the alpha band is discarded, and the part the inference uses is kept.",
    "handoff": "a cleaned, transformed signal",
    "interaction": "features",
+   "compare": "filter",
    "refs": ["welch", "barry"],
    "perspectives": {
     "agency": "The features computed here decide what later stages can learn. The system's designers make that choice.",

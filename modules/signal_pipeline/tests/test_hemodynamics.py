@@ -82,6 +82,21 @@ class TestConvolution(unittest.TestCase):
                 h.hemodynamic_response(events, duration=40.0)
 
 
+class TestComponents(unittest.TestCase):
+    def test_components_add_up_to_the_response(self):
+        parts = np.array(h.response_components(h.STEP_EVENTS))
+        whole = np.array(h.hemodynamic_response(h.STEP_EVENTS).response)
+
+        self.assertEqual(parts.shape[0], 2)
+        self.assertTrue(np.allclose(parts.sum(axis=0), whole))
+
+    def test_step_events_three_seconds_apart_merge(self):
+        # The step-through's closing claim.
+        self.assertEqual(h.STEP_EVENTS[1] - h.STEP_EVENTS[0], 3.0)
+        self.assertFalse(h.hemodynamic_response(h.STEP_EVENTS).separable)
+        self.assertEqual(len(h.CONVOLUTION_STEPS), 5)
+
+
 class TestLessonText(unittest.TestCase):
     def test_limitations_cite_the_linearity_bound(self):
         self.assertTrue(any("4 s" in item for item in h.LESSON["limitations"]))
@@ -91,6 +106,7 @@ class TestLessonText(unittest.TestCase):
 
         pattern = re.compile(r" - |–|—|, not |not an? |rather than", re.I)
         texts = [h.LESSON["question"], h.LESSON["obstacle"], h.LESSON["formula_plain"], *h.LESSON["limitations"]]
+        texts += [t for step in h.CONVOLUTION_STEPS for t in step] + list(h.SYMBOLS.values())
         self.assertEqual([t for t in texts if pattern.search(t)], [])
 
 

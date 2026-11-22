@@ -68,6 +68,9 @@ const state = {
   mathAmp: 3,
   mathSquared: false,
   mathAlpha: 4,
+  // Welch step-through position and the tapped equation symbol.
+  welchStep: 0,
+  sym: null,
 };
 
 // ------------------------------------------------------------------
@@ -83,6 +86,7 @@ const pct = (value) => (value === null || value === undefined ? "fails" : `${Mat
 // of the journey cites from content.json. A key in both has the same text,
 // which shared/tests/test_become_the_signal.py checks.
 const REFS = {
+  ...Object.fromEntries(data.lesson_references.map((r) => [r.key, r])),
   ...Object.fromEntries(data.resting_state.references.map((r) => [r.key, r])),
   ...Object.fromEntries(data.neuroanatomy.references.map((r) => [r.key, r])),
   ...content.references,
@@ -116,6 +120,7 @@ for (const stage of STAGES) {
 }
 // The study room's sources, numbered after the journey's own.
 for (const r of data.resting_state.references) if (!refOrder.includes(r.key)) refOrder.push(r.key);
+for (const r of data.lesson_references) if (!refOrder.includes(r.key)) refOrder.push(r.key);
 const refNumber = (key) => refOrder.indexOf(key) + 1;
 const refMarks = (keys = []) =>
   keys.map((k) => `<button type="button" class="ref" data-ref="${k}" aria-label="Reference ${refNumber(k)}">[${refNumber(k)}]</button>`).join("");
@@ -1554,6 +1559,7 @@ function renderStudy() {
   $("study-tabs").innerHTML = STUDY_TABS.map(([k, label]) => `<button type="button" role="tab" data-study-tab="${k}" aria-selected="${state.studyTab === k}">${label}</button>`).join("");
   const body = { room: roomHtml, numbers: numbersHtml, dichotomies: dichotomiesHtml, math: mathStepHtml }[state.studyTab]();
   $("study-body").innerHTML = body;
+  applySymHighlight($("study-body"));
 }
 
 function openStudy(tab) {
@@ -1580,7 +1586,8 @@ function studyTextHtml() {
     <h3>What the Numbers Mean</h3><ul>${measures}</ul>
     <h3>Resting vs Task, Domain-General vs Domain-Specific</h3>
     <div class="table-wrap"><table><thead><tr><th>Modality</th><th>Axis</th><th>First pole</th><th>Second pole</th></tr></thead><tbody>${dich}</tbody></table></div>
-    ${mathTextHtml()}</section>`;
+    ${mathTextHtml()}
+    ${interactionsTextHtml()}</section>`;
 }
 
 // ------------------------------------------------------------------
@@ -1591,12 +1598,6 @@ function studyTextHtml() {
 
 const EX = data.explainer;
 
-const MATHML = {
-  mean: `<math display="block" aria-label="Mean: one over T times the integral from 0 to T of x of t, d t"><mfrac><mn>1</mn><mi>T</mi></mfrac><msubsup><mo>∫</mo><mn>0</mn><mi>T</mi></msubsup><mi>x</mi><mo stretchy="false">(</mo><mi>t</mi><mo stretchy="false">)</mo><mspace width="0.2em"/><mi>d</mi><mi>t</mi></math>`,
-  meanSquare: `<math display="block" aria-label="Mean square: one over T times the integral from 0 to T of x of t squared, d t"><mfrac><mn>1</mn><mi>T</mi></mfrac><msubsup><mo>∫</mo><mn>0</mn><mi>T</mi></msubsup><mi>x</mi><msup><mrow><mo stretchy="false">(</mo><mi>t</mi><mo stretchy="false">)</mo></mrow><mn>2</mn></msup><mspace width="0.2em"/><mi>d</mi><mi>t</mi></math>`,
-  sine: `<math display="block" aria-label="For x of t equals A sine 2 pi f t, the mean square is A squared over 2"><mi>x</mi><mo stretchy="false">(</mo><mi>t</mi><mo stretchy="false">)</mo><mo>=</mo><mi>A</mi><mi>sin</mi><mo stretchy="false">(</mo><mn>2</mn><mi>π</mi><mi>f</mi><mi>t</mi><mo stretchy="false">)</mo><mspace width="1em"/><mo>⇒</mo><mspace width="1em"/><mover><mrow><msup><mi>x</mi><mn>2</mn></msup></mrow><mo>‾</mo></mover><mo>=</mo><mfrac><msup><mi>A</mi><mn>2</mn></msup><mn>2</mn></mfrac></math>`,
-  alpha: `<math display="block" aria-label="Alpha power equals the integral from 8 to 13 hertz of the power spectral density S x x of f, d f"><msub><mi>P</mi><mi>α</mi></msub><mo>=</mo><msubsup><mo>∫</mo><mn>8</mn><mn>13</mn></msubsup><msub><mi>S</mi><mrow><mi>x</mi><mi>x</mi></mrow></msub><mo stretchy="false">(</mo><mi>f</mi><mo stretchy="false">)</mo><mspace width="0.2em"/><mi>d</mi><mi>f</mi></math>`,
-};
 
 const fmt = (v, d = 2) => (Math.abs(v) < 0.5 * 10 ** -d ? (0).toFixed(d) : v.toFixed(d));
 
@@ -1623,7 +1624,7 @@ function squareSvg(level, squared) {
   return `<svg viewBox="0 0 ${w} ${h + 16}" class="math-svg" role="img" aria-label="${squared ? "Squared" : "Original"} sine of amplitude ${level.amplitude} microvolts over one second. ${squared ? `Mean square ${fmt(level.mean_square)} microvolts squared.` : "Positive and negative halves cancel, so the mean is zero."}">
     <defs>${clipUp}</defs>
     ${fills}
-    <path d="${line}" class="curve"/>
+    <path d="${line}" class="curve" data-sym-target="x_t square A"/>
     <line x1="${left}" y1="${mid}" x2="${w - right}" y2="${mid}" class="ax-line"/>
     <line x1="${left}" y1="4" x2="${left}" y2="${h}" class="ax-line"/>
     <line x1="${left}" y1="${meanY.toFixed(1)}" x2="${w - right}" y2="${meanY.toFixed(1)}" class="mean-line"/>
@@ -1635,7 +1636,7 @@ function squareSvg(level, squared) {
   </svg>`;
 }
 
-function spectrumSvg(spectrum, yMax, label) {
+function spectrumSvg(spectrum, yMax, label, { shade = true } = {}) {
   const w = 360, h = 140, left = 40, right = 8, bottom = h - 18;
   const fMax = spectrum.freqs_hz.at(-1);
   const x = (f) => left + (f / fMax) * (w - left - right);
@@ -1647,20 +1648,245 @@ function spectrumSvg(spectrum, yMax, label) {
   const bandPath = `M${x(lo)},${bottom}` + band.map(([f, i]) => `L${x(f).toFixed(1)},${y(spectrum.density[i]).toFixed(1)}`).join("") + `L${x(hi)},${bottom}Z`;
   const ticks = [0, 8, 13, 20].map((t) => `<text x="${x(t)}" y="${h - 4}" text-anchor="middle" class="ax">${t}</text>`).join("");
   return `<svg viewBox="0 0 ${w} ${h}" class="math-svg" role="img" aria-label="${esc(label)}. Power spectral density from 0 to ${fMax} hertz, alpha band from 8 to 13 hertz shaded: ${fmt(spectrum.alpha_power, 1)} microvolts squared.">
-    <path d="${bandPath}" class="area alpha"/>
-    <path d="${line}" class="curve"/>
+    ${shade ? `<path d="${bandPath}" class="area alpha" data-sym-target="band P_alpha df"/>` : ""}
+    <path d="${line}" class="curve" data-sym-target="S_xx"/>
     <line x1="${left}" y1="${bottom}" x2="${w - right}" y2="${bottom}" class="ax-line"/>
     <line x1="${left}" y1="4" x2="${left}" y2="${bottom}" class="ax-line"/>
     <text x="${left - 4}" y="12" text-anchor="end" class="ax">${fmt(yMax, 0)}</text>
     <text x="${left - 4}" y="${bottom}" text-anchor="end" class="ax">0</text>
     <text x="4" y="${bottom / 2}" class="ax" transform="rotate(-90 10 ${bottom / 2})">µV²/Hz</text>
-    <line x1="${x(hi) + 2}" y1="${y(spectrum.density[spectrum.freqs_hz.indexOf(hi)]) - 2}" x2="${x(hi) + 24}" y2="30" class="ax-line"/>
-    <text x="${x(hi) + 27}" y="30" class="ax strong">alpha area ${fmt(spectrum.alpha_power, 1)} µV²</text>
+    ${shade ? `<line x1="${x(hi) + 2}" y1="${y(spectrum.density[spectrum.freqs_hz.indexOf(hi)]) - 2}" x2="${x(hi) + 24}" y2="30" class="ax-line"/>
+    <text x="${x(hi) + 27}" y="30" class="ax strong">alpha area ${fmt(spectrum.alpha_power, 1)} µV²</text>` : ""}
     ${ticks}<text x="${w - right}" y="${h - 4}" text-anchor="end" class="ax">${fMax} Hz</text>
   </svg>`;
 }
 
+// ------------------------------------------------------------------
+// Tappable equations: every symbol carries data-sym; tapping it shows its
+// meaning (from core SYMBOLS via data.json) and highlights the matching
+// part of the figure (elements with data-sym-target).
+// ------------------------------------------------------------------
+
+const SYMS = { ...data.explainer.symbols, ...data.sources.symbols };
+const SYM_LABEL = {
+  P_alpha: "Pα", S_xx: "Sxx(f)", f: "f", band: "∫ from 8 to 13", df: "df", x_t: "x(t)", T: "T", dt: "dt",
+  square: "squared", A: "A", xbar: "x̄", w: "w[n]", n: "n", N: "N", X_k: "X[k]", fs: "fs",
+  y: "y", L: "L", x: "x", epsilon: "ε",
+};
+const S = (key, inner) =>
+  `<mrow class="sym${state.sym === key ? " active" : ""}" tabindex="0" role="button" data-sym="${key}" aria-label="${esc(SYM_LABEL[key] || key)}: ${esc(SYMS[key] || "")}">${inner}</mrow>`;
+const mi = (v) => `<mi>${v}</mi>`;
+const paren = (inner) => `<mo stretchy="false">(</mo>${inner}<mo stretchy="false">)</mo>`;
+
+function mathml() {
+  const xt = S("x_t", `${mi("x")}${paren(mi("t"))}`);
+  const inv = S("T", `<mfrac><mn>1</mn>${mi("T")}</mfrac>`);
+  const intT = `<msubsup><mo>∫</mo><mn>0</mn>${mi("T")}</msubsup>`;
+  const dt = S("dt", `${mi("d")}${mi("t")}`);
+  return {
+    mean: `<math display="block">${inv}${intT}${xt}<mspace width="0.2em"/>${dt}</math>`,
+    meanSquare: `<math display="block">${inv}${intT}${S("square", `<msup><mrow>${xt}</mrow><mn>2</mn></msup>`)}<mspace width="0.2em"/>${dt}</math>`,
+    sine: `<math display="block">${xt}<mo>=</mo>${S("A", mi("A"))}<mi>sin</mi>${paren(`<mn>2</mn><mi>π</mi>${mi("f")}${mi("t")}`)}<mspace width="1em"/><mo>⇒</mo><mspace width="1em"/><mover><mrow><msup>${mi("x")}<mn>2</mn></msup></mrow><mo>‾</mo></mover><mo>=</mo><mfrac><msup>${S("A", mi("A"))}<mn>2</mn></msup><mn>2</mn></mfrac></math>`,
+    alpha: `<math display="block">${S("P_alpha", `<msub>${mi("P")}${mi("α")}</msub>`)}<mo>=</mo>${S("band", `<msubsup><mo>∫</mo><mn>8</mn><mn>13</mn></msubsup>`)}${S("S_xx", `<msub>${mi("S")}<mrow>${mi("x")}${mi("x")}</mrow></msub>${paren(S("f", mi("f")))}`)}<mspace width="0.2em"/>${S("df", `${mi("d")}${mi("f")}`)}</math>`,
+    welch: [
+      `<math display="block"><mover>${mi("x")}<mo>~</mo></mover><mo>[</mo>${S("n", mi("n"))}<mo>]</mo><mo>=</mo>${S("x_t", `${mi("x")}<mo>[</mo>${mi("n")}<mo>]</mo>`)}<mo>−</mo>${S("xbar", `<mover>${mi("x")}<mo>‾</mo></mover>`)}</math>`,
+      `<math display="block"><msub>${mi("x")}${mi("w")}</msub><mo>[</mo>${mi("n")}<mo>]</mo><mo>=</mo>${S("w", `${mi("w")}<mo>[</mo>${mi("n")}<mo>]</mo>`)}<mo>·</mo><mover>${mi("x")}<mo>~</mo></mover><mo>[</mo>${mi("n")}<mo>]</mo><mo>,</mo><mspace width="0.6em"/>${mi("w")}<mo>[</mo>${mi("n")}<mo>]</mo><mo>=</mo><msup><mi>sin</mi><mn>2</mn></msup>${paren(`<mfrac><mrow><mi>π</mi>${mi("n")}</mrow>${S("N", mi("N"))}</mfrac>`)}</math>`,
+      `<math display="block">${S("X_k", `${mi("X")}<mo>[</mo>${mi("k")}<mo>]</mo>`)}<mo>=</mo><munderover><mo>∑</mo><mrow>${mi("n")}<mo>=</mo><mn>0</mn></mrow><mrow>${S("N", mi("N"))}<mo>−</mo><mn>1</mn></mrow></munderover><msub>${mi("x")}${mi("w")}</msub><mo>[</mo>${mi("n")}<mo>]</mo><mspace width="0.2em"/><msup>${mi("e")}<mrow><mo>−</mo>${mi("i")}<mn>2</mn><mi>π</mi>${mi("k")}${mi("n")}<mo>/</mo>${mi("N")}</mrow></msup></math>`,
+      `<math display="block">${S("S_xx", `<msub>${mi("S")}<mrow>${mi("x")}${mi("x")}</mrow></msub>${paren(`<msub>${mi("f")}${mi("k")}</msub>`)}`)}<mo>=</mo><mfrac><mrow><mn>2</mn><msup><mrow><mo>|</mo>${S("X_k", `${mi("X")}<mo>[</mo>${mi("k")}<mo>]</mo>`)}<mo>|</mo></mrow><mn>2</mn></msup></mrow><mrow>${S("fs", `<msub>${mi("f")}${mi("s")}</msub>`)}<mo>∑</mo>${S("w", `<msup><mrow>${mi("w")}<mo>[</mo>${mi("n")}<mo>]</mo></mrow><mn>2</mn></msup>`)}</mrow></mfrac></math>`,
+      null,
+    ],
+    source: `<math display="block">${S("y", mi("y"))}<mo>=</mo>${S("L", mi("L"))}${S("x", mi("x"))}<mo>+</mo>${S("epsilon", mi("ε"))}</math>`,
+  };
+}
+
+function symNote(keys) {
+  const active = state.sym && keys.includes(state.sym) ? state.sym : null;
+  return `<p class="sym-note" aria-live="polite">${active ? `<strong>${esc(SYM_LABEL[active] || active)}</strong> ${esc(SYMS[active])}` : "Tap a symbol in the equation to see what it stands for."}</p>`;
+}
+
+function applySymHighlight(root) {
+  if (!root) return;
+  root.querySelectorAll("[data-sym-target]").forEach((el) => {
+    el.classList.toggle("hl", !!state.sym && el.dataset.symTarget.split(" ").includes(state.sym));
+  });
+}
+
+// ------------------------------------------------------------------
+// Welch's method, step by step: the picture first, then its equation.
+// ------------------------------------------------------------------
+
+function seriesSvg(series, { label, height = 90, top = null, bottom = null, seconds = 1 }) {
+  // series: [{values, cls, target}] drawn on one time axis.
+  const w = 360, left = 38, right = 8, plotW = w - left - right, total = height + 18;
+  const all = series.flatMap((s) => s.values);
+  const hi = top ?? Math.max(...all.map(Math.abs));
+  const lo = bottom ?? -hi;
+  const y = (v) => (4 + ((hi - v) / (hi - lo)) * (height - 8)).toFixed(1);
+  const paths = series
+    .map((s) => {
+      const n = s.values.length;
+      const d = s.values.map((v, i) => `${i ? "L" : "M"}${(left + (i / (n - 1)) * plotW).toFixed(1)},${y(v)}`).join("");
+      return `<path d="${d}" class="${s.cls}" fill="none"${s.target ? ` data-sym-target="${s.target}"` : ""}/>`;
+    })
+    .join("");
+  return `<svg viewBox="0 0 ${w} ${total}" class="trace-svg" role="img" aria-label="${esc(label)}">
+    <line x1="${left}" y1="${y(0)}" x2="${w - right}" y2="${y(0)}" class="ax-line zero"/>
+    <line x1="${left}" y1="0" x2="${left}" y2="${height}" class="ax-line"/>
+    <text x="${left - 4}" y="10" text-anchor="end" class="ax">${fmt(hi, 0)}</text>
+    <text x="${left - 4}" y="${height}" text-anchor="end" class="ax">${fmt(lo, 0)}</text>
+    <text x="${left}" y="${height + 13}" class="ax">0 s</text><text x="${w - right}" y="${height + 13}" text-anchor="end" class="ax">${seconds} s</text>
+    ${paths}
+  </svg>`;
+}
+
+function barsSvg(freqs, values, inBand, { label, unit }) {
+  const w = 360, h = 130, left = 40, right = 8, bottom = h - 18;
+  const fMax = freqs.at(-1);
+  const step = (w - left - right) / freqs.length;
+  const max = Math.max(...values);
+  const bars = freqs
+    .map((f, i) => `<rect x="${(left + i * step + 1).toFixed(1)}" y="${(bottom - (values[i] / max) * (bottom - 8)).toFixed(1)}" width="${(step - 2).toFixed(1)}" height="${((values[i] / max) * (bottom - 8)).toFixed(1)}" class="bar${inBand[i] ? " in" : ""}" data-sym-target="X_k"/>`)
+    .join("");
+  const ticks = [0, 8, 13, 20].map((t) => `<text x="${(left + (t + 0.5) * step).toFixed(1)}" y="${h - 4}" text-anchor="middle" class="ax">${t}</text>`).join("");
+  return `<svg viewBox="0 0 ${w} ${h}" class="math-svg" role="img" aria-label="${esc(label)}">
+    ${bars}<line x1="${left}" y1="${bottom}" x2="${w - right}" y2="${bottom}" class="ax-line"/>
+    <text x="${left - 4}" y="12" text-anchor="end" class="ax">${fmt(max, 0)}</text><text x="${left - 4}" y="${bottom}" text-anchor="end" class="ax">0</text>
+    <text x="4" y="${bottom / 2}" class="ax" transform="rotate(-90 10 ${bottom / 2})">${unit}</text>
+    ${ticks}<text x="${w - right}" y="${h - 4}" text-anchor="end" class="ax">${fMax} Hz</text></svg>`;
+}
+
+function welchHtml(M) {
+  const W = EX.welch;
+  const step = W.steps[state.welchStep];
+  let visual = "";
+  if (step.key === "record") {
+    visual = seriesSvg([{ values: W.centered, cls: "curve-closed", target: "x_t xbar" }], { label: "One recorded second, mean removed, in microvolts" });
+  } else if (step.key === "taper") {
+    const peak = Math.max(...W.centered.map(Math.abs));
+    visual = seriesSvg(
+      [
+        { values: W.centered, cls: "curve-faint", target: "x_t" },
+        { values: W.taper.map((v) => v * peak), cls: "curve-taper", target: "w" },
+        { values: W.tapered, cls: "curve-closed", target: "w" },
+      ],
+      { label: "The recorded second (faint), the Hann taper (green), and the tapered second (orange)" },
+    );
+  } else if (step.key === "fft") {
+    visual = barsSvg(W.freqs_hz, W.fft_magnitude, W.in_band, { label: "Fourier magnitude of the tapered second, 0 to 30 Hz", unit: "|X[k]|" });
+  } else if (step.key === "power") {
+    visual = spectrumSvg({ freqs_hz: W.freqs_hz, density: W.density, alpha_power: W.alpha_power }, Math.max(...W.density), "Power spectral density of the tapered second", { shade: false });
+  }
+  const eq = step.key === "area" ? "" : `<div class="reveal">${M.welch[state.welchStep]}</div>`;
+  const dots = W.steps.map((s, i) => `<button type="button" class="math-dot small" data-welch-step="${i}" aria-current="${i === state.welchStep ? "step" : "false"}" aria-label="Welch step ${i + 1}: ${esc(s.title)}">${i + 1}</button>`).join("");
+  let area = "";
+  if (step.key === "area") {
+    const rec = EX.recorded[state.eyes];
+    const s = rec.spectrum;
+    const yMax = Math.max(...EX.recorded.eyes_closed.spectrum.density);
+    area = `<div class="choices levels" role="group" aria-label="Recorded condition">
+        <button type="button" class="choice" data-eyes="eyes_closed" aria-pressed="${state.eyes === "eyes_closed"}">Eyes closed</button>
+        <button type="button" class="choice" data-eyes="eyes_open" aria-pressed="${state.eyes === "eyes_open"}">Eyes open</button>
+      </div>
+      ${spectrumSvg(s, yMax, `Spectrum of the first recorded second, ${state.eyes === "eyes_closed" ? "eyes closed" : "eyes open"}`)}
+      <div class="reveal">${M.alpha}</div>
+      <div class="metric-row">${mathTile("Alpha area, 8 to 13 Hz", fmt(s.alpha_power, 1), "µV²", "this second's alpha power")}${mathTile("Whole area", fmt(s.total_power, 1), "µV²", `tapered mean square ${fmt(s.tapered_mean_square, 1)}`)}</div>
+      <p class="caveat">Plain mean square of this second: ${fmt(s.mean_square, 1)} µV². It differs from the whole area because the Hann taper weighs the middle of the second more, and this second's activity was uneven.</p>`;
+  }
+  return `<div class="welch box">
+    <p class="live-label"><span class="src recorded">${esc(RS.source_labels.recorded)}</span> Welch's method on the first eyes-closed second · step ${state.welchStep + 1} of ${W.steps.length}</p>
+    <div class="math-dots">${dots}</div>
+    <h4>${esc(step.title)}</h4>
+    <p>${esc(step.question)}</p>
+    ${visual}${area}${eq}
+    ${symNote(["x_t", "xbar", "n", "w", "N", "X_k", "S_xx", "fs", "P_alpha", "band", "f", "df"])}
+    <p class="caveat">${esc(step.explanation)} ${esc(step.takeaway)}</p>
+    <div class="nav">
+      <button type="button" class="ghost" data-welch-step="${state.welchStep - 1}" ${state.welchStep === 0 ? "disabled" : ""}>Previous operation</button>
+      <button type="button" class="primary" data-welch-step="${state.welchStep + 1}" ${state.welchStep === W.steps.length - 1 ? "disabled" : ""}>Next operation</button>
+    </div></div>`;
+}
+
+// ------------------------------------------------------------------
+// Compare two worlds: the recorded signal and the same signal filtered.
+// ------------------------------------------------------------------
+
+function filterCompareHtml(stage) {
+  if (stage.compare !== "filter") return "";
+  const F = data.filter_compare;
+  const max = Math.max(...F.raw.map(Math.abs));
+  const [a, b] = F.shown_seconds;
+  const panel = (values, cls, title, src) => `<div class="world"><p class="live-label"><span class="src ${src}">${esc(RS.source_labels[src])}</span> ${title}</p>
+      ${seriesSvg([{ values, cls, target: "" }], { label: title, top: max, bottom: -max, height: 70, seconds: b - a })}</div>`;
+  return `<div class="box compare">
+    <h3>Compare: Recorded and Filtered</h3>
+    <p>${esc(F.lesson.question)}</p>
+    ${panel(F.raw, "curve-faint-strong", `Recorded, seconds ${a} to ${b}, µV`, "recorded")}
+    ${panel(F.filtered, "curve-closed", `Filtered to ${F.band_hz[0]} to ${F.band_hz[1]} Hz, same scale`, "recorded")}
+    <p>${esc(F.lesson.what_it_does)}</p>
+    <div class="metric-row">
+      ${mathTile("Variance kept", `${Math.round(F.kept_variance_share * 100)}`, "%", "of the eyes-closed excerpt")}
+      ${mathTile("Gain at 8 and 13 Hz", fmt(F.gain["8"], 2), "×", `${fmt(F.gain["10"], 2)}× at 10 Hz`)}
+      ${mathTile("Delay if run live", fmt(F.causal_delay_s * 1000, 0), "ms", "forward-only, a 10.5 Hz burst")}
+    </div>
+    <details class="box why"><summary><h3>What Filtering Costs</h3></summary>
+      <ul>${F.lesson.costs.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>${refMarks(F.lesson.refs)}
+      <p class="caveat">Butterworth band-pass, order ${F.order}, run forward and backward. Every number here is computed from the recording.</p>
+    </details></div>`;
+}
+
+// ------------------------------------------------------------------
+// Reveal uncertainty: three source configurations, one set of readings.
+// ------------------------------------------------------------------
+
+function headSvg(cfg, { highlight = false } = {}) {
+  const xs = [52, 100, 148];
+  const max = 1;
+  const dots = cfg.strengths
+    .map((v, i) => `<circle cx="${xs[i]}" cy="92" r="${(4 + 16 * Math.sqrt(Math.max(v, 0) / max)).toFixed(1)}" class="src-dot" data-sym-target="x"/><text x="${xs[i]}" y="128" text-anchor="middle" class="ax">${fmt(v, 2)}</text>`)
+    .join("");
+  const bars = cfg.readings
+    .map((v, i) => `<rect x="${[44, 136][i]}" y="${(28 - v * 20).toFixed(1)}" width="20" height="${(v * 20).toFixed(1)}" class="read-bar" data-sym-target="y"/><text x="${[54, 146][i]}" y="40" text-anchor="middle" class="ax strong">${fmt(v, 2)}</text>`)
+    .join("");
+  return `<svg viewBox="0 0 200 140" class="head-mini${highlight ? " pick" : ""}" role="img" aria-label="${esc(cfg.label)}: source strengths ${cfg.strengths.map((v) => fmt(v, 2)).join(", ")}; electrode readings ${cfg.readings.map((v) => fmt(v, 2)).join(" and ")}.">
+    <ellipse cx="100" cy="88" rx="78" ry="42" class="head-outline"/>
+    <circle cx="54" cy="48" r="5" class="elec" data-sym-target="L"/><circle cx="146" cy="48" r="5" class="elec" data-sym-target="L"/>
+    ${bars}${dots}</svg>`;
+}
+
+function sourcesHtml(stage, M) {
+  if (stage.uncertainty !== "sources") return "";
+  const D = data.sources;
+  const cards = D.configurations.map((c) => `<figure class="cfg">${headSvg(c)}<figcaption>${esc(c.label)}</figcaption></figure>`).join("");
+  return `<div class="box uncertainty">
+    <h3>Which Sources Produced This?</h3>
+    <p class="live-label"><span class="src convention">Teaching model</span> 3 sources, 2 electrodes</p>
+    <p>${esc(D.lesson.question)} ${esc(D.lesson.obstacle)}</p>
+    <div class="cfg-row">${cards}</div>
+    <p class="caveat">Bars: electrode readings, identical in all three. Circles: source strengths, different in each.</p>
+    <div class="reveal">${M.source}</div>
+    ${symNote(["y", "L", "x", "epsilon"])}
+    <p>${esc(D.lesson.formula_plain)}</p>
+    <figure class="cfg pick-row">${headSvg(D.minimum_norm, { highlight: true })}<figcaption>Picking the smallest total strength gives a fourth answer, ${D.minimum_norm.strengths.map((v) => fmt(v, 2)).join(", ")}. The assumption picks it; the readings alone cannot.</figcaption></figure>
+    <details class="box why"><summary><h3>Limits of This Model</h3></summary>
+      <ul>${D.lesson.limitations.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>${refMarks(D.lesson.refs)}
+    </details></div>`;
+}
+
+function interactionsTextHtml() {
+  const F = data.filter_compare;
+  const D = data.sources;
+  return `<h3>Welch's Method, Step by Step</h3><ol>${EX.welch.steps.map((s) => `<li><strong>${esc(s.title)}.</strong> ${esc(s.question)} ${esc(s.explanation)}</li>`).join("")}</ol>
+    <p>Alpha power of the first eyes-closed second: ${fmt(EX.welch.alpha_power, 1)} µV².</p>
+    <h3>Recorded and Filtered</h3><p>${esc(F.lesson.what_it_does)} The filter kept ${Math.round(F.kept_variance_share * 100)}% of the variance; it passes ${fmt(F.gain["8"], 2)} of the amplitude at 8 and 13 Hz; run live, it would delay a burst by ${fmt(F.causal_delay_s * 1000, 0)} ms.</p>
+    <ul>${F.lesson.costs.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>${refMarks(F.lesson.refs)}
+    <h3>Which Sources Produced This?</h3><p>${esc(D.lesson.obstacle)}</p>
+    <ul>${D.configurations.map((c) => `<li>${esc(c.label)}: sources ${c.strengths.map((v) => fmt(v, 2)).join(", ")}; readings ${c.readings.map((v) => fmt(v, 2)).join(", ")}.</li>`).join("")}
+    <li>Minimum-norm estimate: ${D.minimum_norm.strengths.map((v) => fmt(v, 2)).join(", ")}.</li></ul>
+    <ul>${D.lesson.limitations.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>${refMarks(D.lesson.refs)}`;
+}
+
 function mathStepHtml() {
+  const MATHML = mathml();
   const step = EX.steps[state.mathStep];
   let body = "";
   if (step.key === "square") {
@@ -1674,7 +1900,8 @@ function mathStepHtml() {
       ${squareSvg(level, state.mathSquared)}
       <div class="metric-row">${mathTile("Mean voltage", fmt(level.mean), "µV", "halves cancel")}${mathTile("Mean squared voltage", fmt(level.mean_square), "µV²", `A² / 2 = ${fmt(level.amplitude ** 2 / 2)}`)}</div>
       <div class="math-pair"><div>${MATHML.mean}<p class="caveat">The mean can be zero.</p></div><div>${MATHML.meanSquare}<p class="caveat">The mean square measures strength.</p></div></div>
-      ${MATHML.sine}`;
+      ${MATHML.sine}
+      ${symNote(["x_t", "T", "dt", "square", "A"])}`;
   } else if (step.key === "separate") {
     const level = EX.mixture.levels[state.mathAlpha];
     const yMax = Math.max(...EX.mixture.levels.at(-1).spectrum.density);
@@ -1686,18 +1913,7 @@ function mathStepHtml() {
       ${spectrumSvg(level.spectrum, yMax, "Spectrum of the mixed teaching signal")}
       <div class="metric-row">${mathTile("Alpha power", fmt(level.spectrum.alpha_power, 1), "µV²", `a pure ${level.alpha_amplitude.toFixed(1)} µV tone alone: ${fmt(level.alpha_amplitude ** 2 / 2, 1)}`)}${mathTile("Whole spectrum", fmt(level.spectrum.total_power, 1), "µV²", "mean square of the mix")}</div>`;
   } else {
-    const rec = EX.recorded[state.eyes];
-    const s = rec.spectrum;
-    const yMax = Math.max(...EX.recorded.eyes_closed.spectrum.density);
-    body = `<div class="choices levels" role="group" aria-label="Recorded condition">
-        <button type="button" class="choice" data-eyes="eyes_closed" aria-pressed="${state.eyes === "eyes_closed"}">Eyes closed</button>
-        <button type="button" class="choice" data-eyes="eyes_open" aria-pressed="${state.eyes === "eyes_open"}">Eyes open</button>
-      </div>
-      <p class="live-label"><span class="src recorded">${esc(RS.source_labels.recorded)}</span> The first second of each condition, channel O1.</p>
-      ${spectrumSvg(s, yMax, `Spectrum of the first recorded second, ${state.eyes === "eyes_closed" ? "eyes closed" : "eyes open"}`)}
-      ${MATHML.alpha}
-      <div class="metric-row">${mathTile("Alpha area, 8 to 13 Hz", fmt(s.alpha_power, 1), "µV²", "this second's alpha power")}${mathTile("Whole area", fmt(s.total_power, 1), "µV²", `tapered mean square ${fmt(s.tapered_mean_square, 1)}`)}</div>
-      <p class="caveat">Plain mean square of this second: ${fmt(s.mean_square, 1)} µV². It differs from the whole area because the Hann taper weighs the middle of the second more, and this second's activity was uneven. Alpha is ${fmt((100 * s.alpha_power) / s.total_power, 0)}% of the whole area.</p>`;
+    body = welchHtml(MATHML);
   }
   const dots = EX.steps.map((s, i) => `<button type="button" class="math-dot" data-math-step="${i}" aria-current="${i === state.mathStep ? "step" : "false"}" aria-label="Step ${i + 1}: ${esc(s.title)}">${i + 1}</button>`).join("");
   return `<p class="eyebrow">Interactive math explainer · ${state.mathStep + 1} of ${EX.steps.length}</p>
@@ -1913,6 +2129,8 @@ function renderPanel() {
     ${interactionHtml(stage)}
     ${studyEntryHtml(stage)}
     ${anatomyHtml(stage)}
+    ${filterCompareHtml(stage)}
+    ${sourcesHtml(stage, mathml())}
     ${loopSummaryHtml()}
     ${perspectivesHtml(stage)}
     ${copiesHtml()}
@@ -1921,6 +2139,7 @@ function renderPanel() {
       <button type="button" class="ghost" id="prev" ${i === 0 ? "disabled" : ""}>Back</button>
       <button type="button" class="primary" id="next">${i === STAGES.length - 1 ? "Finish" : "Next"}</button>
     </div>`;
+  applySymHighlight($("panel"));
 }
 
 const RAIL_GROUPS = [
@@ -2068,8 +2287,13 @@ function openRefs(keyToShow) {
 
 // Regions and electrodes on the anatomy drawings, and the system list.
 function studyPick(target) {
-  const el = target.closest("[data-open-study], [data-study-tab], [data-axis], [data-math-step], [data-math-view]");
+  const el = target.closest("[data-open-study], [data-study-tab], [data-axis], [data-math-step], [data-math-view], [data-welch-step]");
   if (!el) return false;
+  if (el.dataset.welchStep !== undefined) {
+    state.welchStep = Math.max(0, Math.min(EX.welch.steps.length - 1, Number(el.dataset.welchStep)));
+    renderStudy();
+    return true;
+  }
   if (el.dataset.mathStep !== undefined) {
     state.mathStep = Math.max(0, Math.min(EX.steps.length - 1, Number(el.dataset.mathStep)));
     renderStudy();
@@ -2116,6 +2340,11 @@ document.addEventListener("input", (e) => {
 });
 
 document.addEventListener("keydown", (e) => {
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches?.("[data-sym]")) {
+    e.preventDefault();
+    symPick(e.target);
+    return;
+  }
   if ((e.key === "Enter" || e.key === " ") && e.target.matches?.("g[data-system], g[data-electrode]")) {
     e.preventDefault();
     const selector = e.target.dataset.system ? `g[data-system="${e.target.dataset.system}"]` : `g[data-electrode="${e.target.dataset.electrode}"]`;
@@ -2124,7 +2353,26 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
+// Tapping an equation symbol shows its meaning and highlights the figure.
+function symPick(target) {
+  const el = target.closest("[data-sym]");
+  if (!el) return false;
+  state.sym = state.sym === el.dataset.sym ? null : el.dataset.sym;
+  if (el.closest("#study")) {
+    const top = $("study").scrollTop;
+    renderStudy();
+    $("study").scrollTop = top;
+  } else {
+    const top = $("panel").scrollTop;
+    renderPanel();
+    $("panel").scrollTop = top;
+  }
+  document.querySelector(`[data-sym="${el.dataset.sym}"]`)?.focus({ preventScroll: true });
+  return true;
+}
+
 document.addEventListener("click", (e) => {
+  if (symPick(e.target)) return;
   if (studyPick(e.target)) return;
   if (anatomyPick(e.target)) return;
   const t = e.target.closest("button");
