@@ -182,10 +182,22 @@ def _filter_compare(signal: dict) -> dict:
     }
 
 
+def _round_nested(value, digits: int = 6):
+    # Linear algebra results differ in the last bits across BLAS builds,
+    # so the committed data keeps only digits every platform agrees on.
+    if isinstance(value, float):
+        return round(value, digits)
+    if isinstance(value, (list, tuple)):
+        return [_round_nested(v, digits) for v in value]
+    if isinstance(value, dict):
+        return {k: _round_nested(v, digits) for k, v in value.items()}
+    return value
+
+
 def _sources() -> dict:
     result = source_lesson.ambiguity()
     return {
-        **dataclasses.asdict(result),
+        **_round_nested(dataclasses.asdict(result)),
         "sources": list(source_lesson.SOURCES),
         "electrodes": list(source_lesson.ELECTRODES),
         "lesson": {k: (list(v) if isinstance(v, tuple) else v) for k, v in source_lesson.LESSON.items()},
