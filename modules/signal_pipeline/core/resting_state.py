@@ -330,9 +330,10 @@ MEASURES: tuple[Measure, ...] = (
         range_kind=RANGE_BY_DESIGN,
         expected="The 8 to 13 Hz alpha band is a convention. Each person's alpha peak sits "
         "somewhere inside or near it.",
-        what_shifts_it="Age and scalp position. Alpha frequency rises through childhood and slows "
-        "in older adults, and it runs faster over the back of the head. Many people show more than "
-        "one alpha peak.",
+        what_shifts_it="Age and scalp position, on average, with wide differences between people. "
+        "Peak alpha frequency tends to rise through childhood and to slow in older adults, and it "
+        "tends to be faster over the back of the head. Some people show more than one alpha peak. "
+        "These are group trends, so one person's peak can sit outside them.",
         refs=("chiang", "klimesch"),
         source=SOURCE_CONVENTION,
     ),
@@ -458,8 +459,9 @@ DICHOTOMIES: tuple[Dichotomy, ...] = (
         "fMRI", AXIS_STATE,
         "Resting-state scans, where slow fluctuations below 0.1 Hz rise and fall together in "
         "connected regions.",
-        "Task scans, where goal-directed work engages task regions and quiets the default mode "
-        "network.",
+        "Task scans, where goal-directed work engages task regions and often quiets the default "
+        "mode network. Some tasks, such as remembering the past or imagining the future, engage it "
+        "instead.",
         ("biswal", "raichle"),
     ),
     Dichotomy(

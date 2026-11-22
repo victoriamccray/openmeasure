@@ -1219,7 +1219,7 @@ function sideSvg(m, { electrodeOnly = false } = {}) {
   const autonomicOn = !electrodeOnly && levelOf(m, "autonomic")?.level !== "none";
   const youAre = `<g class="you"><circle cx="284" cy="128" r="5"/><circle cx="284" cy="128" r="5" class="pulse"/></g><text x="284" y="146" class="lbl strong" text-anchor="middle">You</text>`;
   const description = electrodeOnly
-    ? "Side view of the head facing left. Electrode O1 sits on the scalp over the left occipital region, with a schematic glow showing that it picks up a blend of nearby sources."
+    ? "Side view of the head facing left. Electrode O1 sits on the scalp over the left occipital region, with a schematic glow showing that it picks up a blend of sources, near and far."
     : `Side view of the head facing left. ${m.short_name} measures ${MEASURE_LABEL[m.measurement].toLowerCase()}. ${ANAT.systems.map((s) => `${levelOf(m, s.key).label.toLowerCase()}: ${s.name}`).join("; ")}.`;
   return `<svg class="anat" viewBox="0 0 360 270" role="img" aria-label="${esc(description)}">
     <defs>

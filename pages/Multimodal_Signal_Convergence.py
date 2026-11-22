@@ -113,7 +113,7 @@ PIPELINE_STAGE_NOTES = (
     (":material/psychology:", "Inference", "Turning the processed signal into an estimate"),
     (":material/rule:", "Decision", "Comparing that estimate against a threshold or rule"),
     (":material/bolt:", "Action", "The system responds based on that decision"),
-    (":material/loop:", "Feedback", "The response changes the signal that comes next"),
+    (":material/loop:", "Feedback", "The response can change the signal that comes next"),
 )
 
 # What is actually passed from one stage to the next. The stage names
@@ -127,7 +127,7 @@ PIPELINE_HANDOFFS = (
     "a threshold result",
     "a response the person experiences",
 )
-PIPELINE_RETURN_HANDOFF = "a changed signal the next time around"
+PIPELINE_RETURN_HANDOFF = "a signal that may change the next time around"
 
 
 PERSPECTIVE_KEY = "signal_pipeline_perspective"

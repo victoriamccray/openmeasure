@@ -1132,7 +1132,7 @@
     "how_to_read": "A higher number means a faster rhythm. Bands are named ranges of frequency.",
     "range_kind": "by design",
     "expected": "The 8 to 13 Hz alpha band is a convention. Each person's alpha peak sits somewhere inside or near it.",
-    "what_shifts_it": "Age and scalp position. Alpha frequency rises through childhood and slows in older adults, and it runs faster over the back of the head. Many people show more than one alpha peak.",
+    "what_shifts_it": "Age and scalp position, on average, with wide differences between people. Peak alpha frequency tends to rise through childhood and to slow in older adults, and it tends to be faster over the back of the head. Some people show more than one alpha peak. These are group trends, so one person's peak can sit outside them.",
     "refs": [
      "chiang",
      "klimesch"
@@ -1286,7 +1286,7 @@
     "modality": "fMRI",
     "axis": "state",
     "first": "Resting-state scans, where slow fluctuations below 0.1 Hz rise and fall together in connected regions.",
-    "second": "Task scans, where goal-directed work engages task regions and quiets the default mode network.",
+    "second": "Task scans, where goal-directed work engages task regions and often quiets the default mode network. Some tasks, such as remembering the past or imagining the future, engage it instead.",
     "refs": [
      "biswal",
      "raichle"
@@ -7986,6 +7986,7 @@
    "formula_plain": "The readings y equal the lead field L times the source strengths x, plus noise. L says how strongly each source reaches each electrode.",
    "limitations": [
     "A three-source, two-electrode model is a teaching simplification. Real heads have thousands of candidate sources, which makes the ambiguity larger.",
+    "In this model each electrode is most sensitive to the source nearest it. In a real head, orientation and depth matter too, so the cortex beneath an electrode does not always contribute most.",
     "Choosing one answer needs an assumption, such as the smallest total strength or smooth activity. Different assumptions give different answers (Grech et al., 2008).",
     "Methods combine many electrodes, a head model from MRI, and such assumptions to make the estimate useful (Michel et al., 2004)."
    ],
@@ -19595,7 +19596,7 @@
       "modality": "eeg",
       "system": "frontal",
       "level": "covered",
-      "note": "Electrodes over this lobe pick up its activity, blended with nearby sources by volume conduction.",
+      "note": "Electrodes over this lobe pick up its activity, blended with other sources by volume conduction. Orientation and depth matter as well as distance, so the lobe beneath an electrode does not always contribute most.",
       "in_principle": "covered",
       "label": "Covered by this setup",
       "reachable_elsewhere": false
@@ -19604,7 +19605,7 @@
       "modality": "eeg",
       "system": "sensorimotor",
       "level": "covered",
-      "note": "Electrodes over this lobe pick up its activity, blended with nearby sources by volume conduction.",
+      "note": "Electrodes over this lobe pick up its activity, blended with other sources by volume conduction. Orientation and depth matter as well as distance, so the lobe beneath an electrode does not always contribute most.",
       "in_principle": "covered",
       "label": "Covered by this setup",
       "reachable_elsewhere": false
@@ -19613,7 +19614,7 @@
       "modality": "eeg",
       "system": "parietal",
       "level": "covered",
-      "note": "Electrodes over this lobe pick up its activity, blended with nearby sources by volume conduction.",
+      "note": "Electrodes over this lobe pick up its activity, blended with other sources by volume conduction. Orientation and depth matter as well as distance, so the lobe beneath an electrode does not always contribute most.",
       "in_principle": "covered",
       "label": "Covered by this setup",
       "reachable_elsewhere": false
@@ -19622,7 +19623,7 @@
       "modality": "eeg",
       "system": "temporal",
       "level": "covered",
-      "note": "Electrodes over this lobe pick up its activity, blended with nearby sources by volume conduction.",
+      "note": "Electrodes over this lobe pick up its activity, blended with other sources by volume conduction. Orientation and depth matter as well as distance, so the lobe beneath an electrode does not always contribute most.",
       "in_principle": "covered",
       "label": "Covered by this setup",
       "reachable_elsewhere": false
@@ -19631,7 +19632,7 @@
       "modality": "eeg",
       "system": "occipital",
       "level": "covered",
-      "note": "Electrodes over this lobe pick up its activity, blended with nearby sources by volume conduction.",
+      "note": "Electrodes over this lobe pick up its activity, blended with other sources by volume conduction. Orientation and depth matter as well as distance, so the lobe beneath an electrode does not always contribute most.",
       "in_principle": "covered",
       "label": "Covered by this setup",
       "reachable_elsewhere": false

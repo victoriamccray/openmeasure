@@ -173,7 +173,7 @@ def side_view_svg(
     if electrode_only:
         description = (
             "Side view of the head facing left. Electrode O1 sits on the scalp over the left "
-            "occipital region, with a schematic glow showing that it picks up a blend of nearby sources."
+            "occipital region, with a schematic glow showing that it picks up a blend of sources, near and far."
         )
     else:
         parts = "; ".join(

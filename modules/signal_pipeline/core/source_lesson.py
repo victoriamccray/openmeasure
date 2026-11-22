@@ -106,6 +106,9 @@ LESSON = {
     "limitations": (
         "A three-source, two-electrode model is a teaching simplification. Real heads have thousands "
         "of candidate sources, which makes the ambiguity larger.",
+        "In this model each electrode is most sensitive to the source nearest it. In a real head, "
+        "orientation and depth matter too, so the cortex beneath an electrode does not always "
+        "contribute most.",
         "Choosing one answer needs an assumption, such as the smallest total strength or smooth "
         "activity. Different assumptions give different answers (Grech et al., 2008).",
         "Methods combine many electrodes, a head model from MRI, and such assumptions to make the "

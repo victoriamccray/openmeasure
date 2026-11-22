@@ -428,7 +428,9 @@ def coverage_label(modality_key: str, system_key: str) -> str:
 
 
 _EEG_CORTEX_NOTE = (
-    "Electrodes over this lobe pick up its activity, blended with nearby sources by volume conduction."
+    "Electrodes over this lobe pick up its activity, blended with other sources by volume conduction. "
+    "Orientation and depth matter as well as distance, so the lobe beneath an electrode does not "
+    "always contribute most."
 )
 _HEMODYNAMIC_NOTE = "Blood oxygen changes that follow neural activity, measured here."
 

@@ -334,7 +334,7 @@ def pipeline_html(
                 f'<path d="M{x0 + 176},{top + 41} l0,13 l4,-4 l4,6 l3,-2 l-4,-6 l5,-1 z" fill="{INK}"/>'
                 f'<path d="M{x0 + 146},{top + 48} C{x0 + 100},{top + 48} {x0 + 70},{top + 48} {x0 + 30},{top + 48}" fill="none" stroke="{ACCENT}" stroke-width="1.6" marker-end="url(#arrowA)"/>'
                 f'<text x="{x0 + 88}" y="{top + 42}" font-size="9" fill="{ACCENT}" text-anchor="middle">sees the response</text>'
-                f'<text x="20" y="{top + 78}" font-size="8.5" fill="{MUTED}">The person reacts, which changes the next signal.</text>'
+                f'<text x="20" y="{top + 78}" font-size="8.5" fill="{MUTED}">The person may react, which can change the next signal.</text>'
             )
             card(i, stage, 86, inner)
         else:

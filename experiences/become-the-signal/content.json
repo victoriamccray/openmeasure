@@ -40,7 +40,7 @@
   {
    "name": "Sensors",
    "environment": "Scalp electrode at position O1",
-   "you_are": "A voltage measured at one scalp electrode, O1, which sits over the left occipital region. It records the voltage difference from a reference electrode, a blend of nearby sources. The device samples the voltage 500 times per second and stores each sample in microvolts (µV, millionths of a volt).",
+   "you_are": "A voltage measured at one scalp electrode, O1, which sits over the left occipital region. It records the voltage difference from a reference electrode: a blend of many sources, near and far. The cortex directly beneath an electrode does not always contribute most, because each source's orientation and depth also set how strongly it reaches the scalp. The device samples the voltage 500 times per second and stores each sample in microvolts (µV, millionths of a volt).",
    "lesson": "Sampling turns continuous activity into a sequence of numbers. The device stores that sequence. The stored recording is the first copy of you, and it stays at this stage when you move on.",
    "what_changed": "A continuous rhythm became 500 numbers per second. Numbers can be stored and copied.",
    "handoff": "a raw measured trace",
@@ -111,7 +111,7 @@
    "request": "An organization outside the study requests the stored recording to run its own analyses.",
    "future_inference": {
     "title": "Stored Copies and Future Methods",
-    "text": "Researchers describe an inferential threat to stored neural data: a recording collected today can yield new inferences as decoding methods improve. A copy shared now supports the inferences measured here and any that later methods make possible.",
+    "text": "Researchers describe an inferential threat to stored neural data: a recording collected today may yield new inferences if decoding methods improve. A copy shared now supports the inferences measured here, and possibly others that later methods make possible.",
     "refs": ["bagley"]
    },
    "safeguards_note": "Safeguards act on different parts of the system. Safeguards on the signal change what every reader can infer, the legitimate system included. Safeguards on labels or on access leave the legitimate system's accuracy at its starting level. Every measured effect below is for eyes-state decoding only. Whether a safeguard protects against identifying the person, or against inferences that future methods make possible, was untested here.",
@@ -185,14 +185,14 @@
   {
    "name": "Feedback",
    "environment": "Return loop",
-   "you_are": "The next signal. The person sees or feels the response, and the response changes the activity the sensor reads next.",
+   "you_are": "The next signal. The person sees or feels the response, and that experience can change the activity the sensor reads next.",
    "lesson": "The loop closes, and a new signal begins. The copies made on this pass remain with their holders.",
-   "what_changed": "The command's effect becomes part of the next signal.",
-   "handoff": "a changed signal the next time around",
+   "what_changed": "The command's effect can become part of the next signal.",
+   "handoff": "a signal that may change the next time around",
    "interaction": "loop",
    "refs": ["denning"],
    "perspectives": {
-    "agency": "Over repeated loops the person and the system adapt to each other, and control becomes shared.",
+    "agency": "Over repeated loops the person and the system can adapt to each other, and control can become shared.",
     "privacy": "Each loop produces another recording, so copies accumulate while the system runs.",
     "build": "Each pass needs its own validation, because an adaptive system changes between passes."
    }
