@@ -62,12 +62,24 @@ class TestWindowSpectrum(unittest.TestCase):
                         places=9,
                     )
 
-    def test_parseval_total_area_equals_tapered_mean_square(self):
+    def test_parseval_total_area_equals_window_weighted_mean_square(self):
         # Exact identity for a Hann-windowed periodogram with density scaling.
         for condition in ("eyes_closed", "eyes_open"):
             spectrum = pe.window_spectrum(_recorded(condition))
             with self.subTest(condition=condition):
-                self.assertAlmostEqual(spectrum.total_power / spectrum.tapered_mean_square, 1.0, places=9)
+                self.assertAlmostEqual(spectrum.total_power / spectrum.window_weighted_mean_square, 1.0, places=9)
+
+    def test_area_is_not_the_tapered_signals_mean_square(self):
+        # Hand value: for a 10 µV, 10 Hz sine over one second, the weighted
+        # mean square is A^2/2 = 50 µV^2, and since sum(w^2) = 3N/8 for the
+        # periodic Hann, the tapered signal's mean square is 3/8 of that.
+        t = np.arange(500) / 500.0
+        x = 10 * np.sin(2 * np.pi * 10 * t)
+        spectrum = pe.window_spectrum(x)
+        w = np.hanning(501)[:-1]
+        self.assertAlmostEqual(np.sum(w**2), 3 * 500 / 8, places=9)
+        self.assertAlmostEqual(spectrum.total_power, 50.0, places=6)
+        self.assertAlmostEqual(np.mean((x * w) ** 2), 50.0 * 3 / 8, places=6)
 
     def test_steady_noise_area_matches_plain_mean_square_on_average(self):
         # For stationary white noise the taper changes nothing on average:
@@ -115,6 +127,26 @@ class TestMixture(unittest.TestCase):
             pe.mixture_spectrum(-1.0)
 
 
+class TestWelchSteps(unittest.TestCase):
+    def test_steps_reproduce_the_pipeline(self):
+        window = _recorded("eyes_closed")
+        steps = pe.welch_steps(window)
+
+        self.assertAlmostEqual(steps.alpha_power, intervention.compute_alpha_power(window, 500.0), places=9)
+        self.assertTrue(np.allclose(steps.density, pe.window_spectrum(window).density))
+
+    def test_each_step_follows_from_the_last(self):
+        steps = pe.welch_steps(_recorded("eyes_open", 2000))
+        self.assertAlmostEqual(float(np.mean(steps.centered)), 0.0, places=9)
+        self.assertTrue(np.allclose(np.array(steps.centered) * np.array(steps.taper), steps.tapered))
+        self.assertEqual(steps.taper[0], 0.0)  # the taper fades the edge to zero
+        self.assertEqual(sum(steps.in_band), 6)  # bins at 8, 9, 10, 11, 12, 13 Hz
+
+    def test_five_steps_and_every_symbol_defined(self):
+        self.assertEqual([s.key for s in pe.WELCH_STEPS], ["record", "taper", "fft", "power", "area"])
+        self.assertTrue({"P_alpha", "S_xx", "f", "x_t", "T", "A"} <= set(pe.SYMBOLS))
+
+
 class TestSteps(unittest.TestCase):
     def test_three_steps_in_order(self):
         self.assertEqual([s.key for s in pe.STEPS], ["square", "separate", "integrate"])
@@ -123,7 +155,8 @@ class TestSteps(unittest.TestCase):
         import re
 
         pattern = re.compile(r" - |–|—|, not |not an? |rather than", re.I)
-        texts = [t for s in pe.STEPS for t in (s.title, s.question, s.explanation, s.takeaway)]
+        texts = [t for s in (*pe.STEPS, *pe.WELCH_STEPS) for t in (s.title, s.question, s.explanation, s.takeaway)]
+        texts += list(pe.SYMBOLS.values())
 
         self.assertEqual([t for t in texts if pattern.search(t)], [])
 

@@ -41,7 +41,7 @@ if str(ROOT) not in sys.path:
 
 # The full package path, not a bare "core": several modules each have a
 # top-level package of that name, and the shared tests import this file.
-from modules.signal_pipeline.core import intervention, neuroanatomy, pipeline, power_explainer, resting_state  # noqa: E402
+from modules.signal_pipeline.core import filtering, intervention, neuroanatomy, pipeline, power_explainer, resting_state, source_lesson  # noqa: E402
 
 SNIPPET = MODULE_DIR / "sample_data" / "ds005420_sub-5_O1_eyes_snippet.csv"
 OUTPUT = ROOT / "experiences" / "become-the-signal" / "data.json"
@@ -60,6 +60,10 @@ DISPLAY_STRIDE = 2
 # Noise levels whose waveform is drawn. Accuracy is exported for every
 # level in NOISE_SD_UV; the experience offers these steps.
 NOISE_WAVEFORM_SD_UV = (0.0, 50.0, 100.0, 150.0, 200.0, 250.0, 300.0)
+# The noise table shows one seeded draw. For the safeguard levels, this many
+# further draws give the range a different random draw would produce.
+NOISE_SPREAD_SD_UV = (50.0, 250.0)
+NOISE_SPREAD_DRAWS = 200
 
 SOURCE = {
     "dataset": "OpenNeuro ds005420, version 1.0.0",
@@ -82,8 +86,15 @@ def _classification(closed: np.ndarray, opened: np.ndarray, rate: float) -> dict
     except ValueError as error:
         return {"accuracy": None, "failure": str(error)}
 
+    try:
+        held = intervention.leave_one_out_accuracy(result)
+        held_out = {"accuracy": round(held.accuracy, 4), "n_correct": held.n_correct, "n_windows": held.n_windows}
+    except ValueError:
+        held_out = None
+
     return {
         "accuracy": round(result.accuracy, 4),
+        "held_out": held_out,
         "threshold": round(result.threshold, 4),
         "alpha_power_eyes_closed": _round(result.alpha_power_eyes_closed),
         "alpha_power_eyes_open": _round(result.alpha_power_eyes_open),
@@ -103,7 +114,7 @@ def _spectrum_dict(spectrum) -> dict:
         "density": _round([spectrum.density[i] for i in keep], 4),
         "alpha_power": round(spectrum.alpha_power, 4),
         "total_power": round(spectrum.total_power, 4),
-        "tapered_mean_square": round(spectrum.tapered_mean_square, 4),
+        "window_weighted_mean_square": round(spectrum.window_weighted_mean_square, 4),
         "mean_square": round(spectrum.mean_square, 4),
     }
 
@@ -130,8 +141,24 @@ def _explainer(signal: dict) -> dict:
             "values": _round(window[::2], 2),
             "spectrum": _spectrum_dict(power_explainer.window_spectrum(window, rate)),
         }
+    first = signal["eyes_closed"][: int(rate)]
+    w = power_explainer.welch_steps(first, rate)
+    keep = [i for i, f in enumerate(w.freqs_hz) if f <= power_explainer.DISPLAY_MAX_HZ]
+    welch = {
+        "steps": [dataclasses.asdict(s) for s in power_explainer.WELCH_STEPS],
+        "centered": _round(w.centered[::2], 2),
+        "taper": _round(w.taper[::2], 4),
+        "tapered": _round(w.tapered[::2], 2),
+        "freqs_hz": [w.freqs_hz[i] for i in keep],
+        "fft_magnitude": _round([w.fft_magnitude[i] for i in keep], 3),
+        "density": _round([w.density[i] for i in keep], 4),
+        "in_band": [w.in_band[i] for i in keep],
+        "alpha_power": round(w.alpha_power, 4),
+    }
     return {
         "steps": [dataclasses.asdict(s) for s in power_explainer.STEPS],
+        "welch": welch,
+        "symbols": dict(power_explainer.SYMBOLS),
         "square": {"frequency_hz": 2.0, "seconds": 1.0, "levels": square},
         "mixture": {
             "alpha_hz": power_explainer.MIXTURE_ALPHA_HZ,
@@ -144,6 +171,66 @@ def _explainer(signal: dict) -> dict:
     }
 
 
+# Two seconds from the middle of the eyes-closed excerpt, away from the
+# recording's edges, for the raw versus filtered comparison.
+FILTER_SHOWN_SECONDS = (4.0, 6.0)
+
+
+def _filter_compare(signal: dict) -> dict:
+    rate = intervention.SAMPLING_RATE_HZ
+    result = filtering.band_pass(signal["eyes_closed"], rate)
+    a, b = (int(s * rate) for s in FILTER_SHOWN_SECONDS)
+    return {
+        "shown_seconds": list(FILTER_SHOWN_SECONDS),
+        "raw": _round(result.raw[a:b:2], 2),
+        "filtered": _round(result.filtered[a:b:2], 2),
+        "band_hz": [result.low_hz, result.high_hz],
+        "order": result.order,
+        "kept_variance_share": round(result.kept_variance_share, 4),
+        "gain": {str(int(f)): round(filtering.amplitude_gain(f, rate), 4) for f in (4.0, 8.0, 10.0, 13.0, 20.0)},
+        "causal_delay_s": round(filtering.causal_burst_delay(rate), 3),
+        "lesson": {k: (list(v) if isinstance(v, tuple) else v) for k, v in filtering.LESSON.items()},
+    }
+
+
+def _round_nested(value, digits: int = 6):
+    # Linear algebra results differ in the last bits across BLAS builds,
+    # so the committed data keeps only digits every platform agrees on.
+    if isinstance(value, float):
+        return round(value, digits)
+    if isinstance(value, (list, tuple)):
+        return [_round_nested(v, digits) for v in value]
+    if isinstance(value, dict):
+        return {k: _round_nested(v, digits) for k, v in value.items()}
+    return value
+
+
+def _sources() -> dict:
+    result = source_lesson.ambiguity()
+    return {
+        **_round_nested(dataclasses.asdict(result)),
+        "sources": list(source_lesson.SOURCES),
+        "electrodes": list(source_lesson.ELECTRODES),
+        "lesson": {k: (list(v) if isinstance(v, tuple) else v) for k, v in source_lesson.LESSON.items()},
+        "symbols": dict(source_lesson.SYMBOLS),
+    }
+
+
+def _neuroanatomy() -> dict:
+    """The atlas, with each coverage entry's plain label from core."""
+    atlas = dataclasses.asdict(neuroanatomy.atlas())
+    for m in atlas["modalities"]:
+        for entry in m["coverage"]:
+            entry["label"] = neuroanatomy.coverage_label(m["key"], entry["system"])
+            entry["reachable_elsewhere"] = neuroanatomy.modality(m["key"]).coverage_for(entry["system"]).reachable_elsewhere
+    return atlas
+
+
+def _lesson_references() -> list[dict]:
+    refs = {**filtering.REFERENCES, **source_lesson.REFERENCES}
+    return [{"key": k, "text": t, "url": u} for k, (t, u) in refs.items()]
+
+
 def _resting_state(baseline: dict) -> dict:
     """The study, measures, ranges, and dichotomies, with this recording's own numbers."""
     closed = baseline["alpha_power_eyes_closed"]
@@ -153,6 +240,7 @@ def _resting_state(baseline: dict) -> dict:
     react = resting_state.reactivity(closed, opened)
     odds = resting_state.chance(n_correct, n_trials)
     return {
+        "recording": dataclasses.asdict(resting_state.RECORDING),
         "study": dataclasses.asdict(resting_state.STUDY),
         "ageing": dataclasses.asdict(resting_state.AGEING_NOTE),
         "measures": [dataclasses.asdict(m) for m in resting_state.MEASURES],
@@ -196,6 +284,18 @@ def build() -> dict:
         closed = intervention.apply_noise(signal["eyes_closed"], sd, seed=NOISE_SEEDS["eyes_closed"])
         opened = intervention.apply_noise(signal["eyes_open"], sd, seed=NOISE_SEEDS["eyes_open"])
         entry = {"sd_uv": sd, **_classification(closed, opened, rate)}
+        if sd in NOISE_SPREAD_SD_UV:
+            draws = []
+            for k in range(NOISE_SPREAD_DRAWS):
+                c = intervention.apply_noise(signal["eyes_closed"], sd, seed=10_000 + 2 * k)
+                o = intervention.apply_noise(signal["eyes_open"], sd, seed=10_001 + 2 * k)
+                draws.append(intervention.classify_eyes_state(c, o, rate).accuracy)
+            entry["spread"] = {
+                "draws": NOISE_SPREAD_DRAWS,
+                "p05": round(float(np.percentile(draws, 5)), 4),
+                "median": round(float(np.median(draws)), 4),
+                "p95": round(float(np.percentile(draws, 95)), 4),
+            }
         if sd in NOISE_WAVEFORM_SD_UV:
             entry["waveform"] = {"eyes_closed": shown(closed, rate), "eyes_open": shown(opened, rate)}
         noise.append(entry)
@@ -248,13 +348,18 @@ def build() -> dict:
         # "Why the Math Works": mean versus mean square, a mixture's
         # spectrum, and the first recorded second's spectrum.
         "explainer": _explainer(signal),
+        # Raw versus filtered at the Processing stage, and the source
+        # localization teaching model at the Sensors stage.
+        "filter_compare": _filter_compare(signal),
+        "sources": _sources(),
+        "lesson_references": _lesson_references(),
         "noise": noise,
         "noise_seeds": NOISE_SEEDS,
         "downsample": downsample,
         # Which brain system the recording comes from, which electrode
         # picked it up, and what other modalities reach, for the anatomy
         # figure at the Signals and Sensors stages.
-        "neuroanatomy": dataclasses.asdict(neuroanatomy.atlas()),
+        "neuroanatomy": _neuroanatomy(),
         "metadata": {
             "illustrative_fields": example_metadata,
             "after_removal": dict(intervention.strip_metadata(example_metadata)),

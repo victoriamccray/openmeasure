@@ -57,7 +57,8 @@ class TestComputeAlphaPower(unittest.TestCase):
             spectrum[1:-1] *= 2
             freqs = np.fft.rfftfreq(window.size, 1 / fs)
             band = (freqs >= 8) & (freqs <= 13)
-            return float(np.trapezoid(spectrum[band], freqs[band])) if hasattr(np, "trapezoid") else float(np.trapz(spectrum[band], freqs[band]))
+            # The module's own alias, which works on NumPy 1 and 2.
+            return float(iv._trapezoid(spectrum[band], freqs[band]))
 
         for condition in ("eyes_closed", "eyes_open"):
             signal = frame.loc[frame["condition"] == condition, "voltage_uv"].to_numpy()
@@ -359,3 +360,79 @@ class TestThresholdTies(unittest.TestCase):
 
         self.assertEqual(result.threshold, result.alpha_power_eyes_open[0])
         self.assertEqual(result.accuracy, 0.5)
+
+
+class TestLabelledWindows(unittest.TestCase):
+    def test_labels_reproduce_the_reported_accuracy(self):
+        # Correct = closed windows labelled closed + open windows labelled open.
+        t = np.arange(1500) / SAMPLING_RATE_HZ
+        result = iv.classify_eyes_state(20 * np.sin(2 * np.pi * 10 * t), 2 * np.sin(2 * np.pi * 10 * t), SAMPLING_RATE_HZ)
+        windows = iv.labelled_windows(result)
+        correct = sum(
+            lab == (cond == "eyes_closed") for lab, cond in zip(windows.labelled_closed, windows.conditions)
+        )
+
+        self.assertEqual(len(windows.powers), 6)
+        self.assertEqual(correct / len(windows.powers), result.accuracy)
+        self.assertEqual(windows.threshold, result.threshold)
+
+
+class TestLeaveOneOut(unittest.TestCase):
+    def test_hand_case_where_holding_out_changes_the_answer(self):
+        # Closed (10, 10, 4), open (0, 0, 6). In-sample threshold is 5:
+        # 4 and 6 are wrong, so 4/6. Holding out 4 leaves closed mean 10,
+        # threshold (10 + 2) / 2 = 6, still wrong; holding out 6 leaves open
+        # mean 0, threshold (8 + 0) / 2 = 4, 6 > 4 so still wrong. Holding
+        # out one 10 gives threshold (7 + 2) / 2 = 4.5, 10 is right; one 0
+        # gives (8 + 3) / 2 = 5.5, 0 is right. So 4 of 6 either way.
+        r = iv.ClassificationResult(accuracy=4 / 6, threshold=5.0,
+                                    alpha_power_eyes_closed=(10.0, 10.0, 4.0),
+                                    alpha_power_eyes_open=(0.0, 0.0, 6.0))
+        held = iv.leave_one_out_accuracy(r)
+        self.assertEqual((held.n_correct, held.n_windows), (4, 6))
+
+    def test_second_hand_case(self):
+        # Closed (3, 30), open (0, 0). In-sample threshold (16.5 + 0)/2 = 8.25,
+        # so 3 is wrong. Held out, 3 faces threshold (30 + 0)/2 = 15: still
+        # wrong. 30 faces (3 + 0)/2 = 1.5: right. Open 0 faces (16.5+0)/2: right.
+        r = iv.ClassificationResult(accuracy=0.75, threshold=8.25,
+                                    alpha_power_eyes_closed=(3.0, 30.0),
+                                    alpha_power_eyes_open=(0.0, 0.0))
+        self.assertEqual(iv.leave_one_out_accuracy(r).n_correct, 3)
+
+    def test_recorded_data_held_out_matches_known_value(self):
+        # In-sample is also 27 of 30 here: no window sits close enough to
+        # the threshold for its own vote to move it.
+        import pandas as pd
+        from pathlib import Path
+        frame = pd.read_csv(Path(__file__).resolve().parents[1] / "sample_data" / "ds005420_sub-5_O1_eyes_snippet.csv")
+        closed = frame.loc[frame["condition"] == "eyes_closed", "voltage_uv"].to_numpy()
+        opened = frame.loc[frame["condition"] == "eyes_open", "voltage_uv"].to_numpy()
+        held = iv.leave_one_out_accuracy(iv.classify_eyes_state(closed, opened, 500.0))
+        self.assertEqual((held.n_correct, held.n_windows), (27, 30))
+
+    def test_too_few_windows_raise(self):
+        r = iv.ClassificationResult(accuracy=1.0, threshold=1.0,
+                                    alpha_power_eyes_closed=(2.0,), alpha_power_eyes_open=(0.0, 0.0))
+        with self.assertRaises(ValueError):
+            iv.leave_one_out_accuracy(r)
+
+
+class TestDownsampleFilterEdge(unittest.TestCase):
+    """The pages state what the anti-aliasing filter keeps; these pin it."""
+
+    @staticmethod
+    def _amplitude_after(freq, factor):
+        t = np.arange(500 * 20) / 500.0
+        y, _ = iv.apply_temporal_degradation(np.sin(2 * np.pi * freq * t), 500.0, factor)
+        y = y[len(y) // 4 : -len(y) // 4]
+        return float(np.sqrt(2 * np.mean(y**2)))
+
+    def test_at_25_hz_low_alpha_is_kept_and_12_hz_keeps_about_half_its_power(self):
+        self.assertAlmostEqual(self._amplitude_after(10.0, 20), 1.0, delta=0.01)
+        self.assertAlmostEqual(self._amplitude_after(12.0, 20) ** 2, 0.5, delta=0.03)
+
+    def test_well_above_the_new_nyquist_is_removed_rather_than_aliased(self):
+        # 15 Hz would alias to 10 Hz at 25 Hz without the filter.
+        self.assertLess(self._amplitude_after(15.0, 20), 0.01)
+        self.assertLess(self._amplitude_after(30.0, 10), 0.01)

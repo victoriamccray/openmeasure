@@ -52,7 +52,7 @@ def participant_svg(eyes_closed: bool) -> str:
     body_ink = "#5d6b9a"
     state = "Eyes closed" if eyes_closed else "Eyes open"
     label = (
-        f"A participant seated at rest with {state.lower()}, wearing an EEG cap with electrode O1 at "
+        f"Illustration of a typical setup, modelled on Barry et al. (2007): a participant at rest with {state.lower()}, wearing an EEG cap with electrode O1 at "
         "the back of the head, and two skin conductance electrodes on the fingers. Cables run to "
         "two amplifiers."
     )
@@ -84,7 +84,7 @@ def participant_svg(eyes_closed: bool) -> str:
 <text x="54" y="241" font-size="8.5" fill="{MUTED}" text-anchor="middle">500 samples/s</text>
 <text x="54" y="262" font-size="8.5" fill="{MUTED}" text-anchor="middle">recorded here</text>
 <text x="232" y="34" font-size="11" font-weight="600" fill="{INK}">{state}, at rest</text>
-<text x="232" y="50" font-size="8.5" fill="{MUTED}">No task. Sitting still.</text>"""
+<text x="232" y="50" font-size="8.5" fill="{MUTED}">No task. Illustration.</text>"""
     return _svg("0 0 420 300", label, body, max_width=560)
 
 

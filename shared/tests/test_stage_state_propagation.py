@@ -37,6 +37,8 @@ from pathlib import Path
 
 from streamlit.testing.v1 import AppTest
 
+from shared.tests.apptest_state import held_state
+
 ROOT = Path(__file__).resolve().parents[2]
 ENTRYPOINT = str(ROOT / "Home.py")
 LOAD_TIMEOUT_SECONDS = 300
@@ -90,7 +92,7 @@ class TestGrandModalitySelectionReachesLaterStages(unittest.TestCase):
 
     def test_the_selection_survives_leaving_the_stage_that_made_it(self):
         app = self._at_stage_with(3, 2)
-        held = app.session_state.filtered_state
+        held = held_state(app)
 
         self.assertEqual(len(held.get("grand_kept_modalities", [])), 2)
 
@@ -143,7 +145,7 @@ class TestMultimodalSelectionAndWeightsReachTheDecision(unittest.TestCase):
         self.assertNotEqual(without, with_two)
 
     def test_it_is_held_under_a_name_that_outlives_the_widget(self):
-        held = self._decision_with(2).session_state.filtered_state
+        held = held_state(self._decision_with(2))
 
         self.assertEqual(len(held.get("mmsc_kept_modalities", [])), 2)
 
@@ -163,7 +165,7 @@ class TestMultimodalSelectionAndWeightsReachTheDecision(unittest.TestCase):
             self.skipTest("the nested cost sequence has not reached a weight")
 
         sliders[0].set_value(0.9).run()
-        held = app.session_state.filtered_state
+        held = held_state(app)
 
         self.assertAlmostEqual(float(held["mmsc_kept_privacy"]), 0.9, places=3)
 
@@ -280,7 +282,7 @@ class TestHealthRingControlsReachTheConclusion(unittest.TestCase):
 
         self.assertNotEqual(before, after)
         self.assertAlmostEqual(
-            float(app.session_state.filtered_state["hr_kept_quality_threshold"]),
+            float(held_state(app)["hr_kept_quality_threshold"]),
             0.95,
             places=3,
         )

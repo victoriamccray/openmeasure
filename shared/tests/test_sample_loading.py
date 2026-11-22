@@ -17,10 +17,16 @@ Run with: pytest shared/tests/ -v
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 from streamlit.testing.v1 import AppTest
 
+from shared.tests.apptest_state import held_state
+
 from shared.upload import SAMPLE_BUTTON_LABEL, SAMPLE_CLEAR_LABEL
+
+# AppTest resolves a relative path against this test file, not the repo root.
+ENTRYPOINT = str(Path(__file__).resolve().parents[2] / "Home.py")
 
 # Every page that offers a bundled example, with the section heading that
 # should be reachable once it is loaded.
@@ -42,7 +48,7 @@ def _button(app: AppTest, label: str):
 
 
 def _open(page: str) -> AppTest:
-    app = AppTest.from_file("Home.py", default_timeout=TIMEOUT_SECONDS)
+    app = AppTest.from_file(ENTRYPOINT, default_timeout=TIMEOUT_SECONDS)
     app.run()
     app.switch_page(page).run()
     if page == IMPACT_EVALUATION:
@@ -68,7 +74,7 @@ def _at_stage(app: AppTest, index: int) -> AppTest:
     """
     app.session_state["pe_current"] = index
     app.session_state["pe_furthest"] = max(
-        index, int(app.session_state.filtered_state.get("pe_furthest", 0))
+        index, int(held_state(app).get("pe_furthest", 0))
     )
     app.run()
 
@@ -77,7 +83,7 @@ def _at_stage(app: AppTest, index: int) -> AppTest:
 
 def _with_question(page: str = IMPACT_EVALUATION) -> AppTest:
     """A session whose evaluation question is answered."""
-    app = AppTest.from_file("Home.py", default_timeout=TIMEOUT_SECONDS)
+    app = AppTest.from_file(ENTRYPOINT, default_timeout=TIMEOUT_SECONDS)
     app.run()
     app.switch_page(page).run()
 
@@ -228,7 +234,7 @@ class TestTeachingContentIsReachableWithoutData(unittest.TestCase):
         one would send a domain's terms alone to OpenAlex as if they were
         the researcher's question.
         """
-        app = AppTest.from_file("Home.py", default_timeout=TIMEOUT_SECONDS)
+        app = AppTest.from_file(ENTRYPOINT, default_timeout=TIMEOUT_SECONDS)
         app.run()
         app.switch_page(IMPACT_EVALUATION).run()
 
@@ -323,7 +329,7 @@ class TestTheResultReachesTheInterpretation(unittest.TestCase):
         The estimate crosses; the rows do not.
         """
         app = self._run_analysis()
-        held = app.session_state.filtered_state
+        held = held_state(app)
 
         self.assertIn("pe_result", held)
         self.assertIsNone(held.get("pe_frame"))
