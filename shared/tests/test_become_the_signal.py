@@ -150,6 +150,26 @@ class TestContentMatchesItsSources(unittest.TestCase):
                 self.assertEqual(anatomy[key]["text"], CONTENT["references"][key]["text"])
                 self.assertEqual(anatomy[key]["url"], CONTENT["references"][key]["url"])
 
+    def test_study_references_agree_with_the_journey_references(self):
+        study = {r["key"]: r for r in DATA["resting_state"]["references"]}
+        anatomy = {r["key"]: r for r in DATA["neuroanatomy"]["references"]}
+        for other in (CONTENT["references"], anatomy):
+            for key in set(study) & set(other):
+                with self.subTest(key=key):
+                    self.assertEqual(study[key]["text"], other[key]["text"])
+
+    def test_study_numbers_follow_from_the_baseline(self):
+        base = DATA["baseline"]
+        rs = DATA["resting_state"]
+        n = len(base["alpha_power_eyes_closed"]) + len(base["alpha_power_eyes_open"])
+
+        self.assertEqual(rs["chance"]["n_trials"], n)
+        self.assertEqual(rs["chance"]["n_correct"], 27)
+        self.assertEqual(rs["chance"]["threshold_correct"], 20)
+        mean = lambda xs: sum(xs) / len(xs)  # noqa: E731
+        ratio = mean(base["alpha_power_eyes_closed"]) / mean(base["alpha_power_eyes_open"])
+        self.assertAlmostEqual(rs["reactivity"]["ratio"], ratio, places=3)
+
     def test_anatomy_stages_name_a_known_view(self):
         views = [s["anatomy"]["view"] for s in CONTENT["stages"] if "anatomy" in s]
 

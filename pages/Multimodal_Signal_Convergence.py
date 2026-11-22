@@ -48,12 +48,14 @@ from modules.signal_pipeline.core import intervention as intervention_core
 from modules.signal_pipeline.core import modality as modality_core
 from modules.signal_pipeline.core import neuroanatomy as neuroanatomy_core
 from modules.signal_pipeline.core import pipeline as pipeline_core
+from modules.signal_pipeline.core import resting_state as resting_core
 from modules.signal_pipeline.core import tradeoff as tradeoff_core
 from shared.data_handling import disclosure_for, render_data_handling_summary
 from shared.journey_stages import StageTracker
 from shared.stage_workspace import Stage, StageWorkspace
 from shared.report import caveat, flagged_item_note, section_header
 from shared import neuroanatomy_figure
+from shared import resting_state_figure
 
 SAMPLE_DIR = ROOT / "modules" / "signal_pipeline" / "sample_data"
 
@@ -268,6 +270,9 @@ TRADEOFF_ADD_AGENCY = 3
 
 _VEGA_CHART_CONFIG = {
     "background": SURFACE,
+    "padding": 8,
+    # Keep axis titles and legends inside the chart's frame on narrow screens.
+    "autosize": {"type": "fit", "contains": "padding"},
     "axis": {
         "gridColor": GRIDLINE,
         "domainColor": "#c3c2b7",
@@ -275,8 +280,28 @@ _VEGA_CHART_CONFIG = {
         "labelColor": "#898781",
         "titleColor": INK_SECONDARY,
     },
+    # Explicit ink on the light surface, so a dark app theme cannot set
+    # light legend text on it.
+    "legend": {"labelColor": INK_SECONDARY, "titleColor": INK_SECONDARY},
+    "title": {"color": INK_SECONDARY},
     "view": {"stroke": "transparent"},
 }
+
+# Room for the title, legend, and axes around a spec's plot height.
+_CHART_CHROME_PX = 90
+
+
+def _chart(spec: dict, width: str = "stretch") -> None:
+    """
+    Draw a Vega-Lite spec at its own height, in this page's light theme.
+
+    Streamlit sizes a chart's container from its height argument, and
+    without one a "container"-width chart could collapse to a few pixels,
+    flattening a trace and stacking a strip chart's rows. theme=None keeps
+    Streamlit's dark theme from recolouring text on the light surface.
+    """
+    height = int(spec.get("height", 200)) + _CHART_CHROME_PX
+    st.vega_lite_chart(spec, width=width, height=height, theme=None)
 
 IENCA_ANDORNO_CITATION = (
     "Ienca, M., & Andorno, R. (2017). Towards new human rights in the age "
@@ -474,6 +499,10 @@ ANATOMY_REFERENCES: dict[str, str] = {
     r.key: f"{r.text} {r.url}".strip() for r in ANATOMY.references
 }
 
+RESTING_REFERENCES: dict[str, str] = {
+    r.key: f"{r.text} {r.url}".strip() for r in resting_core.REFERENCES
+}
+
 
 def _reference_registry(
     modalities: tuple[modality_core.Modality, ...],
@@ -489,11 +518,16 @@ def _reference_registry(
 
     # The neuroanatomy figure's references, formatted the way this page
     # writes citations, so a work cited both ways is listed once.
-    for reference in ANATOMY_REFERENCES.values():
+    for reference in (*ANATOMY_REFERENCES.values(), *RESTING_REFERENCES.values()):
         if reference not in ordered:
             ordered.append(reference)
 
     return tuple(ordered)
+
+
+def _resting_ref(*keys: str) -> str:
+    """Reference markers for resting-state study citation keys."""
+    return _ref(*(RESTING_REFERENCES[key] for key in keys))
 
 
 def _anatomy_ref(*keys: str) -> str:
@@ -602,6 +636,145 @@ def _render_neuroanatomy_explorer() -> None:
             )
 
         caveat(f"{ANATOMY.caveat} {_anatomy_ref(*ANATOMY.caveat_refs)}")
+
+
+_RANGE_LABEL = {
+    resting_core.RANGE_BY_DESIGN: "Fixed by design",
+    resting_core.RANGE_CALCULATED: "Calculated for this sample",
+    resting_core.RANGE_DIRECTION: "Expected direction",
+    resting_core.RANGE_WITHIN_PERSON: "Compare within a person",
+}
+
+
+def _study_card(study: resting_core.Study, title: str) -> None:
+    with st.expander(title):
+        st.markdown(
+            f"**Who:** {study.participants}  \n"
+            f"**Conditions:** {'; '.join(study.conditions)}.  \n"
+            f"**Recorded:** {' '.join(study.recordings)}"
+        )
+        st.write(study.protocol)
+        st.markdown("\n".join(f"- {finding}" for finding in study.findings))
+        st.write(f"{study.interpretation} {_resting_ref(*study.refs)}")
+
+
+def _render_resting_study() -> None:
+    """How an eyes-closed / eyes-open recording is made, and what its numbers mean."""
+    snippet = _load_eeg_snippet()
+    result = intervention_core.classify_eyes_state(
+        snippet["eyes_closed"], snippet["eyes_open"], intervention_core.SAMPLING_RATE_HZ
+    )
+    n_trials = result.n_windows_eyes_closed + result.n_windows_eyes_open
+    react = resting_core.reactivity(result.alpha_power_eyes_closed, result.alpha_power_eyes_open)
+    odds = resting_core.chance(round(result.accuracy * n_trials), n_trials)
+
+    with st.container(border=True):
+        st.markdown("**The Study Behind This Signal**")
+        room, numbers, dichotomies = st.tabs(["The recording", "What the numbers mean", "Resting vs task"])
+
+        with room:
+            eyes = st.segmented_control(
+                "Condition", ["Eyes closed", "Eyes open"], default="Eyes closed",
+                key="mmsc_study_eyes", label_visibility="collapsed",
+            ) or "Eyes closed"
+            closed = eyes == "Eyes closed"
+            components.html(resting_state_figure.participant_svg(closed), height=330)
+            mean = react.mean_closed if closed else react.mean_open
+            st.markdown(
+                f":blue-badge[{resting_core.SOURCE_LABEL[resting_core.SOURCE_RECORDED]}] "
+                f"Mean alpha power at O1: **{mean:.1f} µV²**."
+            )
+            st.markdown(
+                f":orange-badge[{resting_core.SOURCE_LABEL[resting_core.SOURCE_PUBLISHED]}] "
+                f"Skin conductance: **{'lower' if closed else 'higher'}**."
+            )
+            st.caption(
+                "Barry et al. (2007) measured skin conductance in 28 students. This dataset has no "
+                "skin conductance channel, so no value is shown for this recording. "
+                f"{_resting_ref('barry')}"
+            )
+            steps = st.columns(4)
+            for col, (title, text) in zip(steps, (
+                ("1. Seated at rest", "Cap on, electrodes checked, no task."),
+                ("2. Eyes closed", "Alpha strongest. Skin conductance lower (published finding)."),
+                ("3. Eyes open", "Alpha drops. Skin conductance rises (published finding)."),
+                ("4. Compare", "Same person, two conditions, second by second."),
+            )):
+                col.markdown(f"**{title}**")
+                col.caption(text)
+            st.caption(
+                "Barry and De Blasio (2017) recorded 3 minutes of each, eyes closed first. This "
+                "stage uses a 15-second excerpt of each condition from one channel. "
+                f"{_resting_ref('barry_2017')}{_ref(SANCHEZ_GAMA_ET_AL_CITATION)}"
+            )
+            _study_card(resting_core.STUDY, "The study: Barry et al. (2007)")
+            _study_card(resting_core.AGEING_NOTE, "Does it hold with age? Barry and De Blasio (2017)")
+
+        with numbers:
+            st.write(
+                "Each number on this stage, in plain terms, with the range you can expect and "
+                "how that range is known."
+            )
+            graphics = {
+                "frequency": resting_state_figure.bands_svg,
+                "reactivity": lambda: resting_state_figure.reactivity_svg(react),
+                "accuracy": lambda: resting_state_figure.accuracy_svg(odds),
+                "skin_conductance": resting_state_figure.skin_conductance_svg,
+            }
+            threshold_note = resting_core.explain_threshold(react).text
+            badge = {
+                resting_core.SOURCE_RECORDED: "blue",
+                resting_core.SOURCE_PUBLISHED: "orange",
+                resting_core.SOURCE_CONVENTION: "gray",
+            }
+            for m in resting_core.MEASURES:
+                with st.expander(f"{m.name}: {m.unit}", expanded=m.key == "reactivity"):
+                    st.markdown(f":{badge[m.source]}-badge[{resting_core.SOURCE_LABEL[m.source]}]")
+                    if m.key in ("alpha_power", "accuracy"):
+                        st.caption(threshold_note)
+                    if m.key in graphics:
+                        components.html(graphics[m.key](), height=120)
+                    elif m.key == "alpha_power":
+                        _chart(_alpha_power_strip_spec(result, "Alpha power per 1-second window, this recording"))
+                    st.markdown(
+                        f"- **What it is:** {m.what_it_is}\n"
+                        f"- **How it is computed:** {m.how_computed}\n"
+                        f"- **How to read it:** {m.how_to_read}\n"
+                        f"- **{_RANGE_LABEL[m.range_kind]}:** {m.expected}\n"
+                        f"- **What shifts it:** {m.what_shifts_it} {_resting_ref(*m.refs)}"
+                    )
+            st.caption(f"{resting_core.BAND_CAVEAT} {_resting_ref(*resting_core.BAND_REFS)}")
+            st.caption(
+                f"This recording: ratio {react.ratio:.1f}, accuracy {odds.n_correct} of "
+                f"{odds.n_trials}, p {'< 0.001' if odds.p_value < 0.001 else f'= {odds.p_value:.3f}'} against guessing. "
+                f"{_resting_ref('combrisson')}"
+            )
+
+        with dichotomies:
+            st.write(
+                "Two questions to ask of any measurement, whatever the sensor. Barry et al. (2007) "
+                "answers both for EEG: the study is resting, and it found one domain-general change "
+                f"(alpha) and several domain-specific ones. {_resting_ref('barry')}"
+            )
+            axis_labels = {k: f"{a} vs {b}" for k, (a, b) in resting_core.AXIS_POLES.items()}
+            chosen = st.segmented_control(
+                "Dichotomy", list(axis_labels.values()), default=axis_labels[resting_core.AXIS_STATE],
+                key="mmsc_study_axis", label_visibility="collapsed",
+            ) or axis_labels[resting_core.AXIS_STATE]
+            axis = next(k for k, v in axis_labels.items() if v == chosen)
+            first, second = resting_core.AXIS_POLES[axis]
+            st.dataframe(
+                pd.DataFrame(
+                    [
+                        {"Modality": d.modality, first: d.first, second: d.second}
+                        for d in resting_core.DICHOTOMIES if d.axis == axis
+                    ]
+                ),
+                hide_index=True,
+                width="stretch",
+            )
+            refs = sorted({k for d in resting_core.DICHOTOMIES if d.axis == axis for k in d.refs})
+            st.caption(f"Sources: {_resting_ref(*refs)}")
 
 
 def _render_electrode_map() -> None:
@@ -1294,7 +1467,12 @@ def _signal_segment_spec(
         "mark": {"type": "line", "strokeWidth": 1},
         "encoding": {
             "x": {"field": "t", "type": "quantitative", "title": "Seconds"},
-            "y": {"field": "voltage_uv", "type": "quantitative", "title": "Microvolts"},
+            "y": {"field": "voltage_uv", "type": "quantitative", "title": "µV"},
+            "tooltip": [
+                {"field": "condition", "title": "Condition"},
+                {"field": "t", "title": "Seconds", "format": ".3f"},
+                {"field": "voltage_uv", "title": "Voltage (µV)", "format": ".1f"},
+            ],
             "color": {
                 "field": "condition",
                 "type": "nominal",
@@ -1321,7 +1499,18 @@ def _alpha_power_strip_spec(result: "intervention_core.ClassificationResult", ti
         {"condition": "Eyes closed", "power": p} for p in result.alpha_power_eyes_closed
     ] + [{"condition": "Eyes open", "power": p} for p in result.alpha_power_eyes_open]
 
-    return {
+    # The threshold the labels come from: the midpoint of the two means.
+    threshold_layer = {
+        "data": {"values": [{"threshold": result.threshold, "label": f"threshold {result.threshold:.1f} µV² (midpoint of means)"}]},
+        "layer": [
+            {"mark": {"type": "rule", "strokeDash": [4, 3], "color": INK_SECONDARY},
+             "encoding": {"x": {"field": "threshold", "type": "quantitative"}}},
+            {"mark": {"type": "text", "align": "left", "dx": 4, "dy": -4, "baseline": "bottom", "fontSize": 10, "color": INK_SECONDARY, "y": 0},
+             "encoding": {"x": {"field": "threshold", "type": "quantitative"}, "text": {"field": "label"}}},
+        ],
+    }
+
+    points = {
         "data": {"values": rows},
         "mark": {"type": "point", "filled": True, "size": 80, "opacity": 0.75},
         "encoding": {
@@ -1329,8 +1518,12 @@ def _alpha_power_strip_spec(result: "intervention_core.ClassificationResult", ti
             "x": {
                 "field": "power",
                 "type": "quantitative",
-                "title": "Alpha-band (8-13 Hz) power per 1-second window",
+                "title": "Alpha power (µV²) per 1-second window",
             },
+            "tooltip": [
+                {"field": "condition", "title": "Condition"},
+                {"field": "power", "title": "Alpha power (µV²)", "format": ".1f"},
+            ],
             "color": {
                 "field": "condition",
                 "type": "nominal",
@@ -1341,9 +1534,13 @@ def _alpha_power_strip_spec(result: "intervention_core.ClassificationResult", ti
                 "legend": None,
             },
         },
+    }
+
+    return {
+        "layer": [points, threshold_layer],
         "title": {"text": title, "fontSize": 11, "color": INK_SECONDARY, "fontWeight": "normal"},
         "width": "container",
-        "height": 90,
+        "height": 100,
         "config": _VEGA_CHART_CONFIG,
     }
 
@@ -1795,7 +1992,7 @@ if stage == STAGE_WEIGH_TRADEOFF:
             "available."
         )
 
-        st.vega_lite_chart(_gain_bar_spec(current_modalities), width="stretch")
+        _chart(_gain_bar_spec(current_modalities), width="stretch")
         st.write(
             "**Reading this**: further right means a modality is rated "
             "as adding more independent interpretive value on its own. "
@@ -1836,7 +2033,7 @@ if stage == STAGE_WEIGH_TRADEOFF:
             privacy_only_frontier = tradeoff_core.compute_gain_cost_frontier(
                 current_modalities, privacy_only_cost
             )
-            st.vega_lite_chart(
+            _chart(
                 _frontier_spec(
                     current_modalities,
                     privacy_only_cost,
@@ -1862,7 +2059,7 @@ if stage == STAGE_WEIGH_TRADEOFF:
             privacy_security_frontier = tradeoff_core.compute_gain_cost_frontier(
                 current_modalities, privacy_security_cost
             )
-            st.vega_lite_chart(
+            _chart(
                 _frontier_spec(
                     current_modalities,
                     privacy_security_cost,
@@ -1953,7 +2150,7 @@ if stage == STAGE_WEIGH_TRADEOFF:
                 f"agency {weighted_cost.agency_weight:.2f}."
             )
 
-            st.vega_lite_chart(
+            _chart(
                 _frontier_spec(current_modalities, weighted_cost, frontier), width="stretch"
             )
             st.caption(
@@ -2038,6 +2235,7 @@ if stage == STAGE_REAL_SIGNAL:
         + _ref(SANCHEZ_GAMA_ET_AL_CITATION)
     )
     _render_electrode_map()
+    _render_resting_study()
 
     st.write(
         "Occipital alpha power (8-13 Hz) rises when the eyes close and "
@@ -2077,14 +2275,14 @@ if stage == STAGE_REAL_SIGNAL:
     )
 
     st.markdown("**Baseline: infer eyes-open/closed from alpha power alone**")
-    st.vega_lite_chart(
+    _chart(
         _signal_segment_spec(
             eyes_closed_raw, eyes_open_raw, intervention_core.SAMPLING_RATE_HZ,
             "First 3 seconds of the original recording, by condition",
         ),
         width="stretch",
     )
-    st.vega_lite_chart(
+    _chart(
         _alpha_power_strip_spec(
             baseline_result, "Alpha power per 1-second window, original signal"
         ),
@@ -2183,7 +2381,7 @@ if stage == STAGE_REAL_SIGNAL:
 
     st.divider()
     st.markdown("**After the intervention**")
-    st.vega_lite_chart(
+    _chart(
         _signal_segment_spec(
             intervened_closed, intervened_open, intervened_rate,
             "First 3 seconds of the intervened signal, by condition",
@@ -2202,7 +2400,7 @@ if stage == STAGE_REAL_SIGNAL:
             "information the inference needs, not just degraded it."
         )
     else:
-        st.vega_lite_chart(
+        _chart(
             _alpha_power_strip_spec(
                 intervened_result, "Alpha power per 1-second window, intervened signal"
             ),
@@ -2212,10 +2410,16 @@ if stage == STAGE_REAL_SIGNAL:
         before_after_cols[0].metric(
             "Accuracy before", f"{baseline_result.accuracy:.0%}"
         )
+        change = intervened_result.accuracy - baseline_result.accuracy
+        unchanged = round(change * 100) == 0
+        # A change that rounds to 0% gets no arrow or colour: a green
+        # "up +0%" read as an improvement when nothing moved.
         before_after_cols[1].metric(
             "Accuracy after",
             f"{intervened_result.accuracy:.0%}",
-            delta=f"{(intervened_result.accuracy - baseline_result.accuracy):+.0%}",
+            delta="no change" if unchanged else f"{change:+.0%}",
+            delta_color="off" if unchanged else "normal",
+            delta_arrow="off" if unchanged else "auto",
         )
 
     st.write(f"**Implications**: {intervention_summary}")
