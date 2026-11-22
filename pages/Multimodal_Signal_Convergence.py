@@ -474,8 +474,10 @@ def _render_neuroanatomy_explorer() -> None:
     with st.container(border=True):
         st.markdown("**Where Each Sensor Gets a Signal**")
         st.write(
-            "The EEG in this journey is picked up over the occipital lobe at the back of "
-            "the head, carried by networks that link cortex and thalamus. Choose a sensor "
+            "The EEG in this journey comes from electrode O1, where the alpha rhythm is "
+            "strongest: posterior scalp sites over the back of the head. Its generators are "
+            "distributed across occipital and parietal cortex and shaped by loops that link "
+            "cortex and thalamus. Choose a sensor "
             "to compare where it gets a signal (shading) and what kind of signal that is "
             "(colour). Only EEG measures electrical activity directly."
         )
@@ -505,7 +507,7 @@ def _render_neuroanatomy_explorer() -> None:
 
         cover = chosen.coverage_for(system.key)
         st.markdown(
-            f"**{system.name}**: {neuroanatomy_figure.LEVEL_TEXT[cover.level].lower()} "
+            f"**{system.name}**: {neuroanatomy_core.coverage_label(chosen.key, system.key).lower()} "
             f"for {chosen.short_name}."
         )
         st.write(f"{system.location}. {system.role} {_anatomy_ref(*system.refs)}")
@@ -528,7 +530,7 @@ def _render_neuroanatomy_explorer() -> None:
                         {
                             "Region": s.name,
                             **{
-                                m.short_name: neuroanatomy_figure.LEVEL_TEXT[m.coverage_for(s.key).level]
+                                m.short_name: neuroanatomy_core.coverage_label(m.key, s.key)
                                 for m in ANATOMY.modalities
                             },
                         }

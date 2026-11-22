@@ -25,11 +25,11 @@
    "you_are": "Alpha rhythm: electrical activity that repeats 8 to 13 times per second (8 to 13 Hz, hertz), usually strongest over the back of the head. In relaxed, awake adults, alpha typically grows stronger when the eyes close and weaker when they open.",
    "lesson": "Activity at this stage stays inside the person's body. Reading it requires a sensor. Switch between eyes closed and eyes open to see the rhythm change in the recorded data.",
    "what_changed": "This is the starting point. You are activity in the brain.",
-   "mechanism": "Scalp EEG is the summed activity of many neurons firing together. When they fall out of step, the sum shrinks.",
+   "mechanism": "Scalp EEG mainly reflects synchronized postsynaptic currents from large populations of neurons, particularly cortical pyramidal cells. When those currents fall out of step, they cancel and the sum shrinks.",
    "mechanism_refs": ["buzsaki", "barry"],
    "handoff": "a physical signal a sensor can pick up",
    "interaction": "waveform",
-   "anatomy": {"view": "modalities", "title": "Where You Are in the Brain", "text": "You start over the occipital lobe at the back of the head, carried by networks that link cortex and thalamus. Choose a sensor to see where it gets a signal, what kind of signal that is, and what else it captures. Tap a region to learn what it does."},
+   "anatomy": {"view": "modalities", "title": "Where You Are in the Brain", "text": "Your rhythm is strongest at posterior scalp sites, over the back of the head, but its generators are distributed across occipital and parietal cortex and shaped by loops that link cortex and thalamus. Choose a sensor to see where it gets a signal, what kind of signal that is, and what else it captures. Tap a region to learn what it does."},
    "refs": ["barry", "sanchez_gama"],
    "perspectives": {
     "agency": "The person produces you as a side effect of closing or opening the eyes. Later stages read that side effect.",

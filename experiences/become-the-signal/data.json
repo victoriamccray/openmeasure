@@ -1145,7 +1145,7 @@
     "unit": "\u00b5V (microvolts), millionths of a volt",
     "what_it_is": "The electrical potential at one electrode, measured against a reference electrode.",
     "how_computed": "The amplifier samples it 500 times per second. Each sample is one number.",
-    "how_to_read": "Larger swings mean more synchronized activity near that electrode. Timing matters as much as numbers: neurons firing out of step cancel each other at the scalp. The sign depends on the reference.",
+    "how_to_read": "Larger swings mean more synchronized activity near that electrode. Timing matters as much as numbers: postsynaptic currents that are out of step cancel each other at the scalp. The sign depends on the reference.",
     "range_kind": "within person",
     "expected": "Compare conditions within one recording. Absolute voltages change with the reference, the amplifier, and the person.",
     "what_shifts_it": "The reference electrode, skull and scalp thickness, electrode contact, filtering, and movement or blink artifacts.",
@@ -19588,68 +19588,98 @@
     "configuration": "A whole-head cap of scalp electrodes. This journey uses one of its channels, O1.",
     "measurement": "electrical",
     "measures": "Voltage differences between each electrode and a reference.",
-    "neural_link": "Direct electrical measure: mostly summed postsynaptic currents of cortical pyramidal neurons firing in step.",
+    "neural_link": "Direct electrical measure: mostly synchronized postsynaptic currents from large populations of neurons, particularly cortical pyramidal cells.",
     "timing": "Milliseconds. Fast enough to follow each cycle of the 8 to 13 Hz alpha rhythm.",
     "coverage": [
      {
       "modality": "eeg",
       "system": "frontal",
       "level": "covered",
-      "note": "Electrodes over this lobe pick up its activity, blended with nearby sources by volume conduction."
+      "note": "Electrodes over this lobe pick up its activity, blended with nearby sources by volume conduction.",
+      "in_principle": "covered",
+      "label": "Covered by this setup",
+      "reachable_elsewhere": false
      },
      {
       "modality": "eeg",
       "system": "sensorimotor",
       "level": "covered",
-      "note": "Electrodes over this lobe pick up its activity, blended with nearby sources by volume conduction."
+      "note": "Electrodes over this lobe pick up its activity, blended with nearby sources by volume conduction.",
+      "in_principle": "covered",
+      "label": "Covered by this setup",
+      "reachable_elsewhere": false
      },
      {
       "modality": "eeg",
       "system": "parietal",
       "level": "covered",
-      "note": "Electrodes over this lobe pick up its activity, blended with nearby sources by volume conduction."
+      "note": "Electrodes over this lobe pick up its activity, blended with nearby sources by volume conduction.",
+      "in_principle": "covered",
+      "label": "Covered by this setup",
+      "reachable_elsewhere": false
      },
      {
       "modality": "eeg",
       "system": "temporal",
       "level": "covered",
-      "note": "Electrodes over this lobe pick up its activity, blended with nearby sources by volume conduction."
+      "note": "Electrodes over this lobe pick up its activity, blended with nearby sources by volume conduction.",
+      "in_principle": "covered",
+      "label": "Covered by this setup",
+      "reachable_elsewhere": false
      },
      {
       "modality": "eeg",
       "system": "occipital",
       "level": "covered",
-      "note": "Electrodes over this lobe pick up its activity, blended with nearby sources by volume conduction."
+      "note": "Electrodes over this lobe pick up its activity, blended with nearby sources by volume conduction.",
+      "in_principle": "covered",
+      "label": "Covered by this setup",
+      "reachable_elsewhere": false
      },
      {
       "modality": "eeg",
       "system": "thalamus",
       "level": "partial",
-      "note": "Seen mostly through the cortical rhythms it helps shape."
+      "note": "Seen mostly through the cortical rhythms it helps shape.",
+      "in_principle": "partial",
+      "label": "Partial or weak",
+      "reachable_elsewhere": false
      },
      {
       "modality": "eeg",
       "system": "hippocampus_amygdala",
       "level": "partial",
-      "note": "Detectable with many electrodes and source modeling, and weak at any single electrode."
+      "note": "Detectable with many electrodes and source modeling, and weak at any single electrode.",
+      "in_principle": "partial",
+      "label": "Partial or weak",
+      "reachable_elsewhere": false
      },
      {
       "modality": "eeg",
       "system": "cerebellum",
       "level": "partial",
-      "note": "Far from most scalp electrodes."
+      "note": "Far from most scalp electrodes.",
+      "in_principle": "partial",
+      "label": "Partial or weak",
+      "reachable_elsewhere": false
      },
      {
       "modality": "eeg",
       "system": "brainstem",
       "level": "none",
-      "note": ""
+      "note": "",
+      "in_principle": "none",
+      "label": "Out of range",
+      "reachable_elsewhere": false
      },
      {
       "modality": "eeg",
       "system": "autonomic",
       "level": "none",
-      "note": ""
+      "note": "",
+      "in_principle": "none",
+      "label": "Out of range",
+      "reachable_elsewhere": false
      }
     ],
     "also_captures": "Research studies have identified people from their EEG. How reliably depends on recording conditions and methods.",
@@ -19675,61 +19705,91 @@
       "modality": "fnirs",
       "system": "frontal",
       "level": "covered",
-      "note": "Outer cortex beneath the forehead optodes. Blood oxygen changes that follow neural activity, measured here."
+      "note": "Outer cortex beneath the forehead optodes. Blood oxygen changes that follow neural activity, measured here.",
+      "in_principle": "covered",
+      "label": "Covered by this setup",
+      "reachable_elsewhere": false
      },
      {
       "modality": "fnirs",
       "system": "sensorimotor",
       "level": "none",
-      "note": "Reachable with optodes placed over it. This forehead array leaves it uncovered."
+      "note": "Reachable with optodes placed over it. This forehead array leaves it uncovered.",
+      "in_principle": "covered",
+      "label": "Reachable with another setup",
+      "reachable_elsewhere": true
      },
      {
       "modality": "fnirs",
       "system": "parietal",
       "level": "none",
-      "note": "Reachable with optodes placed over it. This forehead array leaves it uncovered."
+      "note": "Reachable with optodes placed over it. This forehead array leaves it uncovered.",
+      "in_principle": "covered",
+      "label": "Reachable with another setup",
+      "reachable_elsewhere": true
      },
      {
       "modality": "fnirs",
       "system": "temporal",
       "level": "none",
-      "note": "Reachable with optodes placed over it. This forehead array leaves it uncovered."
+      "note": "Reachable with optodes placed over it. This forehead array leaves it uncovered.",
+      "in_principle": "covered",
+      "label": "Reachable with another setup",
+      "reachable_elsewhere": true
      },
      {
       "modality": "fnirs",
       "system": "occipital",
       "level": "none",
-      "note": "Reachable with optodes placed over it. This forehead array leaves it uncovered."
+      "note": "Reachable with optodes placed over it. This forehead array leaves it uncovered.",
+      "in_principle": "covered",
+      "label": "Reachable with another setup",
+      "reachable_elsewhere": true
      },
      {
       "modality": "fnirs",
       "system": "thalamus",
       "level": "none",
-      "note": ""
+      "note": "",
+      "in_principle": "none",
+      "label": "Out of range",
+      "reachable_elsewhere": false
      },
      {
       "modality": "fnirs",
       "system": "hippocampus_amygdala",
       "level": "none",
-      "note": ""
+      "note": "",
+      "in_principle": "none",
+      "label": "Out of range",
+      "reachable_elsewhere": false
      },
      {
       "modality": "fnirs",
       "system": "cerebellum",
       "level": "none",
-      "note": ""
+      "note": "",
+      "in_principle": "none",
+      "label": "Out of range",
+      "reachable_elsewhere": false
      },
      {
       "modality": "fnirs",
       "system": "brainstem",
       "level": "none",
-      "note": ""
+      "note": "",
+      "in_principle": "none",
+      "label": "Out of range",
+      "reachable_elsewhere": false
      },
      {
       "modality": "fnirs",
       "system": "autonomic",
       "level": "none",
-      "note": ""
+      "note": "",
+      "in_principle": "none",
+      "label": "Out of range",
+      "reachable_elsewhere": false
      }
     ],
     "also_captures": "Heartbeat, breathing, and scalp blood flow, which ride on the hemoglobin signal.",
@@ -19754,61 +19814,91 @@
       "modality": "fmri",
       "system": "frontal",
       "level": "covered",
-      "note": "Blood oxygen changes that follow neural activity, measured here."
+      "note": "Blood oxygen changes that follow neural activity, measured here.",
+      "in_principle": "covered",
+      "label": "Covered by this setup",
+      "reachable_elsewhere": false
      },
      {
       "modality": "fmri",
       "system": "sensorimotor",
       "level": "covered",
-      "note": "Blood oxygen changes that follow neural activity, measured here."
+      "note": "Blood oxygen changes that follow neural activity, measured here.",
+      "in_principle": "covered",
+      "label": "Covered by this setup",
+      "reachable_elsewhere": false
      },
      {
       "modality": "fmri",
       "system": "parietal",
       "level": "covered",
-      "note": "Blood oxygen changes that follow neural activity, measured here."
+      "note": "Blood oxygen changes that follow neural activity, measured here.",
+      "in_principle": "covered",
+      "label": "Covered by this setup",
+      "reachable_elsewhere": false
      },
      {
       "modality": "fmri",
       "system": "temporal",
       "level": "covered",
-      "note": "Blood oxygen changes that follow neural activity, measured here."
+      "note": "Blood oxygen changes that follow neural activity, measured here.",
+      "in_principle": "covered",
+      "label": "Covered by this setup",
+      "reachable_elsewhere": false
      },
      {
       "modality": "fmri",
       "system": "occipital",
       "level": "covered",
-      "note": "Blood oxygen changes that follow neural activity, measured here."
+      "note": "Blood oxygen changes that follow neural activity, measured here.",
+      "in_principle": "covered",
+      "label": "Covered by this setup",
+      "reachable_elsewhere": false
      },
      {
       "modality": "fmri",
       "system": "thalamus",
       "level": "covered",
-      "note": "Blood oxygen changes that follow neural activity, measured here."
+      "note": "Blood oxygen changes that follow neural activity, measured here.",
+      "in_principle": "covered",
+      "label": "Covered by this setup",
+      "reachable_elsewhere": false
      },
      {
       "modality": "fmri",
       "system": "hippocampus_amygdala",
       "level": "covered",
-      "note": "Blood oxygen changes that follow neural activity, measured here."
+      "note": "Blood oxygen changes that follow neural activity, measured here.",
+      "in_principle": "covered",
+      "label": "Covered by this setup",
+      "reachable_elsewhere": false
      },
      {
       "modality": "fmri",
       "system": "cerebellum",
       "level": "covered",
-      "note": "Blood oxygen changes that follow neural activity, measured here."
+      "note": "Blood oxygen changes that follow neural activity, measured here.",
+      "in_principle": "covered",
+      "label": "Covered by this setup",
+      "reachable_elsewhere": false
      },
      {
       "modality": "fmri",
       "system": "brainstem",
       "level": "covered",
-      "note": "Blood oxygen changes that follow neural activity, measured here."
+      "note": "Blood oxygen changes that follow neural activity, measured here.",
+      "in_principle": "covered",
+      "label": "Covered by this setup",
+      "reachable_elsewhere": false
      },
      {
       "modality": "fmri",
       "system": "autonomic",
       "level": "none",
-      "note": ""
+      "note": "",
+      "in_principle": "none",
+      "label": "Out of range",
+      "reachable_elsewhere": false
      }
     ],
     "also_captures": "A structural image of the head is usually acquired in the same session, and it includes the face.",
@@ -19833,61 +19923,91 @@
       "modality": "smri",
       "system": "frontal",
       "level": "covered",
-      "note": "Imaged as anatomy."
+      "note": "Imaged as anatomy.",
+      "in_principle": "covered",
+      "label": "Anatomy visible",
+      "reachable_elsewhere": false
      },
      {
       "modality": "smri",
       "system": "sensorimotor",
       "level": "covered",
-      "note": "Imaged as anatomy."
+      "note": "Imaged as anatomy.",
+      "in_principle": "covered",
+      "label": "Anatomy visible",
+      "reachable_elsewhere": false
      },
      {
       "modality": "smri",
       "system": "parietal",
       "level": "covered",
-      "note": "Imaged as anatomy."
+      "note": "Imaged as anatomy.",
+      "in_principle": "covered",
+      "label": "Anatomy visible",
+      "reachable_elsewhere": false
      },
      {
       "modality": "smri",
       "system": "temporal",
       "level": "covered",
-      "note": "Imaged as anatomy."
+      "note": "Imaged as anatomy.",
+      "in_principle": "covered",
+      "label": "Anatomy visible",
+      "reachable_elsewhere": false
      },
      {
       "modality": "smri",
       "system": "occipital",
       "level": "covered",
-      "note": "Imaged as anatomy."
+      "note": "Imaged as anatomy.",
+      "in_principle": "covered",
+      "label": "Anatomy visible",
+      "reachable_elsewhere": false
      },
      {
       "modality": "smri",
       "system": "thalamus",
       "level": "covered",
-      "note": "Imaged as anatomy."
+      "note": "Imaged as anatomy.",
+      "in_principle": "covered",
+      "label": "Anatomy visible",
+      "reachable_elsewhere": false
      },
      {
       "modality": "smri",
       "system": "hippocampus_amygdala",
       "level": "covered",
-      "note": "Imaged as anatomy."
+      "note": "Imaged as anatomy.",
+      "in_principle": "covered",
+      "label": "Anatomy visible",
+      "reachable_elsewhere": false
      },
      {
       "modality": "smri",
       "system": "cerebellum",
       "level": "covered",
-      "note": "Imaged as anatomy."
+      "note": "Imaged as anatomy.",
+      "in_principle": "covered",
+      "label": "Anatomy visible",
+      "reachable_elsewhere": false
      },
      {
       "modality": "smri",
       "system": "brainstem",
       "level": "covered",
-      "note": "Imaged as anatomy."
+      "note": "Imaged as anatomy.",
+      "in_principle": "covered",
+      "label": "Anatomy visible",
+      "reachable_elsewhere": false
      },
      {
       "modality": "smri",
       "system": "autonomic",
       "level": "none",
-      "note": ""
+      "note": "",
+      "in_principle": "none",
+      "label": "Out of range",
+      "reachable_elsewhere": false
      }
     ],
     "also_captures": "The face. Face recognition software, choosing among the 84 participants' MRI face reconstructions, ranked the correct one first for 70 of 84 participants' photographs (83%) and within the top five for 80 of 84 (95%).",
@@ -19912,61 +20032,91 @@
       "modality": "peripheral",
       "system": "frontal",
       "level": "none",
-      "note": ""
+      "note": "",
+      "in_principle": "none",
+      "label": "Out of range",
+      "reachable_elsewhere": false
      },
      {
       "modality": "peripheral",
       "system": "sensorimotor",
       "level": "none",
-      "note": ""
+      "note": "",
+      "in_principle": "none",
+      "label": "Out of range",
+      "reachable_elsewhere": false
      },
      {
       "modality": "peripheral",
       "system": "parietal",
       "level": "none",
-      "note": ""
+      "note": "",
+      "in_principle": "none",
+      "label": "Out of range",
+      "reachable_elsewhere": false
      },
      {
       "modality": "peripheral",
       "system": "temporal",
       "level": "none",
-      "note": ""
+      "note": "",
+      "in_principle": "none",
+      "label": "Out of range",
+      "reachable_elsewhere": false
      },
      {
       "modality": "peripheral",
       "system": "occipital",
       "level": "none",
-      "note": ""
+      "note": "",
+      "in_principle": "none",
+      "label": "Out of range",
+      "reachable_elsewhere": false
      },
      {
       "modality": "peripheral",
       "system": "thalamus",
       "level": "none",
-      "note": ""
+      "note": "",
+      "in_principle": "none",
+      "label": "Out of range",
+      "reachable_elsewhere": false
      },
      {
       "modality": "peripheral",
       "system": "hippocampus_amygdala",
       "level": "none",
-      "note": ""
+      "note": "",
+      "in_principle": "none",
+      "label": "Out of range",
+      "reachable_elsewhere": false
      },
      {
       "modality": "peripheral",
       "system": "cerebellum",
       "level": "none",
-      "note": ""
+      "note": "",
+      "in_principle": "none",
+      "label": "Out of range",
+      "reachable_elsewhere": false
      },
      {
       "modality": "peripheral",
       "system": "brainstem",
       "level": "none",
-      "note": "Body responses carry traces of brainstem control. Reading those traces is inference from another signal."
+      "note": "Body responses carry traces of brainstem control. Reading those traces is inference from another signal.",
+      "in_principle": "none",
+      "label": "Out of range",
+      "reachable_elsewhere": false
      },
      {
       "modality": "peripheral",
       "system": "autonomic",
       "level": "covered",
-      "note": "Measured through its effects on skin and heart."
+      "note": "Measured through its effects on skin and heart.",
+      "in_principle": "covered",
+      "label": "Covered by this setup",
+      "reachable_elsewhere": false
      }
     ],
     "also_captures": "Signs of autonomic arousal. Exercise, temperature, medication, and illness change these signals too, so neither one measures stress by itself.",

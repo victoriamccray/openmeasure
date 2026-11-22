@@ -196,3 +196,27 @@ class TestAtlas(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestInPrincipleVersusThisSetup(unittest.TestCase):
+    def test_fnirs_reaches_all_outer_cortex_in_principle_but_this_array_covers_frontal_only(self):
+        m = na.modality("fnirs")
+        self.assertEqual(m.coverage_for("frontal").level, na.COVERED)
+        for lobe in ("sensorimotor", "parietal", "temporal", "occipital"):
+            with self.subTest(lobe=lobe):
+                entry = m.coverage_for(lobe)
+                self.assertEqual((entry.level, entry.in_principle), (na.OUT_OF_RANGE, na.COVERED))
+                self.assertEqual(na.coverage_label("fnirs", lobe), na.REACHABLE_TEXT)
+
+    def test_fnirs_never_reaches_deep_structures(self):
+        self.assertEqual(na.modality("fnirs").coverage_for("thalamus").in_principle, na.OUT_OF_RANGE)
+
+    def test_structural_mri_reads_anatomy_visible(self):
+        self.assertEqual(na.coverage_label("smri", "occipital"), na.ANATOMY_TEXT)
+
+    def test_eeg_covered_cortex_reads_covered_by_this_setup(self):
+        self.assertEqual(na.coverage_label("eeg", "occipital"), na.COVERAGE_TEXT[na.COVERED])
+
+    def test_a_setup_cannot_cover_more_than_the_method_reaches(self):
+        with self.assertRaises(ValueError):
+            na.SystemCoverage("x", "frontal", na.COVERED, "", na.PARTIAL)

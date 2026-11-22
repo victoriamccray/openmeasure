@@ -35,11 +35,9 @@ MEASURE_LABEL = {
     na.MEASURE_ANATOMY: "Anatomy only",
     na.MEASURE_PERIPHERAL: "Body response",
 }
-LEVEL_TEXT = {
-    na.COVERED: "Signal from here",
-    na.PARTIAL: "Partial or weak",
-    na.OUT_OF_RANGE: "Out of range",
-}
+# Labels come from core (na.coverage_label), so structural MRI reads
+# "Anatomy visible" and regions another placement would reach say so.
+LEVEL_TEXT = dict(na.COVERAGE_TEXT)
 
 INK = "#1f1e1c"
 LINE = "#b9b7b0"
@@ -107,8 +105,12 @@ def side_view_svg(
     def shape(key: str, tag: str, attrs: str, dashed: bool = False) -> str:
         fill, opacity = _fill(m, key, electrode_only)
         name = escape(na.system(key).name)
+        line = stroke(key, dashed)
+        if not electrode_only and sel != key and m.coverage_for(key).reachable_elsewhere:
+            # Missed by this setup, reachable with another placement: a dashed outline.
+            line = f'stroke="{color}" stroke-width="1.6" stroke-dasharray="4 3"'
         return (
-            f'<{tag} {attrs} fill="{fill}" fill-opacity="{opacity}" {stroke(key, dashed)}>'
+            f'<{tag} {attrs} fill="{fill}" fill-opacity="{opacity}" {line}>'
             f"<title>{name}</title></{tag}>"
         )
 
@@ -175,7 +177,7 @@ def side_view_svg(
         )
     else:
         parts = "; ".join(
-            f"{LEVEL_TEXT[m.coverage_for(s.key).level].lower()}: {s.name}" for s in na.SYSTEMS
+            f"{na.coverage_label(m.key, s.key).lower()}: {s.name}" for s in na.SYSTEMS
         )
         description = (
             f"Side view of the head facing left. {m.short_name} measures "
@@ -217,12 +219,19 @@ def legend_html(modality_key: str) -> str:
     color = MEASURE_COLOR[m.measurement]
     swatch = "display:inline-block;width:11px;height:11px;margin-right:5px;vertical-align:-1px;border-radius:2px"
     hatch = f"background:repeating-linear-gradient(45deg,{color} 0 2px,transparent 2px 5px)"
+    covered = na.ANATOMY_TEXT if m.measurement == na.MEASURE_ANATOMY else na.COVERAGE_TEXT[na.COVERED]
+    reachable = (
+        f'<span><i style="{swatch};border:1.6px dashed {color}"></i>{na.REACHABLE_TEXT}</span>'
+        if any(c.reachable_elsewhere for c in m.coverage)
+        else ""
+    )
     return (
         f'<div style="font-family:system-ui,sans-serif;font-size:13px;color:{LINE_STRONG};'
         'display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin-top:6px">'
-        f'<span><i style="{swatch};background:{color};opacity:.6"></i>Signal from here</span>'
+        f'<span><i style="{swatch};background:{color};opacity:.6"></i>{covered}</span>'
         f'<span><i style="{swatch};{hatch}"></i>Partial or weak</span>'
-        f'<span><i style="{swatch};border:1px solid {LINE_STRONG}"></i>Out of range</span>'
+        + reachable
+        + f'<span><i style="{swatch};border:1px solid {LINE_STRONG}"></i>Out of range</span>'
         f'<span><i style="{swatch};border-radius:50%;background:{color}"></i>Signal type: '
         f"<b>{MEASURE_LABEL[m.measurement]}</b></span></div>"
     )

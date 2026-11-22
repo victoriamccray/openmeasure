@@ -344,7 +344,7 @@ MEASURES: tuple[Measure, ...] = (
         "electrode.",
         how_computed="The amplifier samples it 500 times per second. Each sample is one number.",
         how_to_read="Larger swings mean more synchronized activity near that electrode. Timing "
-        "matters as much as numbers: neurons firing out of step cancel each other at the scalp. "
+        "matters as much as numbers: postsynaptic currents that are out of step cancel each other at the scalp. "
         "The sign depends on the reference.",
         range_kind=RANGE_WITHIN_PERSON,
         expected="Compare conditions within one recording. Absolute voltages change with the "

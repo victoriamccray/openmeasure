@@ -424,7 +424,7 @@ function seeded(seed) {
   const count = 160;
   const cells = new THREE.InstancedMesh(new THREE.SphereGeometry(0.22, 12, 12), new THREE.MeshBasicMaterial({ color: 0xffffff }), count);
   // Each neuron's place in the cycle, from -0.5 to 0.5 of a cycle. How far
-  // these spread is what separates in-step from out-of-step firing.
+  // these spread is what separates in-step from out-of-step activity.
   const offsets = Array.from({ length: count }, () => rand() - 0.5);
   const m = new THREE.Matrix4();
   const positions = [];
@@ -468,8 +468,9 @@ function seeded(seed) {
   const pointsPerSecond = shownPoints * PLAYBACK_SPEED;
   const thickness = 0.14;
   // A schematic simulation of why the scalp sees alpha (Buzsaki et al.,
-  // 2012): scalp EEG sums the activity of many neurons. Firing in step,
-  // their activity adds up; out of step, it cancels. Eyes closed puts the
+  // 2012): scalp EEG mainly reflects synchronized postsynaptic currents
+  // from large populations of pyramidal cells. In step, the currents add
+  // up; out of step, they cancel. Eyes closed puts the
   // simulated neurons in step and eyes open spreads them out, which is the
   // desynchronization Barry et al. (2007) describe. It runs slowed to one
   // cycle every two seconds: alpha's real 8 to 13 Hz would flash faster than the
@@ -1163,7 +1164,6 @@ const SYSTEM = Object.fromEntries(ANAT.systems.map((s) => [s.key, s]));
 const MODALITY = Object.fromEntries(ANAT.modalities.map((m) => [m.key, m]));
 const ELECTRODE = Object.fromEntries(ANAT.electrodes.map((e) => [e.label, e]));
 const levelOf = (m, key) => m.coverage.find((c) => c.system === key);
-const LEVEL_TEXT = { covered: "Signal from here", partial: "Partial or weak", none: "Out of range" };
 // Colour shows what kind of signal a sensor gets; shading shows where from.
 const MEASURE_COLOR = { electrical: "#7cc4ff", hemodynamic: "#c39bff", anatomy: "#b8c0d8", peripheral: "#6fe3b0" };
 const MEASURE_LABEL = { electrical: "Electrical potentials", hemodynamic: "Blood oxygen", anatomy: "Anatomy only", peripheral: "Body response" };
@@ -1193,7 +1193,7 @@ function sideSvg(m, { electrodeOnly = false } = {}) {
   const region = (key, inner) =>
     `<g class="region${sel === key ? " selected" : ""}" data-system="${key}" role="button" tabindex="0" aria-label="${esc(SYSTEM[key].name)}">${inner}<title>${esc(SYSTEM[key].name)}</title></g>`;
   const lobes = Object.entries(SHAPES)
-    .map(([k, s]) => region(k, `<path d="${s.d}" fill="${fillFor(k)}" fill-opacity="${op(k)}" stroke="var(--line)" stroke-width="1"/>`))
+    .map(([k, s]) => region(k, `<path d="${s.d}" fill="${fillFor(k)}" fill-opacity="${op(k)}" ${!electrodeOnly && levelOf(m, k)?.reachable_elsewhere ? `stroke="${color}" stroke-width="1.6" stroke-dasharray="4 3"` : `stroke="var(--line)" stroke-width="1"`}/>`))
     .join("");
   const lobeLabels = Object.entries(SHAPES)
     .map(([, s]) => {
@@ -1220,7 +1220,7 @@ function sideSvg(m, { electrodeOnly = false } = {}) {
   const youAre = `<g class="you"><circle cx="284" cy="128" r="5"/><circle cx="284" cy="128" r="5" class="pulse"/></g><text x="284" y="146" class="lbl strong" text-anchor="middle">You</text>`;
   const description = electrodeOnly
     ? "Side view of the head facing left. Electrode O1 sits on the scalp over the left occipital region, with a schematic glow showing that it picks up a blend of nearby sources."
-    : `Side view of the head facing left. ${m.short_name} measures ${MEASURE_LABEL[m.measurement].toLowerCase()}. ${ANAT.systems.map((s) => `${LEVEL_TEXT[levelOf(m, s.key).level].toLowerCase()}: ${s.name}`).join("; ")}.`;
+    : `Side view of the head facing left. ${m.short_name} measures ${MEASURE_LABEL[m.measurement].toLowerCase()}. ${ANAT.systems.map((s) => `${levelOf(m, s.key).label.toLowerCase()}: ${s.name}`).join("; ")}.`;
   return `<svg class="anat" viewBox="0 0 360 270" role="img" aria-label="${esc(description)}">
     <defs>
       <clipPath id="brain-clip"><path d="${CEREBRUM}"/></clipPath>
@@ -1303,19 +1303,19 @@ function anatomyHtml(stage) {
   const sel = state.anatomySystem ? SYSTEM[state.anatomySystem] : null;
   const selReach = sel ? levelOf(m, sel.key) : null;
   const selected = sel
-    ? `<div class="system-card"><strong>${esc(sel.name)}</strong> <span class="lvl ${selReach.level}">${esc(m.short_name)}: ${LEVEL_TEXT[selReach.level].toLowerCase()}</span>
+    ? `<div class="system-card"><strong>${esc(sel.name)}</strong> <span class="lvl ${selReach.level}">${esc(m.short_name)}: ${selReach.label.toLowerCase()}</span>
         <p>${esc(sel.location)}. ${esc(sel.role)}${refMarks(sel.refs)}</p>${selReach.note ? `<p class="caveat">${esc(selReach.note)}</p>` : ""}</div>`
     : `<p class="caveat">Tap a region on the drawing to see what it does.</p>`;
   const rows = ANAT.systems
     .map((s) => {
       const r = levelOf(m, s.key);
-      return `<li><button type="button" class="sys-row${state.anatomySystem === s.key ? " selected" : ""}" data-system="${s.key}"><span>${esc(s.name)}</span><span class="lvl ${r.level}">${LEVEL_TEXT[r.level]}</span></button></li>`;
+      return `<li><button type="button" class="sys-row${state.anatomySystem === s.key ? " selected" : ""}" data-system="${s.key}"><span>${esc(s.name)}</span><span class="lvl ${r.level}">${r.label}</span></button></li>`;
     })
     .join("");
   return `<div class="box anatomy"><h3>${esc(a.title)}</h3><p>${esc(a.text)}</p>
     <div class="chips" role="group" aria-label="Sensor">${chips}</div>
     ${sideSvg(m)}
-    <div class="legend" style="--m:${MEASURE_COLOR[m.measurement]}"><span><i style="background:var(--m);opacity:.6"></i>Signal from here</span><span><i class="hatch"></i>Partial or weak</span><span><i style="border:1px solid var(--line-strong)"></i>Out of range</span></div>
+    <div class="legend" style="--m:${MEASURE_COLOR[m.measurement]}"><span><i style="background:var(--m);opacity:.6"></i>${m.measurement === "anatomy" ? "Anatomy visible" : "Covered by this setup"}</span><span><i class="hatch"></i>Partial or weak</span>${m.coverage.some((c) => c.reachable_elsewhere) ? `<span><i style="border:1.6px dashed var(--m)"></i>Reachable with another setup</span>` : ""}<span><i style="border:1px solid var(--line-strong)"></i>Out of range</span></div>
     <p class="measure-tag" style="--m:${MEASURE_COLOR[m.measurement]}"><i></i>Signal type: <strong>${MEASURE_LABEL[m.measurement]}</strong></p>
     ${selected}
     <dl class="modality-facts">
@@ -1338,14 +1338,14 @@ function anatomyTextHtml(stage) {
   }
   const head = ANAT.modalities.map((m) => `<th>${esc(m.short_name)}</th>`).join("");
   const body = ANAT.systems
-    .map((s) => `<tr><th scope="row">${esc(s.name)}</th>${ANAT.modalities.map((m) => `<td>${LEVEL_TEXT[levelOf(m, s.key).level]}</td>`).join("")}</tr>`)
+    .map((s) => `<tr><th scope="row">${esc(s.name)}</th>${ANAT.modalities.map((m) => `<td>${levelOf(m, s.key).label}</td>`).join("")}</tr>`)
     .join("");
   const kinds = `<tr><th scope="row">Signal type</th>${ANAT.modalities.map((m) => `<td>${MEASURE_LABEL[m.measurement]}</td>`).join("")}</tr>`;
   const mods = ANAT.modalities
     .map((m) => `<li><strong>${esc(m.name)} (${esc(m.short_name)}).</strong> ${esc(m.configuration)} ${esc(m.measures)} ${esc(m.neural_link)} ${esc(m.timing)} Also captures: ${esc(m.also_captures)} ${esc(m.privacy_note)}${refMarks(m.refs)}</li>`)
     .join("");
   const systems = ANAT.systems.map((s) => `<li><strong>${esc(s.name)}.</strong> ${esc(s.location)}. ${esc(s.role)}${refMarks(s.refs)}</li>`).join("");
-  return `<h3>${esc(a.title)}</h3><p>You start in the ${esc(SYSTEM.occipital.name.toLowerCase())}.</p>
+  return `<h3>${esc(a.title)}</h3><p>${esc(a.text)}</p>
     <h4>Brain and body systems</h4><ul>${systems}</ul>
     <h4>Where each sensor gets a signal</h4><div class="table-wrap"><table><thead><tr><th>System</th>${head}</tr></thead><tbody>${kinds}${body}</tbody></table></div>
     <ul>${mods}</ul><p class="caveat">${esc(ANAT.caveat)}${refMarks(ANAT.caveat_refs)}</p>`;

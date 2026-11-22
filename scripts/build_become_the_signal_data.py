@@ -216,6 +216,16 @@ def _sources() -> dict:
     }
 
 
+def _neuroanatomy() -> dict:
+    """The atlas, with each coverage entry's plain label from core."""
+    atlas = dataclasses.asdict(neuroanatomy.atlas())
+    for m in atlas["modalities"]:
+        for entry in m["coverage"]:
+            entry["label"] = neuroanatomy.coverage_label(m["key"], entry["system"])
+            entry["reachable_elsewhere"] = neuroanatomy.modality(m["key"]).coverage_for(entry["system"]).reachable_elsewhere
+    return atlas
+
+
 def _lesson_references() -> list[dict]:
     refs = {**filtering.REFERENCES, **source_lesson.REFERENCES}
     return [{"key": k, "text": t, "url": u} for k, (t, u) in refs.items()]
@@ -348,7 +358,7 @@ def build() -> dict:
         # Which brain system the recording comes from, which electrode
         # picked it up, and what other modalities reach, for the anatomy
         # figure at the Signals and Sensors stages.
-        "neuroanatomy": dataclasses.asdict(neuroanatomy.atlas()),
+        "neuroanatomy": _neuroanatomy(),
         "metadata": {
             "illustrative_fields": example_metadata,
             "after_removal": dict(intervention.strip_metadata(example_metadata)),
