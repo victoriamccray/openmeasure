@@ -375,3 +375,44 @@ class TestLabelledWindows(unittest.TestCase):
         self.assertEqual(len(windows.powers), 6)
         self.assertEqual(correct / len(windows.powers), result.accuracy)
         self.assertEqual(windows.threshold, result.threshold)
+
+
+class TestLeaveOneOut(unittest.TestCase):
+    def test_hand_case_where_holding_out_changes_the_answer(self):
+        # Closed (10, 10, 4), open (0, 0, 6). In-sample threshold is 5:
+        # 4 and 6 are wrong, so 4/6. Holding out 4 leaves closed mean 10,
+        # threshold (10 + 2) / 2 = 6, still wrong; holding out 6 leaves open
+        # mean 0, threshold (8 + 0) / 2 = 4, 6 > 4 so still wrong. Holding
+        # out one 10 gives threshold (7 + 2) / 2 = 4.5, 10 is right; one 0
+        # gives (8 + 3) / 2 = 5.5, 0 is right. So 4 of 6 either way.
+        r = iv.ClassificationResult(accuracy=4 / 6, threshold=5.0,
+                                    alpha_power_eyes_closed=(10.0, 10.0, 4.0),
+                                    alpha_power_eyes_open=(0.0, 0.0, 6.0))
+        held = iv.leave_one_out_accuracy(r)
+        self.assertEqual((held.n_correct, held.n_windows), (4, 6))
+
+    def test_second_hand_case(self):
+        # Closed (3, 30), open (0, 0). In-sample threshold (16.5 + 0)/2 = 8.25,
+        # so 3 is wrong. Held out, 3 faces threshold (30 + 0)/2 = 15: still
+        # wrong. 30 faces (3 + 0)/2 = 1.5: right. Open 0 faces (16.5+0)/2: right.
+        r = iv.ClassificationResult(accuracy=0.75, threshold=8.25,
+                                    alpha_power_eyes_closed=(3.0, 30.0),
+                                    alpha_power_eyes_open=(0.0, 0.0))
+        self.assertEqual(iv.leave_one_out_accuracy(r).n_correct, 3)
+
+    def test_recorded_data_held_out_matches_known_value(self):
+        # In-sample is also 27 of 30 here: no window sits close enough to
+        # the threshold for its own vote to move it.
+        import pandas as pd
+        from pathlib import Path
+        frame = pd.read_csv(Path(__file__).resolve().parents[1] / "sample_data" / "ds005420_sub-5_O1_eyes_snippet.csv")
+        closed = frame.loc[frame["condition"] == "eyes_closed", "voltage_uv"].to_numpy()
+        opened = frame.loc[frame["condition"] == "eyes_open", "voltage_uv"].to_numpy()
+        held = iv.leave_one_out_accuracy(iv.classify_eyes_state(closed, opened, 500.0))
+        self.assertEqual((held.n_correct, held.n_windows), (27, 30))
+
+    def test_too_few_windows_raise(self):
+        r = iv.ClassificationResult(accuracy=1.0, threshold=1.0,
+                                    alpha_power_eyes_closed=(2.0,), alpha_power_eyes_open=(0.0, 0.0))
+        with self.assertRaises(ValueError):
+            iv.leave_one_out_accuracy(r)

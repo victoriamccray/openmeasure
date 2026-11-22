@@ -175,6 +175,9 @@ def classify_eyes_state(
     Classify 1-second windows of each condition by alpha power, using a
     midpoint-of-class-means threshold, and report accuracy across both.
 
+    The accuracy is in-sample: the threshold comes from the same windows
+    it labels. leave_one_out_accuracy() gives the held-out version.
+
     A window holding NaN or infinite samples is skipped and counted in
     n_dropped_eyes_closed / n_dropped_eyes_open, so one bad sample costs
     one second instead of silently mislabeling it. Raises ValueError when
@@ -214,6 +217,44 @@ def classify_eyes_state(
         n_dropped_eyes_closed=closed_dropped,
         n_dropped_eyes_open=open_dropped,
     )
+
+
+@dataclass(frozen=True)
+class HeldOutAccuracy:
+    """
+    Leave-one-out accuracy of the midpoint threshold.
+
+    ClassificationResult.accuracy is in-sample: the threshold is computed
+    from the same windows it then labels. Here each window is labelled by
+    a threshold computed from every other window, so no window helps set
+    its own cut-off. The windows are still consecutive seconds from one
+    recording of one person, so this does not estimate accuracy on a new
+    session or a new person.
+    """
+
+    accuracy: float
+    n_correct: int
+    n_windows: int
+
+
+def leave_one_out_accuracy(result: ClassificationResult) -> HeldOutAccuracy:
+    """Re-label each window with a threshold computed without it."""
+    closed = np.asarray(result.alpha_power_eyes_closed, dtype=float)
+    opened = np.asarray(result.alpha_power_eyes_open, dtype=float)
+    if closed.size < 2 or opened.size < 2:
+        raise ValueError(
+            "Leave-one-out needs at least two windows per condition so a class mean "
+            f"remains after holding one out (eyes closed: {closed.size}, eyes open: {opened.size})."
+        )
+    correct = 0
+    for i in range(closed.size):
+        threshold = (np.delete(closed, i).mean() + opened.mean()) / 2.0
+        correct += int(closed[i] > threshold)
+    for i in range(opened.size):
+        threshold = (closed.mean() + np.delete(opened, i).mean()) / 2.0
+        correct += int(opened[i] <= threshold)
+    total = closed.size + opened.size
+    return HeldOutAccuracy(accuracy=correct / total, n_correct=correct, n_windows=total)
 
 
 def apply_noise(signal: np.ndarray, sd: float, seed: int) -> np.ndarray:

@@ -81,6 +81,14 @@ const $ = (id) => document.getElementById(id);
 const esc = (text) =>
   String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const pct = (value) => (value === null || value === undefined ? "fails" : `${Math.round(value * 100)}%`);
+// The baseline accuracy is in-sample: the threshold comes from the same seconds it labels.
+function inSampleNote() {
+  const b = data.baseline;
+  const h = b.held_out;
+  const n = b.alpha_power_eyes_closed.length + b.alpha_power_eyes_open.length;
+  const held = h ? ` Labelling each second with a threshold set from the other ${n - 1} (leave-one-out) gives ${h.n_correct} of ${h.n_windows}.` : "";
+  return `${pct(b.accuracy)} is in-sample accuracy: the threshold was set from these same ${n} seconds.${held} Both figures come from consecutive seconds of one person, so neither predicts accuracy for a new session or a new person.`;
+}
 
 // The anatomy figure cites from data.json (core/neuroanatomy.py); the rest
 // of the journey cites from content.json. A key in both has the same text,
@@ -1582,7 +1590,7 @@ function studyTextHtml() {
     ${studyCard(RS.study, "The Study: Barry et al. (2007)")}
     ${studyCard(RS.ageing, "Does It Hold With Age? Barry and De Blasio (2017)")}
     <h3>This Recording's Numbers</h3>
-    <p>Mean alpha power ${r.mean_closed.toFixed(1)} µV² with the eyes closed and ${r.mean_open.toFixed(1)} µV² with them open, a ratio of ${r.ratio.toFixed(1)}. Accuracy ${c.n_correct} of ${c.n_trials}; chance is ${Math.round(c.chance_accuracy * 100)}%, and ${c.threshold_correct} of ${c.n_trials} is needed to beat it.${refMarks(["combrisson"])}</p><p>${esc(RS.threshold.text)}</p>
+    <p>Mean alpha power ${r.mean_closed.toFixed(1)} µV² with the eyes closed and ${r.mean_open.toFixed(1)} µV² with them open, a ratio of ${r.ratio.toFixed(1)}. In-sample accuracy ${c.n_correct} of ${c.n_trials}; chance is ${Math.round(c.chance_accuracy * 100)}%, and ${c.threshold_correct} of ${c.n_trials} is needed to beat it.${refMarks(["combrisson"])}</p><p>${esc(RS.threshold.text)}</p>
     <h3>What the Numbers Mean</h3><ul>${measures}</ul>
     <h3>Resting vs Task, Domain-General vs Domain-Specific</h3>
     <div class="table-wrap"><table><thead><tr><th>Modality</th><th>Axis</th><th>First pole</th><th>Second pole</th></tr></thead><tbody>${dich}</tbody></table></div>
@@ -1789,8 +1797,8 @@ function welchHtml(M) {
       </div>
       ${spectrumSvg(s, yMax, `Spectrum of the first recorded second, ${state.eyes === "eyes_closed" ? "eyes closed" : "eyes open"}`)}
       <div class="reveal">${M.alpha}</div>
-      <div class="metric-row">${mathTile("Alpha area, 8 to 13 Hz", fmt(s.alpha_power, 1), "µV²", "this second's alpha power")}${mathTile("Whole area", fmt(s.total_power, 1), "µV²", `tapered mean square ${fmt(s.tapered_mean_square, 1)}`)}</div>
-      <p class="caveat">Plain mean square of this second: ${fmt(s.mean_square, 1)} µV². It differs from the whole area because the Hann taper weighs the middle of the second more, and this second's activity was uneven.</p>`;
+      <div class="metric-row">${mathTile("Alpha area, 8 to 13 Hz", fmt(s.alpha_power, 1), "µV²", "this second's alpha power")}${mathTile("Whole area", fmt(s.total_power, 1), "µV²", `taper-weighted mean square ${fmt(s.window_weighted_mean_square, 1)}`)}</div>
+      <p class="caveat">Plain mean square of this second: ${fmt(s.mean_square, 1)} µV². The whole area weights each squared sample by the squared taper, so the middle of the second counts more than its edges. This second's activity was uneven, so the two differ.</p>`;
   }
   return `<div class="welch box">
     <p class="live-label"><span class="src recorded">${esc(RS.source_labels.recorded)}</span> Welch's method on the first eyes-closed second · step ${state.welchStep + 1} of ${W.steps.length}</p>
@@ -2032,9 +2040,10 @@ function interactionHtml(stage) {
       return `<div class="legend"><span><i style="background:var(--closed)"></i>Labelled eyes closed</span><span><i style="background:var(--open)"></i>Labelled eyes open</span><span><i style="background:var(--wrong)"></i>Wrong label</span></div>
         <div class="metric-row">
           <div class="metric"><span>Seconds labelled correctly</span><strong>${wrong.total - errors} of ${wrong.total}</strong></div>
-          <div class="metric"><span>Accuracy</span><strong>${pct(base.accuracy)}</strong></div>
+          <div class="metric"><span>Accuracy (in-sample)</span><strong>${pct(base.accuracy)}</strong></div>
         </div>
         <p>${wrong.closedAsOpen} eyes-closed seconds fell below the threshold and were labelled eyes open${wrong.openAsClosed ? `, and ${wrong.openAsClosed} eyes-open seconds were labelled eyes closed` : ""}. Back row: eyes closed. Front row: eyes open. The flat plane is the threshold. Tap a pillar to inspect it.</p>
+        <p class="caveat">${esc(inSampleNote())}</p>
         <p>${esc(stage.reading_note)}</p>
         <div class="box"><h3>${esc(stage.second_inference.title)}</h3><p>${esc(stage.second_inference.text)}${refMarks(stage.second_inference.refs)}</p></div>
         <p class="caveat">${esc(stage.caveat)}</p>`;
@@ -2072,7 +2081,7 @@ function safeguardHtml(stage) {
         <div class="metric"><span>Requester can read eyes state</span><strong>${reqAcc}</strong></div>
         <div class="metric"><span>Legitimate system reads eyes state</span><strong>${pct(o.legitimate.accuracy)}</strong></div>
       </div>
-      <p class="caveat">Before any safeguard, both were ${pct(data.baseline.accuracy)}. With equal numbers of each condition, 50% is chance.</p>
+      <p class="caveat">Before any safeguard, both were ${pct(data.baseline.accuracy)}, in-sample. With equal numbers of each condition, 50% is chance.</p>
       ${failure}
       <details class="box why"><summary><h3>What It Protects and Leaves Exposed</h3></summary>
         <p><strong>Protects.</strong> ${esc(s.protects)}</p>
@@ -2225,7 +2234,7 @@ function renderTextView() {
     if (s.threat) extra += `<p><strong>${esc(s.threat.title)}.</strong> ${esc(s.threat.text)}${refMarks(s.threat.refs)} ${esc(s.threat.definition)}</p>`;
     if (s.interaction === "infer") {
       const w = misclassified(data.baseline);
-      extra += `<p>Measured: ${w.total - w.closedAsOpen - w.openAsClosed} of ${w.total} one-second windows labelled correctly (${pct(data.baseline.accuracy)}).</p>`;
+      extra += `<p>Measured: ${w.total - w.closedAsOpen - w.openAsClosed} of ${w.total} one-second windows labelled correctly (${pct(data.baseline.accuracy)}). ${esc(inSampleNote())}</p>`;
       extra += `<p>${esc(s.reading_note)}</p>`;
       extra += `<p><strong>${esc(s.second_inference.title)}.</strong> ${esc(s.second_inference.text)}${refMarks(s.second_inference.refs)}</p><p class="caveat">${esc(s.caveat)}</p>`;
     }

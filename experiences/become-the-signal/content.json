@@ -86,7 +86,7 @@
    "what_changed": "Thirty numbers became thirty labels. Each label is a claim about the person, and three of the claims are wrong.",
    "handoff": "an estimate of a state",
    "interaction": "infer",
-   "reading_note": "Labelling 27 of 30 seconds correctly describes classification performance on a mild research task. It shows that this state can be read from this signal. Whether a reading counts as a privacy breach depends on who reads it and what the person agreed to.",
+   "reading_note": "Labelling 27 of 30 seconds correctly, with a threshold set from those same seconds, describes classification performance on a mild research task. It shows that this state can be read from this signal. Whether a reading counts as a privacy breach depends on who reads it and what the person agreed to.",
    "second_inference": {
     "title": "A Second Inference Travels With You",
     "text": "EEG signals vary enough between people, and stay stable enough within one person, to support biometric identification: recognizing who produced a recording. A recording collected to read eyes state also carries this identifying information.",
@@ -97,7 +97,7 @@
    "perspectives": {
     "agency": "The model labels the person's state from the recording alone.",
     "privacy": "The state inferred here is mild. More sensitive inferences follow the same route: a pattern in the signal, read as a state.",
-    "build": "The classifier is a midpoint threshold, the simplest possible rule. Its accuracy measures how separable the two conditions are in this recording."
+    "build": "The classifier is a midpoint threshold, the simplest possible rule. Its accuracy measures how separable the two conditions are in this recording. The accuracy is in-sample, since the threshold comes from the same seconds it labels."
    }
   },
   {
@@ -136,14 +136,14 @@
       {"value": 40, "label": "Store at 12.5 Hz"}
      ],
      "protects": "Frequencies above half the new rate are removed from every copy, the requester's included.",
-     "does_not": "At 25 Hz the copy keeps alpha up to 12.5 Hz, and eyes-state accuracy stays at 90% for both readers. At 12.5 Hz the copy keeps frequencies up to 6.25 Hz, below the alpha band, and the inference fails for both readers."
+     "does_not": "At 25 Hz the copy keeps alpha up to 12.5 Hz, and in-sample eyes-state accuracy stays at 90% for both readers. At 12.5 Hz the copy keeps frequencies up to 6.25 Hz, below the alpha band, and the inference fails for both readers."
     },
     "metadata": {
      "label": "Remove identifying metadata",
      "copy": "The requester's copy, with metadata removed",
      "acts_on": "Labels that travel with the signal",
      "protects": "The device serial number, recording time, and session code are removed from the shared copy.",
-     "does_not": "The signal stays the same, so eyes-state accuracy stays at 90%. The EEG signal itself can identify a person, so the shared copy still carries identifying information."
+     "does_not": "The signal stays the same, so in-sample eyes-state accuracy stays at 90%. The EEG signal itself can identify a person, so the shared copy still carries identifying information."
     },
     "purpose": {
      "label": "Allow limited, purpose-specific access",

@@ -62,12 +62,24 @@ class TestWindowSpectrum(unittest.TestCase):
                         places=9,
                     )
 
-    def test_parseval_total_area_equals_tapered_mean_square(self):
+    def test_parseval_total_area_equals_window_weighted_mean_square(self):
         # Exact identity for a Hann-windowed periodogram with density scaling.
         for condition in ("eyes_closed", "eyes_open"):
             spectrum = pe.window_spectrum(_recorded(condition))
             with self.subTest(condition=condition):
-                self.assertAlmostEqual(spectrum.total_power / spectrum.tapered_mean_square, 1.0, places=9)
+                self.assertAlmostEqual(spectrum.total_power / spectrum.window_weighted_mean_square, 1.0, places=9)
+
+    def test_area_is_not_the_tapered_signals_mean_square(self):
+        # Hand value: for a 10 µV, 10 Hz sine over one second, the weighted
+        # mean square is A^2/2 = 50 µV^2, and since sum(w^2) = 3N/8 for the
+        # periodic Hann, the tapered signal's mean square is 3/8 of that.
+        t = np.arange(500) / 500.0
+        x = 10 * np.sin(2 * np.pi * 10 * t)
+        spectrum = pe.window_spectrum(x)
+        w = np.hanning(501)[:-1]
+        self.assertAlmostEqual(np.sum(w**2), 3 * 500 / 8, places=9)
+        self.assertAlmostEqual(spectrum.total_power, 50.0, places=6)
+        self.assertAlmostEqual(np.mean((x * w) ** 2), 50.0 * 3 / 8, places=6)
 
     def test_steady_noise_area_matches_plain_mean_square_on_average(self):
         # For stationary white noise the taper changes nothing on average:

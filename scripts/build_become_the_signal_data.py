@@ -82,8 +82,15 @@ def _classification(closed: np.ndarray, opened: np.ndarray, rate: float) -> dict
     except ValueError as error:
         return {"accuracy": None, "failure": str(error)}
 
+    try:
+        held = intervention.leave_one_out_accuracy(result)
+        held_out = {"accuracy": round(held.accuracy, 4), "n_correct": held.n_correct, "n_windows": held.n_windows}
+    except ValueError:
+        held_out = None
+
     return {
         "accuracy": round(result.accuracy, 4),
+        "held_out": held_out,
         "threshold": round(result.threshold, 4),
         "alpha_power_eyes_closed": _round(result.alpha_power_eyes_closed),
         "alpha_power_eyes_open": _round(result.alpha_power_eyes_open),
@@ -103,7 +110,7 @@ def _spectrum_dict(spectrum) -> dict:
         "density": _round([spectrum.density[i] for i in keep], 4),
         "alpha_power": round(spectrum.alpha_power, 4),
         "total_power": round(spectrum.total_power, 4),
-        "tapered_mean_square": round(spectrum.tapered_mean_square, 4),
+        "window_weighted_mean_square": round(spectrum.window_weighted_mean_square, 4),
         "mean_square": round(spectrum.mean_square, 4),
     }
 

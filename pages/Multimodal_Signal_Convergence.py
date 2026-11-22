@@ -1988,7 +1988,15 @@ if stage == STAGE_REAL_SIGNAL:
         ),
         width="stretch",
     )
-    st.metric("Baseline classification accuracy", f"{baseline_result.accuracy:.0%}")
+    st.metric("Baseline classification accuracy (in-sample)", f"{baseline_result.accuracy:.0%}")
+    held_out = intervention_core.leave_one_out_accuracy(baseline_result)
+    st.caption(
+        "In-sample: the threshold was set from the same windows it labels. "
+        f"Labelling each window with a threshold set from all the others "
+        f"(leave-one-out) gives {held_out.n_correct} of {held_out.n_windows}. "
+        "Both use consecutive seconds from one person, so neither predicts "
+        "accuracy for a new session or a new person."
+    )
     st.caption(
         f"{baseline_result.n_windows_eyes_closed} eyes-closed and "
         f"{baseline_result.n_windows_eyes_open} eyes-open 1-second "
@@ -2108,14 +2116,14 @@ if stage == STAGE_REAL_SIGNAL:
         )
         before_after_cols = st.columns(2)
         before_after_cols[0].metric(
-            "Accuracy before", f"{baseline_result.accuracy:.0%}"
+            "Accuracy before (in-sample)", f"{baseline_result.accuracy:.0%}"
         )
         change = intervened_result.accuracy - baseline_result.accuracy
         unchanged = round(change * 100) == 0
         # A change that rounds to 0% gets no arrow or colour: a green
         # "up +0%" read as an improvement when nothing moved.
         before_after_cols[1].metric(
-            "Accuracy after",
+            "Accuracy after (in-sample)",
             f"{intervened_result.accuracy:.0%}",
             delta="no change" if unchanged else f"{change:+.0%}",
             delta_color="off" if unchanged else "normal",

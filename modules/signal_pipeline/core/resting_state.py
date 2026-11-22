@@ -393,7 +393,8 @@ MEASURES: tuple[Measure, ...] = (
         "correctly.",
         how_computed="Each second is labeled eyes closed when its alpha power is above a "
         "threshold, set at the midpoint of the two condition means. Accuracy is correct windows "
-        "divided by all windows.",
+        "divided by all windows. It is in-sample: the threshold is set from the same windows it "
+        "labels, so it describes this recording and overstates what to expect on new data.",
         how_to_read="With equal numbers of each condition, guessing gets 50% on average. A small "
         "sample can beat 50% by luck, so the bar to clear depends on how many windows there are.",
         range_kind=RANGE_CALCULATED,
@@ -529,7 +530,8 @@ def explain_threshold(result: Reactivity) -> ThresholdExplanation:
         f"The threshold is the midpoint of the two condition means in this recording: "
         f"({result.mean_closed:.1f} + {result.mean_open:.1f}) / 2 = {result.midpoint:.1f} µV². "
         "It fits this recording only, and another person or device would need its own. It was "
-        "set from the same windows it labels, so accuracy on new data would likely be lower."
+        "set from the same windows it labels, so the accuracy is in-sample, and accuracy on a "
+        "new session or person would likely be lower."
     )
     return ThresholdExplanation(result.midpoint, text)
 

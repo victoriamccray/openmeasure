@@ -1034,6 +1034,11 @@
  },
  "baseline": {
   "accuracy": 0.9,
+  "held_out": {
+   "accuracy": 0.9,
+   "n_correct": 27,
+   "n_windows": 30
+  },
   "threshold": 43.5428,
   "alpha_power_eyes_closed": [
    240.887,
@@ -1187,7 +1192,7 @@
     "name": "Accuracy against chance",
     "unit": "Percent of 1-second windows labeled correctly",
     "what_it_is": "How often the threshold rule labeled a second as eyes closed or eyes open correctly.",
-    "how_computed": "Each second is labeled eyes closed when its alpha power is above a threshold, set at the midpoint of the two condition means. Accuracy is correct windows divided by all windows.",
+    "how_computed": "Each second is labeled eyes closed when its alpha power is above a threshold, set at the midpoint of the two condition means. Accuracy is correct windows divided by all windows. It is in-sample: the threshold is set from the same windows it labels, so it describes this recording and overstates what to expect on new data.",
     "how_to_read": "With equal numbers of each condition, guessing gets 50% on average. A small sample can beat 50% by luck, so the bar to clear depends on how many windows there are.",
     "range_kind": "calculated",
     "expected": "Chance is 50% by design. For 30 windows, 20 correct (67%) is the smallest count that luck alone reaches less than 5% of the time.",
@@ -1399,7 +1404,7 @@
   },
   "threshold": {
    "value": 43.5428,
-   "text": "The threshold is the midpoint of the two condition means in this recording: (77.8 + 9.2) / 2 = 43.5 \u00b5V\u00b2. It fits this recording only, and another person or device would need its own. It was set from the same windows it labels, so accuracy on new data would likely be lower."
+   "text": "The threshold is the midpoint of the two condition means in this recording: (77.8 + 9.2) / 2 = 43.5 \u00b5V\u00b2. It fits this recording only, and another person or device would need its own. It was set from the same windows it labels, so the accuracy is in-sample, and accuracy on a new session or person would likely be lower."
   },
   "source_labels": {
    "recorded": "Computed from this recording",
@@ -1427,8 +1432,8 @@
     "key": "integrate",
     "title": "Why add up the area from 8 to 13 Hz?",
     "question": "How does a spectrum become one number for one second of recording?",
-    "explanation": "Each point of the spectrum is power per hertz. Adding up the area between 8 and 13 Hz gives the power that belongs to the alpha band, in \u00b5V\u00b2. The whole area equals the window's mean square after the Hann taper, which weighs the middle of the second more than its edges. For a steady signal that matches the plain mean square on average. Real EEG changes within a second, so here the two can differ.",
-    "takeaway": "Alpha power is the alpha band's share of the window's mean square."
+    "explanation": "Each point of the spectrum is power per hertz. Adding up the area between 8 and 13 Hz gives the power that belongs to the alpha band, in \u00b5V\u00b2. The whole area is a weighted mean square of the second: each squared sample counts in proportion to the squared Hann taper, so the middle of the second counts more than its edges, and the result is divided by the taper's total energy so the weights average to one. Skip that division and the area would shrink to about 3/8, the mean square of the tapered signal. For a signal whose strength is steady across the second, the weighted and plain mean squares agree on average. Real EEG changes within a second, so here they can differ.",
+    "takeaway": "Alpha power is the alpha band's share of the window's taper-weighted mean square."
    }
   ],
   "welch": {
@@ -1457,7 +1462,7 @@
     {
      "key": "power",
      "title": "Square to get power",
-     "question": "Square each magnitude and scale it, so the area under the curve is power in \u00b5V\u00b2.",
+     "question": "Square each magnitude, then divide by the sampling rate times the taper's energy, the sum of w\u00b2. That division makes up for the power the taper removed, so the area under the curve is power in \u00b5V\u00b2.",
      "explanation": "Squaring is the same step as in the first lesson: it keeps every contribution positive.",
      "takeaway": "The curve is the power spectral density, in \u00b5V\u00b2 per Hz."
     },
@@ -3576,7 +3581,7 @@
       ],
       "alpha_power": 0.0974,
       "total_power": 48.4285,
-      "tapered_mean_square": 48.4285,
+      "window_weighted_mean_square": 48.4285,
       "mean_square": 51.2883
      }
     },
@@ -3903,7 +3908,7 @@
       ],
       "alpha_power": 3.8106,
       "total_power": 52.1417,
-      "tapered_mean_square": 52.1417,
+      "window_weighted_mean_square": 52.1417,
       "mean_square": 55.2573
      }
     },
@@ -4230,7 +4235,7 @@
       ],
       "alpha_power": 13.7738,
       "total_power": 62.1048,
-      "tapered_mean_square": 62.1048,
+      "window_weighted_mean_square": 62.1048,
       "mean_square": 65.4763
      }
     },
@@ -4557,7 +4562,7 @@
       ],
       "alpha_power": 29.987,
       "total_power": 78.318,
-      "tapered_mean_square": 78.318,
+      "window_weighted_mean_square": 78.318,
       "mean_square": 81.9453
      }
     },
@@ -4884,7 +4889,7 @@
       ],
       "alpha_power": 52.4501,
       "total_power": 100.7812,
-      "tapered_mean_square": 100.7812,
+      "window_weighted_mean_square": 100.7812,
       "mean_square": 104.6643
      }
     },
@@ -5211,7 +5216,7 @@
       ],
       "alpha_power": 81.1633,
       "total_power": 129.4944,
-      "tapered_mean_square": 129.4944,
+      "window_weighted_mean_square": 129.4944,
       "mean_square": 133.6333
      }
     },
@@ -5538,7 +5543,7 @@
       ],
       "alpha_power": 116.1265,
       "total_power": 164.4575,
-      "tapered_mean_square": 164.4575,
+      "window_weighted_mean_square": 164.4575,
       "mean_square": 168.8523
      }
     },
@@ -5865,7 +5870,7 @@
       ],
       "alpha_power": 157.3397,
       "total_power": 205.6707,
-      "tapered_mean_square": 205.6707,
+      "window_weighted_mean_square": 205.6707,
       "mean_square": 210.3213
      }
     },
@@ -6192,7 +6197,7 @@
       ],
       "alpha_power": 204.8028,
       "total_power": 253.1339,
-      "tapered_mean_square": 253.1339,
+      "window_weighted_mean_square": 253.1339,
       "mean_square": 258.0403
      }
     }
@@ -6521,7 +6526,7 @@
      ],
      "alpha_power": 240.887,
      "total_power": 444.4946,
-     "tapered_mean_square": 444.4946,
+     "window_weighted_mean_square": 444.4946,
      "mean_square": 343.2085
     }
    },
@@ -6847,7 +6852,7 @@
      ],
      "alpha_power": 12.8126,
      "total_power": 58.5977,
-     "tapered_mean_square": 58.5977,
+     "window_weighted_mean_square": 58.5977,
      "mean_square": 53.3934
     }
    }
@@ -8028,6 +8033,11 @@
   {
    "sd_uv": 0.0,
    "accuracy": 0.9,
+   "held_out": {
+    "accuracy": 0.9,
+    "n_correct": 27,
+    "n_windows": 30
+   },
    "threshold": 43.5428,
    "alpha_power_eyes_closed": [
     240.887,
@@ -9073,6 +9083,11 @@
   {
    "sd_uv": 10.0,
    "accuracy": 0.9,
+   "held_out": {
+    "accuracy": 0.9,
+    "n_correct": 27,
+    "n_windows": 30
+   },
    "threshold": 46.0464,
    "alpha_power_eyes_closed": [
     257.7779,
@@ -9112,6 +9127,11 @@
   {
    "sd_uv": 20.0,
    "accuracy": 0.9,
+   "held_out": {
+    "accuracy": 0.9,
+    "n_correct": 27,
+    "n_windows": 30
+   },
    "threshold": 52.4768,
    "alpha_power_eyes_closed": [
     280.2819,
@@ -9151,6 +9171,11 @@
   {
    "sd_uv": 30.0,
    "accuracy": 0.8667,
+   "held_out": {
+    "accuracy": 0.8667,
+    "n_correct": 26,
+    "n_windows": 30
+   },
    "threshold": 62.8342,
    "alpha_power_eyes_closed": [
     308.399,
@@ -9190,6 +9215,11 @@
   {
    "sd_uv": 40.0,
    "accuracy": 0.8333,
+   "held_out": {
+    "accuracy": 0.8,
+    "n_correct": 24,
+    "n_windows": 30
+   },
    "threshold": 77.1186,
    "alpha_power_eyes_closed": [
     342.1291,
@@ -9229,6 +9259,11 @@
   {
    "sd_uv": 50.0,
    "accuracy": 0.7333,
+   "held_out": {
+    "accuracy": 0.7333,
+    "n_correct": 22,
+    "n_windows": 30
+   },
    "threshold": 95.3299,
    "alpha_power_eyes_closed": [
     381.4723,
@@ -10274,6 +10309,11 @@
   {
    "sd_uv": 60.0,
    "accuracy": 0.7,
+   "held_out": {
+    "accuracy": 0.6667,
+    "n_correct": 20,
+    "n_windows": 30
+   },
    "threshold": 117.468,
    "alpha_power_eyes_closed": [
     426.4286,
@@ -10313,6 +10353,11 @@
   {
    "sd_uv": 70.0,
    "accuracy": 0.6,
+   "held_out": {
+    "accuracy": 0.5667,
+    "n_correct": 17,
+    "n_windows": 30
+   },
    "threshold": 143.5332,
    "alpha_power_eyes_closed": [
     476.998,
@@ -10352,6 +10397,11 @@
   {
    "sd_uv": 80.0,
    "accuracy": 0.5667,
+   "held_out": {
+    "accuracy": 0.5667,
+    "n_correct": 17,
+    "n_windows": 30
+   },
    "threshold": 173.5252,
    "alpha_power_eyes_closed": [
     533.1804,
@@ -10391,6 +10441,11 @@
   {
    "sd_uv": 90.0,
    "accuracy": 0.5667,
+   "held_out": {
+    "accuracy": 0.5667,
+    "n_correct": 17,
+    "n_windows": 30
+   },
    "threshold": 207.4442,
    "alpha_power_eyes_closed": [
     594.9759,
@@ -10430,6 +10485,11 @@
   {
    "sd_uv": 100.0,
    "accuracy": 0.5667,
+   "held_out": {
+    "accuracy": 0.5667,
+    "n_correct": 17,
+    "n_windows": 30
+   },
    "threshold": 245.2901,
    "alpha_power_eyes_closed": [
     662.3845,
@@ -11475,6 +11535,11 @@
   {
    "sd_uv": 110.0,
    "accuracy": 0.5667,
+   "held_out": {
+    "accuracy": 0.5667,
+    "n_correct": 17,
+    "n_windows": 30
+   },
    "threshold": 287.063,
    "alpha_power_eyes_closed": [
     735.4061,
@@ -11514,6 +11579,11 @@
   {
    "sd_uv": 120.0,
    "accuracy": 0.5333,
+   "held_out": {
+    "accuracy": 0.5333,
+    "n_correct": 16,
+    "n_windows": 30
+   },
    "threshold": 332.7628,
    "alpha_power_eyes_closed": [
     814.0408,
@@ -11553,6 +11623,11 @@
   {
    "sd_uv": 130.0,
    "accuracy": 0.5333,
+   "held_out": {
+    "accuracy": 0.5333,
+    "n_correct": 16,
+    "n_windows": 30
+   },
    "threshold": 382.3895,
    "alpha_power_eyes_closed": [
     898.2886,
@@ -11592,6 +11667,11 @@
   {
    "sd_uv": 140.0,
    "accuracy": 0.5667,
+   "held_out": {
+    "accuracy": 0.5667,
+    "n_correct": 17,
+    "n_windows": 30
+   },
    "threshold": 435.9431,
    "alpha_power_eyes_closed": [
     988.1494,
@@ -11631,6 +11711,11 @@
   {
    "sd_uv": 150.0,
    "accuracy": 0.5667,
+   "held_out": {
+    "accuracy": 0.5667,
+    "n_correct": 17,
+    "n_windows": 30
+   },
    "threshold": 493.4237,
    "alpha_power_eyes_closed": [
     1083.6234,
@@ -12676,6 +12761,11 @@
   {
    "sd_uv": 160.0,
    "accuracy": 0.5333,
+   "held_out": {
+    "accuracy": 0.5333,
+    "n_correct": 16,
+    "n_windows": 30
+   },
    "threshold": 554.8312,
    "alpha_power_eyes_closed": [
     1184.7104,
@@ -12715,6 +12805,11 @@
   {
    "sd_uv": 170.0,
    "accuracy": 0.5333,
+   "held_out": {
+    "accuracy": 0.5333,
+    "n_correct": 16,
+    "n_windows": 30
+   },
    "threshold": 620.1656,
    "alpha_power_eyes_closed": [
     1291.4104,
@@ -12754,6 +12849,11 @@
   {
    "sd_uv": 180.0,
    "accuracy": 0.5333,
+   "held_out": {
+    "accuracy": 0.5333,
+    "n_correct": 16,
+    "n_windows": 30
+   },
    "threshold": 689.427,
    "alpha_power_eyes_closed": [
     1403.7236,
@@ -12793,6 +12893,11 @@
   {
    "sd_uv": 190.0,
    "accuracy": 0.5333,
+   "held_out": {
+    "accuracy": 0.5333,
+    "n_correct": 16,
+    "n_windows": 30
+   },
    "threshold": 762.6153,
    "alpha_power_eyes_closed": [
     1521.6498,
@@ -12832,6 +12937,11 @@
   {
    "sd_uv": 200.0,
    "accuracy": 0.5333,
+   "held_out": {
+    "accuracy": 0.5333,
+    "n_correct": 16,
+    "n_windows": 30
+   },
    "threshold": 839.7305,
    "alpha_power_eyes_closed": [
     1645.1891,
@@ -13877,6 +13987,11 @@
   {
    "sd_uv": 210.0,
    "accuracy": 0.5333,
+   "held_out": {
+    "accuracy": 0.5333,
+    "n_correct": 16,
+    "n_windows": 30
+   },
    "threshold": 920.7726,
    "alpha_power_eyes_closed": [
     1774.3414,
@@ -13916,6 +14031,11 @@
   {
    "sd_uv": 220.0,
    "accuracy": 0.5333,
+   "held_out": {
+    "accuracy": 0.5333,
+    "n_correct": 16,
+    "n_windows": 30
+   },
    "threshold": 1005.7417,
    "alpha_power_eyes_closed": [
     1909.1069,
@@ -13955,6 +14075,11 @@
   {
    "sd_uv": 230.0,
    "accuracy": 0.5333,
+   "held_out": {
+    "accuracy": 0.5333,
+    "n_correct": 16,
+    "n_windows": 30
+   },
    "threshold": 1094.6377,
    "alpha_power_eyes_closed": [
     2049.4854,
@@ -13994,6 +14119,11 @@
   {
    "sd_uv": 240.0,
    "accuracy": 0.5333,
+   "held_out": {
+    "accuracy": 0.5,
+    "n_correct": 15,
+    "n_windows": 30
+   },
    "threshold": 1187.4607,
    "alpha_power_eyes_closed": [
     2195.4769,
@@ -14033,6 +14163,11 @@
   {
    "sd_uv": 250.0,
    "accuracy": 0.5,
+   "held_out": {
+    "accuracy": 0.5,
+    "n_correct": 15,
+    "n_windows": 30
+   },
    "threshold": 1284.2106,
    "alpha_power_eyes_closed": [
     2347.0816,
@@ -15078,6 +15213,11 @@
   {
    "sd_uv": 260.0,
    "accuracy": 0.5,
+   "held_out": {
+    "accuracy": 0.5,
+    "n_correct": 15,
+    "n_windows": 30
+   },
    "threshold": 1384.8874,
    "alpha_power_eyes_closed": [
     2504.2993,
@@ -15117,6 +15257,11 @@
   {
    "sd_uv": 270.0,
    "accuracy": 0.5,
+   "held_out": {
+    "accuracy": 0.5,
+    "n_correct": 15,
+    "n_windows": 30
+   },
    "threshold": 1489.4911,
    "alpha_power_eyes_closed": [
     2667.1301,
@@ -15156,6 +15301,11 @@
   {
    "sd_uv": 280.0,
    "accuracy": 0.5,
+   "held_out": {
+    "accuracy": 0.5,
+    "n_correct": 15,
+    "n_windows": 30
+   },
    "threshold": 1598.0218,
    "alpha_power_eyes_closed": [
     2835.5739,
@@ -15195,6 +15345,11 @@
   {
    "sd_uv": 290.0,
    "accuracy": 0.5,
+   "held_out": {
+    "accuracy": 0.5,
+    "n_correct": 15,
+    "n_windows": 30
+   },
    "threshold": 1710.4793,
    "alpha_power_eyes_closed": [
     3009.6308,
@@ -15234,6 +15389,11 @@
   {
    "sd_uv": 300.0,
    "accuracy": 0.5,
+   "held_out": {
+    "accuracy": 0.5,
+    "n_correct": 15,
+    "n_windows": 30
+   },
    "threshold": 1826.8639,
    "alpha_power_eyes_closed": [
     3189.3009,
@@ -16286,6 +16446,11 @@
    "factor": 1,
    "effective_rate_hz": 500.0,
    "accuracy": 0.9,
+   "held_out": {
+    "accuracy": 0.9,
+    "n_correct": 27,
+    "n_windows": 30
+   },
    "threshold": 43.5428,
    "alpha_power_eyes_closed": [
     240.887,
@@ -17332,6 +17497,11 @@
    "factor": 2,
    "effective_rate_hz": 250.0,
    "accuracy": 0.9,
+   "held_out": {
+    "accuracy": 0.9,
+    "n_correct": 27,
+    "n_windows": 30
+   },
    "threshold": 43.7086,
    "alpha_power_eyes_closed": [
     241.775,
@@ -18378,6 +18548,11 @@
    "factor": 5,
    "effective_rate_hz": 100.0,
    "accuracy": 0.9,
+   "held_out": {
+    "accuracy": 0.9,
+    "n_correct": 27,
+    "n_windows": 30
+   },
    "threshold": 43.5952,
    "alpha_power_eyes_closed": [
     241.1934,
@@ -18824,6 +18999,11 @@
    "factor": 10,
    "effective_rate_hz": 50.0,
    "accuracy": 0.9,
+   "held_out": {
+    "accuracy": 0.9,
+    "n_correct": 27,
+    "n_windows": 30
+   },
    "threshold": 43.6972,
    "alpha_power_eyes_closed": [
     241.7808,
@@ -19070,6 +19250,11 @@
    "factor": 20,
    "effective_rate_hz": 25.0,
    "accuracy": 0.9,
+   "held_out": {
+    "accuracy": 0.9,
+    "n_correct": 27,
+    "n_windows": 30
+   },
    "threshold": 40.8432,
    "alpha_power_eyes_closed": [
     235.2676,
