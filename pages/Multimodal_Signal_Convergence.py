@@ -46,12 +46,14 @@ import streamlit.components.v1 as components
 
 from modules.signal_pipeline.core import intervention as intervention_core
 from modules.signal_pipeline.core import modality as modality_core
+from modules.signal_pipeline.core import neuroanatomy as neuroanatomy_core
 from modules.signal_pipeline.core import pipeline as pipeline_core
 from modules.signal_pipeline.core import tradeoff as tradeoff_core
 from shared.data_handling import disclosure_for, render_data_handling_summary
 from shared.journey_stages import StageTracker
 from shared.stage_workspace import Stage, StageWorkspace
 from shared.report import caveat, flagged_item_note, section_header
+from shared import neuroanatomy_figure
 
 SAMPLE_DIR = ROOT / "modules" / "signal_pipeline" / "sample_data"
 
@@ -467,6 +469,12 @@ def _load_modalities() -> tuple[modality_core.Modality, ...]:
     )
 
 
+ANATOMY = neuroanatomy_core.atlas()
+ANATOMY_REFERENCES: dict[str, str] = {
+    r.key: f"{r.text} {r.url}".strip() for r in ANATOMY.references
+}
+
+
 def _reference_registry(
     modalities: tuple[modality_core.Modality, ...],
 ) -> tuple[str, ...]:
@@ -479,7 +487,18 @@ def _reference_registry(
             if reference not in ordered:
                 ordered.append(reference)
 
+    # The neuroanatomy figure's references, formatted the way this page
+    # writes citations, so a work cited both ways is listed once.
+    for reference in ANATOMY_REFERENCES.values():
+        if reference not in ordered:
+            ordered.append(reference)
+
     return tuple(ordered)
+
+
+def _anatomy_ref(*keys: str) -> str:
+    """Reference markers for neuroanatomy citation keys."""
+    return _ref(*(ANATOMY_REFERENCES[key] for key in keys))
 
 
 REFERENCES: tuple[str, ...] = _reference_registry(_load_modalities())
@@ -501,6 +520,118 @@ def _ref(*citations: str) -> str:
     }
 
     return "[" + ", ".join(str(number) for number in sorted(numbers)) + "]"
+
+
+def _render_neuroanatomy_explorer() -> None:
+    """Where each sensor gets a signal, and what kind of signal it is."""
+    with st.container(border=True):
+        st.markdown("**Where Each Sensor Gets a Signal**")
+        st.write(
+            "The EEG in this journey is picked up over the occipital lobe at the back of "
+            "the head, carried by networks that link cortex and thalamus. Choose a sensor "
+            "to compare where it gets a signal (shading) and what kind of signal that is "
+            "(colour). Only EEG measures electrical activity directly."
+        )
+        by_name = {m.short_name: m for m in ANATOMY.modalities}
+        chosen_name = st.segmented_control(
+            "Sensor",
+            options=list(by_name),
+            default=next(m.short_name for m in ANATOMY.modalities if m.in_journey),
+            key="mmsc_anatomy_modality",
+        ) or next(m.short_name for m in ANATOMY.modalities if m.in_journey)
+        chosen = by_name[chosen_name]
+
+        systems = {s.name: s for s in ANATOMY.systems}
+        system_name = st.selectbox(
+            "Region to inspect",
+            options=list(systems),
+            index=[s.key for s in ANATOMY.systems].index("occipital"),
+            key="mmsc_anatomy_system",
+        )
+        system = systems[system_name]
+
+        components.html(
+            neuroanatomy_figure.side_view_svg(chosen.key, selected_system=system.key)
+            + neuroanatomy_figure.legend_html(chosen.key),
+            height=440,
+        )
+
+        cover = chosen.coverage_for(system.key)
+        st.markdown(
+            f"**{system.name}**: {neuroanatomy_figure.LEVEL_TEXT[cover.level].lower()} "
+            f"for {chosen.short_name}."
+        )
+        st.write(f"{system.location}. {system.role} {_anatomy_ref(*system.refs)}")
+        if cover.note:
+            st.caption(cover.note)
+
+        st.markdown(
+            f"- **Setup:** {chosen.configuration}\n"
+            f"- **Measures:** {chosen.measures}\n"
+            f"- **Link to neurons:** {chosen.neural_link}\n"
+            f"- **Timing:** {chosen.timing}\n"
+            f"- **Also captures:** {chosen.also_captures} {chosen.privacy_note} "
+            f"{_anatomy_ref(*chosen.refs)}"
+        )
+
+        with st.expander("Every region, for every sensor"):
+            st.dataframe(
+                pd.DataFrame(
+                    [
+                        {
+                            "Region": s.name,
+                            **{
+                                m.short_name: neuroanatomy_figure.LEVEL_TEXT[m.coverage_for(s.key).level]
+                                for m in ANATOMY.modalities
+                            },
+                        }
+                        for s in ANATOMY.systems
+                    ]
+                    + [
+                        {
+                            "Region": "Signal type",
+                            **{
+                                m.short_name: neuroanatomy_figure.MEASURE_LABEL[m.measurement]
+                                for m in ANATOMY.modalities
+                            },
+                        }
+                    ]
+                ),
+                hide_index=True,
+                width="stretch",
+            )
+
+        caveat(f"{ANATOMY.caveat} {_anatomy_ref(*ANATOMY.caveat_refs)}")
+
+
+def _render_electrode_map() -> None:
+    """The 10-20 map, with any electrode label read out."""
+    with st.container(border=True):
+        st.markdown("**Where the Sensor Sits**")
+        site = ANATOMY.recording_electrode
+        st.write(
+            "Electrode positions follow the 10-20 system, which places each electrode at 10 "
+            "or 20 percent of the distance across the head. Each label tells you the region "
+            "and the side. This map uses the modern names T7, T8, P7, and P8 for the classic "
+            f"T3, T4, T5, and T6. {_anatomy_ref(*site.refs)}"
+        )
+        labels = [e.label for e in ANATOMY.electrodes]
+        label = st.selectbox(
+            "Electrode to read",
+            options=labels,
+            index=labels.index(site.label),
+            key="mmsc_anatomy_electrode",
+        )
+        chosen = neuroanatomy_core.electrode_site(label)
+        map_col, side_col = st.columns(2)
+        with map_col:
+            components.html(neuroanatomy_figure.electrode_map_svg(chosen.label), height=310)
+        with side_col:
+            components.html(neuroanatomy_figure.side_view_svg("eeg", electrode_only=True), height=310)
+        region = neuroanatomy_core.system(chosen.system).name.lower()
+        note = " This stage's recording comes from here." if chosen.label == site.label else ""
+        st.write(f"**{chosen.label}.** {chosen.naming_note} It sits over the {region}.{note}")
+        caveat(f"{ANATOMY.electrode_caveat} {_anatomy_ref(*ANATOMY.electrode_caveat_refs)}")
 
 
 def _pipeline_pictograph_html(pipeline: pipeline_core.SignalPipeline) -> str:
@@ -1393,6 +1524,8 @@ if stage == STAGE_BUILD_PIPELINE:
         f"{_ref(baseline.citation)}"
     )
 
+    _render_neuroanatomy_explorer()
+
     st.caption(f"How {baseline.name}'s signal travels through the pipeline:")
     components.html(
         _pipeline_timeline_html(),
@@ -1904,6 +2037,8 @@ if stage == STAGE_REAL_SIGNAL:
         "measured, not author-assigned."
         + _ref(SANCHEZ_GAMA_ET_AL_CITATION)
     )
+    _render_electrode_map()
+
     st.write(
         "Occipital alpha power (8-13 Hz) rises when the eyes close and "
         "falls when they open, a long-established EEG finding: this is "
