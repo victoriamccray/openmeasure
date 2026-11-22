@@ -12335,9 +12335,9 @@
    },
    {
     "key": "sensorimotor",
-    "name": "Sensorimotor cortex",
+    "name": "Primary motor and sensory cortex",
     "location": "A strip over the top of the brain, on both sides of the central sulcus",
-    "role": "Sends movement commands and receives touch and body position. Motor imagery brain computer interfaces read this strip.",
+    "role": "The primary motor cortex, in front of the sulcus, sends movement commands. The primary sensory cortex, behind it, receives touch and body position. Planning a movement also draws on wider frontal and parietal areas. Motor imagery brain computer interfaces read rhythms over this strip.",
     "depth": "surface",
     "refs": [
      "kandel"
@@ -12367,18 +12367,20 @@
     "key": "occipital",
     "name": "Occipital lobe (visual cortex)",
     "location": "Back of the brain",
-    "role": "Processes vision. The alpha rhythm in this recording is strongest here, and it grows when the eyes close.",
+    "role": "Processes vision. In relaxed, awake adults, scalp alpha is usually strongest over occipital and parietal sites with the eyes closed. Its generators are distributed across cortical and thalamocortical networks, so no single patch of cortex produces it.",
     "depth": "surface",
     "refs": [
      "kandel",
-     "barry"
+     "barry",
+     "halgren",
+     "lopes_da_silva"
     ]
    },
    {
     "key": "thalamus",
     "name": "Thalamus",
     "location": "Center of the brain, above the brainstem",
-    "role": "Relays sensory signals to the cortex and helps pace cortical rhythms such as alpha.",
+    "role": "Relays sensory signals to the cortex and takes part in the thalamocortical loops that shape rhythms such as alpha.",
     "depth": "deep",
     "refs": [
      "kandel",
@@ -12432,57 +12434,58 @@
     "key": "eeg",
     "name": "Scalp electroencephalography",
     "short_name": "EEG",
-    "placement": "Electrodes on the scalp",
-    "measures": "Voltage from many cortical neurons firing in step, summed at the scalp.",
-    "reads": "activity",
+    "configuration": "A whole-head cap of scalp electrodes. This journey uses one of its channels, O1.",
+    "measurement": "electrical",
+    "measures": "Voltage differences between each electrode and a reference.",
+    "neural_link": "Direct electrical measure: mostly summed postsynaptic currents of cortical pyramidal neurons firing in step.",
     "timing": "Milliseconds. Fast enough to follow each cycle of the 8 to 13 Hz alpha rhythm.",
-    "reach": [
+    "coverage": [
      {
       "modality": "eeg",
       "system": "frontal",
-      "level": "direct",
-      "note": ""
+      "level": "covered",
+      "note": "Electrodes over this lobe pick up its activity, blended with nearby sources by volume conduction."
      },
      {
       "modality": "eeg",
       "system": "sensorimotor",
-      "level": "direct",
-      "note": ""
+      "level": "covered",
+      "note": "Electrodes over this lobe pick up its activity, blended with nearby sources by volume conduction."
      },
      {
       "modality": "eeg",
       "system": "parietal",
-      "level": "direct",
-      "note": ""
+      "level": "covered",
+      "note": "Electrodes over this lobe pick up its activity, blended with nearby sources by volume conduction."
      },
      {
       "modality": "eeg",
       "system": "temporal",
-      "level": "direct",
-      "note": ""
+      "level": "covered",
+      "note": "Electrodes over this lobe pick up its activity, blended with nearby sources by volume conduction."
      },
      {
       "modality": "eeg",
       "system": "occipital",
-      "level": "direct",
-      "note": ""
+      "level": "covered",
+      "note": "Electrodes over this lobe pick up its activity, blended with nearby sources by volume conduction."
      },
      {
       "modality": "eeg",
       "system": "thalamus",
-      "level": "limited",
-      "note": "Seen mostly through the cortical rhythms it helps pace."
+      "level": "partial",
+      "note": "Seen mostly through the cortical rhythms it helps shape."
      },
      {
       "modality": "eeg",
       "system": "hippocampus_amygdala",
-      "level": "limited",
+      "level": "partial",
       "note": "Detectable with many electrodes and source modeling, and weak at any single electrode."
      },
      {
       "modality": "eeg",
       "system": "cerebellum",
-      "level": "limited",
+      "level": "partial",
       "note": "Far from most scalp electrodes."
      },
      {
@@ -12498,8 +12501,8 @@
       "note": ""
      }
     ],
-    "also_captures": "Patterns distinctive enough to identify a person from the signal itself.",
-    "privacy_note": "A recording made for one task also carries information about attention, drowsiness, and health.",
+    "also_captures": "Research studies have identified people from their EEG. How reliably depends on recording conditions and methods.",
+    "privacy_note": "A recording made for one task may also carry information about attention, drowsiness, or health. How well these can be inferred depends on signal quality, protocol, population, and validation.",
     "refs": [
      "buzsaki",
      "seeber",
@@ -12511,40 +12514,41 @@
     "key": "fnirs",
     "name": "Functional near-infrared spectroscopy",
     "short_name": "fNIRS",
-    "placement": "Light sources and detectors on the scalp, often over the forehead",
-    "measures": "Changes in blood oxygen in the outer cortex, from how much near-infrared light returns to the detector.",
-    "reads": "activity",
+    "configuration": "A forehead array of light sources and detectors, a common wearable layout. Optodes placed elsewhere on the head cover the cortex beneath them instead.",
+    "measurement": "hemodynamic",
+    "measures": "Changes in oxygenated and deoxygenated hemoglobin, from how much near-infrared light returns to each detector.",
+    "neural_link": "Indirect: blood oxygen changes that follow neural activity, mixed with scalp blood flow and changes across the whole body.",
     "timing": "Seconds. Blood flow follows neural activity with a delay.",
-    "reach": [
+    "coverage": [
      {
       "modality": "fnirs",
       "system": "frontal",
-      "level": "direct",
-      "note": "Outer cortex under the optodes. Many systems cover only the forehead."
+      "level": "covered",
+      "note": "Outer cortex beneath the forehead optodes. Blood oxygen changes that follow neural activity, measured here."
      },
      {
       "modality": "fnirs",
       "system": "sensorimotor",
-      "level": "direct",
-      "note": "Outer cortex under the optodes. Many systems cover only the forehead."
+      "level": "none",
+      "note": "Reachable with optodes placed over it. This forehead array leaves it uncovered."
      },
      {
       "modality": "fnirs",
       "system": "parietal",
-      "level": "direct",
-      "note": "Outer cortex under the optodes. Many systems cover only the forehead."
+      "level": "none",
+      "note": "Reachable with optodes placed over it. This forehead array leaves it uncovered."
      },
      {
       "modality": "fnirs",
       "system": "temporal",
-      "level": "direct",
-      "note": "Outer cortex under the optodes. Many systems cover only the forehead."
+      "level": "none",
+      "note": "Reachable with optodes placed over it. This forehead array leaves it uncovered."
      },
      {
       "modality": "fnirs",
       "system": "occipital",
-      "level": "direct",
-      "note": "Outer cortex under the optodes. Many systems cover only the forehead."
+      "level": "none",
+      "note": "Reachable with optodes placed over it. This forehead array leaves it uncovered."
      },
      {
       "modality": "fnirs",
@@ -12577,10 +12581,11 @@
       "note": ""
      }
     ],
-    "also_captures": "Heartbeat and breathing, which ride on the blood oxygen signal.",
+    "also_captures": "Heartbeat, breathing, and scalp blood flow, which ride on the hemoglobin signal.",
     "privacy_note": "Wearable and portable, so it can record outside the lab during everyday tasks.",
     "refs": [
-     "pinti"
+     "pinti",
+     "yucel"
     ],
     "in_journey": false
    },
@@ -12588,64 +12593,65 @@
     "key": "fmri",
     "name": "Functional magnetic resonance imaging",
     "short_name": "fMRI",
-    "placement": "Inside an MRI scanner",
-    "measures": "Changes in blood oxygen across the whole brain, called the BOLD signal.",
-    "reads": "activity",
+    "configuration": "A whole-head MRI scanner.",
+    "measurement": "hemodynamic",
+    "measures": "The blood oxygen level dependent (BOLD) signal across the whole brain.",
+    "neural_link": "Indirect: blood oxygen changes that follow neural activity.",
     "timing": "Seconds. The blood oxygen response peaks several seconds after neural activity.",
-    "reach": [
+    "coverage": [
      {
       "modality": "fmri",
       "system": "frontal",
-      "level": "direct",
-      "note": ""
+      "level": "covered",
+      "note": "Blood oxygen changes that follow neural activity, measured here."
      },
      {
       "modality": "fmri",
       "system": "sensorimotor",
-      "level": "direct",
-      "note": ""
+      "level": "covered",
+      "note": "Blood oxygen changes that follow neural activity, measured here."
      },
      {
       "modality": "fmri",
       "system": "parietal",
-      "level": "direct",
-      "note": ""
+      "level": "covered",
+      "note": "Blood oxygen changes that follow neural activity, measured here."
      },
      {
       "modality": "fmri",
       "system": "temporal",
-      "level": "direct",
-      "note": ""
+      "level": "covered",
+      "note": "Blood oxygen changes that follow neural activity, measured here."
      },
      {
       "modality": "fmri",
       "system": "occipital",
-      "level": "direct",
-      "note": ""
+      "level": "covered",
+      "note": "Blood oxygen changes that follow neural activity, measured here."
      },
      {
       "modality": "fmri",
       "system": "thalamus",
-      "level": "direct",
-      "note": ""
+      "level": "covered",
+      "note": "Blood oxygen changes that follow neural activity, measured here."
      },
      {
       "modality": "fmri",
       "system": "hippocampus_amygdala",
-      "level": "direct",
-      "note": ""
+      "level": "covered",
+      "note": "Blood oxygen changes that follow neural activity, measured here."
      },
      {
       "modality": "fmri",
       "system": "cerebellum",
-      "level": "direct",
-      "note": ""
+      "level": "covered",
+      "note": "Blood oxygen changes that follow neural activity, measured here."
      },
      {
       "modality": "fmri",
       "system": "brainstem",
-      "level": "direct",
-      "note": ""
+      "level": "covered",
+      "note": "Blood oxygen changes that follow neural activity, measured here."
      },
      {
       "modality": "fmri",
@@ -12666,64 +12672,65 @@
     "key": "smri",
     "name": "Structural magnetic resonance imaging",
     "short_name": "Structural MRI",
-    "placement": "Inside an MRI scanner",
+    "configuration": "A whole-head MRI scanner.",
+    "measurement": "anatomy",
     "measures": "Shape and tissue of the brain and the whole head.",
-    "reads": "structure",
-    "timing": "One snapshot of anatomy. It records structure only, with no activity over time.",
-    "reach": [
+    "neural_link": "Anatomy only. It images every region and records no moment to moment activity.",
+    "timing": "One snapshot of anatomy.",
+    "coverage": [
      {
       "modality": "smri",
       "system": "frontal",
-      "level": "direct",
-      "note": ""
+      "level": "covered",
+      "note": "Imaged as anatomy."
      },
      {
       "modality": "smri",
       "system": "sensorimotor",
-      "level": "direct",
-      "note": ""
+      "level": "covered",
+      "note": "Imaged as anatomy."
      },
      {
       "modality": "smri",
       "system": "parietal",
-      "level": "direct",
-      "note": ""
+      "level": "covered",
+      "note": "Imaged as anatomy."
      },
      {
       "modality": "smri",
       "system": "temporal",
-      "level": "direct",
-      "note": ""
+      "level": "covered",
+      "note": "Imaged as anatomy."
      },
      {
       "modality": "smri",
       "system": "occipital",
-      "level": "direct",
-      "note": ""
+      "level": "covered",
+      "note": "Imaged as anatomy."
      },
      {
       "modality": "smri",
       "system": "thalamus",
-      "level": "direct",
-      "note": ""
+      "level": "covered",
+      "note": "Imaged as anatomy."
      },
      {
       "modality": "smri",
       "system": "hippocampus_amygdala",
-      "level": "direct",
-      "note": ""
+      "level": "covered",
+      "note": "Imaged as anatomy."
      },
      {
       "modality": "smri",
       "system": "cerebellum",
-      "level": "direct",
-      "note": ""
+      "level": "covered",
+      "note": "Imaged as anatomy."
      },
      {
       "modality": "smri",
       "system": "brainstem",
-      "level": "direct",
-      "note": ""
+      "level": "covered",
+      "note": "Imaged as anatomy."
      },
      {
       "modality": "smri",
@@ -12732,10 +12739,11 @@
       "note": ""
      }
     ],
-    "also_captures": "The face. Face recognition software matched MRI face reconstructions to photographs for 70 of 84 research participants.",
-    "privacy_note": "Removing the face from the image before sharing, called defacing, is the common safeguard.",
+    "also_captures": "The face. Face recognition software matched MRI face reconstructions to photographs for 70 of 84 research participants (83%) as the top match, and for 80 of 84 (95%) within the top five.",
+    "privacy_note": "Removing the face before sharing, called defacing, lowers this risk. Later work found that some participants could still be matched after popular defacing tools.",
     "refs": [
-     "schwarz"
+     "schwarz",
+     "schwarz_2021"
     ],
     "in_journey": false
    },
@@ -12743,11 +12751,12 @@
     "key": "peripheral",
     "name": "Peripheral body sensors (skin conductance and heart rate)",
     "short_name": "Body sensors",
-    "placement": "Sensors on the skin, wrist, or chest",
+    "configuration": "Sensors on the skin, wrist, or chest.",
+    "measurement": "peripheral",
     "measures": "Sweat gland activity and the timing of each heartbeat.",
-    "reads": "body response",
+    "neural_link": "No brain region is measured. These signals reflect the autonomic nervous system's effects on skin and heart.",
     "timing": "Seconds for skin conductance. Every beat for heart rate.",
-    "reach": [
+    "coverage": [
      {
       "modality": "peripheral",
       "system": "frontal",
@@ -12799,17 +12808,17 @@
      {
       "modality": "peripheral",
       "system": "brainstem",
-      "level": "limited",
-      "note": "Read through the body responses it controls."
+      "level": "none",
+      "note": "Body responses carry traces of brainstem control. Reading those traces is inference from another signal."
      },
      {
       "modality": "peripheral",
       "system": "autonomic",
-      "level": "direct",
-      "note": ""
+      "level": "covered",
+      "note": "Measured through its effects on skin and heart."
      }
     ],
-    "also_captures": "Arousal and stress responses during everyday life.",
+    "also_captures": "Signs of autonomic arousal. Exercise, temperature, medication, and illness change these signals too, so neither one measures stress by itself.",
     "privacy_note": "Common in consumer wearables, so these signals are often collected far outside research settings.",
     "refs": [
      "critchley"
@@ -12825,6 +12834,7 @@
    "naming_note": "O stands for occipital, and 1 is odd, so the left hemisphere.",
    "refs": [
     "jasper",
+    "acharya",
     "koessler"
    ]
   },
@@ -12837,6 +12847,7 @@
     "naming_note": "Fp stands for frontal pole, and 1 is odd, so the left hemisphere.",
     "refs": [
      "jasper",
+     "acharya",
      "koessler"
     ]
    },
@@ -12848,6 +12859,7 @@
     "naming_note": "Fp stands for frontal pole, and z means the midline.",
     "refs": [
      "jasper",
+     "acharya",
      "koessler"
     ]
    },
@@ -12859,6 +12871,7 @@
     "naming_note": "Fp stands for frontal pole, and 2 is even, so the right hemisphere.",
     "refs": [
      "jasper",
+     "acharya",
      "koessler"
     ]
    },
@@ -12870,6 +12883,7 @@
     "naming_note": "F stands for frontal, and 7 is odd, so the left hemisphere.",
     "refs": [
      "jasper",
+     "acharya",
      "koessler"
     ]
    },
@@ -12881,6 +12895,7 @@
     "naming_note": "F stands for frontal, and 3 is odd, so the left hemisphere.",
     "refs": [
      "jasper",
+     "acharya",
      "koessler"
     ]
    },
@@ -12892,6 +12907,7 @@
     "naming_note": "F stands for frontal, and z means the midline.",
     "refs": [
      "jasper",
+     "acharya",
      "koessler"
     ]
    },
@@ -12903,6 +12919,7 @@
     "naming_note": "F stands for frontal, and 4 is even, so the right hemisphere.",
     "refs": [
      "jasper",
+     "acharya",
      "koessler"
     ]
    },
@@ -12914,6 +12931,7 @@
     "naming_note": "F stands for frontal, and 8 is even, so the right hemisphere.",
     "refs": [
      "jasper",
+     "acharya",
      "koessler"
     ]
    },
@@ -12922,9 +12940,10 @@
     "region": "temporal",
     "system": "temporal",
     "hemisphere": "left",
-    "naming_note": "T stands for temporal, and 3 is odd, so the left hemisphere.",
+    "naming_note": "T stands for temporal, and 3 is odd, so the left hemisphere. Newer charts call this position T7.",
     "refs": [
      "jasper",
+     "acharya",
      "koessler"
     ]
    },
@@ -12933,9 +12952,10 @@
     "region": "temporal",
     "system": "temporal",
     "hemisphere": "left",
-    "naming_note": "T stands for temporal, and 7 is odd, so the left hemisphere.",
+    "naming_note": "T stands for temporal, and 7 is odd, so the left hemisphere. Classic 10-20 charts call this position T3.",
     "refs": [
      "jasper",
+     "acharya",
      "koessler"
     ]
    },
@@ -12947,6 +12967,7 @@
     "naming_note": "C stands for central, and 3 is odd, so the left hemisphere.",
     "refs": [
      "jasper",
+     "acharya",
      "koessler"
     ]
    },
@@ -12958,6 +12979,7 @@
     "naming_note": "C stands for central, and z means the midline.",
     "refs": [
      "jasper",
+     "acharya",
      "koessler"
     ]
    },
@@ -12969,6 +12991,7 @@
     "naming_note": "C stands for central, and 4 is even, so the right hemisphere.",
     "refs": [
      "jasper",
+     "acharya",
      "koessler"
     ]
    },
@@ -12977,9 +13000,10 @@
     "region": "temporal",
     "system": "temporal",
     "hemisphere": "right",
-    "naming_note": "T stands for temporal, and 4 is even, so the right hemisphere.",
+    "naming_note": "T stands for temporal, and 4 is even, so the right hemisphere. Newer charts call this position T8.",
     "refs": [
      "jasper",
+     "acharya",
      "koessler"
     ]
    },
@@ -12988,31 +13012,34 @@
     "region": "temporal",
     "system": "temporal",
     "hemisphere": "right",
-    "naming_note": "T stands for temporal, and 8 is even, so the right hemisphere.",
+    "naming_note": "T stands for temporal, and 8 is even, so the right hemisphere. Classic 10-20 charts call this position T4.",
     "refs": [
      "jasper",
+     "acharya",
      "koessler"
     ]
    },
    {
     "label": "T5",
-    "region": "temporal",
+    "region": "posterior temporal",
     "system": "temporal",
     "hemisphere": "left",
-    "naming_note": "T stands for temporal, and 5 is odd, so the left hemisphere.",
+    "naming_note": "T stands for temporal, and 5 is odd, so the left hemisphere. This position sits where the temporal and parietal lobes meet. Newer charts call this position P7.",
     "refs": [
      "jasper",
+     "acharya",
      "koessler"
     ]
    },
    {
     "label": "P7",
-    "region": "parietal",
-    "system": "parietal",
+    "region": "posterior temporal",
+    "system": "temporal",
     "hemisphere": "left",
-    "naming_note": "P stands for parietal, and 7 is odd, so the left hemisphere.",
+    "naming_note": "P stands for parietal, and 7 is odd, so the left hemisphere. This position sits where the temporal and parietal lobes meet. Classic 10-20 charts call this position T5.",
     "refs": [
      "jasper",
+     "acharya",
      "koessler"
     ]
    },
@@ -13024,6 +13051,7 @@
     "naming_note": "P stands for parietal, and 3 is odd, so the left hemisphere.",
     "refs": [
      "jasper",
+     "acharya",
      "koessler"
     ]
    },
@@ -13035,6 +13063,7 @@
     "naming_note": "P stands for parietal, and z means the midline.",
     "refs": [
      "jasper",
+     "acharya",
      "koessler"
     ]
    },
@@ -13046,28 +13075,31 @@
     "naming_note": "P stands for parietal, and 4 is even, so the right hemisphere.",
     "refs": [
      "jasper",
+     "acharya",
      "koessler"
     ]
    },
    {
     "label": "T6",
-    "region": "temporal",
+    "region": "posterior temporal",
     "system": "temporal",
     "hemisphere": "right",
-    "naming_note": "T stands for temporal, and 6 is even, so the right hemisphere.",
+    "naming_note": "T stands for temporal, and 6 is even, so the right hemisphere. This position sits where the temporal and parietal lobes meet. Newer charts call this position P8.",
     "refs": [
      "jasper",
+     "acharya",
      "koessler"
     ]
    },
    {
     "label": "P8",
-    "region": "parietal",
-    "system": "parietal",
+    "region": "posterior temporal",
+    "system": "temporal",
     "hemisphere": "right",
-    "naming_note": "P stands for parietal, and 8 is even, so the right hemisphere.",
+    "naming_note": "P stands for parietal, and 8 is even, so the right hemisphere. This position sits where the temporal and parietal lobes meet. Classic 10-20 charts call this position T6.",
     "refs": [
      "jasper",
+     "acharya",
      "koessler"
     ]
    },
@@ -13079,6 +13111,7 @@
     "naming_note": "O stands for occipital, and 1 is odd, so the left hemisphere.",
     "refs": [
      "jasper",
+     "acharya",
      "koessler"
     ]
    },
@@ -13090,6 +13123,7 @@
     "naming_note": "O stands for occipital, and z means the midline.",
     "refs": [
      "jasper",
+     "acharya",
      "koessler"
     ]
    },
@@ -13101,15 +13135,21 @@
     "naming_note": "O stands for occipital, and 2 is even, so the right hemisphere.",
     "refs": [
      "jasper",
+     "acharya",
      "koessler"
     ]
    }
   ],
-  "caveat": "Reach levels are teaching simplifications drawn from the cited reviews. Real coverage depends on how many sensors there are, where they sit, and how the data are analyzed.",
+  "electrode_caveat": "An electrode records the voltage difference between its site and a reference. Currents spread through tissue (volume conduction), so each electrode picks up a blend of sources, with nearby cortex contributing most. The glow around O1 is schematic.",
+  "electrode_caveat_refs": [
+   "buzsaki"
+  ],
+  "caveat": "Schematic drawing: region shapes and boundaries are approximate. Coverage levels are teaching simplifications for the configuration described, drawn from the cited reviews. Real coverage depends on how many sensors there are, where they sit, signal quality, and how the data are analyzed. Shading shows where a signal comes from, and its color shows what kind of signal it is.",
   "caveat_refs": [
    "buzsaki",
    "seeber",
-   "pinti"
+   "pinti",
+   "yucel"
   ],
   "references": [
    {
@@ -13121,6 +13161,11 @@
     "key": "barry",
     "text": "Barry, R. J., Clarke, A. R., Johnstone, S. J., Magee, C. A., & Rushby, J. A. (2007). EEG differences between eyes-closed and eyes-open resting conditions. Clinical Neurophysiology, 118(12), 2765-2773.",
     "url": "https://doi.org/10.1016/j.clinph.2007.07.028"
+   },
+   {
+    "key": "halgren",
+    "text": "Halgren, M., Ulbert, I., Bastuji, H., Fab\u00f3, D., Er\u0151ss, L., Rey, M., Devinsky, O., Doyle, W. K., Mak-McCully, R., Halgren, E., Wittner, L., Chauvel, P., Heit, G., Eskandar, E., Mandell, A., & Cash, S. S. (2019). The generation and propagation of the human alpha rhythm. Proceedings of the National Academy of Sciences, 116(47), 23772-23782.",
+    "url": "https://doi.org/10.1073/pnas.1913092116"
    },
    {
     "key": "lopes_da_silva",
@@ -13153,6 +13198,11 @@
     "url": "https://doi.org/10.1111/nyas.13948"
    },
    {
+    "key": "yucel",
+    "text": "Y\u00fccel, M. A., L\u00fchmann, A. v., Scholkmann, F., Gervain, J., Dan, I., Ayaz, H., Boas, D., Cooper, R. J., Culver, J., Elwell, C. E., Eggebrecht, A., Franceschini, M. A., Grova, C., Homae, F., Lesage, F., Obrig, H., Tachtsidis, I., Tak, S., Tong, Y., Torricelli, A., Wabnitz, H., & Wolf, M. (2021). Best practices for fNIRS publications. Neurophotonics, 8(1), 012101.",
+    "url": "https://doi.org/10.1117/1.NPh.8.1.012101"
+   },
+   {
     "key": "logothetis",
     "text": "Logothetis, N. K. (2008). What we can do and what we cannot do with fMRI. Nature, 453(7197), 869-878.",
     "url": "https://doi.org/10.1038/nature06976"
@@ -13163,9 +13213,19 @@
     "url": "https://doi.org/10.1056/NEJMc1908881"
    },
    {
+    "key": "schwarz_2021",
+    "text": "Schwarz, C. G., Kremers, W. K., Wiste, H. J., Gunter, J. L., Vemuri, P., Spychalla, A. J., Kantarci, K., Schultz, A. P., Sperling, R. A., Knopman, D. S., Petersen, R. C., & Jack, C. R., Jr. (2021). Changing the face of neuroimaging research: Comparing a new MRI de-facing technique with popular alternatives. NeuroImage, 231, 117845.",
+    "url": "https://doi.org/10.1016/j.neuroimage.2021.117845"
+   },
+   {
     "key": "jasper",
     "text": "Jasper, H. H. (1958). The ten-twenty electrode system of the International Federation. Electroencephalography and Clinical Neurophysiology, 10(2), 371-375.",
     "url": "https://doi.org/10.1016/0013-4694(58)90053-1"
+   },
+   {
+    "key": "acharya",
+    "text": "Acharya, J. N., Hani, A. J., Cheek, J., Thirumala, P., & Tsuchida, T. N. (2016). American Clinical Neurophysiology Society Guideline 2: Guidelines for standard electrode position nomenclature. Journal of Clinical Neurophysiology, 33(4), 308-311.",
+    "url": "https://doi.org/10.1097/WNP.0000000000000316"
    },
    {
     "key": "koessler",

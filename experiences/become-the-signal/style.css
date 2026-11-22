@@ -501,8 +501,8 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .system-card { border-left: 3px solid var(--accent); padding: 0.1rem 0 0.1rem 0.6rem; margin: 0 0 0.7rem; font-size: 0.88rem; }
 .system-card p { margin: 0.25rem 0 0; }
 .lvl { font-size: 0.72rem; border-radius: 999px; padding: 0.05rem 0.5rem; border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
-.lvl.direct { border-color: var(--accent); color: var(--accent); }
-.lvl.limited { border-style: dashed; border-color: var(--accent); color: var(--text); }
+
+
 .modality-facts { margin: 0 0 0.6rem; font-size: 0.85rem; display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.6rem; }
 .modality-facts dt { color: var(--muted); }
 .modality-facts dd { margin: 0; }
@@ -512,3 +512,8 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .sys-row { width: 100%; display: flex; justify-content: space-between; gap: 0.5rem; align-items: center; background: none; border: 1px solid transparent; border-radius: 8px; padding: 0.25rem 0.4rem; text-align: left; font-size: 0.82rem; }
 .sys-row.selected { border-color: var(--accent); }
 .table-wrap { overflow-x: auto; }
+.legend .hatch { background: repeating-linear-gradient(45deg, var(--m, var(--accent)) 0 2px, transparent 2px 5px); }
+.measure-tag { font-size: 0.82rem; color: var(--muted); margin: -0.2rem 0 0.6rem; }
+.measure-tag i { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 50%; background: var(--m); margin-right: 0.35rem; vertical-align: -1px; }
+.lvl.covered { border-color: var(--accent); color: var(--accent); }
+.lvl.partial { border-style: dashed; border-color: var(--accent); color: var(--text); }

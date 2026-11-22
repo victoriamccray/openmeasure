@@ -1,15 +1,25 @@
 """
-Neuroanatomy for teaching: which brain systems each sensing modality reads.
+Neuroanatomy for teaching: where each sensing modality gets a signal, and
+what kind of signal it is.
 
 The Become the Signal experience follows one scalp EEG recording. This
-module places that recording in the brain: which system the alpha rhythm
-comes from, which electrode picked it up, and which systems other
-sensing modalities (fNIRS, fMRI, structural MRI, peripheral body
-sensors) reach in comparison.
+module places that recording in the brain: which electrode picked it up,
+which systems contribute to the rhythm it carries, and how other sensing
+modalities (fNIRS, fMRI, structural MRI, peripheral body sensors) compare.
 
-Reach levels are teaching simplifications drawn from the cited reviews.
-Real coverage depends on sensor count, placement, and analysis, and the
-atlas carries that caveat so every presentation layer can show it.
+Two questions stay separate, because answering one says nothing about
+the other:
+
+    coverage     Can this sensor, in the configuration described, obtain
+                 a signal associated with this region?
+    measurement  What does that signal physically measure: electrical
+                 potentials, blood oxygenation, tissue anatomy, or a body
+                 response? Only the first is neural electrical activity.
+
+Coverage levels are teaching simplifications drawn from the cited
+reviews, for the stated sensor configuration. Real coverage depends on
+sensor count, placement, signal quality, and analysis, and the atlas
+carries that caveat so every presentation layer can show it.
 
 Every claim carries citation keys into REFERENCES. Prose follows the
 experience's style rule (shared/tests/test_become_the_signal.py): no
@@ -21,15 +31,16 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-REACH_DIRECT = "direct"
-REACH_LIMITED = "limited"
-REACH_NONE = "none"
-REACH_LEVELS = (REACH_DIRECT, REACH_LIMITED, REACH_NONE)
+COVERED = "covered"
+PARTIAL = "partial"
+OUT_OF_RANGE = "none"
+COVERAGE_LEVELS = (COVERED, PARTIAL, OUT_OF_RANGE)
 
-READS_ACTIVITY = "activity"
-READS_STRUCTURE = "structure"
-READS_BODY_RESPONSE = "body response"
-READS = (READS_ACTIVITY, READS_STRUCTURE, READS_BODY_RESPONSE)
+MEASURE_ELECTRICAL = "electrical"
+MEASURE_HEMODYNAMIC = "hemodynamic"
+MEASURE_ANATOMY = "anatomy"
+MEASURE_PERIPHERAL = "peripheral"
+MEASUREMENTS = (MEASURE_ELECTRICAL, MEASURE_HEMODYNAMIC, MEASURE_ANATOMY, MEASURE_PERIPHERAL)
 
 DEPTH_SURFACE = "surface"
 DEPTH_DEEP = "deep"
@@ -83,8 +94,8 @@ class BrainSystem:
 
 
 @dataclass(frozen=True)
-class SystemReach:
-    """How well one modality reads one system."""
+class SystemCoverage:
+    """Whether one modality, as configured, gets a signal from one system."""
 
     modality: str
     system: str
@@ -92,43 +103,46 @@ class SystemReach:
     note: str = ""
 
     def __post_init__(self) -> None:
-        if self.level not in REACH_LEVELS:
+        if self.level not in COVERAGE_LEVELS:
             raise ValueError(
-                f"{self.modality}/{self.system}: level must be one of {REACH_LEVELS}; got {self.level!r}."
+                f"{self.modality}/{self.system}: level must be one of {COVERAGE_LEVELS}; got {self.level!r}."
             )
 
 
 @dataclass(frozen=True)
 class SensingModality:
-    """One way of sensing the brain or body, and the systems it reaches."""
+    """One way of sensing the brain or body, in one stated configuration."""
 
     key: str
     name: str
     short_name: str
-    placement: str
+    configuration: str
+    measurement: str
     measures: str
-    reads: str
+    neural_link: str
     timing: str
-    reach: tuple[SystemReach, ...]
+    coverage: tuple[SystemCoverage, ...]
     also_captures: str
     privacy_note: str
     refs: tuple[str, ...]
     in_journey: bool = False
 
     def __post_init__(self) -> None:
-        if self.reads not in READS:
-            raise ValueError(f"{self.key}: reads must be one of {READS}; got {self.reads!r}.")
+        if self.measurement not in MEASUREMENTS:
+            raise ValueError(
+                f"{self.key}: measurement must be one of {MEASUREMENTS}; got {self.measurement!r}."
+            )
         if not self.refs:
             raise ValueError(f"{self.key}: every modality needs at least one reference.")
-        systems = [r.system for r in self.reach]
+        systems = [c.system for c in self.coverage]
         if len(systems) != len(set(systems)):
-            raise ValueError(f"{self.key}: a system appears twice in reach.")
+            raise ValueError(f"{self.key}: a system appears twice in coverage.")
 
-    def level_for(self, system_key: str) -> SystemReach:
-        for entry in self.reach:
+    def coverage_for(self, system_key: str) -> SystemCoverage:
+        for entry in self.coverage:
             if entry.system == system_key:
                 return entry
-        raise UnknownSystemError(f"{self.key} has no reach entry for system {system_key!r}.")
+        raise UnknownSystemError(f"{self.key} has no coverage entry for system {system_key!r}.")
 
 
 @dataclass(frozen=True)
@@ -149,6 +163,8 @@ class NeuroanatomyAtlas:
     modalities: tuple[SensingModality, ...]
     recording_electrode: ElectrodeSite
     electrodes: tuple[ElectrodeSite, ...]
+    electrode_caveat: str
+    electrode_caveat_refs: tuple[str, ...]
     caveat: str
     caveat_refs: tuple[str, ...]
     references: tuple[Reference, ...]
@@ -171,6 +187,14 @@ REFERENCES: tuple[Reference, ...] = (
         "EEG differences between eyes-closed and eyes-open resting conditions. "
         "Clinical Neurophysiology, 118(12), 2765-2773.",
         "https://doi.org/10.1016/j.clinph.2007.07.028",
+    ),
+    Reference(
+        "halgren",
+        "Halgren, M., Ulbert, I., Bastuji, H., Fabó, D., Erőss, L., Rey, M., Devinsky, O., Doyle, W. K., "
+        "Mak-McCully, R., Halgren, E., Wittner, L., Chauvel, P., Heit, G., Eskandar, E., Mandell, A., & "
+        "Cash, S. S. (2019). The generation and propagation of the human alpha rhythm. Proceedings of "
+        "the National Academy of Sciences, 116(47), 23772-23782.",
+        "https://doi.org/10.1073/pnas.1913092116",
     ),
     Reference(
         "lopes_da_silva",
@@ -212,6 +236,14 @@ REFERENCES: tuple[Reference, ...] = (
         "https://doi.org/10.1111/nyas.13948",
     ),
     Reference(
+        "yucel",
+        "Yücel, M. A., Lühmann, A. v., Scholkmann, F., Gervain, J., Dan, I., Ayaz, H., Boas, D., "
+        "Cooper, R. J., Culver, J., Elwell, C. E., Eggebrecht, A., Franceschini, M. A., Grova, C., "
+        "Homae, F., Lesage, F., Obrig, H., Tachtsidis, I., Tak, S., Tong, Y., Torricelli, A., Wabnitz, H., "
+        "& Wolf, M. (2021). Best practices for fNIRS publications. Neurophotonics, 8(1), 012101.",
+        "https://doi.org/10.1117/1.NPh.8.1.012101",
+    ),
+    Reference(
         "logothetis",
         "Logothetis, N. K. (2008). What we can do and what we cannot do with fMRI. "
         "Nature, 453(7197), 869-878.",
@@ -226,10 +258,25 @@ REFERENCES: tuple[Reference, ...] = (
         "https://doi.org/10.1056/NEJMc1908881",
     ),
     Reference(
+        "schwarz_2021",
+        "Schwarz, C. G., Kremers, W. K., Wiste, H. J., Gunter, J. L., Vemuri, P., Spychalla, A. J., "
+        "Kantarci, K., Schultz, A. P., Sperling, R. A., Knopman, D. S., Petersen, R. C., & Jack, C. R., Jr. "
+        "(2021). Changing the face of neuroimaging research: Comparing a new MRI de-facing technique "
+        "with popular alternatives. NeuroImage, 231, 117845.",
+        "https://doi.org/10.1016/j.neuroimage.2021.117845",
+    ),
+    Reference(
         "jasper",
         "Jasper, H. H. (1958). The ten-twenty electrode system of the International Federation. "
         "Electroencephalography and Clinical Neurophysiology, 10(2), 371-375.",
         "https://doi.org/10.1016/0013-4694(58)90053-1",
+    ),
+    Reference(
+        "acharya",
+        "Acharya, J. N., Hani, A. J., Cheek, J., Thirumala, P., & Tsuchida, T. N. (2016). American "
+        "Clinical Neurophysiology Society Guideline 2: Guidelines for standard electrode position "
+        "nomenclature. Journal of Clinical Neurophysiology, 33(4), 308-311.",
+        "https://doi.org/10.1097/WNP.0000000000000316",
     ),
     Reference(
         "koessler",
@@ -251,10 +298,12 @@ SYSTEMS: tuple[BrainSystem, ...] = (
         DEPTH_SURFACE, ("kandel",),
     ),
     BrainSystem(
-        "sensorimotor", "Sensorimotor cortex",
+        "sensorimotor", "Primary motor and sensory cortex",
         "A strip over the top of the brain, on both sides of the central sulcus",
-        "Sends movement commands and receives touch and body position. Motor imagery "
-        "brain computer interfaces read this strip.",
+        "The primary motor cortex, in front of the sulcus, sends movement commands. The primary "
+        "sensory cortex, behind it, receives touch and body position. Planning a movement also "
+        "draws on wider frontal and parietal areas. Motor imagery brain computer interfaces read "
+        "rhythms over this strip.",
         DEPTH_SURFACE, ("kandel",),
     ),
     BrainSystem(
@@ -269,13 +318,15 @@ SYSTEMS: tuple[BrainSystem, ...] = (
     ),
     BrainSystem(
         "occipital", "Occipital lobe (visual cortex)", "Back of the brain",
-        "Processes vision. The alpha rhythm in this recording is strongest here, and it grows "
-        "when the eyes close.",
-        DEPTH_SURFACE, ("kandel", "barry"),
+        "Processes vision. In relaxed, awake adults, scalp alpha is usually strongest over "
+        "occipital and parietal sites with the eyes closed. Its generators are distributed across "
+        "cortical and thalamocortical networks, so no single patch of cortex produces it.",
+        DEPTH_SURFACE, ("kandel", "barry", "halgren", "lopes_da_silva"),
     ),
     BrainSystem(
         "thalamus", "Thalamus", "Center of the brain, above the brainstem",
-        "Relays sensory signals to the cortex and helps pace cortical rhythms such as alpha.",
+        "Relays sensory signals to the cortex and takes part in the thalamocortical loops that "
+        "shape rhythms such as alpha.",
         DEPTH_DEEP, ("kandel", "lopes_da_silva"),
     ),
     BrainSystem(
@@ -305,36 +356,46 @@ CORTICAL = ("frontal", "sensorimotor", "parietal", "temporal", "occipital")
 BRAIN = CORTICAL + ("thalamus", "hippocampus_amygdala", "cerebellum", "brainstem")
 
 
-def _reach(modality: str, levels: dict[str, str], notes: dict[str, str] | None = None) -> tuple[SystemReach, ...]:
+def _coverage(modality: str, levels: dict[str, str], notes: dict[str, str] | None = None) -> tuple[SystemCoverage, ...]:
     notes = notes or {}
     return tuple(
-        SystemReach(modality, s.key, levels.get(s.key, REACH_NONE), notes.get(s.key, ""))
+        SystemCoverage(modality, s.key, levels.get(s.key, OUT_OF_RANGE), notes.get(s.key, ""))
         for s in SYSTEMS
     )
 
+
+_EEG_CORTEX_NOTE = (
+    "Electrodes over this lobe pick up its activity, blended with nearby sources by volume conduction."
+)
+_HEMODYNAMIC_NOTE = "Blood oxygen changes that follow neural activity, measured here."
 
 MODALITIES: tuple[SensingModality, ...] = (
     SensingModality(
         key="eeg",
         name="Scalp electroencephalography",
         short_name="EEG",
-        placement="Electrodes on the scalp",
-        measures="Voltage from many cortical neurons firing in step, summed at the scalp.",
-        reads=READS_ACTIVITY,
+        configuration="A whole-head cap of scalp electrodes. This journey uses one of its channels, O1.",
+        measurement=MEASURE_ELECTRICAL,
+        measures="Voltage differences between each electrode and a reference.",
+        neural_link="Direct electrical measure: mostly summed postsynaptic currents of cortical "
+        "pyramidal neurons firing in step.",
         timing="Milliseconds. Fast enough to follow each cycle of the 8 to 13 Hz alpha rhythm.",
-        reach=_reach(
+        coverage=_coverage(
             "eeg",
-            {**{k: REACH_DIRECT for k in CORTICAL},
-             "thalamus": REACH_LIMITED, "hippocampus_amygdala": REACH_LIMITED, "cerebellum": REACH_LIMITED},
+            {**{k: COVERED for k in CORTICAL},
+             "thalamus": PARTIAL, "hippocampus_amygdala": PARTIAL, "cerebellum": PARTIAL},
             {
-                "thalamus": "Seen mostly through the cortical rhythms it helps pace.",
+                **{k: _EEG_CORTEX_NOTE for k in CORTICAL},
+                "thalamus": "Seen mostly through the cortical rhythms it helps shape.",
                 "hippocampus_amygdala": "Detectable with many electrodes and source modeling, and weak at any single electrode.",
                 "cerebellum": "Far from most scalp electrodes.",
             },
         ),
-        also_captures="Patterns distinctive enough to identify a person from the signal itself.",
-        privacy_note="A recording made for one task also carries information about attention, "
-        "drowsiness, and health.",
+        also_captures="Research studies have identified people from their EEG. How reliably "
+        "depends on recording conditions and methods.",
+        privacy_note="A recording made for one task may also carry information about attention, "
+        "drowsiness, or health. How well these can be inferred depends on signal quality, "
+        "protocol, population, and validation.",
         refs=("buzsaki", "seeber", "bagley"),
         in_journey=True,
     ),
@@ -342,29 +403,37 @@ MODALITIES: tuple[SensingModality, ...] = (
         key="fnirs",
         name="Functional near-infrared spectroscopy",
         short_name="fNIRS",
-        placement="Light sources and detectors on the scalp, often over the forehead",
-        measures="Changes in blood oxygen in the outer cortex, from how much near-infrared light "
-        "returns to the detector.",
-        reads=READS_ACTIVITY,
+        configuration="A forehead array of light sources and detectors, a common wearable layout. "
+        "Optodes placed elsewhere on the head cover the cortex beneath them instead.",
+        measurement=MEASURE_HEMODYNAMIC,
+        measures="Changes in oxygenated and deoxygenated hemoglobin, from how much near-infrared "
+        "light returns to each detector.",
+        neural_link="Indirect: blood oxygen changes that follow neural activity, mixed with scalp "
+        "blood flow and changes across the whole body.",
         timing="Seconds. Blood flow follows neural activity with a delay.",
-        reach=_reach(
+        coverage=_coverage(
             "fnirs",
-            {k: REACH_DIRECT for k in CORTICAL},
-            {k: "Outer cortex under the optodes. Many systems cover only the forehead." for k in CORTICAL},
+            {"frontal": COVERED},
+            {
+                "frontal": "Outer cortex beneath the forehead optodes. " + _HEMODYNAMIC_NOTE,
+                **{k: "Reachable with optodes placed over it. This forehead array leaves it uncovered."
+                   for k in ("sensorimotor", "parietal", "temporal", "occipital")},
+            },
         ),
-        also_captures="Heartbeat and breathing, which ride on the blood oxygen signal.",
+        also_captures="Heartbeat, breathing, and scalp blood flow, which ride on the hemoglobin signal.",
         privacy_note="Wearable and portable, so it can record outside the lab during everyday tasks.",
-        refs=("pinti",),
+        refs=("pinti", "yucel"),
     ),
     SensingModality(
         key="fmri",
         name="Functional magnetic resonance imaging",
         short_name="fMRI",
-        placement="Inside an MRI scanner",
-        measures="Changes in blood oxygen across the whole brain, called the BOLD signal.",
-        reads=READS_ACTIVITY,
+        configuration="A whole-head MRI scanner.",
+        measurement=MEASURE_HEMODYNAMIC,
+        measures="The blood oxygen level dependent (BOLD) signal across the whole brain.",
+        neural_link="Indirect: blood oxygen changes that follow neural activity.",
         timing="Seconds. The blood oxygen response peaks several seconds after neural activity.",
-        reach=_reach("fmri", {k: REACH_DIRECT for k in BRAIN}),
+        coverage=_coverage("fmri", {k: COVERED for k in BRAIN}, {k: _HEMODYNAMIC_NOTE for k in BRAIN}),
         also_captures="A structural image of the head is usually acquired in the same session, "
         "and it includes the face.",
         privacy_note="Sharing the structural image alongside the functional data shares the face too.",
@@ -374,31 +443,42 @@ MODALITIES: tuple[SensingModality, ...] = (
         key="smri",
         name="Structural magnetic resonance imaging",
         short_name="Structural MRI",
-        placement="Inside an MRI scanner",
+        configuration="A whole-head MRI scanner.",
+        measurement=MEASURE_ANATOMY,
         measures="Shape and tissue of the brain and the whole head.",
-        reads=READS_STRUCTURE,
-        timing="One snapshot of anatomy. It records structure only, with no activity over time.",
-        reach=_reach("smri", {k: REACH_DIRECT for k in BRAIN}),
+        neural_link="Anatomy only. It images every region and records no moment to moment activity.",
+        timing="One snapshot of anatomy.",
+        coverage=_coverage(
+            "smri", {k: COVERED for k in BRAIN}, {k: "Imaged as anatomy." for k in BRAIN}
+        ),
         also_captures="The face. Face recognition software matched MRI face reconstructions to "
-        "photographs for 70 of 84 research participants.",
-        privacy_note="Removing the face from the image before sharing, called defacing, is the "
-        "common safeguard.",
-        refs=("schwarz",),
+        "photographs for 70 of 84 research participants (83%) as the top match, and for 80 of 84 "
+        "(95%) within the top five.",
+        privacy_note="Removing the face before sharing, called defacing, lowers this risk. Later "
+        "work found that some participants could still be matched after popular defacing tools.",
+        refs=("schwarz", "schwarz_2021"),
     ),
     SensingModality(
         key="peripheral",
         name="Peripheral body sensors (skin conductance and heart rate)",
         short_name="Body sensors",
-        placement="Sensors on the skin, wrist, or chest",
+        configuration="Sensors on the skin, wrist, or chest.",
+        measurement=MEASURE_PERIPHERAL,
         measures="Sweat gland activity and the timing of each heartbeat.",
-        reads=READS_BODY_RESPONSE,
+        neural_link="No brain region is measured. These signals reflect the autonomic nervous "
+        "system's effects on skin and heart.",
         timing="Seconds for skin conductance. Every beat for heart rate.",
-        reach=_reach(
+        coverage=_coverage(
             "peripheral",
-            {"autonomic": REACH_DIRECT, "brainstem": REACH_LIMITED},
-            {"brainstem": "Read through the body responses it controls."},
+            {"autonomic": COVERED},
+            {
+                "autonomic": "Measured through its effects on skin and heart.",
+                "brainstem": "Body responses carry traces of brainstem control. Reading those "
+                "traces is inference from another signal.",
+            },
         ),
-        also_captures="Arousal and stress responses during everyday life.",
+        also_captures="Signs of autonomic arousal. Exercise, temperature, medication, and illness "
+        "change these signals too, so neither one measures stress by itself.",
         privacy_note="Common in consumer wearables, so these signals are often collected far "
         "outside research settings.",
         refs=("critchley",),
@@ -406,21 +486,37 @@ MODALITIES: tuple[SensingModality, ...] = (
 )
 
 CAVEAT = (
-    "Reach levels are teaching simplifications drawn from the cited reviews. Real coverage "
-    "depends on how many sensors there are, where they sit, and how the data are analyzed."
+    "Schematic drawing: region shapes and boundaries are approximate. Coverage levels are "
+    "teaching simplifications for the configuration described, drawn from the cited reviews. "
+    "Real coverage depends on how many sensors there are, where they sit, signal quality, and "
+    "how the data are analyzed. Shading shows where a signal comes from, and its color shows what "
+    "kind of signal it is."
 )
-CAVEAT_REFS = ("buzsaki", "seeber", "pinti")
+CAVEAT_REFS = ("buzsaki", "seeber", "pinti", "yucel")
+
+ELECTRODE_CAVEAT = (
+    "An electrode records the voltage difference between its site and a reference. Currents "
+    "spread through tissue (volume conduction), so each electrode picks up a blend of sources, "
+    "with nearby cortex contributing most. The glow around O1 is schematic."
+)
+ELECTRODE_CAVEAT_REFS = ("buzsaki",)
 
 # ------------------------------------------------------------------
 # The 10-20 electrode system
 # ------------------------------------------------------------------
 
-# Jasper (1958), with the later names T7, T8, P7, P8 for T3, T4, T5, T6.
+# Jasper (1958), with the later names T7, T8, P7, P8 for T3, T4, T5, T6
+# (Acharya et al., 2016).
 STANDARD_10_20 = (
     "Fp1", "Fpz", "Fp2", "F7", "F3", "Fz", "F4", "F8",
     "T3", "T7", "C3", "Cz", "C4", "T4", "T8",
     "T5", "P7", "P3", "Pz", "P4", "T6", "P8", "O1", "Oz", "O2",
 )
+
+CLASSIC_TO_MODERN = {"T3": "T7", "T4": "T8", "T5": "P7", "T6": "P8"}
+MODERN_TO_CLASSIC = {v: k for k, v in CLASSIC_TO_MODERN.items()}
+# The two lower names sit at the junction of temporal and parietal cortex.
+POSTERIOR_TEMPORAL = ("T5", "T6", "P7", "P8")
 
 _PREFIX = {
     "Fp": ("frontal pole", "frontal"),
@@ -440,8 +536,10 @@ def electrode_site(label: str) -> ElectrodeSite:
     The letters name the region (Fp frontal pole, F frontal, C central,
     T temporal, P parietal, O occipital). Odd numbers are over the left
     hemisphere, even numbers over the right, and z over the midline
-    (Jasper, 1958). Koessler et al. (2009) confirm the regions by
-    projecting electrode positions onto each person's cortex.
+    (Jasper, 1958). Four positions have two names: the classic T3, T4,
+    T5, T6 and the modern T7, T8, P7, P8 (Acharya et al., 2016).
+    Koessler et al. (2009) confirm the regions by projecting electrode
+    positions onto each person's cortex.
     """
     if not isinstance(label, str) or not label.strip():
         raise UnknownElectrodeError("An electrode label is required, for example O1.")
@@ -454,7 +552,7 @@ def electrode_site(label: str) -> ElectrodeSite:
         )
 
     prefix, suffix = _LABEL.match(normalized).groups()
-    region, system = _PREFIX[prefix]
+    region, system_key = _PREFIX[prefix]
     if suffix == "z":
         hemisphere = HEMISPHERE_MIDLINE
         side = "z means the midline"
@@ -466,7 +564,15 @@ def electrode_site(label: str) -> ElectrodeSite:
         side = f"{suffix} is even, so the right hemisphere"
 
     note = f"{prefix} stands for {region}, and {side}."
-    return ElectrodeSite(normalized, region, system, hemisphere, note, ("jasper", "koessler"))
+    if normalized in POSTERIOR_TEMPORAL:
+        region, system_key = "posterior temporal", "temporal"
+        note += " This position sits where the temporal and parietal lobes meet."
+    if normalized in CLASSIC_TO_MODERN:
+        note += f" Newer charts call this position {CLASSIC_TO_MODERN[normalized]}."
+    elif normalized in MODERN_TO_CLASSIC:
+        note += f" Classic 10-20 charts call this position {MODERN_TO_CLASSIC[normalized]}."
+
+    return ElectrodeSite(normalized, region, system_key, hemisphere, note, ("jasper", "acharya", "koessler"))
 
 
 # ------------------------------------------------------------------
@@ -490,10 +596,10 @@ def modality(key: str) -> SensingModality:
     raise UnknownModalityError(f"No modality {key!r}. Known: {', '.join(m.key for m in MODALITIES)}.")
 
 
-def reach(modality_key: str, system_key: str) -> SystemReach:
-    """How well one modality reads one system."""
+def coverage(modality_key: str, system_key: str) -> SystemCoverage:
+    """Whether one modality, as configured, gets a signal from one system."""
     system(system_key)
-    return modality(modality_key).level_for(system_key)
+    return modality(modality_key).coverage_for(system_key)
 
 
 def atlas() -> NeuroanatomyAtlas:
@@ -503,6 +609,7 @@ def atlas() -> NeuroanatomyAtlas:
         *(k for s in SYSTEMS for k in s.refs),
         *(k for m in MODALITIES for k in m.refs),
         *electrode_site(RECORDING_ELECTRODE).refs,
+        *ELECTRODE_CAVEAT_REFS,
         *CAVEAT_REFS,
     ):
         if key not in used:
@@ -517,6 +624,8 @@ def atlas() -> NeuroanatomyAtlas:
         modalities=MODALITIES,
         recording_electrode=electrode_site(RECORDING_ELECTRODE),
         electrodes=tuple(electrode_site(label) for label in STANDARD_10_20),
+        electrode_caveat=ELECTRODE_CAVEAT,
+        electrode_caveat_refs=ELECTRODE_CAVEAT_REFS,
         caveat=CAVEAT,
         caveat_refs=CAVEAT_REFS,
         references=tuple(by_key[k] for k in used),
