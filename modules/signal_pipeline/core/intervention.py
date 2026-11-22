@@ -60,16 +60,47 @@ ILLUSTRATIVE_METADATA_FIELDS: tuple[str, ...] = (
 )
 
 
+class NonFiniteWindowError(ValueError):
+    """A window holds NaN or infinite samples, so its alpha power is undefined."""
+
+
 def compute_alpha_power(window: np.ndarray, sampling_rate: float) -> float:
     """
     Alpha-band (8-13 Hz) power of one window, via Welch's method.
 
-    Raises ValueError if sampling_rate cannot resolve the alpha band at
-    all (Nyquist frequency at or below the band's lower edge) - the same
+    With nperseg equal to the window length, Welch's method uses a single
+    segment: the estimate is one Hann-windowed periodogram, with no
+    overlap or averaging, and frequency steps of sampling_rate / n Hz
+    (1 Hz for a 1-second window). The one-sided PSD (units^2/Hz) is
+    integrated over the bins from 8 to 13 Hz with the trapezoid rule.
+
+    Band edges: the trapezoid rule gives the 8 Hz and 13 Hz bins half
+    weight, and the Hann window spreads a tone across neighbouring bins.
+    For a 1-second window, a pure tone at exactly 8 or 13 Hz counts half
+    its power, one at 7 or 14 Hz leaks in about 8%, and one at 10 Hz
+    counts in full (shared tests pin these weights).
+
+    Accepts any 1-D sequence of numbers. Raises ValueError for a window
+    that is not one-dimensional, has fewer than 2 samples, or a
+    sampling_rate that is not a positive finite number;
+    NonFiniteWindowError when any sample is NaN or infinite; and
+    ValueError if sampling_rate cannot resolve the alpha band at all
+    (Nyquist frequency at or below the band's lower edge) - the same
     condition that makes temporal degradation a cliff rather than a
     smooth cost: past this point there is no frequency content left to
     integrate, not just a noisier estimate of it.
     """
+
+    if not isinstance(sampling_rate, (int, float, np.integer, np.floating)) or not np.isfinite(sampling_rate) or sampling_rate <= 0:
+        raise ValueError(f"sampling_rate must be a positive finite number; got {sampling_rate!r}.")
+
+    try:
+        window = np.asarray(window, dtype=float)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"window must be a sequence of numbers: {error}") from error
+
+    if window.ndim != 1:
+        raise ValueError(f"window must be one-dimensional; got shape {window.shape}.")
 
     if sampling_rate / 2 <= ALPHA_BAND_HZ[0]:
         raise ValueError(
@@ -81,6 +112,10 @@ def compute_alpha_power(window: np.ndarray, sampling_rate: float) -> float:
 
     if window.size < 2:
         raise ValueError(f"window must have at least 2 samples; got {window.size}.")
+
+    if not np.all(np.isfinite(window)):
+        bad = int(np.count_nonzero(~np.isfinite(window)))
+        raise NonFiniteWindowError(f"window holds {bad} NaN or infinite sample(s) of {window.size}.")
 
     freqs, power_spectrum = welch(window, fs=sampling_rate, nperseg=window.size)
     in_band = (freqs >= ALPHA_BAND_HZ[0]) & (freqs <= ALPHA_BAND_HZ[1])
@@ -103,6 +138,10 @@ class ClassificationResult:
     threshold: float
     alpha_power_eyes_closed: tuple[float, ...]
     alpha_power_eyes_open: tuple[float, ...]
+    # Windows left out because they held NaN or infinite samples. Accuracy
+    # and the threshold use only the windows kept.
+    n_dropped_eyes_closed: int = 0
+    n_dropped_eyes_open: int = 0
 
     @property
     def n_windows_eyes_closed(self) -> int:
@@ -134,17 +173,32 @@ def classify_eyes_state(
     """
     Classify 1-second windows of each condition by alpha power, using a
     midpoint-of-class-means threshold, and report accuracy across both.
+
+    A window holding NaN or infinite samples is skipped and counted in
+    n_dropped_eyes_closed / n_dropped_eyes_open, so one bad sample costs
+    one second instead of silently mislabeling it. Raises ValueError when
+    a condition has no usable window left.
     """
 
-    closed_power = tuple(
-        compute_alpha_power(w, sampling_rate) for w in _windows(eyes_closed, sampling_rate)
-    )
-    open_power = tuple(
-        compute_alpha_power(w, sampling_rate) for w in _windows(eyes_open, sampling_rate)
-    )
+    def powers(signal: np.ndarray) -> tuple[tuple[float, ...], int]:
+        kept: list[float] = []
+        dropped = 0
+        for window in _windows(np.asarray(signal, dtype=float), sampling_rate):
+            try:
+                kept.append(compute_alpha_power(window, sampling_rate))
+            except NonFiniteWindowError:
+                dropped += 1
+        return tuple(kept), dropped
+
+    closed_power, closed_dropped = powers(eyes_closed)
+    open_power, open_dropped = powers(eyes_open)
 
     if not closed_power or not open_power:
-        raise ValueError("Each condition needs at least one full window to classify.")
+        raise ValueError(
+            "Each condition needs at least one full window without NaN or infinite samples "
+            f"to classify (eyes closed: {len(closed_power)} usable, {closed_dropped} dropped; "
+            f"eyes open: {len(open_power)} usable, {open_dropped} dropped)."
+        )
 
     threshold = (float(np.mean(closed_power)) + float(np.mean(open_power))) / 2.0
 
@@ -156,6 +210,8 @@ def classify_eyes_state(
         threshold=threshold,
         alpha_power_eyes_closed=closed_power,
         alpha_power_eyes_open=open_power,
+        n_dropped_eyes_closed=closed_dropped,
+        n_dropped_eyes_open=open_dropped,
     )
 
 
