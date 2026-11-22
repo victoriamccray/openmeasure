@@ -35,6 +35,7 @@ COVERED = "covered"
 PARTIAL = "partial"
 OUT_OF_RANGE = "none"
 COVERAGE_LEVELS = (COVERED, PARTIAL, OUT_OF_RANGE)
+_RANK = {OUT_OF_RANGE: 0, PARTIAL: 1, COVERED: 2}
 
 MEASURE_ELECTRICAL = "electrical"
 MEASURE_HEMODYNAMIC = "hemodynamic"
@@ -95,18 +96,44 @@ class BrainSystem:
 
 @dataclass(frozen=True)
 class SystemCoverage:
-    """Whether one modality, as configured, gets a signal from one system."""
+    """
+    Whether one modality gets a signal from one system, in two senses.
+
+    level is what this stated configuration covers. in_principle is what
+    the method can reach with a different placement or setup. They differ
+    for fNIRS: its light reaches outer cortex anywhere optodes are placed,
+    while the forehead array here covers only the frontal cortex. An empty
+    in_principle means the configuration already reaches all the method can.
+    """
 
     modality: str
     system: str
     level: str
     note: str = ""
+    in_principle: str = ""
 
     def __post_init__(self) -> None:
         if self.level not in COVERAGE_LEVELS:
             raise ValueError(
                 f"{self.modality}/{self.system}: level must be one of {COVERAGE_LEVELS}; got {self.level!r}."
             )
+        if not self.in_principle:
+            object.__setattr__(self, "in_principle", self.level)
+        if self.in_principle not in COVERAGE_LEVELS:
+            raise ValueError(
+                f"{self.modality}/{self.system}: in_principle must be one of {COVERAGE_LEVELS}; "
+                f"got {self.in_principle!r}."
+            )
+        if _RANK[self.in_principle] < _RANK[self.level]:
+            raise ValueError(
+                f"{self.modality}/{self.system}: a configuration cannot cover more than the method "
+                f"can reach ({self.level} configured, {self.in_principle} in principle)."
+            )
+
+    @property
+    def reachable_elsewhere(self) -> bool:
+        """True when this setup misses a system another placement would reach."""
+        return _RANK[self.in_principle] > _RANK[self.level]
 
 
 @dataclass(frozen=True)
@@ -357,16 +384,53 @@ CORTICAL = ("frontal", "sensorimotor", "parietal", "temporal", "occipital")
 BRAIN = CORTICAL + ("thalamus", "hippocampus_amygdala", "cerebellum", "brainstem")
 
 
-def _coverage(modality: str, levels: dict[str, str], notes: dict[str, str] | None = None) -> tuple[SystemCoverage, ...]:
+def _coverage(
+    modality: str,
+    levels: dict[str, str],
+    notes: dict[str, str] | None = None,
+    in_principle: dict[str, str] | None = None,
+) -> tuple[SystemCoverage, ...]:
     notes = notes or {}
+    reach = in_principle or {}
     return tuple(
-        SystemCoverage(modality, s.key, levels.get(s.key, OUT_OF_RANGE), notes.get(s.key, ""))
+        SystemCoverage(
+            modality, s.key, levels.get(s.key, OUT_OF_RANGE), notes.get(s.key, ""),
+            reach.get(s.key, levels.get(s.key, OUT_OF_RANGE)),
+        )
         for s in SYSTEMS
     )
 
 
+COVERAGE_TEXT = {
+    COVERED: "Covered by this setup",
+    PARTIAL: "Partial or weak",
+    OUT_OF_RANGE: "Out of range",
+}
+REACHABLE_TEXT = "Reachable with another setup"
+ANATOMY_TEXT = "Anatomy visible"
+
+
+def coverage_label(modality_key: str, system_key: str) -> str:
+    """
+    The plain label for one modality and system.
+
+    Structural MRI images anatomy and records no activity, so its covered
+    regions read "Anatomy visible". A region this setup misses but another
+    placement would reach reads "Reachable with another setup".
+    """
+    m = modality(modality_key)
+    entry = m.coverage_for(system_key)
+    if entry.level == COVERED and m.measurement == MEASURE_ANATOMY:
+        return ANATOMY_TEXT
+    if entry.reachable_elsewhere and entry.level == OUT_OF_RANGE:
+        return REACHABLE_TEXT
+    return COVERAGE_TEXT[entry.level]
+
+
 _EEG_CORTEX_NOTE = (
-    "Electrodes over this lobe pick up its activity, blended with nearby sources by volume conduction."
+    "Electrodes over this lobe pick up its activity, blended with other sources by volume conduction. "
+    "Orientation and depth matter as well as distance, so the lobe beneath an electrode does not "
+    "always contribute most."
 )
 _HEMODYNAMIC_NOTE = "Blood oxygen changes that follow neural activity, measured here."
 
@@ -378,8 +442,8 @@ MODALITIES: tuple[SensingModality, ...] = (
         configuration="A whole-head cap of scalp electrodes. This journey uses one of its channels, O1.",
         measurement=MEASURE_ELECTRICAL,
         measures="Voltage differences between each electrode and a reference.",
-        neural_link="Direct electrical measure: mostly summed postsynaptic currents of cortical "
-        "pyramidal neurons firing in step.",
+        neural_link="Direct electrical measure: mostly synchronized postsynaptic currents from "
+        "large populations of neurons, particularly cortical pyramidal cells.",
         timing="Milliseconds. Fast enough to follow each cycle of the 8 to 13 Hz alpha rhythm.",
         coverage=_coverage(
             "eeg",
@@ -420,6 +484,7 @@ MODALITIES: tuple[SensingModality, ...] = (
                 **{k: "Reachable with optodes placed over it. This forehead array leaves it uncovered."
                    for k in ("sensorimotor", "parietal", "temporal", "occipital")},
             },
+            in_principle={k: COVERED for k in CORTICAL},
         ),
         also_captures="Heartbeat, breathing, and scalp blood flow, which ride on the hemoglobin signal.",
         privacy_note="Wearable and portable, so it can record outside the lab during everyday tasks.",
@@ -452,9 +517,9 @@ MODALITIES: tuple[SensingModality, ...] = (
         coverage=_coverage(
             "smri", {k: COVERED for k in BRAIN}, {k: "Imaged as anatomy." for k in BRAIN}
         ),
-        also_captures="The face. Face recognition software matched MRI face reconstructions to "
-        "photographs for 70 of 84 research participants (83%) as the top match, and for 80 of 84 "
-        "(95%) within the top five.",
+        also_captures="The face. Face recognition software, choosing among the 84 participants' "
+        "MRI face reconstructions, ranked the correct one first for 70 of 84 participants' "
+        "photographs (83%) and within the top five for 80 of 84 (95%).",
         privacy_note="Removing the face before sharing, called defacing, lowers this risk. In a "
         "later study, face recognition matched 97% of 157 scans before defacing, and 28 to 38% "
         "still matched after popular defacing tools.",

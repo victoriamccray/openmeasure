@@ -269,6 +269,63 @@ REFERENCES: tuple[Reference, ...] = (
 # The study
 # ------------------------------------------------------------------
 
+@dataclass(frozen=True)
+class RecordingFact:
+    label: str
+    value: str
+    source: str  # which dataset file states it
+
+
+@dataclass(frozen=True)
+class Recording:
+    """
+    How the journey's own recording was made, as its dataset states it.
+
+    Every fact is read from OpenNeuro ds005420 (Sánchez Gama et al., 2024):
+    dataset_description.json, sub-5's EEG sidecars (*_eeg.json), channel
+    table (*_channels.tsv), scans table, and the EDF header. not_stated
+    lists what those files leave blank, so no page fills the gap with a
+    guess.
+    """
+
+    title: str
+    facts: tuple[RecordingFact, ...]
+    excerpt: str
+    not_stated: tuple[str, ...]
+    refs: tuple[str, ...]
+
+
+RECORDING = Recording(
+    title="How This Recording Was Made",
+    facts=(
+        RecordingFact("Dataset", "Resting state EEG with closed eyes and open eyes in females from 60 to "
+                      "80 years old (OpenNeuro ds005420), licensed CC0.", "dataset_description.json"),
+        RecordingFact("Participant", "One participant, sub-5. Age and sex are blank for each person; the "
+                      "dataset title gives women aged 60 to 80.", "participants.tsv"),
+        RecordingFact("Task", "Rest with no task: one recording with the eyes closed, one with the eyes "
+                      "open.", "*_eeg.json (task oc, oa)"),
+        RecordingFact("Electrodes", "19 scalp electrodes at standard 10-20 sites (Fp1 to O2), plus one "
+                      "eye channel between the outer corners of the eyes (LOC-ROC).", "*_channels.tsv"),
+        RecordingFact("Reference", "Each scalp electrode against both earlobes linked together, written "
+                      "O1-A1A2 for this channel.", "*_channels.tsv"),
+        RecordingFact("Sampling", "500 samples per second, stored in microvolts.", "*_eeg.json, EDF header"),
+        RecordingFact("Filtering at recording", "0.5 to 60 Hz, applied before the data were stored.",
+                      "*_channels.tsv, EDF header"),
+        RecordingFact("Order and length", "Eyes closed first, 189 seconds. Eyes open began about 4 minutes "
+                      "later, 184 seconds.", "sub-5_scans.tsv, *_eeg.json"),
+    ),
+    excerpt="This journey uses seconds 20 to 35 of each recording from electrode O1, unchanged: "
+    "7,500 samples per condition, matched sample for sample against the original files.",
+    not_stated=(
+        "The amplifier and cap manufacturer.",
+        "The participant's posture and the room.",
+        "The power line frequency.",
+        "This participant's exact age.",
+    ),
+    refs=("sanchez_gama",),
+)
+
+
 STUDY = Study(
     key="barry_2007",
     citation_key="barry",
@@ -330,9 +387,10 @@ MEASURES: tuple[Measure, ...] = (
         range_kind=RANGE_BY_DESIGN,
         expected="The 8 to 13 Hz alpha band is a convention. Each person's alpha peak sits "
         "somewhere inside or near it.",
-        what_shifts_it="Age and scalp position. Alpha frequency rises through childhood and slows "
-        "in older adults, and it runs faster over the back of the head. Many people show more than "
-        "one alpha peak.",
+        what_shifts_it="Age and scalp position, on average, with wide differences between people. "
+        "Peak alpha frequency tends to rise through childhood and to slow in older adults, and it "
+        "tends to be faster over the back of the head. Some people show more than one alpha peak. "
+        "These are group trends, so one person's peak can sit outside them.",
         refs=("chiang", "klimesch"),
         source=SOURCE_CONVENTION,
     ),
@@ -344,7 +402,7 @@ MEASURES: tuple[Measure, ...] = (
         "electrode.",
         how_computed="The amplifier samples it 500 times per second. Each sample is one number.",
         how_to_read="Larger swings mean more synchronized activity near that electrode. Timing "
-        "matters as much as numbers: neurons firing out of step cancel each other at the scalp. "
+        "matters as much as numbers: postsynaptic currents that are out of step cancel each other at the scalp. "
         "The sign depends on the reference.",
         range_kind=RANGE_WITHIN_PERSON,
         expected="Compare conditions within one recording. Absolute voltages change with the "
@@ -393,7 +451,8 @@ MEASURES: tuple[Measure, ...] = (
         "correctly.",
         how_computed="Each second is labeled eyes closed when its alpha power is above a "
         "threshold, set at the midpoint of the two condition means. Accuracy is correct windows "
-        "divided by all windows.",
+        "divided by all windows. It is in-sample: the threshold is set from the same windows it "
+        "labels, so it describes this recording and overstates what to expect on new data.",
         how_to_read="With equal numbers of each condition, guessing gets 50% on average. A small "
         "sample can beat 50% by luck, so the bar to clear depends on how many windows there are.",
         range_kind=RANGE_CALCULATED,
@@ -457,8 +516,9 @@ DICHOTOMIES: tuple[Dichotomy, ...] = (
         "fMRI", AXIS_STATE,
         "Resting-state scans, where slow fluctuations below 0.1 Hz rise and fall together in "
         "connected regions.",
-        "Task scans, where goal-directed work engages task regions and quiets the default mode "
-        "network.",
+        "Task scans, where goal-directed work engages task regions and often quiets the default "
+        "mode network. Some tasks, such as remembering the past or imagining the future, engage it "
+        "instead.",
         ("biswal", "raichle"),
     ),
     Dichotomy(
@@ -529,7 +589,8 @@ def explain_threshold(result: Reactivity) -> ThresholdExplanation:
         f"The threshold is the midpoint of the two condition means in this recording: "
         f"({result.mean_closed:.1f} + {result.mean_open:.1f}) / 2 = {result.midpoint:.1f} µV². "
         "It fits this recording only, and another person or device would need its own. It was "
-        "set from the same windows it labels, so accuracy on new data would likely be lower."
+        "set from the same windows it labels, so the accuracy is in-sample, and accuracy on a "
+        "new session or person would likely be lower."
     )
     return ThresholdExplanation(result.midpoint, text)
 

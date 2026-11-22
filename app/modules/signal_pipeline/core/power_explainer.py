@@ -13,10 +13,18 @@ puzzle to the measurement the journey uses:
                                 changes only the 8 to 13 Hz part.
     3. window_spectrum()        One recorded second's spectrum. The area
                                 from 8 to 13 Hz is that second's alpha
-                                power. The whole area equals the window's
-                                mean square after the Hann taper (Parseval),
-                                which matches the plain mean square on
-                                average for a steady signal.
+                                power. By Parseval's theorem the whole area
+                                equals sum(x^2 w^2) / sum(w^2): a mean square
+                                in which each squared sample is weighted by
+                                the squared Hann taper, with the weights
+                                normalized by the taper's energy sum(w^2) so
+                                they average to one. It is not the tapered
+                                signal's mean square, sum((x w)^2) / N, which
+                                is about 3/8 as large for a Hann taper; the
+                                division by sum(w^2) in the density scaling
+                                undoes that loss. For a signal whose strength
+                                is steady across the window, the weighted and
+                                plain mean squares agree on average.
 
 Every spectrum here uses the settings intervention.compute_alpha_power
 uses (one Hann-windowed segment per window, density scaling, mean
@@ -70,7 +78,7 @@ class Spectrum:
     density: tuple[float, ...]
     alpha_power: float
     total_power: float
-    tapered_mean_square: float
+    window_weighted_mean_square: float
     mean_square: float
 
 
@@ -135,10 +143,13 @@ def window_spectrum(window, sampling_rate: float = SAMPLING_RATE_HZ) -> Spectrum
     alpha_power: the 8 to 13 Hz area by the trapezoid rule, exactly as
         compute_alpha_power computes it.
     total_power: the sum of every bin times the bin width. By Parseval's
-        theorem this equals tapered_mean_square exactly.
-    tapered_mean_square: the mean-removed window's mean square with each
-        sample weighted by the Hann taper, sum((x w)^2) / sum(w^2). The
-        taper weighs the middle of the window more than its edges.
+        theorem this equals window_weighted_mean_square exactly.
+    window_weighted_mean_square: sum(x^2 w^2) / sum(w^2) for the
+        mean-removed window x and Hann taper w. Each squared sample is
+        weighted by w^2, and dividing by the taper's energy sum(w^2) makes
+        the weights average to one. This differs from the mean square of
+        the tapered signal, sum((x w)^2) / N, which for a Hann taper is
+        about 3/8 of it (sum(w^2) = 3N/8 exactly for the periodic Hann).
     mean_square: the plain mean square of the mean-removed window. For a
         steady signal it matches total_power on average; for one second
         of real EEG, whose strength changes within the second, the two
@@ -154,7 +165,7 @@ def window_spectrum(window, sampling_rate: float = SAMPLING_RATE_HZ) -> Spectrum
         density=tuple(float(d) for d in density),
         alpha_power=float(_trapezoid(density[band], freqs[band])),
         total_power=float(np.sum(density) * (freqs[1] - freqs[0])),
-        tapered_mean_square=float(np.sum((centered * taper) ** 2) / np.sum(taper**2)),
+        window_weighted_mean_square=float(np.sum((centered * taper) ** 2) / np.sum(taper**2)),
         mean_square=float(np.mean(centered**2)),
     )
 
@@ -226,10 +237,105 @@ STEPS: tuple[Step, ...] = (
         title="Why add up the area from 8 to 13 Hz?",
         question="How does a spectrum become one number for one second of recording?",
         explanation="Each point of the spectrum is power per hertz. Adding up the area between 8 and "
-        "13 Hz gives the power that belongs to the alpha band, in µV². The whole area equals the "
-        "window's mean square after the Hann taper, which weighs the middle of the second more "
-        "than its edges. For a steady signal that matches the plain mean square on average. Real "
-        "EEG changes within a second, so here the two can differ.",
-        takeaway="Alpha power is the alpha band's share of the window's mean square.",
+        "13 Hz gives the power that belongs to the alpha band, in µV². The whole area is a "
+        "weighted mean square of the second: each squared sample counts in proportion to the "
+        "squared Hann taper, so the middle of the second counts more than its edges, and the "
+        "result is divided by the taper's total energy so the weights average to one. Skip that "
+        "division and the area would shrink to about 3/8, the mean square of the tapered signal. "
+        "For a signal whose strength is steady across the second, the weighted and plain mean "
+        "squares agree on average. Real EEG changes within a second, so here they can differ.",
+        takeaway="Alpha power is the alpha band's share of the window's taper-weighted mean square.",
     ),
 )
+
+
+# ------------------------------------------------------------------
+# Welch's method, one operation at a time, for the step-through view
+# ------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class WelchSteps:
+    """Each intermediate result between one window and its alpha power."""
+
+    times: tuple[float, ...]
+    centered: tuple[float, ...]
+    taper: tuple[float, ...]
+    tapered: tuple[float, ...]
+    freqs_hz: tuple[float, ...]
+    fft_magnitude: tuple[float, ...]
+    density: tuple[float, ...]
+    in_band: tuple[bool, ...]
+    alpha_power: float
+
+
+def welch_steps(window, sampling_rate: float = SAMPLING_RATE_HZ) -> WelchSteps:
+    """
+    The operations compute_alpha_power performs, exposed in order:
+
+    1. remove the mean; 2. multiply by a periodic Hann taper; 3. take the
+    FFT magnitude; 4. square and scale it to a one-sided power spectral
+    density, |X|^2 / (fs * sum(w^2)), doubled except at 0 Hz and Nyquist;
+    5. integrate the 8 to 13 Hz bins with the trapezoid rule.
+    The density and alpha power equal window_spectrum's, which the tests
+    check.
+    """
+    x = _validated(window, sampling_rate)
+    centered = x - x.mean()
+    taper = np.hanning(x.size + 1)[:-1]
+    tapered = centered * taper
+    spectrum = np.fft.rfft(tapered)
+    freqs = np.fft.rfftfreq(x.size, 1 / sampling_rate)
+    density = np.abs(spectrum) ** 2 / (sampling_rate * np.sum(taper**2))
+    if x.size % 2 == 0:
+        density[1:-1] *= 2
+    else:
+        density[1:] *= 2
+    band = (freqs >= ALPHA_BAND_HZ[0]) & (freqs <= ALPHA_BAND_HZ[1])
+    return WelchSteps(
+        times=tuple(float(v) for v in np.arange(x.size) / sampling_rate),
+        centered=tuple(float(v) for v in centered),
+        taper=tuple(float(v) for v in taper),
+        tapered=tuple(float(v) for v in tapered),
+        freqs_hz=tuple(float(f) for f in freqs),
+        fft_magnitude=tuple(float(v) for v in np.abs(spectrum)),
+        density=tuple(float(d) for d in density),
+        in_band=tuple(bool(b) for b in band),
+        alpha_power=float(_trapezoid(density[band], freqs[band])),
+    )
+
+
+WELCH_STEPS: tuple[Step, ...] = (
+    Step("record", "One recorded second", "Start with one second of the recording, its mean removed.",
+         "500 voltage samples, centred on zero.", "The window is the raw material."),
+    Step("taper", "Taper the edges", "Multiply by a Hann window, which fades the edges to zero.",
+         "A cut-off window has sharp edges, which spread power into frequencies that are absent "
+         "from the signal. The taper softens them.", "The middle of the second now counts most."),
+    Step("fft", "Split into frequencies", "The Fourier transform finds how much of each frequency the "
+         "tapered window holds.", "One value per frequency, in steps of 1 Hz.", "Each bar is one frequency's share."),
+    Step("power", "Square to get power", "Square each magnitude, then divide by the sampling rate "
+         "times the taper's energy, the sum of w². That division makes up for the power the taper "
+         "removed, so the area under the curve is power in µV².", "Squaring is the same step as in the first lesson: it keeps "
+         "every contribution positive.", "The curve is the power spectral density, in µV² per Hz."),
+    Step("area", "Add up the alpha band", "Add the area under the curve from 8 to 13 Hz.",
+         "That area is the alpha power of this second.", "One number for one second of recording."),
+)
+
+SYMBOLS = {
+    "P_alpha": "Alpha power: the power in the 8 to 13 Hz band for one window, in µV².",
+    "S_xx": "The power spectral density: how much power the signal has at each frequency, in µV² per Hz.",
+    "f": "Frequency, in hertz (cycles per second).",
+    "band": "The limits 8 and 13 Hz: the alpha band, a convention.",
+    "df": "A small step of frequency: adding up area means summing density times this width.",
+    "x_t": "The recorded voltage at time t, in µV.",
+    "T": "The length of the window, here one second.",
+    "dt": "A small step of time: averaging means summing over it and dividing by T.",
+    "square": "Squaring: makes negative and positive halves both count as strength.",
+    "A": "The sine's amplitude: its peak voltage, in µV.",
+    "xbar": "The window's mean voltage, removed first so it does not count as power at 0 Hz.",
+    "w": "The Hann taper: 0 at the window's edges, 1 in the middle.",
+    "n": "The sample number within the window, from 0 to N minus 1.",
+    "N": "The number of samples in the window: 500 for one second at 500 Hz.",
+    "X_k": "The Fourier coefficient: how much of the k-th frequency the tapered window holds.",
+    "fs": "The sampling rate: 500 samples per second.",
+}
