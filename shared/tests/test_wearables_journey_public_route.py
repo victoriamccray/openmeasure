@@ -29,6 +29,8 @@ from pathlib import Path
 
 from streamlit.testing.v1 import AppTest
 
+from shared.tests.apptest_state import held_state
+
 ROOT = Path(__file__).resolve().parents[2]
 ENTRYPOINT = str(ROOT / "Home.py")
 PAGE = "pages/HealthRing_Worked_Example.py"
@@ -81,7 +83,7 @@ def _unloaded() -> AppTest:
 def _at(app: AppTest, stage: int) -> AppTest:
     app.session_state["hr_current"] = stage
     app.session_state["hr_furthest"] = max(
-        stage, int(app.session_state.filtered_state.get("hr_furthest", 0))
+        stage, int(held_state(app).get("hr_furthest", 0))
     )
     app.run()
 
@@ -117,7 +119,7 @@ class TestThePublicExampleLoads(unittest.TestCase):
         self.assertIn(LOAD_LABEL, labels)
 
     def test_pressing_it_loads_windows_from_the_bundled_artifact(self):
-        held = _loaded().session_state.filtered_state
+        held = held_state(_loaded())
 
         self.assertEqual(held.get("healthring_source"), "public_subset")
         self.assertIsNotNone(held.get("healthring_windows"))
@@ -187,7 +189,7 @@ class TestStatePersistsBothDirections(unittest.TestCase):
         for stage in reversed(list(STAGE_HEADINGS)):
             app = _at(app, stage)
 
-        held = app.session_state.filtered_state
+        held = held_state(app)
 
         self.assertIsNotNone(held.get("healthring_windows"))
         self.assertFalse(app.exception)
@@ -203,7 +205,7 @@ class TestStatePersistsBothDirections(unittest.TestCase):
         app.radio(key="hr_split_choice").set_value(options[-1]).run()
 
         app = _at(app, FINISH)
-        held = app.session_state.filtered_state
+        held = held_state(app)
 
         self.assertEqual(held.get("hr_kept_split_choice"), "window")
 
@@ -224,7 +226,7 @@ class TestTheControlsMoveWhatComesAfterThem(unittest.TestCase):
 
         self.assertNotEqual(before, _rendered(app))
         self.assertAlmostEqual(
-            float(app.session_state.filtered_state["hr_kept_quality_threshold"]),
+            float(held_state(app)["hr_kept_quality_threshold"]),
             0.95,
             places=3,
         )
@@ -329,7 +331,7 @@ class TestContinueActuallyAdvances(unittest.TestCase):
 
         self.assertFalse(app.exception)
         self.assertEqual(
-            int(app.session_state.filtered_state["hr_current"]), SIGNAL
+            int(held_state(app)["hr_current"]), SIGNAL
         )
         self.assertIn(
             STAGE_HEADINGS[SIGNAL],
@@ -343,7 +345,7 @@ class TestContinueActuallyAdvances(unittest.TestCase):
             with self.subTest(stage=stage):
                 self.assertFalse(app.exception)
                 self.assertEqual(
-                    int(app.session_state.filtered_state["hr_current"]),
+                    int(held_state(app)["hr_current"]),
                     stage + 1,
                 )
 

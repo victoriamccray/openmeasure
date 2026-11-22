@@ -29,6 +29,8 @@ from pathlib import Path
 
 from streamlit.testing.v1 import AppTest
 
+from shared.tests.apptest_state import held_state
+
 ROOT = Path(__file__).resolve().parents[2]
 ENTRYPOINT = str(ROOT / "Home.py")
 PAGE = "pages/Portfolio_Impact_Analysis.py"
@@ -73,7 +75,7 @@ def _open() -> AppTest:
 def _at(app: AppTest, stage: int) -> AppTest:
     app.session_state["pia_current"] = stage
     app.session_state["pia_furthest"] = max(
-        stage, int(app.session_state.filtered_state.get("pia_furthest", 0))
+        stage, int(held_state(app).get("pia_furthest", 0))
     )
     app.run()
 
@@ -132,7 +134,7 @@ class TestTheChainOpensOneLinkAtATime(unittest.TestCase):
         for stage in (SUPPORTED, LIMITATIONS, PORTFOLIO, RECORD):
             app = _at(app, stage)
 
-        held = app.session_state.filtered_state
+        held = held_state(app)
 
         for artifact in ARTIFACT_FOR_STAGE.values():
             with self.subTest(artifact=artifact):
@@ -204,7 +206,7 @@ class TestDiscardingAnArtifactClosesWhatDependedOnIt(unittest.TestCase):
         app.session_state["pia_validation"] = None
         app.run()
 
-        held = app.session_state.filtered_state
+        held = held_state(app)
 
         self.assertIn("pia_claim", held)
         self.assertIn("pia_bundle", held)
@@ -220,7 +222,7 @@ class TestTheEvidenceRowsAreHeldAndDisclosed(unittest.TestCase):
 
     def test_the_rows_survive_the_stage_that_read_them(self):
         app = _at(_through_validation(), RECORD)
-        held = app.session_state.filtered_state
+        held = held_state(app)
 
         self.assertIn("pia_evidence_frame", held)
 
@@ -231,7 +233,7 @@ class TestTheEvidenceRowsAreHeldAndDisclosed(unittest.TestCase):
         """
         app = _click(_open(), "Use this claim")
         app = _click(_at(app, EVIDENCE), "Summarize evidence")
-        held = app.session_state.filtered_state
+        held = held_state(app)
 
         self.assertIn("pia_bundle", held)
         self.assertIn("pia_evidence_frame", held)

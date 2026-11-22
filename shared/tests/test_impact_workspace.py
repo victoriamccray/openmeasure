@@ -24,6 +24,8 @@ from pathlib import Path
 
 from streamlit.testing.v1 import AppTest
 
+from shared.tests.apptest_state import held_state
+
 ROOT = Path(__file__).resolve().parents[2]
 ENTRYPOINT = str(ROOT / "Home.py")
 PAGE = "pages/2_Impact_Evaluation.py"
@@ -201,7 +203,7 @@ class TestSelectionsSurviveLeavingAStage(unittest.TestCase):
         app.run()
 
         app = _at(app, DESIGNS, furthest=DESIGNS)
-        held = app.session_state.filtered_state
+        held = held_state(app)
 
         self.assertFalse(app.exception)
         self.assertEqual(held.get("pe_kept_domain_id"), "education")
@@ -300,14 +302,14 @@ class TestChangingAnInputFlagsWhatItFeeds(unittest.TestCase):
         return app
 
     def test_the_stages_it_words_are_flagged(self):
-        review = self._after_changing_the_field().session_state.filtered_state[
+        review = held_state(self._after_changing_the_field())[
             "pe_review"
         ]
 
         self.assertEqual(set(review), {RESEARCH, DESIGNS, EXAMPLE})
 
     def test_the_flag_says_what_changed(self):
-        review = self._after_changing_the_field().session_state.filtered_state[
+        review = held_state(self._after_changing_the_field())[
             "pe_review"
         ]
 
@@ -327,7 +329,7 @@ class TestChangingAnInputFlagsWhatItFeeds(unittest.TestCase):
         app = self._after_changing_the_field()
 
         self.assertEqual(
-            app.session_state.filtered_state.get("pe_kept_entered", {}).get(
+            held_state(app).get("pe_kept_entered", {}).get(
                 "program"
             ),
             "text-message reminders",
@@ -337,7 +339,7 @@ class TestChangingAnInputFlagsWhatItFeeds(unittest.TestCase):
         app = _at(_answered(), QUESTION, furthest=ANALYZE)
         app.text_input(key="pe_q_program").set_value("SMS reminders").run()
 
-        review = app.session_state.filtered_state["pe_review"]
+        review = held_state(app)["pe_review"]
 
         self.assertEqual(set(review), {RESEARCH})
 
@@ -366,13 +368,13 @@ class TestTheResultCrossesButTheDataDoesNot(unittest.TestCase):
         return app
 
     def test_the_estimate_is_held(self):
-        held = self._analysed().session_state.filtered_state
+        held = held_state(self._analysed())
 
         self.assertIsNotNone(held.get("pe_result"))
         self.assertTrue(held.get("pe_method"))
 
     def test_the_rows_are_not(self):
-        held = self._analysed().session_state.filtered_state
+        held = held_state(self._analysed())
 
         for slot in ("pe_frame", "pe_kept_frame", "pe_kept_data"):
             with self.subTest(slot=slot):
@@ -499,7 +501,7 @@ class TestWhatInvalidatesAStoredEstimate(unittest.TestCase):
 
         for design in self.DESIGNS:
             app = self._analysed(design)
-            method = app.session_state.filtered_state.get("pe_method")
+            method = held_state(app).get("pe_method")
 
             with self.subTest(design=design):
                 self.assertFalse(app.exception)
@@ -521,13 +523,13 @@ class TestWhatInvalidatesAStoredEstimate(unittest.TestCase):
     def test_switching_the_design_discards_the_estimate(self):
         app = self._analysed(self.DESIGNS[0])
         self.assertIsNotNone(
-            app.session_state.filtered_state.get("pe_result")
+            held_state(app).get("pe_result")
         )
 
         next(
             r for r in app.radio if "comparing" in str(r.label)
         ).set_value(self.DESIGNS[1]).run()
-        held = app.session_state.filtered_state
+        held = held_state(app)
 
         self.assertIsNone(held.get("pe_result"))
         self.assertTrue(app.button(key=f"pe_rail_{INTERPRET}").disabled)
@@ -547,7 +549,7 @@ class TestWhatInvalidatesAStoredEstimate(unittest.TestCase):
 
         clear[0].click()
         app.run()
-        held = app.session_state.filtered_state
+        held = held_state(app)
 
         self.assertIsNone(held.get("pe_result"))
         self.assertIsNone(held.get("pe_recommendation"))
@@ -563,7 +565,7 @@ class TestWhatInvalidatesAStoredEstimate(unittest.TestCase):
         app = _at(app, QUESTION, furthest=INTERPRET)
         app.text_input(key="pe_q_program").set_value("SMS nudges").run()
 
-        held = app.session_state.filtered_state
+        held = held_state(app)
 
         self.assertIsNotNone(held.get("pe_result"))
         self.assertEqual(set(held.get("pe_review", {})), {RESEARCH})
