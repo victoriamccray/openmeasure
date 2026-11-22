@@ -50,7 +50,7 @@
    "copy": "The device's stored recording",
    "threat": {
     "title": "Threat: Injected Brain Activity",
-    "text": "Researchers transmitted amplitude-modulated radio signals from an antenna about three meters away, through walls. EEG electrode wires received the signals as antennas do, and the acquisition hardware recorded them as brain activity. The attack reached the hardware through the air alone.",
+    "text": "Researchers transmitted radio-frequency signals that EEG electrode wires picked up as antennas do, and the acquisition hardware recorded them as brain activity. The attack reached the hardware through the air, with no physical contact with the device, and was used to take control of a brain-computer interface.",
     "kind": "Integrity",
     "definition": "Integrity means a recording matches the activity it claims to measure.",
     "refs": ["armengol_urpi", "bagley"]
@@ -114,7 +114,7 @@
     "text": "Researchers describe an inferential threat to stored neural data: a recording collected today can yield new inferences as decoding methods improve. A copy shared now supports the inferences measured here and any that later methods make possible.",
     "refs": ["bagley"]
    },
-   "safeguards_note": "Safeguards act on different parts of the system. Safeguards on the signal change what every reader can infer, the legitimate system included. Safeguards on labels or on access leave the legitimate system's accuracy at its starting level.",
+   "safeguards_note": "Safeguards act on different parts of the system. Safeguards on the signal change what every reader can infer, the legitimate system included. Safeguards on labels or on access leave the legitimate system's accuracy at its starting level. Every measured effect below is for eyes-state decoding only. Whether a safeguard protects against identifying the person, or against inferences that future methods make possible, was untested here.",
    "safeguards": {
     "noise": {
      "label": "Add noise before storage",
@@ -124,7 +124,7 @@
       {"value": 50.0, "label": "Light noise, 50 µV"},
       {"value": 250.0, "label": "Heavy noise, 250 µV"}
      ],
-     "protects": "The requester's eyes-state accuracy falls by the measured amount above. Heavy noise brings it to chance.",
+     "protects": "For eyes-state decoding, the requester's accuracy falls by the measured amount above, and heavy noise brings it to chance. That is the only inference measured.",
      "does_not": "The legitimate system reads the same noisy recording, so its accuracy falls by the same amount. This trade-off belongs to safeguards that change the signal. Identification from the noisy recording was outside this measurement. The noise here is a demonstration, and its effect is measured for one inference only."
     },
     "downsample": {
@@ -135,8 +135,8 @@
       {"value": 20, "label": "Store at 25 Hz"},
       {"value": 40, "label": "Store at 12.5 Hz"}
      ],
-     "protects": "Frequencies above half the new rate are removed from every copy, the requester's included.",
-     "does_not": "At 25 Hz the copy keeps alpha up to 12.5 Hz, and in-sample eyes-state accuracy stays at 90% for both readers. At 12.5 Hz the copy keeps frequencies up to 6.25 Hz, below the alpha band, and the inference fails for both readers."
+     "protects": "An anti-aliasing filter removes frequencies above about half the new rate from every copy, the requester's included. An inference that needs those frequencies stops working: at 12.5 Hz, eyes-state decoding fails.",
+     "does_not": "At 25 Hz the filter keeps 8 to 11 Hz in full, halves the power at 12 Hz, and folds a little energy from 13 to 15 Hz back into the band; in-sample eyes-state accuracy stays at 90% for both readers. At 12.5 Hz the copy keeps frequencies up to 6.25 Hz, below the alpha band, and the inference fails for both readers. Slower rhythms stay in every copy, and a lower rate has no demonstrated effect on identifying the person or on other inferences."
     },
     "metadata": {
      "label": "Remove identifying metadata",
@@ -171,7 +171,7 @@
    "name": "Action",
    "environment": "Device output",
    "you_are": "A response the person experiences. In a brain-computer interface (BCI), a system that turns brain signals into commands, the label becomes a command: a cursor moves or a device responds.",
-   "lesson": "Information leaves the system here and acts on the physical world. The injection attack from the sensor stage was demonstrated on three BCI applications: a virtual keyboard, a drone controller, and a meditation feedback interface.",
+   "lesson": "Information leaves the system here and acts on the physical world. The injection attack from the sensor stage was used to take control of a brain-computer interface, so false activity in the recording became an action.",
    "what_changed": "A label became a command that acts in the world.",
    "handoff": "a response the person experiences",
    "interaction": "action",

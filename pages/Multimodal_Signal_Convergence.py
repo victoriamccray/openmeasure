@@ -1780,13 +1780,13 @@ if stage == STAGE_WEIGH_TRADEOFF:
                 with st.expander("See the research behind these ratings"):
                     st.info(
                         "A demonstrated security threat behind Neural's "
-                        "rating: researchers showed that amplitude-modulated "
-                        "radio-frequency signals from a remote antenna can be "
-                        "picked up by EEG electrode wires acting as unintended "
-                        "antennas and injected into the acquisition hardware "
-                        "as fabricated brain activity - through walls, at "
-                        "roughly three meters, with no access to the BCI "
-                        "software or data. Separately, EEG's own activity "
+                        "rating: researchers showed that radio-frequency "
+                        "signals from a remote antenna can be picked up by EEG "
+                        "electrode wires acting as unintended antennas and "
+                        "injected into the acquisition hardware as fabricated "
+                        "brain activity, enough to take control of a "
+                        "brain-computer interface without physical contact "
+                        "with the device. Separately, EEG's own activity "
                         "patterns are distinctive enough to identify who "
                         "produced them, so a device collecting EEG for one "
                         "purpose is, in effect, also collecting a biometric "
@@ -2054,7 +2054,9 @@ if stage == STAGE_REAL_SIGNAL:
         st.caption(
             "Exploratory signal perturbation, not a differential-privacy "
             "mechanism: this carries no formal privacy guarantee, only an "
-            "observed effect on this one inference."
+            "observed effect on this one inference. The result below is one "
+            "random draw of noise; at 50 µV, 200 other draws ranged from "
+            "about 60% to 83% accuracy, so treat a single draw as an example."
         )
         intervened_closed = intervention_core.apply_noise(eyes_closed_raw, noise_sd, seed=0)
         intervened_open = intervention_core.apply_noise(eyes_open_raw, noise_sd, seed=1)
@@ -2062,7 +2064,8 @@ if stage == STAGE_REAL_SIGNAL:
         intervention_summary = (
             f"At SD={noise_sd:.0f} µV, noise degrades this inference "
             "smoothly: rising noise moves accuracy toward chance rather "
-            "than failing at one sharp threshold."
+            "than failing at one sharp threshold. This measures eyes-state "
+            "decoding only; identification was not tested."
         )
 
     else:
@@ -2070,9 +2073,13 @@ if stage == STAGE_REAL_SIGNAL:
             "Downsampling factor", options=(1, 2, 5, 10, 20, 40), value=10
         )
         st.caption(
-            "A proper anti-aliased downsample, not simply holding each "
-            "sample longer - it actually removes information a lower "
-            "acquisition rate would never have captured."
+            "An anti-aliased downsample (a zero-phase low-pass filter, "
+            "then keeping one sample in every factor): it removes what a "
+            "lower acquisition rate would never have captured. The filter "
+            "edge sits at the new Nyquist frequency, so frequencies just "
+            "below it are partly attenuated and a little energy just above "
+            "it folds back. At factor 20 (25 Hz) that touches the top of "
+            "the alpha band: 12 Hz keeps about half its power."
         )
         intervened_closed, intervened_rate = intervention_core.apply_temporal_degradation(
             eyes_closed_raw, intervention_core.SAMPLING_RATE_HZ, degradation_factor
@@ -2082,9 +2089,11 @@ if stage == STAGE_REAL_SIGNAL:
         )
         intervention_summary = (
             "Temporal degradation is a cliff, not a smooth cost: accuracy "
-            "should hold close to baseline until the effective sampling "
-            "rate can no longer resolve the 8-13 Hz alpha band at all, "
-            "then the inference fails outright."
+            "holds close to baseline until the effective sampling rate can "
+            "no longer resolve the 8-13 Hz alpha band, then the inference "
+            "fails outright. This measures one inference only. Slower "
+            "rhythms survive a lower rate, and protection against "
+            "identifying the person was not tested."
         )
 
     st.divider()

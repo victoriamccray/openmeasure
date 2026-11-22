@@ -60,6 +60,10 @@ DISPLAY_STRIDE = 2
 # Noise levels whose waveform is drawn. Accuracy is exported for every
 # level in NOISE_SD_UV; the experience offers these steps.
 NOISE_WAVEFORM_SD_UV = (0.0, 50.0, 100.0, 150.0, 200.0, 250.0, 300.0)
+# The noise table shows one seeded draw. For the safeguard levels, this many
+# further draws give the range a different random draw would produce.
+NOISE_SPREAD_SD_UV = (50.0, 250.0)
+NOISE_SPREAD_DRAWS = 200
 
 SOURCE = {
     "dataset": "OpenNeuro ds005420, version 1.0.0",
@@ -269,6 +273,18 @@ def build() -> dict:
         closed = intervention.apply_noise(signal["eyes_closed"], sd, seed=NOISE_SEEDS["eyes_closed"])
         opened = intervention.apply_noise(signal["eyes_open"], sd, seed=NOISE_SEEDS["eyes_open"])
         entry = {"sd_uv": sd, **_classification(closed, opened, rate)}
+        if sd in NOISE_SPREAD_SD_UV:
+            draws = []
+            for k in range(NOISE_SPREAD_DRAWS):
+                c = intervention.apply_noise(signal["eyes_closed"], sd, seed=10_000 + 2 * k)
+                o = intervention.apply_noise(signal["eyes_open"], sd, seed=10_001 + 2 * k)
+                draws.append(intervention.classify_eyes_state(c, o, rate).accuracy)
+            entry["spread"] = {
+                "draws": NOISE_SPREAD_DRAWS,
+                "p05": round(float(np.percentile(draws, 5)), 4),
+                "median": round(float(np.median(draws)), 4),
+                "p95": round(float(np.percentile(draws, 95)), 4),
+            }
         if sd in NOISE_WAVEFORM_SD_UV:
             entry["waveform"] = {"eyes_closed": shown(closed, rate), "eyes_open": shown(opened, rate)}
         noise.append(entry)

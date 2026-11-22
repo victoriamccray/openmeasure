@@ -564,7 +564,7 @@ const deviceGhosts = new THREE.Group();
     const phase = Number.isFinite(t) ? t * 0.35 : 0;
     samples.forEach((dot, k) => dot.position.copy(wireCurve.getPoint((phase + k / samples.length) % 1)));
   });
-  // The antenna, about three meters away in the study, placed off to the
+  // The antenna, placed off to the
   // side with static arcs toward the wire.
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 6, 8), matte(0x5b2230));
   pole.position.set(-9, 2, -6);
@@ -2072,6 +2072,10 @@ function safeguardHtml(stage) {
     const o = outcomeFor(record);
     const reqAcc = o.requester ? pct(o.requester.accuracy) : "copy withheld";
     const failure = o.requester && o.requester.accuracy === null ? `<p class="caveat">${esc(o.requester.failure)}</p>` : "";
+    const spreadRow = record.safeguard === "noise" ? data.noise.find((n) => n.sd_uv === record.level && n.spread) : null;
+    const spread = spreadRow
+      ? `<p class="caveat">This is one random draw of noise. Across ${spreadRow.spread.draws} other draws at the same level, accuracy ranged from ${pct(spreadRow.spread.p05)} to ${pct(spreadRow.spread.p95)} (5th to 95th percentile), median ${pct(spreadRow.spread.median)}.</p>`
+      : "";
     const metadata =
       record.safeguard === "metadata"
         ? `<p class="caveat">Removed: ${Object.keys(data.metadata.illustrative_fields).filter((k) => !(k in data.metadata.after_removal)).join(", ")}. Kept: ${Object.keys(data.metadata.after_removal).join(", ")}. ${esc(data.metadata.note)}</p>`
@@ -2082,7 +2086,7 @@ function safeguardHtml(stage) {
         <div class="metric"><span>Legitimate system reads eyes state</span><strong>${pct(o.legitimate.accuracy)}</strong></div>
       </div>
       <p class="caveat">Before any safeguard, both were ${pct(data.baseline.accuracy)}, in-sample. With equal numbers of each condition, 50% is chance.</p>
-      ${failure}
+      ${failure}${spread}
       <details class="box why"><summary><h3>What It Protects and Leaves Exposed</h3></summary>
         <p><strong>Protects.</strong> ${esc(s.protects)}</p>
         <p><strong>Leaves exposed.</strong> ${esc(s.does_not)}${record.safeguard === "metadata" ? refMarks(["bagley", "rothstein"]) : ""}</p>

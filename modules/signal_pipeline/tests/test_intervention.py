@@ -416,3 +416,23 @@ class TestLeaveOneOut(unittest.TestCase):
                                     alpha_power_eyes_closed=(2.0,), alpha_power_eyes_open=(0.0, 0.0))
         with self.assertRaises(ValueError):
             iv.leave_one_out_accuracy(r)
+
+
+class TestDownsampleFilterEdge(unittest.TestCase):
+    """The pages state what the anti-aliasing filter keeps; these pin it."""
+
+    @staticmethod
+    def _amplitude_after(freq, factor):
+        t = np.arange(500 * 20) / 500.0
+        y, _ = iv.apply_temporal_degradation(np.sin(2 * np.pi * freq * t), 500.0, factor)
+        y = y[len(y) // 4 : -len(y) // 4]
+        return float(np.sqrt(2 * np.mean(y**2)))
+
+    def test_at_25_hz_low_alpha_is_kept_and_12_hz_keeps_about_half_its_power(self):
+        self.assertAlmostEqual(self._amplitude_after(10.0, 20), 1.0, delta=0.01)
+        self.assertAlmostEqual(self._amplitude_after(12.0, 20) ** 2, 0.5, delta=0.03)
+
+    def test_well_above_the_new_nyquist_is_removed_rather_than_aliased(self):
+        # 15 Hz would alias to 10 Hz at 25 Hz without the filter.
+        self.assertLess(self._amplitude_after(15.0, 20), 0.01)
+        self.assertLess(self._amplitude_after(30.0, 10), 0.01)

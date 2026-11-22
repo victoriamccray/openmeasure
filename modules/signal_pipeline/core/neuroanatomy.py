@@ -452,9 +452,9 @@ MODALITIES: tuple[SensingModality, ...] = (
         coverage=_coverage(
             "smri", {k: COVERED for k in BRAIN}, {k: "Imaged as anatomy." for k in BRAIN}
         ),
-        also_captures="The face. Face recognition software matched MRI face reconstructions to "
-        "photographs for 70 of 84 research participants (83%) as the top match, and for 80 of 84 "
-        "(95%) within the top five.",
+        also_captures="The face. Face recognition software, choosing among the 84 participants' "
+        "MRI face reconstructions, ranked the correct one first for 70 of 84 participants' "
+        "photographs (83%) and within the top five for 80 of 84 (95%).",
         privacy_note="Removing the face before sharing, called defacing, lowers this risk. In a "
         "later study, face recognition matched 97% of 157 scans before defacing, and 28 to 38% "
         "still matched after popular defacing tools.",

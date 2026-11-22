@@ -9299,6 +9299,12 @@
     58.3753,
     82.7275
    ],
+   "spread": {
+    "draws": 200,
+    "p05": 0.6,
+    "median": 0.7333,
+    "p95": 0.835
+   },
    "waveform": {
     "eyes_closed": [
      11.94,
@@ -14203,6 +14209,12 @@
     642.4592,
     1579.8864
    ],
+   "spread": {
+    "draws": 200,
+    "p05": 0.4,
+    "median": 0.5,
+    "p95": 0.6333
+   },
    "waveform": {
     "eyes_closed": [
      37.08,
@@ -19878,7 +19890,7 @@
       "note": ""
      }
     ],
-    "also_captures": "The face. Face recognition software matched MRI face reconstructions to photographs for 70 of 84 research participants (83%) as the top match, and for 80 of 84 (95%) within the top five.",
+    "also_captures": "The face. Face recognition software, choosing among the 84 participants' MRI face reconstructions, ranked the correct one first for 70 of 84 participants' photographs (83%) and within the top five for 80 of 84 (95%).",
     "privacy_note": "Removing the face before sharing, called defacing, lowers this risk. In a later study, face recognition matched 97% of 157 scans before defacing, and 28 to 38% still matched after popular defacing tools.",
     "refs": [
      "schwarz",
