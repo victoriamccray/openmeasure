@@ -77,8 +77,9 @@ def compute_alpha_power(window: np.ndarray, sampling_rate: float) -> float:
     Band edges: the trapezoid rule gives the 8 Hz and 13 Hz bins half
     weight, and the Hann window spreads a tone across neighbouring bins.
     For a 1-second window, a pure tone at exactly 8 or 13 Hz counts half
-    its power, one at 7 or 14 Hz leaks in about 8%, and one at 10 Hz
-    counts in full (shared tests pin these weights).
+    its power, one at 7 or 14 Hz leaks in about 8% (1/12), one at 9 or
+    12 Hz counts 11/12 (its leakage onto an edge bin gets half weight),
+    and one at 10 or 11 Hz counts in full. The tests pin these weights.
 
     Accepts any 1-D sequence of numbers. Raises ValueError for a window
     that is not one-dimensional, has fewer than 2 samples, or a
