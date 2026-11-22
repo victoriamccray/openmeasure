@@ -123,6 +123,10 @@ class TestCoverage(unittest.TestCase):
         smri = na.modality("smri")
 
         self.assertIn("lowers this risk", smri.privacy_note)
+        # Schwarz et al. (2021), PMID 33582276: 97% of 157 matched before,
+        # 28 to 38% after popular de-facing software.
+        self.assertIn("97% of 157", smri.privacy_note)
+        self.assertIn("28 to 38%", smri.privacy_note)
         self.assertIn("schwarz_2021", smri.refs)
 
     def test_body_sensors_cover_only_the_autonomic_system(self):

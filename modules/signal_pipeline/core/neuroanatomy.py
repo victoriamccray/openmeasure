@@ -261,8 +261,8 @@ REFERENCES: tuple[Reference, ...] = (
     Reference(
         "schwarz_2021",
         "Schwarz, C. G., Kremers, W. K., Wiste, H. J., Gunter, J. L., Vemuri, P., Spychalla, A. J., "
-        "Kantarci, K., Schultz, A. P., Sperling, R. A., Knopman, D. S., Petersen, R. C., & Jack, C. R., Jr. "
-        "(2021). Changing the face of neuroimaging research: Comparing a new MRI de-facing technique "
+        "Kantarci, K., Schultz, A. P., Sperling, R. A., Knopman, D. S., Petersen, R. C., Jack, C. R., Jr., & "
+        "Alzheimer's Disease Neuroimaging Initiative (2021). Changing the face of neuroimaging research: Comparing a new MRI de-facing technique "
         "with popular alternatives. NeuroImage, 231, 117845.",
         "https://doi.org/10.1016/j.neuroimage.2021.117845",
     ),
@@ -455,8 +455,9 @@ MODALITIES: tuple[SensingModality, ...] = (
         also_captures="The face. Face recognition software matched MRI face reconstructions to "
         "photographs for 70 of 84 research participants (83%) as the top match, and for 80 of 84 "
         "(95%) within the top five.",
-        privacy_note="Removing the face before sharing, called defacing, lowers this risk. Later "
-        "work found that some participants could still be matched after popular defacing tools.",
+        privacy_note="Removing the face before sharing, called defacing, lowers this risk. In a "
+        "later study, face recognition matched 97% of 157 scans before defacing, and 28 to 38% "
+        "still matched after popular defacing tools.",
         refs=("schwarz", "schwarz_2021"),
     ),
     SensingModality(
