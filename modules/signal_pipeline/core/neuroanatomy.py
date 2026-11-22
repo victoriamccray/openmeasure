@@ -254,7 +254,8 @@ REFERENCES: tuple[Reference, ...] = (
         "Schwarz, C. G., Kremers, W. K., Therneau, T. M., Sharp, R. R., Gunter, J. L., Vemuri, P., "
         "Arani, A., Spychalla, A. J., Kantarci, K., Knopman, D. S., Petersen, R. C., & Jack, C. R., Jr. "
         "(2019). Identification of anonymous MRI research participants with face-recognition "
-        "software. New England Journal of Medicine, 381(17), 1684-1686.",
+        "software. New England Journal of Medicine, 381(17), 1684-1686. PMID: 31644852. "
+        "PMCID: PMC7091256. Free full text: https://pmc.ncbi.nlm.nih.gov/articles/PMC7091256/",
         "https://doi.org/10.1056/NEJMc1908881",
     ),
     Reference(
