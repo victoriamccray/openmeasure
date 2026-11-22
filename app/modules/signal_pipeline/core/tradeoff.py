@@ -13,9 +13,17 @@ uses for its own performance-vs-resource frontier.
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
+from pathlib import Path
 
-from shared.pareto import ParetoPoint, compute_pareto_efficiency
+# The repo root, so shared/ imports when this module's tests run on their
+# own (pytest modules/<name>/tests/), the same way data_profile/core does.
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from shared.pareto import ParetoPoint, compute_pareto_efficiency  # noqa: E402
 
 from .modality import Modality
 
