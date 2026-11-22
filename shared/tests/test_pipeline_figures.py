@@ -22,7 +22,7 @@ if str(ROOT) not in sys.path:
 
 import pandas as pd  # noqa: E402
 
-from modules.signal_pipeline.core import intervention as iv, modality as mc, pipeline as pc  # noqa: E402
+from modules.signal_pipeline.core import agency as ag, intervention as iv, modality as mc, pipeline as pc  # noqa: E402
 from shared import pipeline_figures as pf  # noqa: E402
 
 DATA = ROOT / "modules" / "signal_pipeline" / "sample_data"
@@ -55,6 +55,10 @@ def _eeg():
     return {"raw": list(closed[:500:4]), "filtered": list(closed[:500:4]), "powers": list(w.powers),
             "labels": list(w.labelled_closed), "threshold": w.threshold, "decision_value": w.powers[0],
             "decision_label": "eyes closed"}
+
+
+def _agency(mods):
+    return {m.category: ag.agency_profile(m.category) for m in mods}
 
 
 def _svg(html: str) -> ET.Element:
@@ -104,16 +108,34 @@ class TestBody(unittest.TestCase):
     def test_every_perspective_is_well_formed(self):
         for view in ("Build", "Privacy", "Agency"):
             with self.subTest(view=view):
-                _svg(pf.body_html(_modalities(), view, COLORS))
+                _svg(pf.body_html(_modalities(), view, COLORS, agency=_agency(_modalities())))
 
     def test_tap_text_carries_each_modalitys_own_facts(self):
         mods = _modalities()
         privacy = pf.body_html(mods, "Privacy", COLORS)
-        agency = pf.body_html(mods, "Agency", COLORS)
         for m in mods:
             with self.subTest(modality=m.name):
                 self.assertIn(m.privacy_exit_point[:40].replace("&", "&amp;"), privacy.replace("\\u2019", "'"))
-                self.assertIn(f"{m.agency_cost:.2f}", agency)
+
+    def test_agency_tap_text_quotes_each_answers_evidence(self):
+        mods = _modalities()
+        html = pf.body_html(mods, "Agency", COLORS, agency=_agency(mods))
+        for m in mods:
+            for a in ag.agency_profile(m.category).answers:
+                if a.evidence:
+                    with self.subTest(modality=m.name, question=a.key):
+                        self.assertIn(a.evidence.replace(",", ","), html)
+
+    def test_agency_view_draws_no_rating(self):
+        mods = _modalities()
+        html = pf.body_html(mods, "Agency", COLORS, agency=_agency(mods))
+        for m in mods:
+            self.assertNotIn(f"{m.agency_cost:.2f}", html)
+        self.assertNotIn("agency cost", html.lower().replace("illustrative agency cost rating", ""))
+
+    def test_agency_view_needs_the_answers(self):
+        with self.assertRaises(ValueError):
+            pf.body_html(_modalities(), "Agency", COLORS)
 
     def test_never_body_sensed_modalities_are_drawn_outside_the_body(self):
         html = pf.body_html(_modalities(), "Build", COLORS)

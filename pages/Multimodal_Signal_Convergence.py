@@ -44,6 +44,7 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
+from modules.signal_pipeline.core import agency as agency_core
 from modules.signal_pipeline.core import intervention as intervention_core
 from modules.signal_pipeline.core import modality as modality_core
 from modules.signal_pipeline.core import neuroanatomy as neuroanatomy_core
@@ -745,8 +746,19 @@ def _pipeline_figure(modalities) -> None:
 def _body_figure(modalities, perspective: str) -> None:
     """The illustrated person with each modality's sensor, under one perspective."""
     components.html(
-        pipeline_figures.body_html(tuple(modalities), perspective, CATEGORY_COLORS),
-        height=_BODY_FIGURE_HEIGHT,
+        pipeline_figures.body_html(
+            tuple(modalities),
+            perspective,
+            CATEGORY_COLORS,
+            agency={m.category: agency_core.agency_profile(m.category) for m in modalities},
+        ),
+        height=_BODY_FIGURE_HEIGHT
+        + (
+            # The Agency table adds rows below the figure, drawn at about 1.28x.
+            int(pipeline_figures.agency_table_height(len(modalities)) * 1.3)
+            if perspective == PERSPECTIVE_AGENCY
+            else 0
+        ),
     )
 
 
@@ -1497,31 +1509,30 @@ if stage == STAGE_ADD_MODALITIES:
     if perspective == PERSPECTIVE_BUILD:
         st.caption(
             "Dashed lines show every selected signal feeding the same "
-            "pipeline entry point; illustrative trace shapes are not "
-            "recordings."
+            "pipeline entry point."
         )
     elif perspective == PERSPECTIVE_PRIVACY:
         st.caption(
             "The dashed outline is the edge of the person. Each "
             "body-sensed signal crosses it at the marked point, and a "
             "modality drawn outside it was never sensed from the body at "
-            "all. Marker size scales with illustrative privacy cost."
+            "all."
         )
     else:
         st.caption(
-            "Each path carries a gate where the person can still "
-            "intervene, and the gate's opening narrows as that "
-            "modality's illustrative agency cost rises. Markers are all "
-            "one size here, so the gate is the only thing reading the "
-            "cost."
+            "Each path carries three marks: can the person stop the "
+            "collection, does each collection need their action, and can "
+            "they correct or retract it. Each is answered only where the "
+            "cited control text answers it; a question mark means the "
+            "sources do not say. The illustrative agency cost rating is "
+            "not drawn here."
         )
 
     st.caption("How those signals travel through the pipeline:")
     _pipeline_figure(current_modalities)
     st.caption(
-        "Hover an icon for detail. The small gray node marks where "
-        "every selected modality's chain converges into one shared "
-        "pipeline."
+        "Tap a stage for its note. With more than one modality, the "
+        "combined row in Processing marks where the signals meet."
     )
 
     for name in selected_names:

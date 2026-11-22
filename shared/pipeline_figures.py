@@ -16,7 +16,7 @@ category, a legend and caveat under it, and a tap that explains a part.
 
 Every label and explanation comes from the caller: the core Modality
 records (name, signal_examples, body_region, privacy_exit_point,
-agency_control_point, agency_cost) and the page's stage notes. Nothing
+agency_control_point), the core agency answers, and the page's stage notes. Nothing
 here adds a claim. Pure string builders with no streamlit import; the tap
 behaviour runs inside the embedded panel, so tapping never reruns the page.
 """
@@ -422,25 +422,77 @@ def _external_icon(category: str, x: float, y: float, color: str) -> str:
     return f'<rect x="{x + 2}" y="{y}" width="16" height="21" rx="2" fill="{color}"/><rect x="{x + 6}" y="{y - 2}" width="8" height="4" rx="1" fill="{INK}"/>'
 
 
-def _gate(x1: float, y1: float, x2: float, y2: float, agency_cost: float, color: str) -> str:
-    """A gate across the path, its opening narrowing as agency cost rises."""
-    gx, gy = x1 + (x2 - x1) * 0.55, y1 + (y2 - y1) * 0.55
-    angle = math.degrees(math.atan2(y2 - y1, x2 - x1))
-    gap = 12 * (1 - max(0.0, min(1.0, agency_cost)))
-    return (
-        f'<g transform="translate({gx:.1f} {gy:.1f}) rotate({angle + 90:.1f})">'
-        f'<rect x="-15" y="-4" width="30" height="8" rx="3" fill="{SURFACE}" opacity="0.85"/>'
-        f'<line x1="-14" y1="0" x2="{-gap / 2:.1f}" y2="0" stroke="{color}" stroke-width="3.2" stroke-linecap="round"/>'
-        f'<line x1="{gap / 2:.1f}" y1="0" x2="14" y2="0" stroke="{color}" stroke-width="3.2" stroke-linecap="round"/></g>'
+_GLYPH = {"yes": "\u2713", "no": "\u2715", "not stated": "?"}
+
+
+def _mark(cx: float, cy: float, answer: str, color: str) -> str:
+    """One answer: filled tick for yes, outlined cross for no, dashed ? for not stated."""
+    if answer == "yes":
+        shape, ink = f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="7" fill="{color}"/>', SURFACE
+    elif answer == "no":
+        shape, ink = f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="7" fill="{SURFACE}" stroke="{color}" stroke-width="1.5"/>', color
+    else:
+        shape, ink = f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="7" fill="{SURFACE}" stroke="{MUTED}" stroke-width="1.2" stroke-dasharray="2 1.6"/>', MUTED
+    return f'{shape}<text x="{cx:.1f}" y="{cy + 3.4:.1f}" font-size="9.5" font-weight="700" fill="{ink}" text-anchor="middle">{_GLYPH[answer]}</text>'
+
+
+_AGENCY_TOP = 408
+_AGENCY_ROW = 24
+_AGENCY_COLS = (196, 254, 312)
+_AGENCY_HEAD = (("Can stop", "it"), ("Needs them", "each time"), ("Can correct", "or retract"))
+
+
+def _agency_table(modalities, agency, colors) -> tuple[str, float]:
+    """Rows of modalities by the three questions; returns the markup and its bottom edge."""
+    out = [f'<line x1="14" y1="{_AGENCY_TOP - 4}" x2="346" y2="{_AGENCY_TOP - 4}" stroke="{MUTED}" stroke-opacity="0.4"/>']
+    for (a, b), cx in zip(_AGENCY_HEAD, _AGENCY_COLS):
+        out.append(
+            f'<text x="{cx}" y="{_AGENCY_TOP + 12}" font-size="9.5" font-weight="600" fill="{INK}" text-anchor="middle">{a}</text>'
+            f'<text x="{cx}" y="{_AGENCY_TOP + 24}" font-size="9.5" font-weight="600" fill="{INK}" text-anchor="middle">{b}</text>'
+        )
+    y = _AGENCY_TOP + 46
+    for i, m in enumerate(modalities):
+        color = colors.get(m.category, MUTED)
+        cells = "".join(_mark(cx, y - 4, a.answer, color) for a, cx in zip(agency[m.category].answers, _AGENCY_COLS))
+        out.append(
+            f'<g data-key="m{i}"><rect class="hit" x="14" y="{y - 16}" width="332" height="{_AGENCY_ROW - 2}" rx="5" fill="{color}" fill-opacity="0.07"/>'
+            f'<circle cx="26" cy="{y - 4}" r="4.5" fill="{color}"/>'
+            f'<text x="36" y="{y}" font-size="10.5" font-weight="600" fill="{INK}">{escape(SHORT_LABEL.get(m.category, m.category))}</text>{cells}</g>'
+        )
+        y += _AGENCY_ROW
+    return "".join(out), y - 8
+
+
+def agency_table_height(n_modalities: int) -> float:
+    """Extra viewBox height the Agency view's table adds below the figure."""
+    return _AGENCY_TOP - 400 + 46 + _AGENCY_ROW * n_modalities
+
+
+def _agency_list(profile) -> str:
+    items = "".join(
+        f"<li>{escape(a.question)}: <strong>{escape(a.answer)}</strong>"
+        + (f" (\u201c{escape(a.evidence)}\u201d)" if a.evidence else "")
+        + "</li>"
+        for a in profile.answers
     )
+    return f"<ul style='margin:4px 0 0 16px;padding:0'>{items}</ul>"
 
 
-def body_html(modalities, perspective: str, colors: dict[str, str]) -> str:
-    """The illustrated person with each modality placed, under one perspective."""
+def body_html(modalities, perspective: str, colors: dict[str, str], agency=None) -> str:
+    """The illustrated person with each modality placed, under one perspective.
+
+    agency maps category to a core AgencyProfile and is required for the
+    Agency view: each path then carries three marks (stop, each time,
+    correct or retract), each answered only where the cited text answers it.
+    """
     if not modalities:
         raise ValueError("At least one modality is required.")
     if perspective not in ("Build", "Privacy", "Agency"):
         raise ValueError(f"perspective must be Build, Privacy, or Agency; got {perspective!r}.")
+    if perspective == "Agency":
+        missing = [m.category for m in modalities if not agency or m.category not in agency]
+        if missing:
+            raise ValueError(f"The Agency view needs agency answers for: {', '.join(missing)}.")
 
     parts = [_figure()]
     overlay: list[str] = []
@@ -477,16 +529,15 @@ def body_html(modalities, perspective: str, colors: dict[str, str]) -> str:
             )
             where = "Never sensed from the body."
             sx, sy = sx - 22, sy
-        payload[key] = (
-            f"<strong>{escape(m.name)}</strong> · {escape(m.signal_examples)} {where}"
-            + (
+        if perspective == "Agency":
+            payload[key] = f"<strong>{escape(m.name)}</strong>" + _agency_list(agency[m.category])
+        elif perspective == "Privacy":
+            payload[key] = (
+                f"<strong>{escape(m.name)}</strong> · {escape(m.signal_examples)} {where}"
                 f" <em>Where it leaves the person:</em> {escape(m.privacy_exit_point)}"
-                if perspective == "Privacy"
-                else f" <em>Control:</em> {escape(m.agency_control_point)} Illustrative agency cost {m.agency_cost:.2f}."
-                if perspective == "Agency"
-                else ""
             )
-        )
+        else:
+            payload[key] = f"<strong>{escape(m.name)}</strong> · {escape(m.signal_examples)} {where}"
         if m.is_body_sensed and m.category in _SITES:
             label = SHORT_LABEL.get(m.category, m.category)
             lx = 6 if sx < 130 else 214
@@ -502,8 +553,6 @@ def body_html(modalities, perspective: str, colors: dict[str, str]) -> str:
                 f'<path d="M{sx},{sy} C{sx},{(sy + ey) / 2} {ex - 60},{ey} {ex - 48},{ey}" fill="none" stroke="{color}" '
                 f'stroke-width="1.6" stroke-opacity="0.75" stroke-dasharray="5 3"/>'
             )
-            if perspective == "Agency":
-                overlay.append(_gate(sx, sy, ex - 48, ey, m.agency_cost, color))
         if perspective == "Privacy" and m.is_body_sensed and m.category in _SITES:
             x1, _, x2, _ = _BOUNDARY
             edge = x2 if sx >= 130 else x1
@@ -518,17 +567,24 @@ def body_html(modalities, perspective: str, colors: dict[str, str]) -> str:
             f'<text x="{ex}" y="{ey + 3}" font-size="10.5" font-weight="600" fill="{INK}" text-anchor="middle">Pipeline entry</text>'
         )
 
+    height = 400
+    if perspective == "Agency":
+        table, bottom = _agency_table(modalities, agency, colors)
+        marks.append(table)
+        height = bottom + 8
     names = ", ".join(m.name for m in modalities)
     svg = (
-        f'<svg viewBox="0 0 360 400" role="img" aria-label="{escape(perspective)} view of where each signal comes from: {escape(names)}." '
+        f'<svg viewBox="0 0 360 {height:.0f}" role="img" aria-label="{escape(perspective)} view of where each signal comes from: {escape(names)}." '
         f'style="width:100%;height:auto;display:block"><defs><marker id="exit" viewBox="0 0 10 10" refX="9" refY="5" '
         f'markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" fill="{ACCENT}"/></marker></defs>'
         f'{"".join(parts)}{"".join(overlay)}{"".join(marks)}</svg>'
     )
-    legend = "".join(_chip(colors.get(m.category, MUTED), m.name) for m in modalities)
+    # The Agency table labels each row with its colour, so a legend would repeat it.
+    legend = "" if perspective == "Agency" else "".join(_chip(colors.get(m.category, MUTED), m.name) for m in modalities)
     caveat = {
         "Build": "Build view: every signal, sensed from the body or not, runs into the same pipeline entry.",
         "Privacy": "Privacy view: body-sensed signals cross the edge of the person at their sensor; the others were never inside it.",
-        "Agency": "Agency view: each gate's opening narrows as the modality's illustrative agency cost rises (open at 0, nearly closed at 1).",
+        "Agency": "\u2713 yes \u00b7 \u2715 no \u00b7 ? the cited sources do not say. Tap a row for the source text.",
     }[perspective]
-    return _panel(svg, legend, caveat, "Tap a sensor or a card to see what it measures.", payload, max_width=460)
+    info = "Tap a row to see the text behind each answer." if perspective == "Agency" else "Tap a sensor or a card to see what it measures."
+    return _panel(svg, legend, caveat, info, payload, max_width=460)
