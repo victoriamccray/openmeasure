@@ -63,6 +63,11 @@ const state = {
   // Study room: the open tab and the dichotomy axis shown.
   studyTab: "room",
   studyAxis: "state",
+  // Why the Math Works: step shown, slider positions, original or squared.
+  mathStep: 0,
+  mathAmp: 3,
+  mathSquared: false,
+  mathAlpha: 4,
 };
 
 // ------------------------------------------------------------------
@@ -1093,7 +1098,7 @@ function resize() {
 
 // A recorded trace with labeled axes: microvolts up the side, seconds
 // along the bottom. Every point is a recorded sample from data.waveform.
-function traceSvg(values, { color, width = 1.4, height = 70, maxAbs = waveMax, label, cls = "" }) {
+function traceSvg(values, { color, width = 1.4, height = 70, maxAbs = waveMax, label, cls = "", seconds = data.waveform.seconds }) {
   const left = 38;
   const right = 8;
   const w = 360;
@@ -1105,7 +1110,7 @@ function traceSvg(values, { color, width = 1.4, height = 70, maxAbs = waveMax, l
   const n = values.length;
   const d = values.map((v, i) => `${i ? "L" : "M"}${(left + (i / (n - 1)) * plotW).toFixed(1)},${y(v)}`).join("");
   const top = Math.round(maxAbs);
-  const secs = data.waveform.seconds;
+  const secs = seconds;
   const xTicks = Array.from({ length: secs + 1 }, (_, s) => s)
     .map((s) => `<text x="${(left + (s / secs) * plotW).toFixed(1)}" y="${plotH + 13}" text-anchor="middle" class="ax">${s} s</text>`)
     .join("");
@@ -1352,6 +1357,7 @@ const STUDY_TABS = [
   ["room", "The Recording"],
   ["numbers", "What the Numbers Mean"],
   ["dichotomies", "Resting vs Task"],
+  ["math", "Why the Math Works"],
 ];
 
 // A seated participant, side view facing right. Eyes, the O1 glow and
@@ -1510,7 +1516,8 @@ function numbersHtml() {
   const cards = RS.measures
     .map((m) => {
       const graphic = MEASURE_GRAPHIC[m.key] ? MEASURE_GRAPHIC[m.key]() : "";
-      const note = m.key === "alpha_power" || m.key === "accuracy" ? `<p class="caveat">${esc(RS.threshold.text)}</p>` : "";
+      const note = (m.key === "alpha_power" || m.key === "accuracy" ? `<p class="caveat">${esc(RS.threshold.text)}</p>` : "")
+        + (m.key === "alpha_power" ? `<p><button type="button" class="linklike" data-open-study="math">Why does this formula work? An interactive explainer</button></p>` : "");
       return `<details class="box measure"${m.key === "reactivity" ? " open" : ""}><summary><h3>${esc(m.name)}</h3><span class="unit">${esc(m.unit)}</span></summary>
         <p><span class="src ${m.source}">${esc(RS.source_labels[m.source])}</span></p>
         ${graphic}${note}
@@ -1545,7 +1552,7 @@ function dichotomiesHtml() {
 
 function renderStudy() {
   $("study-tabs").innerHTML = STUDY_TABS.map(([k, label]) => `<button type="button" role="tab" data-study-tab="${k}" aria-selected="${state.studyTab === k}">${label}</button>`).join("");
-  const body = { room: roomHtml, numbers: numbersHtml, dichotomies: dichotomiesHtml }[state.studyTab]();
+  const body = { room: roomHtml, numbers: numbersHtml, dichotomies: dichotomiesHtml, math: mathStepHtml }[state.studyTab]();
   $("study-body").innerHTML = body;
 }
 
@@ -1572,7 +1579,146 @@ function studyTextHtml() {
     <p>Mean alpha power ${r.mean_closed.toFixed(1)} µV² with the eyes closed and ${r.mean_open.toFixed(1)} µV² with them open, a ratio of ${r.ratio.toFixed(1)}. Accuracy ${c.n_correct} of ${c.n_trials}; chance is ${Math.round(c.chance_accuracy * 100)}%, and ${c.threshold_correct} of ${c.n_trials} is needed to beat it.${refMarks(["combrisson"])}</p><p>${esc(RS.threshold.text)}</p>
     <h3>What the Numbers Mean</h3><ul>${measures}</ul>
     <h3>Resting vs Task, Domain-General vs Domain-Specific</h3>
-    <div class="table-wrap"><table><thead><tr><th>Modality</th><th>Axis</th><th>First pole</th><th>Second pole</th></tr></thead><tbody>${dich}</tbody></table></div></section>`;
+    <div class="table-wrap"><table><thead><tr><th>Modality</th><th>Axis</th><th>First pole</th><th>Second pole</th></tr></thead><tbody>${dich}</tbody></table></div>
+    ${mathTextHtml()}</section>`;
+}
+
+// ------------------------------------------------------------------
+// Why the Math Works: three steps from "why square?" to the alpha power
+// of one recorded second. Every number comes from data.explainer
+// (core/power_explainer.py); this code draws and labels it.
+// ------------------------------------------------------------------
+
+const EX = data.explainer;
+
+const MATHML = {
+  mean: `<math display="block" aria-label="Mean: one over T times the integral from 0 to T of x of t, d t"><mfrac><mn>1</mn><mi>T</mi></mfrac><msubsup><mo>∫</mo><mn>0</mn><mi>T</mi></msubsup><mi>x</mi><mo stretchy="false">(</mo><mi>t</mi><mo stretchy="false">)</mo><mspace width="0.2em"/><mi>d</mi><mi>t</mi></math>`,
+  meanSquare: `<math display="block" aria-label="Mean square: one over T times the integral from 0 to T of x of t squared, d t"><mfrac><mn>1</mn><mi>T</mi></mfrac><msubsup><mo>∫</mo><mn>0</mn><mi>T</mi></msubsup><mi>x</mi><msup><mrow><mo stretchy="false">(</mo><mi>t</mi><mo stretchy="false">)</mo></mrow><mn>2</mn></msup><mspace width="0.2em"/><mi>d</mi><mi>t</mi></math>`,
+  sine: `<math display="block" aria-label="For x of t equals A sine 2 pi f t, the mean square is A squared over 2"><mi>x</mi><mo stretchy="false">(</mo><mi>t</mi><mo stretchy="false">)</mo><mo>=</mo><mi>A</mi><mi>sin</mi><mo stretchy="false">(</mo><mn>2</mn><mi>π</mi><mi>f</mi><mi>t</mi><mo stretchy="false">)</mo><mspace width="1em"/><mo>⇒</mo><mspace width="1em"/><mover><mrow><msup><mi>x</mi><mn>2</mn></msup></mrow><mo>‾</mo></mover><mo>=</mo><mfrac><msup><mi>A</mi><mn>2</mn></msup><mn>2</mn></mfrac></math>`,
+  alpha: `<math display="block" aria-label="Alpha power equals the integral from 8 to 13 hertz of the power spectral density S x x of f, d f"><msub><mi>P</mi><mi>α</mi></msub><mo>=</mo><msubsup><mo>∫</mo><mn>8</mn><mn>13</mn></msubsup><msub><mi>S</mi><mrow><mi>x</mi><mi>x</mi></mrow></msub><mo stretchy="false">(</mo><mi>f</mi><mo stretchy="false">)</mo><mspace width="0.2em"/><mi>d</mi><mi>f</mi></math>`,
+};
+
+const fmt = (v, d = 2) => (Math.abs(v) < 0.5 * 10 ** -d ? (0).toFixed(d) : v.toFixed(d));
+
+function mathTile(label, value, unit, note) {
+  return `<div class="metric math-tile"><span>${label}</span><strong>${value} ${unit}</strong>${note ? `<em>${note}</em>` : ""}</div>`;
+}
+
+// Step 1: a 2 Hz sine (two cycles in one second), original or squared.
+function squareSvg(level, squared) {
+  const w = 360, h = 150, left = 34, right = 8, mid = squared ? h - 18 : h / 2;
+  const maxAmp = Math.max(...EX.square.levels.map((l) => l.amplitude));
+  const top = squared ? maxAmp ** 2 : maxAmp;
+  const scale = (squared ? h - 30 : h / 2 - 12) / top;
+  const n = level.values.length;
+  const pts = level.values.map((v, i) => [left + (i / (n - 1)) * (w - left - right), mid - (squared ? v * v : v) * scale]);
+  const line = pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join("");
+  const area = `${line}L${pts.at(-1)[0].toFixed(1)},${mid}L${pts[0][0].toFixed(1)},${mid}Z`;
+  const meanY = mid - (squared ? level.mean_square : level.mean) * scale;
+  const clipUp = `<clipPath id="ms-up"><rect x="0" y="0" width="${w}" height="${mid}"/></clipPath><clipPath id="ms-down"><rect x="0" y="${mid}" width="${w}" height="${h}"/></clipPath>`;
+  const fills = squared
+    ? `<path d="${area}" class="area pos"/>`
+    : `<path d="${area}" class="area pos" clip-path="url(#ms-up)"/><path d="${area}" class="area neg" clip-path="url(#ms-down)"/>`;
+  const yTop = squared ? `${fmt(top, 0)} µV²` : `+${fmt(top, 0)} µV`;
+  return `<svg viewBox="0 0 ${w} ${h + 16}" class="math-svg" role="img" aria-label="${squared ? "Squared" : "Original"} sine of amplitude ${level.amplitude} microvolts over one second. ${squared ? `Mean square ${fmt(level.mean_square)} microvolts squared.` : "Positive and negative halves cancel, so the mean is zero."}">
+    <defs>${clipUp}</defs>
+    ${fills}
+    <path d="${line}" class="curve"/>
+    <line x1="${left}" y1="${mid}" x2="${w - right}" y2="${mid}" class="ax-line"/>
+    <line x1="${left}" y1="4" x2="${left}" y2="${h}" class="ax-line"/>
+    <line x1="${left}" y1="${meanY.toFixed(1)}" x2="${w - right}" y2="${meanY.toFixed(1)}" class="mean-line"/>
+    <text x="${w - right}" y="${(meanY - 4).toFixed(1)}" text-anchor="end" class="ax strong">${squared ? `mean square ${fmt(level.mean_square)} µV²` : "mean 0 µV"}</text>
+    <text x="${left - 4}" y="12" text-anchor="end" class="ax">${yTop}</text>
+    <text x="${left - 4}" y="${mid + 3}" text-anchor="end" class="ax">0</text>
+    ${squared ? "" : `<text x="${left - 4}" y="${h - 4}" text-anchor="end" class="ax">−${fmt(top, 0)}</text>`}
+    <text x="${left}" y="${h + 13}" class="ax">0 s</text><text x="${w - right}" y="${h + 13}" text-anchor="end" class="ax">1 s</text>
+  </svg>`;
+}
+
+function spectrumSvg(spectrum, yMax, label) {
+  const w = 360, h = 140, left = 40, right = 8, bottom = h - 18;
+  const fMax = spectrum.freqs_hz.at(-1);
+  const x = (f) => left + (f / fMax) * (w - left - right);
+  const y = (d) => bottom - (Math.min(d, yMax) / yMax) * (bottom - 8);
+  const [lo, hi] = EX.alpha_band_hz;
+  const pts = spectrum.freqs_hz.map((f, i) => [x(f), y(spectrum.density[i])]);
+  const line = pts.map(([px, py], i) => `${i ? "L" : "M"}${px.toFixed(1)},${py.toFixed(1)}`).join("");
+  const band = spectrum.freqs_hz.map((f, i) => [f, i]).filter(([f]) => f >= lo && f <= hi);
+  const bandPath = `M${x(lo)},${bottom}` + band.map(([f, i]) => `L${x(f).toFixed(1)},${y(spectrum.density[i]).toFixed(1)}`).join("") + `L${x(hi)},${bottom}Z`;
+  const ticks = [0, 8, 13, 20].map((t) => `<text x="${x(t)}" y="${h - 4}" text-anchor="middle" class="ax">${t}</text>`).join("");
+  return `<svg viewBox="0 0 ${w} ${h}" class="math-svg" role="img" aria-label="${esc(label)}. Power spectral density from 0 to ${fMax} hertz, alpha band from 8 to 13 hertz shaded: ${fmt(spectrum.alpha_power, 1)} microvolts squared.">
+    <path d="${bandPath}" class="area alpha"/>
+    <path d="${line}" class="curve"/>
+    <line x1="${left}" y1="${bottom}" x2="${w - right}" y2="${bottom}" class="ax-line"/>
+    <line x1="${left}" y1="4" x2="${left}" y2="${bottom}" class="ax-line"/>
+    <text x="${left - 4}" y="12" text-anchor="end" class="ax">${fmt(yMax, 0)}</text>
+    <text x="${left - 4}" y="${bottom}" text-anchor="end" class="ax">0</text>
+    <text x="4" y="${bottom / 2}" class="ax" transform="rotate(-90 10 ${bottom / 2})">µV²/Hz</text>
+    <line x1="${x(hi) + 2}" y1="${y(spectrum.density[spectrum.freqs_hz.indexOf(hi)]) - 2}" x2="${x(hi) + 24}" y2="30" class="ax-line"/>
+    <text x="${x(hi) + 27}" y="30" class="ax strong">alpha area ${fmt(spectrum.alpha_power, 1)} µV²</text>
+    ${ticks}<text x="${w - right}" y="${h - 4}" text-anchor="end" class="ax">${fMax} Hz</text>
+  </svg>`;
+}
+
+function mathStepHtml() {
+  const step = EX.steps[state.mathStep];
+  let body = "";
+  if (step.key === "square") {
+    const level = EX.square.levels[state.mathAmp];
+    body = `<label class="slider">Signal amplitude <strong>${level.amplitude.toFixed(1)} µV</strong>
+        <input type="range" min="0" max="${EX.square.levels.length - 1}" step="1" value="${state.mathAmp}" data-math="amp" aria-label="Signal amplitude"></label>
+      <div class="choices levels" role="group" aria-label="View">
+        <button type="button" class="choice" data-math-view="original" aria-pressed="${!state.mathSquared}">Original signal</button>
+        <button type="button" class="choice" data-math-view="squared" aria-pressed="${state.mathSquared}">Square the signal</button>
+      </div>
+      ${squareSvg(level, state.mathSquared)}
+      <div class="metric-row">${mathTile("Mean voltage", fmt(level.mean), "µV", "halves cancel")}${mathTile("Mean squared voltage", fmt(level.mean_square), "µV²", `A² / 2 = ${fmt(level.amplitude ** 2 / 2)}`)}</div>
+      <div class="math-pair"><div>${MATHML.mean}<p class="caveat">The mean can be zero.</p></div><div>${MATHML.meanSquare}<p class="caveat">The mean square measures strength.</p></div></div>
+      ${MATHML.sine}`;
+  } else if (step.key === "separate") {
+    const level = EX.mixture.levels[state.mathAlpha];
+    const yMax = Math.max(...EX.mixture.levels.at(-1).spectrum.density);
+    const comps = EX.mixture.fixed_components.map(([f, a]) => `${a} µV at ${f} Hz`).join(" and ");
+    body = `<label class="slider">Alpha amplitude (10 Hz) <strong>${level.alpha_amplitude.toFixed(1)} µV</strong>
+        <input type="range" min="0" max="${EX.mixture.levels.length - 1}" step="1" value="${state.mathAlpha}" data-math="alpha" aria-label="Alpha amplitude"></label>
+      <p class="live-label"><span class="src convention">Teaching signal</span> ${comps}, plus noise (SD ${EX.mixture.noise_sd_uv} µV). Only the alpha amplitude changes.</p>
+      <div class="trace">${traceSvg(level.values, { color: "var(--text)", width: 1, height: 70, maxAbs: Math.max(...EX.mixture.levels.at(-1).values.map(Math.abs)), label: "Mixed teaching signal", seconds: 1 })}</div>
+      ${spectrumSvg(level.spectrum, yMax, "Spectrum of the mixed teaching signal")}
+      <div class="metric-row">${mathTile("Alpha power", fmt(level.spectrum.alpha_power, 1), "µV²", `a pure ${level.alpha_amplitude.toFixed(1)} µV tone alone: ${fmt(level.alpha_amplitude ** 2 / 2, 1)}`)}${mathTile("Whole spectrum", fmt(level.spectrum.total_power, 1), "µV²", "mean square of the mix")}</div>`;
+  } else {
+    const rec = EX.recorded[state.eyes];
+    const s = rec.spectrum;
+    const yMax = Math.max(...EX.recorded.eyes_closed.spectrum.density);
+    body = `<div class="choices levels" role="group" aria-label="Recorded condition">
+        <button type="button" class="choice" data-eyes="eyes_closed" aria-pressed="${state.eyes === "eyes_closed"}">Eyes closed</button>
+        <button type="button" class="choice" data-eyes="eyes_open" aria-pressed="${state.eyes === "eyes_open"}">Eyes open</button>
+      </div>
+      <p class="live-label"><span class="src recorded">${esc(RS.source_labels.recorded)}</span> The first second of each condition, channel O1.</p>
+      ${spectrumSvg(s, yMax, `Spectrum of the first recorded second, ${state.eyes === "eyes_closed" ? "eyes closed" : "eyes open"}`)}
+      ${MATHML.alpha}
+      <div class="metric-row">${mathTile("Alpha area, 8 to 13 Hz", fmt(s.alpha_power, 1), "µV²", "this second's alpha power")}${mathTile("Whole area", fmt(s.total_power, 1), "µV²", `tapered mean square ${fmt(s.tapered_mean_square, 1)}`)}</div>
+      <p class="caveat">Plain mean square of this second: ${fmt(s.mean_square, 1)} µV². It differs from the whole area because the Hann taper weighs the middle of the second more, and this second's activity was uneven. Alpha is ${fmt((100 * s.alpha_power) / s.total_power, 0)}% of the whole area.</p>`;
+  }
+  const dots = EX.steps.map((s, i) => `<button type="button" class="math-dot" data-math-step="${i}" aria-current="${i === state.mathStep ? "step" : "false"}" aria-label="Step ${i + 1}: ${esc(s.title)}">${i + 1}</button>`).join("");
+  return `<p class="eyebrow">Interactive math explainer · ${state.mathStep + 1} of ${EX.steps.length}</p>
+    <div class="math-dots">${dots}</div>
+    <h3 class="math-title">${esc(step.title)}</h3>
+    <p class="math-q">${esc(step.question)}</p>
+    ${body}
+    <p>${esc(step.explanation)}</p>
+    <p class="takeaway">${esc(step.takeaway)}</p>
+    <div class="nav">
+      <button type="button" class="ghost" data-math-step="${state.mathStep - 1}" ${state.mathStep === 0 ? "disabled" : ""}>Back</button>
+      <button type="button" class="primary" data-math-step="${Math.min(state.mathStep + 1, EX.steps.length - 1)}" ${state.mathStep === EX.steps.length - 1 ? "disabled" : ""}>Next</button>
+    </div>`;
+}
+
+function mathTextHtml() {
+  const amp = EX.square.levels.find((l) => l.amplitude === 2) || EX.square.levels[0];
+  const ec = EX.recorded.eyes_closed.spectrum;
+  return `<h3>Why the Math Works</h3>
+    ${EX.steps.map((s, i) => `<p><strong>${i + 1}. ${esc(s.title)}</strong> ${esc(s.question)} ${esc(s.explanation)} ${esc(s.takeaway)}</p>`).join("")}
+    <p>Worked numbers: a ${amp.amplitude} µV sine has mean ${fmt(amp.mean)} µV and mean square ${fmt(amp.mean_square)} µV². The first eyes-closed second has alpha area ${fmt(ec.alpha_power, 1)} µV² out of a whole area of ${fmt(ec.total_power, 1)} µV².</p>`;
 }
 
 function studyEntryHtml(stage) {
@@ -1922,8 +2068,19 @@ function openRefs(keyToShow) {
 
 // Regions and electrodes on the anatomy drawings, and the system list.
 function studyPick(target) {
-  const el = target.closest("[data-open-study], [data-study-tab], [data-axis]");
+  const el = target.closest("[data-open-study], [data-study-tab], [data-axis], [data-math-step], [data-math-view]");
   if (!el) return false;
+  if (el.dataset.mathStep !== undefined) {
+    state.mathStep = Math.max(0, Math.min(EX.steps.length - 1, Number(el.dataset.mathStep)));
+    renderStudy();
+    $("study").scrollTop = 0;
+    return true;
+  }
+  if (el.dataset.mathView) {
+    state.mathSquared = el.dataset.mathView === "squared";
+    renderStudy();
+    return true;
+  }
   if (el.dataset.openStudy) openStudy(el.dataset.openStudy);
   if (el.dataset.studyTab) {
     state.studyTab = el.dataset.studyTab;
@@ -1947,6 +2104,16 @@ function anatomyPick(target) {
   $("panel").scrollTop = scroll;
   return true;
 }
+
+// Range sliders in the math explainer redraw as they move.
+document.addEventListener("input", (e) => {
+  const key = e.target.dataset?.math;
+  if (!key) return;
+  if (key === "amp") state.mathAmp = Number(e.target.value);
+  if (key === "alpha") state.mathAlpha = Number(e.target.value);
+  renderStudy();
+  document.querySelector(`#study input[data-math="${key}"]`)?.focus();
+});
 
 document.addEventListener("keydown", (e) => {
   if ((e.key === "Enter" || e.key === " ") && e.target.matches?.("g[data-system], g[data-electrode]")) {
