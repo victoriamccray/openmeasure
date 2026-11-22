@@ -40,7 +40,7 @@
   {
    "name": "Sensors",
    "environment": "Scalp electrode at position O1",
-   "you_are": "A voltage measured at one scalp electrode, O1, which sits over the left occipital region. It records the voltage difference from a reference electrode: a blend of many sources, near and far. The cortex directly beneath an electrode does not always contribute most, because each source's orientation and depth also set how strongly it reaches the scalp. The device samples the voltage 500 times per second and stores each sample in microvolts (µV, millionths of a volt).",
+   "you_are": "A voltage measured at one scalp electrode, O1, which sits over the left occipital region. It records the voltage difference from a reference, here both earlobes linked together: a blend of many sources, near and far. The cortex directly beneath an electrode does not always contribute most, because each source's orientation and depth also set how strongly it reaches the scalp. The device samples the voltage 500 times per second and stores each sample in microvolts (µV, millionths of a volt).",
    "lesson": "Sampling turns continuous activity into a sequence of numbers. The device stores that sequence. The stored recording is the first copy of you, and it stays at this stage when you move on.",
    "what_changed": "A continuous rhythm became 500 numbers per second. Numbers can be stored and copied.",
    "handoff": "a raw measured trace",

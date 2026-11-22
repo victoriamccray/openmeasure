@@ -610,18 +610,28 @@ def _render_resting_study() -> None:
             )
             steps = st.columns(4)
             for col, (title, text) in zip(steps, (
-                ("1. Seated at rest", "Cap on, electrodes checked, no task."),
-                ("2. Eyes closed", "Alpha strongest. Skin conductance lower (published finding)."),
-                ("3. Eyes open", "Alpha drops. Skin conductance rises (published finding)."),
-                ("4. Compare", "Same person, two conditions, second by second."),
+                ("1. At rest", "19 scalp electrodes at 10-20 sites and one eye channel. No task."),
+                ("2. Eyes closed", "189 seconds. Alpha strongest. Skin conductance lower (published finding, not recorded here)."),
+                ("3. Eyes open", "About 4 minutes later, 184 seconds. Alpha drops."),
+                ("4. Compare", "Seconds 20 to 35 of each, from electrode O1, second by second."),
             )):
                 col.markdown(f"**{title}**")
                 col.caption(text)
             st.caption(
-                "Barry and De Blasio (2017) recorded 3 minutes of each, eyes closed first. This "
-                "stage uses a 15-second excerpt of each condition from one channel. "
-                f"{_resting_ref('barry_2017')}{_ref(SANCHEZ_GAMA_ET_AL_CITATION)}"
+                "The drawing is an illustration of a typical setup, modelled on Barry et al. "
+                "(2007); this dataset records EEG only and does not state posture or equipment."
             )
+            recording = resting_core.RECORDING
+            with st.container(border=True):
+                st.markdown(f"**{recording.title}**")
+                st.markdown(
+                    "\n".join(f"- **{f.label}:** {f.value} *(Source: {f.source}.)*" for f in recording.facts)
+                )
+                st.write(f"**The excerpt.** {recording.excerpt}")
+                st.caption(
+                    "Left blank in the dataset: " + " ".join(recording.not_stated)
+                    + f" {_ref(SANCHEZ_GAMA_ET_AL_CITATION)}"
+                )
             _study_card(resting_core.STUDY, "The study: Barry et al. (2007)")
             _study_card(resting_core.AGEING_NOTE, "Does it hold with age? Barry and De Blasio (2017)")
 

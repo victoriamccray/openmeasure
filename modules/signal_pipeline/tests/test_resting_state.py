@@ -169,3 +169,29 @@ class TestContent(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRecordingFacts(unittest.TestCase):
+    """The recording facts must agree with the bundled excerpt they describe."""
+
+    def test_excerpt_length_matches_the_bundled_csv(self):
+        import pandas as pd
+        from pathlib import Path
+        frame = pd.read_csv(Path(__file__).resolve().parents[1] / "sample_data" / "ds005420_sub-5_O1_eyes_snippet.csv")
+        counts = frame.groupby("condition").size()
+        self.assertEqual(set(counts), {7500})
+        self.assertIn("7,500 samples per condition", rs.RECORDING.excerpt)
+        self.assertIn("seconds 20 to 35", rs.RECORDING.excerpt)  # 7,500 / 500 Hz = 15 s
+
+    def test_stated_sampling_rate_is_the_one_the_pipeline_uses(self):
+        from core import intervention
+        sampling = [f for f in rs.RECORDING.facts if f.label == "Sampling"][0]
+        self.assertIn(f"{int(intervention.SAMPLING_RATE_HZ)} samples per second", sampling.value)
+
+    def test_every_fact_names_its_source_file(self):
+        for f in rs.RECORDING.facts:
+            with self.subTest(fact=f.label):
+                self.assertTrue(f.source)
+
+    def test_unknowns_are_listed(self):
+        self.assertTrue(any("manufacturer" in n for n in rs.RECORDING.not_stated))

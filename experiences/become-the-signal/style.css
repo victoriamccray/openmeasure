@@ -675,3 +675,10 @@ rect.hl, circle.hl, path.area.hl { fill-opacity: 0.85 !important; }
 .head-mini .read-bar { fill: var(--accent); }
 .head-mini .ax { fill: var(--muted); font-size: 10px; }
 .head-mini .ax.strong { fill: var(--text); font-weight: 600; }
+
+/* How it was recorded: label and value pairs from the dataset's files. */
+.facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 8px 0; }
+.facts dt { font-weight: 600; }
+.facts dd { margin: 0; }
+.facts dd .caveat { display: block; }
+@media (max-width: 560px) { .facts { grid-template-columns: 1fr; } .facts dd { margin-bottom: 6px; } }

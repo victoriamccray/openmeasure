@@ -240,6 +240,7 @@ def _resting_state(baseline: dict) -> dict:
     react = resting_state.reactivity(closed, opened)
     odds = resting_state.chance(n_correct, n_trials)
     return {
+        "recording": dataclasses.asdict(resting_state.RECORDING),
         "study": dataclasses.asdict(resting_state.STUDY),
         "ageing": dataclasses.asdict(resting_state.AGEING_NOTE),
         "measures": [dataclasses.asdict(m) for m in resting_state.MEASURES],

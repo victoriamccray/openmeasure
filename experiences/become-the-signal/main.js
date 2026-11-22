@@ -1367,13 +1367,14 @@ const RANGE_LABEL = {
   "within person": "Compare within a person",
 };
 const STUDY_TABS = [
-  ["room", "The Recording"],
+  ["room", "How It Was Recorded"],
   ["numbers", "What the Numbers Mean"],
   ["dichotomies", "Resting vs Task"],
   ["math", "Why the Math Works"],
 ];
 
-// A seated participant, side view facing right. Eyes, the O1 glow and
+// An illustrative participant (posture and equipment are not stated in
+// the dataset), side view facing right. Eyes, the O1 glow and
 // the alpha meter follow state.eyes; the trace is the recorded signal.
 function participantSvg() {
   const closed = state.eyes === "eyes_closed";
@@ -1382,7 +1383,7 @@ function participantSvg() {
     ? `<path d="M181,84 q5,3.5 10,0" class="lid"/>`
     : `<ellipse cx="186" cy="84" rx="5.5" ry="3.6" class="eye-white"/><circle cx="188" cy="84" r="2.2" class="pupil"/>`;
   const capSites = [[150, 52], [168, 44], [186, 48], [200, 62], [136, 64], [128, 82]];
-  return `<svg class="participant" viewBox="0 0 420 300" role="img" aria-label="A participant seated at rest with ${closed ? "eyes closed" : "eyes open"}, wearing an EEG cap with electrode O1 at the back of the head, and two skin conductance electrodes on the fingers of the left hand. Cables run to two amplifiers.">
+  return `<svg class="participant" viewBox="0 0 420 300" role="img" aria-label="Illustration of a typical setup, modelled on Barry et al. (2007): a participant at rest with ${closed ? "eyes closed" : "eyes open"}, wearing an EEG cap with electrode O1 at the back of the head, and two skin conductance electrodes on the fingers of the left hand. Cables run to two amplifiers.">
     <defs><radialGradient id="o1g"><stop offset="0" stop-color="#ff9f6b" stop-opacity="${glow}"/><stop offset="1" stop-color="#ff9f6b" stop-opacity="0"/></radialGradient></defs>
     <rect x="0" y="268" width="420" height="32" class="floor"/>
     <path d="M92,150 L104,262 M206,196 L214,262 M92,196 H220" class="chair"/>
@@ -1408,7 +1409,7 @@ function participantSvg() {
     <rect x="16" y="214" width="76" height="34" rx="5" class="box"/><text x="54" y="229" class="lbl" text-anchor="middle">EEG amplifier</text><text x="54" y="241" class="lbl small" text-anchor="middle">500 samples/s</text>
     <text x="54" y="262" class="lbl small" text-anchor="middle">recorded here</text>
     <text x="232" y="34" class="lbl strong">${closed ? "Eyes closed" : "Eyes open"}, at rest</text>
-    <text x="232" y="50" class="lbl small">No task. Sitting still.</text>
+    <text x="232" y="50" class="lbl small">No task. Illustration.</text>
   </svg>`;
 }
 
@@ -1427,6 +1428,15 @@ function liveTraceHtml() {
   </div>`;
 }
 
+// The journey's own recording, as its dataset's files state it.
+function recordingHtml() {
+  const r = RS.recording;
+  return `<div class="box"><h3>${esc(r.title)}</h3>
+    <dl class="facts">${r.facts.map((f) => `<dt>${esc(f.label)}</dt><dd>${esc(f.value)} <span class="caveat">Source: ${esc(f.source)}.</span></dd>`).join("")}</dl>
+    <p><strong>The excerpt.</strong> ${esc(r.excerpt)}</p>
+    <p><strong>Left blank in the dataset:</strong> ${r.not_stated.map(esc).join(" ")}${refMarks(r.refs)}</p></div>`;
+}
+
 function studyCard(s, title) {
   return `<div class="box"><h3>${esc(title)}</h3>
     <p><strong>Who:</strong> ${esc(s.participants)}</p>
@@ -1439,10 +1449,10 @@ function studyCard(s, title) {
 
 function roomHtml() {
   const steps = [
-    ["Seated at rest", "Cap on, electrodes checked, no task."],
-    ["Eyes closed", "Alpha strongest. Skin conductance lower (published finding)."],
-    ["Eyes open", "Alpha drops. Skin conductance rises (published finding)."],
-    ["Compare", "Same person, two conditions, second by second."],
+    ["At rest", "19 scalp electrodes at 10-20 sites and one eye channel. No task."],
+    ["Eyes closed", "189 seconds. Alpha strongest. Barry et al. (2007) also found lower skin conductance, which this dataset did not record."],
+    ["Eyes open", "About 4 minutes later, 184 seconds. Alpha drops."],
+    ["Compare", "Seconds 20 to 35 of each, from electrode O1, second by second."],
   ];
   return `<div class="choices levels" role="group" aria-label="Condition">
       <button type="button" class="choice" data-eyes="eyes_closed" aria-pressed="${state.eyes === "eyes_closed"}">Eyes closed</button>
@@ -1450,7 +1460,9 @@ function roomHtml() {
     </div>
     <div class="room">${participantSvg()}${liveTraceHtml()}</div>
     <ol class="protocol">${steps.map(([t, d], i) => `<li class="${(state.eyes === "eyes_closed" && i === 1) || (state.eyes === "eyes_open" && i === 2) ? "now" : ""}"><span class="rail-num">${i + 1}</span><strong>${t}</strong><span>${d}</span></li>`).join("")}</ol>
-    <p class="caveat">Barry and De Blasio (2017) recorded 3 minutes of each, eyes closed first. This journey uses a 15-second excerpt of each condition from one channel.${refMarks(["barry_2017", "sanchez_gama"])}</p>
+    <p class="caveat">The drawing is illustrative: the dataset does not record posture or equipment.</p>
+    ${recordingHtml()}
+    <h3>Published Studies of the Same Contrast</h3>
     ${studyCard(RS.study, "The Study: Barry et al. (2007)")}
     ${studyCard(RS.ageing, "Does It Hold With Age? Barry and De Blasio (2017)")}`;
 }
@@ -1587,6 +1599,7 @@ function studyTextHtml() {
     .map((d) => `<tr><td>${esc(d.modality)}</td><td>${esc(RS.axis_poles[d.axis].join(" vs "))}</td><td>${esc(d.first)}</td><td>${esc(d.second)}${refMarks(d.refs)}</td></tr>`)
     .join("");
   return `<section><h2>The Study Room</h2>
+    ${recordingHtml()}
     ${studyCard(RS.study, "The Study: Barry et al. (2007)")}
     ${studyCard(RS.ageing, "Does It Hold With Age? Barry and De Blasio (2017)")}
     <h3>This Recording's Numbers</h3>
@@ -2421,6 +2434,8 @@ document.addEventListener("click", (e) => {
       return setTextView(!state.textView);
     case "open-refs":
       return openRefs();
+    case "open-recording":
+      return openStudy("room");
     case "close-refs":
       return $("refs").close();
     case "close-study":

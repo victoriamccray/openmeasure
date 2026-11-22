@@ -1076,6 +1076,61 @@
   ]
  },
  "resting_state": {
+  "recording": {
+   "title": "How This Recording Was Made",
+   "facts": [
+    {
+     "label": "Dataset",
+     "value": "Resting state EEG with closed eyes and open eyes in females from 60 to 80 years old (OpenNeuro ds005420), licensed CC0.",
+     "source": "dataset_description.json"
+    },
+    {
+     "label": "Participant",
+     "value": "One participant, sub-5. Age and sex are blank for each person; the dataset title gives women aged 60 to 80.",
+     "source": "participants.tsv"
+    },
+    {
+     "label": "Task",
+     "value": "Rest with no task: one recording with the eyes closed, one with the eyes open.",
+     "source": "*_eeg.json (task oc, oa)"
+    },
+    {
+     "label": "Electrodes",
+     "value": "19 scalp electrodes at standard 10-20 sites (Fp1 to O2), plus one eye channel between the outer corners of the eyes (LOC-ROC).",
+     "source": "*_channels.tsv"
+    },
+    {
+     "label": "Reference",
+     "value": "Each scalp electrode against both earlobes linked together, written O1-A1A2 for this channel.",
+     "source": "*_channels.tsv"
+    },
+    {
+     "label": "Sampling",
+     "value": "500 samples per second, stored in microvolts.",
+     "source": "*_eeg.json, EDF header"
+    },
+    {
+     "label": "Filtering at recording",
+     "value": "0.5 to 60 Hz, applied before the data were stored.",
+     "source": "*_channels.tsv, EDF header"
+    },
+    {
+     "label": "Order and length",
+     "value": "Eyes closed first, 189 seconds. Eyes open began about 4 minutes later, 184 seconds.",
+     "source": "sub-5_scans.tsv, *_eeg.json"
+    }
+   ],
+   "excerpt": "This journey uses seconds 20 to 35 of each recording from electrode O1, unchanged: 7,500 samples per condition, matched sample for sample against the original files.",
+   "not_stated": [
+    "The amplifier and cap manufacturer.",
+    "The participant's posture and the room.",
+    "The power line frequency.",
+    "This participant's exact age."
+   ],
+   "refs": [
+    "sanchez_gama"
+   ]
+  },
   "study": {
    "key": "barry_2007",
    "citation_key": "barry",

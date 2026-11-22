@@ -269,6 +269,63 @@ REFERENCES: tuple[Reference, ...] = (
 # The study
 # ------------------------------------------------------------------
 
+@dataclass(frozen=True)
+class RecordingFact:
+    label: str
+    value: str
+    source: str  # which dataset file states it
+
+
+@dataclass(frozen=True)
+class Recording:
+    """
+    How the journey's own recording was made, as its dataset states it.
+
+    Every fact is read from OpenNeuro ds005420 (Sánchez Gama et al., 2024):
+    dataset_description.json, sub-5's EEG sidecars (*_eeg.json), channel
+    table (*_channels.tsv), scans table, and the EDF header. not_stated
+    lists what those files leave blank, so no page fills the gap with a
+    guess.
+    """
+
+    title: str
+    facts: tuple[RecordingFact, ...]
+    excerpt: str
+    not_stated: tuple[str, ...]
+    refs: tuple[str, ...]
+
+
+RECORDING = Recording(
+    title="How This Recording Was Made",
+    facts=(
+        RecordingFact("Dataset", "Resting state EEG with closed eyes and open eyes in females from 60 to "
+                      "80 years old (OpenNeuro ds005420), licensed CC0.", "dataset_description.json"),
+        RecordingFact("Participant", "One participant, sub-5. Age and sex are blank for each person; the "
+                      "dataset title gives women aged 60 to 80.", "participants.tsv"),
+        RecordingFact("Task", "Rest with no task: one recording with the eyes closed, one with the eyes "
+                      "open.", "*_eeg.json (task oc, oa)"),
+        RecordingFact("Electrodes", "19 scalp electrodes at standard 10-20 sites (Fp1 to O2), plus one "
+                      "eye channel between the outer corners of the eyes (LOC-ROC).", "*_channels.tsv"),
+        RecordingFact("Reference", "Each scalp electrode against both earlobes linked together, written "
+                      "O1-A1A2 for this channel.", "*_channels.tsv"),
+        RecordingFact("Sampling", "500 samples per second, stored in microvolts.", "*_eeg.json, EDF header"),
+        RecordingFact("Filtering at recording", "0.5 to 60 Hz, applied before the data were stored.",
+                      "*_channels.tsv, EDF header"),
+        RecordingFact("Order and length", "Eyes closed first, 189 seconds. Eyes open began about 4 minutes "
+                      "later, 184 seconds.", "sub-5_scans.tsv, *_eeg.json"),
+    ),
+    excerpt="This journey uses seconds 20 to 35 of each recording from electrode O1, unchanged: "
+    "7,500 samples per condition, matched sample for sample against the original files.",
+    not_stated=(
+        "The amplifier and cap manufacturer.",
+        "The participant's posture and the room.",
+        "The power line frequency.",
+        "This participant's exact age.",
+    ),
+    refs=("sanchez_gama",),
+)
+
+
 STUDY = Study(
     key="barry_2007",
     citation_key="barry",
