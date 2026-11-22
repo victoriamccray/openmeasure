@@ -890,16 +890,15 @@ def _render_correlation_lesson() -> None:
         st.markdown(f"**The obstacle.** {lesson['obstacle']}")
 
         st.markdown(
-            "**Try it.** On the left, a third source drives both signals and they share no link. "
+            "**Compare.** On the left, a third source drives both signals and they share no link. "
             "On the right, X drives Y directly, with its strength set so the expected correlation "
-            "matches. Raise the shared input."
+            "matches."
         )
-        a = st.select_slider(
-            "Strength of the shared input", options=[0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0], value=1.0,
-            key="mmsc_lesson_corr_a",
-        )
+        # One fixed example makes the point; a slider would only move both
+        # values together. Shared-input strength 2 gives an expected r of 0.8.
+        a = 2.0
         common = corr_core.simulate(corr_core.WIRING_COMMON, a)
-        b = corr_core.matching_direct_strength(a) if a > 0 else 0.0
+        b = corr_core.matching_direct_strength(a)
         direct = corr_core.simulate(corr_core.WIRING_DIRECT, b, seed=corr_core.DEFAULT_SEED + 1)
         left, right = st.columns(2)
         with left:
@@ -916,10 +915,7 @@ def _render_correlation_lesson() -> None:
 
         with st.container(border=True):
             st.markdown("**Two electrodes, one source (volume conduction).**")
-            share = st.select_slider(
-                "Share of the source that reaches electrode 2", options=[0.0, 0.25, 0.5, 0.75, 1.0], value=0.75,
-                key="mmsc_lesson_corr_share",
-            )
+            share = 0.75
             shared = corr_core.simulate(corr_core.WIRING_SHARED, 1.0, second_weight=share)
             st.markdown(
                 f"With one source under electrode 1 and {share:.0%} of it reaching electrode 2, the two "
