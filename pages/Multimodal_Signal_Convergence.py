@@ -49,6 +49,8 @@ from modules.signal_pipeline.core import modality as modality_core
 from modules.signal_pipeline.core import neuroanatomy as neuroanatomy_core
 from modules.signal_pipeline.core import pipeline as pipeline_core
 from modules.signal_pipeline.core import resting_state as resting_core
+from modules.signal_pipeline.core import hemodynamics as hemo_core
+from modules.signal_pipeline.core import correlation_lesson as corr_core
 from modules.signal_pipeline.core import tradeoff as tradeoff_core
 from shared.data_handling import disclosure_for, render_data_handling_summary
 from shared.journey_stages import StageTracker
@@ -499,6 +501,11 @@ ANATOMY_REFERENCES: dict[str, str] = {
     r.key: f"{r.text} {r.url}".strip() for r in ANATOMY.references
 }
 
+LESSON_REFERENCES: dict[str, str] = {
+    key: f"{text} {url}"
+    for key, (text, url) in {**hemo_core.REFERENCES, **corr_core.REFERENCES}.items()
+}
+
 RESTING_REFERENCES: dict[str, str] = {
     r.key: f"{r.text} {r.url}".strip() for r in resting_core.REFERENCES
 }
@@ -518,11 +525,17 @@ def _reference_registry(
 
     # The neuroanatomy figure's references, formatted the way this page
     # writes citations, so a work cited both ways is listed once.
-    for reference in (*ANATOMY_REFERENCES.values(), *RESTING_REFERENCES.values()):
+    for reference in (*ANATOMY_REFERENCES.values(), *RESTING_REFERENCES.values(), *LESSON_REFERENCES.values()):
         if reference not in ordered:
             ordered.append(reference)
 
     return tuple(ordered)
+
+
+def _lesson_ref(*keys: str) -> str:
+    """Reference markers for a lesson's keys, wherever the work is listed."""
+    pool = {**ANATOMY_REFERENCES, **RESTING_REFERENCES, **LESSON_REFERENCES}
+    return _ref(*(pool[key] for key in keys))
 
 
 def _resting_ref(*keys: str) -> str:
@@ -775,6 +788,155 @@ def _render_resting_study() -> None:
             )
             refs = sorted({k for d in resting_core.DICHOTOMIES if d.axis == axis for k in d.refs})
             st.caption(f"Sources: {_resting_ref(*refs)}")
+
+
+
+# -----------------------------------------------------------------
+# Interactive lessons: each one a question, the obstacle, an experiment,
+# the formula, and its limitations. Numbers come from core.
+# -----------------------------------------------------------------
+
+_ASSUMPTION_BADGE = {"checked": "green", "violated": "red", "unverified": "orange", "assumed": "gray"}
+
+
+def _assumption_rows(rows: list[tuple[str, str, str]]) -> None:
+    for name, status, why in rows:
+        st.markdown(f":{_ASSUMPTION_BADGE[status]}-badge[{status}] **{name}.** {why}")
+
+
+def _render_hemodynamics_lesson() -> None:
+    lesson = hemo_core.LESSON
+    with st.expander("Lesson: why does fNIRS respond more slowly than EEG?"):
+        st.markdown(f"**The question.** {lesson['question']}")
+        st.markdown(f"**The obstacle.** {lesson['obstacle']}")
+
+        st.markdown("**Try it.** Two brief neural events. Move them closer together.")
+        gap = st.select_slider(
+            "Seconds between the two events", options=[1, 2, 3, 4, 5, 6, 8, 10], value=8,
+            key="mmsc_lesson_hemo_gap",
+        )
+        result = hemo_core.hemodynamic_response([5.0, 5.0 + gap], duration=40.0)
+        rows = [
+            {"t": t, "value": v, "signal": "Blood-oxygen response (model)"}
+            for t, v in zip(result.times, result.response)
+        ]
+        events = [{"t": e, "signal": "Neural event (what EEG sees)"} for e in result.event_times]
+        spec = {
+            "layer": [
+                {"data": {"values": events}, "mark": {"type": "rule", "strokeWidth": 2, "color": CATEGORY_COLORS["Neural"]},
+                 "encoding": {"x": {"field": "t", "type": "quantitative"}}},
+                {"data": {"values": rows}, "mark": {"type": "line", "strokeWidth": 2, "color": "#8a5cc9"},
+                 "encoding": {
+                     "x": {"field": "t", "type": "quantitative", "title": "Seconds", "scale": {"domain": [0, 40]}},
+                     "y": {"field": "value", "type": "quantitative", "title": "Response (arbitrary units)"},
+                     "tooltip": [{"field": "t", "title": "Seconds", "format": ".1f"},
+                                 {"field": "value", "title": "Response", "format": ".2f"}]}},
+            ],
+            "title": {"text": "Blue lines: neural events. Purple: the slow blood-oxygen response they cause.",
+                      "fontSize": 11, "color": INK_SECONDARY, "fontWeight": "normal"},
+            "width": "container", "height": 160, "config": _VEGA_CHART_CONFIG,
+        }
+        _chart(spec)
+        cols = st.columns(2)
+        cols[0].metric("First visible peak after the first event", f"{result.first_peak_delay:.1f} s")
+        cols[1].metric("Two separate responses?", "Yes" if result.separable else "No, they merge")
+        st.caption(
+            "EEG would show each event within milliseconds. In this model a single event's blood "
+            "response peaks 5 s later. Events closer than about 5 s merge into one bump. "
+            "Separate means the dip between peaks falls below 75% of the smaller peak, a teaching "
+            "rule of thumb."
+        )
+
+        st.markdown("**The formula.**")
+        st.latex(r"h(t) = (n * k)(t) = \int n(\tau)\, k(t - \tau)\, d\tau")
+        st.caption(
+            f"{lesson['formula_plain']} Here k(t) is a double gamma that peaks at 5 s with a small "
+            f"undershoot after. {_lesson_ref('boynton', 'friston_1998')}"
+        )
+
+        st.markdown("**Limitations.**")
+        for item in lesson["limitations"]:
+            st.markdown(f"- {item}")
+        st.markdown("**Assumptions in this experiment.**")
+        _assumption_rows([
+            ("Linear response", "violated" if gap < 4 else "unverified",
+             "Holds approximately for events at least about 4 s apart; this setting is "
+             + ("closer than that, so the model is outside its range." if gap < 4 else "within that range, though this page does not test it.")),
+            ("Response shape", "assumed", "A standard double gamma; real shapes vary by region and person."),
+            ("fNIRS follows the BOLD shape", "assumed", "A common modeling choice for oxygenated hemoglobin."),
+        ])
+        st.caption(f"Sources: {_lesson_ref('glover', 'lindquist', 'yucel', 'logothetis')}")
+
+
+def _scatter_spec(sim: corr_core.Simulation, title: str, color: str) -> dict:
+    rows = [{"x": x, "y": y} for x, y in zip(sim.x, sim.y)]
+    return {
+        "data": {"values": rows},
+        "mark": {"type": "point", "filled": True, "size": 18, "opacity": 0.5, "color": color},
+        "encoding": {
+            "x": {"field": "x", "type": "quantitative", "title": "Signal X"},
+            "y": {"field": "y", "type": "quantitative", "title": "Signal Y"},
+            "tooltip": [{"field": "x", "format": ".2f"}, {"field": "y", "format": ".2f"}],
+        },
+        "title": {"text": title, "fontSize": 11, "color": INK_SECONDARY, "fontWeight": "normal"},
+        "width": "container", "height": 180, "config": _VEGA_CHART_CONFIG,
+    }
+
+
+def _render_correlation_lesson() -> None:
+    lesson = corr_core.LESSON
+    with st.expander("Lesson: how can correlation mislead?"):
+        st.markdown(f"**The question.** {lesson['question']}")
+        st.markdown(f"**The obstacle.** {lesson['obstacle']}")
+
+        st.markdown(
+            "**Try it.** On the left, a third source drives both signals and they share no link. "
+            "On the right, X drives Y directly, with its strength set so the expected correlation "
+            "matches. Raise the shared input."
+        )
+        a = st.select_slider(
+            "Strength of the shared input", options=[0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0], value=1.0,
+            key="mmsc_lesson_corr_a",
+        )
+        common = corr_core.simulate(corr_core.WIRING_COMMON, a)
+        b = corr_core.matching_direct_strength(a) if a > 0 else 0.0
+        direct = corr_core.simulate(corr_core.WIRING_DIRECT, b, seed=corr_core.DEFAULT_SEED + 1)
+        left, right = st.columns(2)
+        with left:
+            _chart(_scatter_spec(common, "No link: a third source drives both", "#8a5cc9"))
+            st.metric("Correlation r", f"{common.r:.2f}", help=f"Expected {common.expected_r:.2f}")
+        with right:
+            _chart(_scatter_spec(direct, "Direct link: X drives Y", CATEGORY_COLORS["Neural"]))
+            st.metric("Correlation r", f"{direct.r:.2f}", help=f"Expected {direct.expected_r:.2f}")
+        st.caption(
+            f"Both panels: {len(common.x)} simulated samples, noise SD {common.noise_sd:g}. The two "
+            "wirings give the same expected r, so r alone cannot say which one produced it. Small "
+            "differences between the two values are sampling noise."
+        )
+
+        with st.container(border=True):
+            st.markdown("**Two electrodes, one source (volume conduction).**")
+            share = st.select_slider(
+                "Share of the source that reaches electrode 2", options=[0.0, 0.25, 0.5, 0.75, 1.0], value=0.75,
+                key="mmsc_lesson_corr_share",
+            )
+            shared = corr_core.simulate(corr_core.WIRING_SHARED, 1.0, second_weight=share)
+            st.markdown(
+                f"With one source under electrode 1 and {share:.0%} of it reaching electrode 2, the two "
+                f"electrodes correlate at **r = {shared.r:.2f}** (expected {shared.expected_r:.2f}), "
+                "with only one source present."
+            )
+
+        st.markdown("**The formula.**")
+        st.latex(r"r = \frac{\operatorname{Cov}(X, Y)}{\sigma_X\, \sigma_Y}")
+        st.caption(lesson["formula_plain"])
+        st.latex(r"\text{common input: } r = \frac{a^2}{a^2 + s^2} \qquad \text{direct link: } r = \frac{b}{\sqrt{b^2 + s^2}}")
+        st.caption("Expected values for unit-variance sources and noise of standard deviation s, which the panels above check.")
+
+        st.markdown("**Limitations.**")
+        for item in lesson["limitations"]:
+            st.markdown(f"- {item}")
+        st.caption(f"Sources: {_lesson_ref(*lesson['refs'])}")
 
 
 def _render_electrode_map() -> None:
@@ -1877,6 +2039,8 @@ if stage == STAGE_ADD_MODALITIES:
         "cost - that comparison is Step 5."
     )
 
+    _render_hemodynamics_lesson()
+
 
 # -----------------------------------------------------------------
 # 4. Examine convergence
@@ -1929,6 +2093,8 @@ if stage == STAGE_CONVERGENCE:
     perspective = _held(PERSPECTIVE_KEY, PERSPECTIVE_BUILD) or PERSPECTIVE_BUILD
     st.caption(f"Viewed from Step 3's current perspective ({perspective}):")
     st.write(CONVERGENCE_PERSPECTIVE_TEXT[perspective])
+
+    _render_correlation_lesson()
 
     st.write(
         "**Implications**: convergence is where a multimodal "
