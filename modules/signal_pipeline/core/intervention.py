@@ -266,3 +266,30 @@ def strip_metadata(fields: Mapping[str, str]) -> Mapping[str, str]:
     return {
         key: value for key, value in fields.items() if key not in ILLUSTRATIVE_METADATA_FIELDS
     }
+
+
+@dataclass(frozen=True)
+class LabelledWindows:
+    """Every window's alpha power, its true condition, and its threshold label."""
+
+    powers: tuple[float, ...]
+    conditions: tuple[str, ...]
+    labelled_closed: tuple[bool, ...]
+    threshold: float
+
+
+def labelled_windows(result: ClassificationResult) -> LabelledWindows:
+    """
+    The per-window labels behind result.accuracy, eyes-closed windows first.
+
+    A window is labelled eyes closed when its alpha power is above the
+    threshold, the rule classify_eyes_state applies.
+    """
+    powers = result.alpha_power_eyes_closed + result.alpha_power_eyes_open
+    conditions = ("eyes_closed",) * result.n_windows_eyes_closed + ("eyes_open",) * result.n_windows_eyes_open
+    return LabelledWindows(
+        powers=powers,
+        conditions=conditions,
+        labelled_closed=tuple(p > result.threshold for p in powers),
+        threshold=result.threshold,
+    )

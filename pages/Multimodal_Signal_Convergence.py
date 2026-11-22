@@ -51,6 +51,7 @@ from modules.signal_pipeline.core import pipeline as pipeline_core
 from modules.signal_pipeline.core import resting_state as resting_core
 from modules.signal_pipeline.core import hemodynamics as hemo_core
 from modules.signal_pipeline.core import correlation_lesson as corr_core
+from modules.signal_pipeline.core import filtering as filtering_core
 from modules.signal_pipeline.core import tradeoff as tradeoff_core
 from shared.data_handling import disclosure_for, render_data_handling_summary
 from shared.journey_stages import StageTracker
@@ -58,6 +59,7 @@ from shared.stage_workspace import Stage, StageWorkspace
 from shared.report import caveat, flagged_item_note, section_header
 from shared import neuroanatomy_figure
 from shared import resting_state_figure
+from shared import pipeline_figures
 
 SAMPLE_DIR = ROOT / "modules" / "signal_pipeline" / "sample_data"
 
@@ -126,109 +128,6 @@ PIPELINE_HANDOFFS = (
 )
 PIPELINE_RETURN_HANDOFF = "a changed signal the next time around"
 
-# Anatomy scene layout: an original, simplified biological-illustration
-# style (brain / heart / muscle / soundwave icons on a soft body outline),
-# not a trace or copy of any commercial illustration library's assets -
-# those are copyrighted stock icons this app has no license to reproduce.
-# Pixel coordinates in a fixed 320x380 viewBox. Body-sensed categories get
-# an icon on the figure itself; non-body-sensed categories (Subjective,
-# Environmental, Institutional) are never drawn on the body, since none
-# of the three is actually picked up from the body by a sensor - drawing
-# one there would misrepresent what the modality is.
-SCENE_VIEWBOX = (320, 380)
-HEAD_CENTER_PX = (100, 55)
-HEAD_RADIUS_PX = 30
-ENTRY_POINT_PX = (100, 355)
-BODY_ICON_PX = {
-    "Neural": (100, 55),
-    "Autonomic": (100, 172),
-    "Muscular": (25, 210),
-    "Behavioral": (100, 124),
-}
-EXTERNAL_ICON_PX = {
-    "Subjective": (258, 68),
-    "Environmental": (258, 150),
-    "Institutional": (258, 232),
-}
-# The Privacy view draws the edge of the person: body-sensed signals
-# cross it, and the three non-body-sensed modalities are drawn outside
-# it because they were never inside it to begin with. Sized to enclose
-# the body outline below, and to leave the external icons outside.
-PERSON_BOUNDARY_PX = (12, 14, 178, 346)  # x1, y1, x2, y2
-PRIVACY_CROSSING_PX = (178, 300)
-# Local (0-32 box) canonical icon paths - hand-authored here, simplified
-# and stylized rather than anatomically literal, in the spirit of a clean
-# biological-illustration look. fill takes the category's palette color;
-# stroke_light is a near-white line for contrast on filled shapes.
-_ICON_PATHS = {
-    "Neural": (
-        '<path d="M16 4C10 4 6 8 6 13C4 14 3 16 3 18C3 21 5 23 8 23'
-        "C8 26 11 28 14 28C15 28 16 27 16 27C16 27 17 28 18 28"
-        "C21 28 24 26 24 23C27 23 29 21 29 18C29 16 28 14 26 13"
-        'C26 8 22 4 16 4Z" fill="{fill}"/>'
-        '<path d="M16 6L16 26M11 9C13 10 13 13 11 15M21 9C19 10 19 13 21 15" '
-        'stroke="{stroke_light}" stroke-width="1.2" fill="none" stroke-linecap="round"/>'
-    ),
-    "Autonomic": (
-        '<path d="M16 29C16 29 3 20 3 11C3 6 6 3 10 3C13 3 15 5 16 7'
-        "C17 5 19 3 22 3C26 3 29 6 29 11C29 20 16 29 16 29"
-        'Z" fill="{fill}"/>'
-    ),
-    "Muscular": (
-        '<path d="M7 27C4 20 5 11 12 7C17 4 24 6 27 11C30 16 28 22 24 25'
-        "C23 21 20 22 19 25C17 22 15 23 13 26C11 23 9 25 7 27"
-        'Z" fill="{fill}"/>'
-    ),
-    "Behavioral": (
-        '<g class="sound-bar" style="animation-delay:0s">'
-        '<rect x="9" y="14" width="4" height="9" rx="2" fill="{fill}"/></g>'
-        '<g class="sound-bar" style="animation-delay:0.15s">'
-        '<rect x="15" y="6" width="4" height="21" rx="2" fill="{fill}"/></g>'
-        '<g class="sound-bar" style="animation-delay:0.3s">'
-        '<rect x="21" y="11" width="4" height="13" rx="2" fill="{fill}"/></g>'
-    ),
-    "Subjective": (
-        '<path d="M4 5H26C27 5 28 6 28 7V19C28 20 27 21 26 21H13L7 27V21H4'
-        "C3 21 2 20 2 19V7C2 6 3 5 4 5"
-        'Z" fill="{fill}"/>'
-    ),
-    "Environmental": (
-        '<path d="M16 4C10 4 6 8 6 14C6 21 16 29 16 29C16 29 26 21 26 14'
-        "C26 8 22 4 16 4"
-        'Z" fill="{fill}"/>'
-        '<circle cx="16" cy="14" r="4.2" fill="{stroke_light}"/>'
-    ),
-    "Institutional": (
-        '<rect x="6" y="6" width="20" height="24" rx="3" fill="{fill}"/>'
-        '<rect x="12" y="3" width="8" height="5" rx="1.5" fill="{fill}"/>'
-        '<line x1="10" y1="14" x2="22" y2="14" stroke="{stroke_light}" stroke-width="1.6" stroke-linecap="round"/>'
-        '<line x1="10" y1="19" x2="22" y2="19" stroke="{stroke_light}" stroke-width="1.6" stroke-linecap="round"/>'
-        '<line x1="10" y1="24" x2="18" y2="24" stroke="{stroke_light}" stroke-width="1.6" stroke-linecap="round"/>'
-    ),
-}
-# Body-sensed categories get a looping pulse (amplitude, duration) and a
-# scrolling waveform ticker (a small illustrative, non-recorded pattern
-# tiled twice for a seamless CSS loop); external (non-body-sensed)
-# categories get a gentle float instead of a pulse, and no ticker, since
-# none of them has a raw signal waveform to illustrate.
-_ICON_PULSE = {
-    "Neural": (1.05, "2.4s"),
-    "Autonomic": (1.16, "1.1s"),
-    "Muscular": (1.1, "0.8s"),
-    "Behavioral": (1.0, "1.4s"),  # bars animate themselves; icon stays still
-}
-_TICKER_TILE = {
-    "Neural": "0,0 4,9 8,-8 12,8 16,-7 20,5 24,-9 28,6 32,-5 36,3 40,0",
-    "Autonomic": "0,0 14,0 16,-3 18,10 20,-13 22,6 24,-1 40,0",
-    "Muscular": "0,0 3,-6 5,7 8,-9 10,5 13,-7 16,8 19,-4 22,6 25,-8 28,4 40,0",
-    "Behavioral": "0,-5 5,5 10,-5 15,5 20,-5 25,5 30,-5 35,0 40,0",
-}
-_TICKER_DURATION = {
-    "Neural": "1.0s",
-    "Autonomic": "1.0s",
-    "Muscular": "0.7s",
-    "Behavioral": "1.5s",
-}
 
 PERSPECTIVE_KEY = "signal_pipeline_perspective"
 PERSPECTIVE_BUILD = "Build"
@@ -804,6 +703,53 @@ def _assumption_rows(rows: list[tuple[str, str, str]]) -> None:
         st.markdown(f":{_ASSUMPTION_BADGE[status]}-badge[{status}] **{name}.** {why}")
 
 
+_BODY_FIGURE_HEIGHT = 690
+
+
+@st.cache_data(show_spinner=False)
+def _pipeline_eeg() -> dict:
+    """The recorded EEG at each stage, computed by core, for the pipeline drawing."""
+    snippet = _load_eeg_snippet()
+    rate = intervention_core.SAMPLING_RATE_HZ
+    second = int(rate)
+    filtered = filtering_core.band_pass(snippet["eyes_closed"], rate).filtered[:second]
+    result = intervention_core.classify_eyes_state(snippet["eyes_closed"], snippet["eyes_open"], rate)
+    windows = intervention_core.labelled_windows(result)
+    first = windows.powers[0]
+    return {
+        "raw": [float(v) for v in snippet["eyes_closed"][:second:4]],
+        "filtered": [float(v) for v in filtered[::4]],
+        "powers": list(windows.powers),
+        "labels": list(windows.labelled_closed),
+        "threshold": windows.threshold,
+        "decision_value": first,
+        "decision_label": "eyes closed" if windows.labelled_closed[0] else "eyes open",
+    }
+
+
+def _pipeline_figure(modalities) -> None:
+    """The pipeline as illustrated stages, showing the signal at each one."""
+    notes = {stage: note for _, stage, note in PIPELINE_STAGE_NOTES}
+    handoffs = dict(zip(pipeline_core.STAGES, PIPELINE_HANDOFFS))
+    n = len(modalities)
+    height = 40 + 2 * (50 + 18 * n) + (112 if n > 1 else 72) + 92 + 78 + 86 + 86 + 6 * 20 + 7 * 14 + 150
+    components.html(
+        pipeline_figures.pipeline_html(
+            tuple(modalities), pipeline_core.STAGES, pipeline_core.DEFAULT_CONVERGENCE_STAGE,
+            notes, handoffs, PIPELINE_RETURN_HANDOFF, CATEGORY_COLORS, eeg=_pipeline_eeg(),
+        ),
+        height=int(height * 1.55),
+    )
+
+
+def _body_figure(modalities, perspective: str) -> None:
+    """The illustrated person with each modality's sensor, under one perspective."""
+    components.html(
+        pipeline_figures.body_html(tuple(modalities), perspective, CATEGORY_COLORS),
+        height=_BODY_FIGURE_HEIGHT,
+    )
+
+
 def _annotated_formula(mathml: str, symbols: dict[str, str], labels: dict[str, str], height: int = 112) -> None:
     """
     A formula whose symbols can be tapped to show what each one stands for.
@@ -1059,511 +1005,18 @@ def _render_electrode_map() -> None:
         caveat(f"{ANATOMY.electrode_caveat} {_anatomy_ref(*ANATOMY.electrode_caveat_refs)}")
 
 
-def _pipeline_pictograph_html(pipeline: pipeline_core.SignalPipeline) -> str:
-    """
-    A drawn pictograph of the pipeline: each modality's own icon (the
-    same ones and, where applicable, the same gentle pulse as the
-    anatomy scene above, for one consistent icon language on this page)
-    at its own per-modality stages, converging into one shared, unlabeled
-    node from convergence_stage onward. Static shapes, animated only
-    where the anatomy scene above already animates the same category.
-    """
-
-    stages = pipeline_core.STAGES
-    convergence_index = stages.index(pipeline.convergence_stage)
-    pre_stages = stages[:convergence_index]
-    shared_stages = stages[convergence_index:]
-    modalities = pipeline.modalities
-    n = len(modalities)
-
-    stage_gap, left_margin, row_gap, top_margin = 92, 46, 46, 30
-    stage_x = {stage: left_margin + i * stage_gap for i, stage in enumerate(stages)}
-    row_y = {m.name: top_margin + i * row_gap for i, m in enumerate(modalities)}
-    shared_y = top_margin + (n - 1) * row_gap / 2
-
-    width = left_margin + (len(stages) - 1) * stage_gap + 46
-    height = top_margin + max(n - 1, 0) * row_gap + 46
-
-    lines: list[str] = []
-    icons: list[str] = []
-
-    for m in modalities:
-        y = row_y[m.name]
-        color = CATEGORY_COLORS[m.category]
-
-        if len(pre_stages) > 1:
-            x1, x2 = stage_x[pre_stages[0]], stage_x[pre_stages[-1]]
-            lines.append(
-                f'<line x1="{x1}" y1="{y}" x2="{x2}" y2="{y}" '
-                f'stroke="{color}" stroke-width="2" opacity="0.5"/>'
-            )
-        conv_x = stage_x[shared_stages[0]]
-        lines.append(
-            f'<line x1="{stage_x[pre_stages[-1]]}" y1="{y}" x2="{conv_x}" '
-            f'y2="{shared_y}" stroke="{color}" stroke-width="1.5" opacity="0.4"/>'
-        )
-
-        amt, dur = _ICON_PULSE.get(m.category, (1.08, "1.2s"))
-        pulse_style = f"--pulse-amt:{amt};--pulse-dur:{dur};"
-        pulse_class = "icon-pulse" if m.category in _ICON_PULSE else "icon-float"
-
-        for stage in pre_stages:
-            x = stage_x[stage]
-            icons.append(f'<g style="{pulse_style}cursor:help;">')
-            icons.append(f"<title>{m.name} ({stage})</title>")
-            icons.append(_icon_markup(m.category, x, y, 0.75, pulse_class))
-            icons.append("</g>")
-
-        icons.append(
-            f'<text x="{stage_x[pre_stages[0]]}" y="{y - 22}" text-anchor="middle" '
-            f'font-size="10" fill="{INK_SECONDARY}">{m.name}</text>'
-        )
-
-    if len(shared_stages) > 1:
-        x1, x2 = stage_x[shared_stages[0]], stage_x[shared_stages[-1]]
-        lines.append(
-            f'<line x1="{x1}" y1="{shared_y}" x2="{x2}" y2="{shared_y}" '
-            f'stroke="{MUTED}" stroke-width="2.5"/>'
-        )
-    for stage in shared_stages:
-        x = stage_x[stage]
-        icons.append(
-            f'<circle cx="{x}" cy="{shared_y}" r="6" fill="{MUTED}" '
-            f'style="cursor:help;"><title>{stage}: shared across every '
-            f"modality above from here on.</title></circle>"
-        )
-
-    # Numbered to match _pipeline_timeline_html's nodes: the same stage
-    # carries the same number in both diagrams on this page.
-    stage_labels = "".join(
-        f'<text x="{stage_x[stage]}" y="{height - 8}" text-anchor="middle" '
-        f'font-size="10" fill="{MUTED}">{index + 1}. {stage}</text>'
-        for index, stage in enumerate(stages)
-    )
-
-    return f"""
-    <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-                background:{SURFACE}; border-radius:6px; padding:6px 0;">
-      <style>
-        @keyframes pulseScale {{
-          0%, 100% {{ transform: scale(1); }}
-          50% {{ transform: scale(var(--pulse-amt, 1.08)); }}
-        }}
-        .icon-pulse {{
-          animation: pulseScale var(--pulse-dur, 1.2s) ease-in-out infinite;
-          transform-box: fill-box;
-          transform-origin: center;
-        }}
-        @keyframes floatBob {{
-          0%, 100% {{ transform: translateY(0); }}
-          50% {{ transform: translateY(-3px); }}
-        }}
-        .icon-float {{ animation: floatBob 2.6s ease-in-out infinite; }}
-      </style>
-      <div style="display:flex; justify-content:center;">
-        <svg width="100%" height="{height}" viewBox="0 0 {width} {height}"
-             preserveAspectRatio="xMidYMid meet">
-          {"".join(lines)}
-          {"".join(icons)}
-          {stage_labels}
-        </svg>
-      </div>
-    </div>
-    """
 
 
-def _pipeline_timeline_html() -> str:
-    """
-    A numbered vertical timeline of the seven pipeline stages, with the
-    handoff between each pair of stages named on the connector and the
-    feedback return drawn as an arc back to the first stage.
-
-    This replaced a row of seven equal badges, which showed what each
-    stage is but gave a reader no order to follow and nothing about what
-    crosses the boundary between two stages. The numbers here are the
-    same ones the pipeline pictograph uses for its stage labels, so the
-    two diagrams on this page can be read against each other.
-    """
-
-    stages = PIPELINE_STAGE_NOTES
-    node_x, text_x, radius = 78, 112, 15
-    top, row_gap = 34, 78
-    # Sized to the longest stage note rather than to the container, so
-    # the drawing is not a narrow column against a wide empty margin.
-    width = 420
-    height = top + (len(stages) - 1) * row_gap + 54
-
-    parts: list[str] = []
-
-    for index, (_, label, note) in enumerate(stages):
-        cy = top + index * row_gap
-
-        if index < len(stages) - 1:
-            parts.append(
-                f'<line x1="{node_x}" y1="{cy + radius + 5}" x2="{node_x}" '
-                f'y2="{cy + row_gap - radius - 7}" stroke="{MUTED}" '
-                f'stroke-width="2" marker-end="url(#timeline-arrow)"/>'
-            )
-            parts.append(
-                f'<text x="{text_x}" y="{cy + 48}" font-size="11" '
-                f'fill="{MUTED}" font-style="italic">passes on '
-                f"{PIPELINE_HANDOFFS[index]}</text>"
-            )
-
-        parts.append(
-            f'<circle cx="{node_x}" cy="{cy}" r="{radius}" '
-            f'fill="{INK_SECONDARY}"/>'
-        )
-        parts.append(
-            f'<text x="{node_x}" y="{cy + 5}" text-anchor="middle" '
-            f'font-size="14" font-weight="600" fill="{SURFACE}">'
-            f"{index + 1}</text>"
-        )
-        parts.append(
-            f'<text x="{text_x}" y="{cy + 1}" font-size="14" '
-            f'font-weight="600" fill="{INK_SECONDARY}">{label}</text>'
-        )
-        parts.append(
-            f'<text x="{text_x}" y="{cy + 19}" font-size="11.5" '
-            f'fill="{MUTED}">{note}</text>'
-        )
-
-    first_cy = top
-    last_cy = top + (len(stages) - 1) * row_gap
-    parts.append(
-        f'<path d="M {node_x - radius - 3},{last_cy} C 22,{last_cy} '
-        f'22,{first_cy} {node_x - radius - 7},{first_cy}" fill="none" '
-        f'stroke="{MUTED}" stroke-width="1.5" stroke-dasharray="4 4" '
-        f'opacity="0.8" marker-end="url(#timeline-arrow)"/>'
-    )
-    parts.append(
-        f'<text x="18" y="{(first_cy + last_cy) / 2}" text-anchor="middle" '
-        f'font-size="10.5" fill="{MUTED}" font-style="italic" '
-        f'transform="rotate(-90 18 {(first_cy + last_cy) / 2})">'
-        f"{PIPELINE_RETURN_HANDOFF}</text>"
-    )
-
-    return f"""
-    <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-                background:{SURFACE}; border-radius:6px; padding:4px 0;">
-      <svg width="100%" height="{height}" viewBox="0 0 {width} {height}"
-           preserveAspectRatio="xMidYMid meet">
-        <defs>
-          <marker id="timeline-arrow" viewBox="0 0 8 8" refX="6" refY="4"
-                  markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M0,0 L8,4 L0,8 z" fill="{MUTED}"/>
-          </marker>
-        </defs>
-        {"".join(parts)}
-      </svg>
-    </div>
-    """
 
 
-ANATOMY_LEGEND_BUFFER_PX = 56
 
 
-def _icon_markup(category: str, cx: float, cy: float, scale: float, pulse_class: str) -> str:
-    """One category's canonical 0-32 icon, centered at (cx, cy), scaled."""
-
-    path = _ICON_PATHS[category].format(fill=CATEGORY_COLORS[category], stroke_light=SURFACE)
-    tx = cx - 16 * scale
-    ty = cy - 16 * scale
-    return (
-        f'<g class="{pulse_class}">'
-        f'<g transform="translate({tx:.1f},{ty:.1f}) scale({scale:.3f})">{path}</g>'
-        f"</g>"
-    )
 
 
-def _ticker_markup(category: str, x: float, y: float) -> str:
-    """
-    A small, seamlessly-looping waveform strip beside a body-sensed
-    icon. The tile is drawn twice back to back and the pair scrolled by
-    exactly one tile-width via CSS, which is what makes the loop seamless
-    - not a real recording, an illustrative cue that each category
-    "feels" different from the others.
-    """
-
-    tile = _TICKER_TILE[category]
-    points_b = " ".join(
-        f"{float(part.split(',')[0]) + 40:.0f},{part.split(',')[1]}" for part in tile.split()
-    )
-    color = CATEGORY_COLORS[category]
-    duration = _TICKER_DURATION[category]
-    return (
-        f'<svg x="{x:.1f}" y="{y:.1f}" width="86" height="24" viewBox="0 -12 80 24">'
-        f'<g class="ticker-scroll" style="--tick-dur:{duration};">'
-        f'<polyline points="{tile}" fill="none" stroke="{color}" stroke-width="1.6" '
-        f'stroke-linecap="round" stroke-linejoin="round"/>'
-        f'<polyline points="{points_b}" fill="none" stroke="{color}" stroke-width="1.6" '
-        f'stroke-linecap="round" stroke-linejoin="round"/>'
-        f"</g></svg>"
-    )
 
 
-def _agency_gate_markup(
-    cx: float,
-    cy: float,
-    entry_x: float,
-    entry_y: float,
-    agency_cost: float,
-    color: str,
-) -> str:
-    """
-    A gate drawn across a modality's path to the pipeline, its opening
-    narrowing as that modality's illustrative agency cost rises.
-
-    The aperture is a continuous reading of the same 0-to-1 rating the
-    Agency view already reports, not a threshold: nothing here sorts
-    modalities into "controllable" and "not". A fully open gate is a
-    rating of 0, a nearly closed one a rating of 1, and every value in
-    between lands in between.
-
-    Drawn in local coordinates and rotated onto the path, so the gate
-    always reads as crossing the line rather than lying along it. The
-    pale backing keeps it legible where the path runs over the body
-    outline, which is most of the scene.
-    """
-
-    dx, dy = entry_x - cx, entry_y - cy
-    angle = math.degrees(math.atan2(dy, dx))
-    # Far enough along the path to read as sitting on it, not as part of
-    # the icon it leaves.
-    gate_x, gate_y = cx + dx * 0.55, cy + dy * 0.55
-
-    half_span = 14.0
-    half_gap = 2.0 + 8.0 * (1.0 - min(max(agency_cost, 0.0), 1.0))
-
-    bars = "".join(
-        f'<line x1="0" y1="{half_gap * side:.1f}" x2="0" '
-        f'y2="{half_span * side:.1f}" stroke="{color}" stroke-width="3.5" '
-        f'stroke-linecap="round"/>'
-        f'<line x1="-3" y1="{half_span * side:.1f}" x2="3" '
-        f'y2="{half_span * side:.1f}" stroke="{color}" stroke-width="1.6" '
-        f'stroke-linecap="round" opacity="0.7"/>'
-        for side in (1, -1)
-    )
-
-    return (
-        f'<g transform="translate({gate_x:.1f},{gate_y:.1f}) '
-        f'rotate({angle:.1f})">'
-        f'<rect x="-6" y="{-(half_span + 5):.1f}" width="12" '
-        f'height="{2 * (half_span + 5):.1f}" rx="5" fill="{SURFACE}" '
-        f'opacity="0.92"/>'
-        f"{bars}"
-        f"</g>"
-    )
 
 
-def _anatomy_scene_html(
-    modalities: tuple[modality_core.Modality, ...],
-    perspective: str,
-    height: int = 340,
-    show_tickers: bool = True,
-) -> str:
-    """
-    An original, illustrative biological scene - brain / heart / muscle /
-    soundwave icons on a soft body outline for body-sensed modalities,
-    and speech-bubble / map-pin / clipboard icons for modalities that are
-    never sensed from the body. These are hand-authored, simplified
-    shapes, not a trace or copy of any commercial illustration library's
-    assets - this app has no license to reproduce those.
-
-    The three perspectives draw three different structures over the same
-    modalities, rather than one picture at three marker sizes: Build runs
-    every signal into the shared pipeline entry point, Privacy draws the
-    edge of the person and the signals that cross it, and Agency puts a
-    gate on each path whose opening reads that modality's agency cost.
-    None of them changes the underlying data.
-
-    Icons pulse; body-sensed ones also carry a small seamlessly-looping
-    illustrative waveform (see _ticker_markup) shown only in the Build
-    perspective, since the other two spend that same visual attention on
-    the boundary and the gates. show_tickers is
-    turned off for the combined, multi-modality figure: up to seven
-    simultaneous waveforms would crowd each other's fixed body-region
-    slots rather than stay legible, so the ticker is reserved for scenes
-    with one modality on screen (the solo baseline, per-modality
-    expanders, and the decision stage), where there is no crowding risk.
-    """
-
-    width, view_h = SCENE_VIEWBOX
-    entry_x, entry_y = ENTRY_POINT_PX
-    crossing_x, crossing_y = PRIVACY_CROSSING_PX
-
-    icons_svg: list[str] = []
-    connectors_svg: list[str] = []
-    legend_items: list[str] = []
-    has_external = False
-
-    for m in modalities:
-        if m.is_body_sensed:
-            cx, cy = BODY_ICON_PX.get(m.category, (100, 190))
-        else:
-            cx, cy = EXTERNAL_ICON_PX.get(m.category, (258, 190))
-            has_external = True
-
-        # Privacy is the one view where icon size carries the cost. The
-        # Agency view spends that encoding on its gates instead, so
-        # sizing icons by agency cost as well would say the same number
-        # twice and leave the gate looking decorative.
-        if perspective == PERSPECTIVE_PRIVACY:
-            scale = 0.75 + 0.55 * m.privacy_cost
-        else:
-            scale = 0.75 + 0.55 * 0.5
-        # canonical icon is a 32px box; ~24px-42px rendered
-
-        color = CATEGORY_COLORS[m.category]
-
-        if perspective == PERSPECTIVE_PRIVACY:
-            # Where the signal crosses out of the person, which is the
-            # question this view asks. A modality that is never sensed
-            # from the body has no crossing to draw.
-            if m.is_body_sensed:
-                connectors_svg.append(
-                    f'<line x1="{cx}" y1="{cy}" x2="{crossing_x}" '
-                    f'y2="{crossing_y}" stroke="{color}" stroke-width="1.5" '
-                    f'opacity="0.6" marker-end="url(#scene-arrow)"/>'
-                )
-        else:
-            connectors_svg.append(
-                f'<line x1="{cx}" y1="{cy}" x2="{entry_x}" y2="{entry_y}" '
-                f'stroke="{color}" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.55"/>'
-            )
-
-        if perspective == PERSPECTIVE_AGENCY:
-            connectors_svg.append(
-                _agency_gate_markup(cx, cy, entry_x, entry_y, m.agency_cost, color)
-            )
-
-        if m.is_body_sensed:
-            amt, dur = _ICON_PULSE.get(m.category, (1.08, "1.2s"))
-            pulse_style = f"--pulse-amt:{amt};--pulse-dur:{dur};"
-            pulse_class = "icon-pulse"
-        else:
-            pulse_style = ""
-            pulse_class = "icon-float"
-
-        icons_svg.append(f'<g style="{pulse_style}">')
-        icons_svg.append(_icon_markup(m.category, cx, cy, scale, pulse_class))
-        label_x = min(max(cx, 44), width - 44)
-        icons_svg.append(
-            f'<text x="{label_x}" y="{cy - 16 * scale - 8:.1f}" '
-            f'text-anchor="middle" font-size="10" '
-            f'fill="{INK_SECONDARY}">{m.name}</text>'
-        )
-        icons_svg.append("</g>")
-
-        if m.is_body_sensed and perspective == PERSPECTIVE_BUILD and show_tickers:
-            icons_svg.append(_ticker_markup(m.category, cx + 16 * scale + 6, cy - 12))
-
-        legend_items.append(
-            f'<span style="display:inline-flex;align-items:center;gap:5px;">'
-            f'<span style="width:9px;height:9px;border-radius:2px;background:{color};'
-            f'display:inline-block;"></span>{m.category}</span>'
-        )
-
-    external_label = ""
-    if has_external:
-        ex, ey = EXTERNAL_ICON_PX["Subjective"]
-        external_label = (
-            f'<text x="{ex}" y="{ey - 34}" text-anchor="middle" font-size="10" '
-            f'font-style="italic" fill="{MUTED}">Not sensed from the body:</text>'
-        )
-
-    body_svg = f"""
-        <ellipse cx="{HEAD_CENTER_PX[0]}" cy="{HEAD_CENTER_PX[1]}" rx="{HEAD_RADIUS_PX}" ry="{HEAD_RADIUS_PX}"
-            fill="#ece7df" stroke="{MUTED}" stroke-width="1.5" opacity="0.9"/>
-        <rect x="72" y="118" width="56" height="110" rx="24" fill="#ece7df" stroke="{MUTED}" stroke-width="1.5" opacity="0.9"/>
-        <line x1="78" y1="128" x2="30" y2="204" stroke="#ece7df" stroke-width="16" stroke-linecap="round"/>
-        <line x1="122" y1="128" x2="158" y2="182" stroke="#ece7df" stroke-width="16" stroke-linecap="round"/>
-        <line x1="86" y1="224" x2="80" y2="332" stroke="#ece7df" stroke-width="18" stroke-linecap="round"/>
-        <line x1="114" y1="224" x2="120" y2="332" stroke="#ece7df" stroke-width="18" stroke-linecap="round"/>
-    """
-
-    entry_label = ""
-    if perspective != PERSPECTIVE_PRIVACY:
-        entry_label = (
-            f'<text x="{entry_x}" y="{entry_y + 16}" text-anchor="middle" font-size="11" '
-            f'font-weight="bold" fill="{INK_SECONDARY}">&#8594; Signals</text>'
-        )
-
-    boundary_svg = ""
-    if perspective == PERSPECTIVE_PRIVACY:
-        bx1, by1, bx2, by2 = PERSON_BOUNDARY_PX
-        boundary_svg = (
-            f'<rect x="{bx1}" y="{by1}" width="{bx2 - bx1}" '
-            f'height="{by2 - by1}" rx="46" fill="none" stroke="{MUTED}" '
-            f'stroke-width="1.5" stroke-dasharray="6 5" opacity="0.85"/>'
-            f'<line x1="{crossing_x}" y1="{crossing_y}" x2="{crossing_x + 34}" '
-            f'y2="{crossing_y}" stroke="{INK_SECONDARY}" stroke-width="2" '
-            f'marker-end="url(#scene-arrow)"/>'
-            f'<text x="{bx1 + 6}" y="{by1 - 4}" font-size="10" '
-            f'font-style="italic" fill="{MUTED}">the person</text>'
-            f'<text x="{crossing_x + 4}" y="{crossing_y + 20}" font-size="10" '
-            f'font-style="italic" fill="{INK_SECONDARY}">leaves the person</text>'
-        )
-
-    legend_row = "".join(f"<div>{item}</div>" for item in legend_items)
-    scale_factor = height / view_h
-    svg_w = width * scale_factor
-
-    return f"""
-    <div style="font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-                background:{SURFACE}; border-radius:6px; padding:6px 0;">
-      <style>
-        @keyframes pulseScale {{
-          0%, 100% {{ transform: scale(1); }}
-          50% {{ transform: scale(var(--pulse-amt, 1.08)); }}
-        }}
-        .icon-pulse {{
-          animation: pulseScale var(--pulse-dur, 1.2s) ease-in-out infinite;
-          transform-box: fill-box;
-          transform-origin: center;
-        }}
-        @keyframes floatBob {{
-          0%, 100% {{ transform: translateY(0); }}
-          50% {{ transform: translateY(-4px); }}
-        }}
-        .icon-float {{ animation: floatBob 2.6s ease-in-out infinite; }}
-        @keyframes barBounce {{
-          0%, 100% {{ transform: scaleY(0.55); }}
-          50% {{ transform: scaleY(1); }}
-        }}
-        .sound-bar {{
-          animation: barBounce 0.9s ease-in-out infinite;
-          transform-box: fill-box;
-          transform-origin: bottom;
-        }}
-        @keyframes tickerScroll {{
-          from {{ transform: translateX(0); }}
-          to {{ transform: translateX(-50%); }}
-        }}
-        .ticker-scroll {{ animation: tickerScroll var(--tick-dur, 1.2s) linear infinite; }}
-      </style>
-      <div style="display:flex; justify-content:center;">
-        <svg width="{svg_w:.0f}" height="{height}" viewBox="0 0 {width} {view_h}">
-          <defs>
-            <marker id="scene-arrow" viewBox="0 0 8 8" refX="7" refY="4"
-                    markerWidth="5" markerHeight="5" orient="auto">
-              <path d="M0,0 L8,4 L0,8 z" fill="{INK_SECONDARY}"/>
-            </marker>
-          </defs>
-          {body_svg}
-          {boundary_svg}
-          {"".join(connectors_svg)}
-          {entry_label}
-          {external_label}
-          {"".join(icons_svg)}
-        </svg>
-      </div>
-      <div style="display:flex; flex-wrap:wrap; justify-content:center; gap:12px; margin-top:2px;
-                  font-size:11px; color:{INK_SECONDARY};">
-        {legend_row}
-      </div>
-    </div>
-    """
 
 
 def _frontier_spec(
@@ -1964,10 +1417,7 @@ if stage == STAGE_BUILD_PIPELINE:
     baseline = modalities_by_name[BASELINE_MODALITY_NAME]
 
     st.caption("Where the signal actually comes from:")
-    components.html(
-        _anatomy_scene_html((baseline,), PERSPECTIVE_BUILD, height=340),
-        height=340 + ANATOMY_LEGEND_BUFFER_PX,
-    )
+    _body_figure((baseline,), PERSPECTIVE_BUILD)
     st.caption(
         f"Signal examples: {baseline.signal_examples}. "
         f"{_ref(baseline.citation)}"
@@ -1976,10 +1426,7 @@ if stage == STAGE_BUILD_PIPELINE:
     _render_neuroanatomy_explorer()
 
     st.caption(f"How {baseline.name}'s signal travels through the pipeline:")
-    components.html(
-        _pipeline_timeline_html(),
-        height=34 + (len(PIPELINE_STAGE_NOTES) - 1) * 78 + 64,
-    )
+    _pipeline_figure((baseline,))
 
     st.write(
         "**Interpretation**: a pipeline with one modality already "
@@ -2046,10 +1493,7 @@ if stage == STAGE_ADD_MODALITIES:
     )
     st.caption(PERSPECTIVE_DESCRIPTIONS[perspective])
 
-    components.html(
-        _anatomy_scene_html(current_modalities, perspective, height=340, show_tickers=False),
-        height=340 + ANATOMY_LEGEND_BUFFER_PX,
-    )
+    _body_figure(current_modalities, perspective)
     if perspective == PERSPECTIVE_BUILD:
         st.caption(
             "Dashed lines show every selected signal feeding the same "
@@ -2073,11 +1517,7 @@ if stage == STAGE_ADD_MODALITIES:
         )
 
     st.caption("How those signals travel through the pipeline:")
-    pictograph_height = 30 + max(len(current_modalities) - 1, 0) * 46 + 46
-    components.html(
-        _pipeline_pictograph_html(current_pipeline),
-        height=pictograph_height + 10,
-    )
+    _pipeline_figure(current_modalities)
     st.caption(
         "Hover an icon for detail. The small gray node marks where "
         "every selected modality's chain converges into one shared "
@@ -2087,10 +1527,7 @@ if stage == STAGE_ADD_MODALITIES:
     for name in selected_names:
         added = modalities_by_name[name]
         with st.expander(f"{added.name} - what this adds"):
-            components.html(
-                _anatomy_scene_html((added,), perspective, height=220),
-                height=220 + ANATOMY_LEGEND_BUFFER_PX,
-            )
+            _body_figure((added,), perspective)
             if added.is_body_sensed:
                 st.caption(f"Sensed at: {added.body_region}.")
             else:
@@ -2153,11 +1590,7 @@ if stage == STAGE_CONVERGENCE:
 
     convergence = pipeline_core.compute_convergence(current_pipeline, stage="Inference")
 
-    pictograph_height = 30 + max(len(current_modalities) - 1, 0) * 46 + 46
-    components.html(
-        _pipeline_pictograph_html(current_pipeline),
-        height=pictograph_height + 10,
-    )
+    _pipeline_figure(current_modalities)
     st.caption("The same pipeline from Step 3, for reference while reading convergence below.")
 
     st.metric("Modalities converging at Inference", convergence.n_modalities)
@@ -2742,10 +2175,7 @@ if stage == STAGE_RESEARCH_DECISION:
         )
 
         if decision != "Insufficient evidence to decide":
-            components.html(
-                _anatomy_scene_html((modalities_by_name[decision],), PERSPECTIVE_BUILD, height=220),
-                height=220 + ANATOMY_LEGEND_BUFFER_PX,
-            )
+            _body_figure((modalities_by_name[decision],), PERSPECTIVE_BUILD)
 
         if decision == "Insufficient evidence to decide":
             st.write(

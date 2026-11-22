@@ -360,3 +360,18 @@ class TestThresholdTies(unittest.TestCase):
 
         self.assertEqual(result.threshold, result.alpha_power_eyes_open[0])
         self.assertEqual(result.accuracy, 0.5)
+
+
+class TestLabelledWindows(unittest.TestCase):
+    def test_labels_reproduce_the_reported_accuracy(self):
+        # Correct = closed windows labelled closed + open windows labelled open.
+        t = np.arange(1500) / SAMPLING_RATE_HZ
+        result = iv.classify_eyes_state(20 * np.sin(2 * np.pi * 10 * t), 2 * np.sin(2 * np.pi * 10 * t), SAMPLING_RATE_HZ)
+        windows = iv.labelled_windows(result)
+        correct = sum(
+            lab == (cond == "eyes_closed") for lab, cond in zip(windows.labelled_closed, windows.conditions)
+        )
+
+        self.assertEqual(len(windows.powers), 6)
+        self.assertEqual(correct / len(windows.powers), result.accuracy)
+        self.assertEqual(windows.threshold, result.threshold)
