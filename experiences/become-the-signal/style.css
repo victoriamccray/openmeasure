@@ -13,6 +13,9 @@
   --protects: #6fe3b0;
   --does-not: #ffcf6b;
   --radius: 14px;
+  --line: rgba(190, 200, 240, 0.35);
+  --line-strong: rgba(220, 228, 255, 0.7);
+  --brain: rgba(255, 255, 255, 0.04);
   --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
@@ -457,3 +460,55 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   .text-view { padding-top: 7rem; }
   .hud { top: 6.1rem; left: 0.75rem; font-size: 0.78rem; }
 }
+
+/* ---- neuroanatomy figure ---- */
+.anatomy h3 { font-size: 0.85rem; margin: 0 0 0.3rem; }
+.anat { width: 100%; height: auto; display: block; margin: 0.2rem 0 0.5rem; }
+.anat.top { max-width: 16rem; margin: 0.2rem auto 0.5rem; }
+.anat .head { fill: none; stroke: var(--line); stroke-width: 1.2; }
+.anat .midline { stroke: var(--line); stroke-dasharray: 2 3; }
+.anat .lbl { fill: var(--muted); font-size: 10px; pointer-events: none; }
+.anat .lbl.small { font-size: 8.5px; font-style: italic; }
+.anat .lbl.strong { fill: var(--text); font-weight: 600; }
+.anat .lbl.warn { fill: var(--does-not); font-weight: 600; }
+.anat .region { cursor: pointer; }
+.anat .region:hover path, .anat .region:hover ellipse, .anat .region:focus-visible path, .anat .region:focus-visible ellipse { stroke: var(--text); }
+.anat .region.selected path, .anat .region.selected ellipse { stroke: var(--text); stroke-width: 2.2; }
+.anat .region:focus { outline: none; }
+.anat .electrode { fill: var(--surface-solid); stroke: var(--line-strong); stroke-width: 1.2; }
+.anat .electrode.o1 { fill: var(--closed); stroke: #fff; }
+.anat .optode { fill: var(--surface-solid); stroke: var(--accent); stroke-width: 1.4; }
+.anat .light { fill: none; stroke: var(--accent); stroke-width: 2; stroke-dasharray: 3 2; }
+.anat .nerve { fill: none; stroke: var(--line); stroke-width: 2; stroke-dasharray: 4 3; }
+.anat .nerve.on { stroke: var(--accent); stroke-width: 3; }
+.anat .you circle { fill: var(--closed); }
+.anat .you .pulse { fill: none; stroke: var(--closed); stroke-width: 2; transform-origin: 284px 128px; animation: you-pulse 1.8s ease-out infinite; }
+@keyframes you-pulse { from { transform: scale(1); opacity: 0.9; } to { transform: scale(3); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .anat .you .pulse { animation: none; } }
+.anat .site { cursor: pointer; }
+.anat .site circle { fill: var(--surface-solid); stroke: var(--line-strong); stroke-width: 1; }
+.anat .site text { fill: var(--muted); font-size: 7.5px; pointer-events: none; }
+.anat .site.o1 circle { fill: var(--closed); stroke: #fff; }
+.anat .site.o1 text { fill: #1a0a02; font-weight: 700; }
+.anat .site.chosen circle { stroke: var(--accent); stroke-width: 2.5; }
+.anat .site:hover circle, .anat .site:focus-visible circle { stroke: var(--text); stroke-width: 2; }
+.anat .site:focus { outline: none; }
+.electrode-read { font-size: 0.9rem; }
+.chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0 0 0.4rem; }
+.chip { background: none; border: 1px solid var(--border); border-radius: 999px; padding: 0.25rem 0.65rem; font-size: 0.8rem; }
+.chip[aria-pressed="true"] { border-color: var(--accent); background: rgba(124, 196, 255, 0.14); color: var(--text); }
+.legend .hatch { background: repeating-linear-gradient(45deg, var(--accent) 0 2px, transparent 2px 5px); }
+.system-card { border-left: 3px solid var(--accent); padding: 0.1rem 0 0.1rem 0.6rem; margin: 0 0 0.7rem; font-size: 0.88rem; }
+.system-card p { margin: 0.25rem 0 0; }
+.lvl { font-size: 0.72rem; border-radius: 999px; padding: 0.05rem 0.5rem; border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
+.lvl.direct { border-color: var(--accent); color: var(--accent); }
+.lvl.limited { border-style: dashed; border-color: var(--accent); color: var(--text); }
+.modality-facts { margin: 0 0 0.6rem; font-size: 0.85rem; display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.6rem; }
+.modality-facts dt { color: var(--muted); }
+.modality-facts dd { margin: 0; }
+.systems { font-size: 0.85rem; margin: 0 0 0.6rem; }
+.systems summary { cursor: pointer; color: var(--accent); }
+.systems ul { list-style: none; margin: 0.4rem 0 0; padding: 0; display: grid; gap: 0.25rem; }
+.sys-row { width: 100%; display: flex; justify-content: space-between; gap: 0.5rem; align-items: center; background: none; border: 1px solid transparent; border-radius: 8px; padding: 0.25rem 0.4rem; text-align: left; font-size: 0.82rem; }
+.sys-row.selected { border-color: var(--accent); }
+.table-wrap { overflow-x: auto; }

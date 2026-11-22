@@ -6,6 +6,9 @@ Build the measured data behind the Become the Signal experience.
 Writes experiences/become-the-signal/data.json. The output is committed,
 so the experience runs as a static page with no Python behind it.
 
+The neuroanatomy figure's facts (systems, electrode site, and what each
+modality reaches) come from modules/signal_pipeline/core/neuroanatomy.py.
+
 Every number the experience shows comes from this file, and every number
 in this file is computed by modules/signal_pipeline/core from the bundled
 recorded EEG excerpt (OpenNeuro ds005420, sub-5, channel O1, CC0). Nothing
@@ -23,6 +26,7 @@ a number fails a test until this script is rerun.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import sys
 from pathlib import Path
@@ -37,7 +41,7 @@ if str(ROOT) not in sys.path:
 
 # The full package path, not a bare "core": several modules each have a
 # top-level package of that name, and the shared tests import this file.
-from modules.signal_pipeline.core import intervention, pipeline  # noqa: E402
+from modules.signal_pipeline.core import intervention, neuroanatomy, pipeline  # noqa: E402
 
 SNIPPET = MODULE_DIR / "sample_data" / "ds005420_sub-5_O1_eyes_snippet.csv"
 OUTPUT = ROOT / "experiences" / "become-the-signal" / "data.json"
@@ -160,6 +164,10 @@ def build() -> dict:
         "noise": noise,
         "noise_seeds": NOISE_SEEDS,
         "downsample": downsample,
+        # Which brain system the recording comes from, which electrode
+        # picked it up, and what other modalities reach, for the anatomy
+        # figure at the Signals and Sensors stages.
+        "neuroanatomy": dataclasses.asdict(neuroanatomy.atlas()),
         "metadata": {
             "illustrative_fields": example_metadata,
             "after_removal": dict(intervention.strip_metadata(example_metadata)),

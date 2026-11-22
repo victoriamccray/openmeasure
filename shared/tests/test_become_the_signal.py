@@ -141,6 +141,21 @@ class TestContentMatchesItsSources(unittest.TestCase):
         self.assertEqual(sorted(used - set(references)), [])
         self.assertEqual(sorted(set(references) - used), [])
 
+    def test_anatomy_references_agree_with_the_journey_references(self):
+        # The anatomy figure cites from data.json and the journey from
+        # content.json. A key in both must name the same work.
+        anatomy = {r["key"]: r for r in DATA["neuroanatomy"]["references"]}
+        for key in set(anatomy) & set(CONTENT["references"]):
+            with self.subTest(key=key):
+                self.assertEqual(anatomy[key]["text"], CONTENT["references"][key]["text"])
+                self.assertEqual(anatomy[key]["url"], CONTENT["references"][key]["url"])
+
+    def test_anatomy_stages_name_a_known_view(self):
+        views = [s["anatomy"]["view"] for s in CONTENT["stages"] if "anatomy" in s]
+
+        self.assertEqual(views, ["modalities", "electrode"])
+        self.assertEqual(DATA["neuroanatomy"]["recording_electrode"]["label"], DATA["source"]["channel"])
+
     def test_every_safeguard_states_what_it_does_not_protect(self):
         decision = next(s for s in CONTENT["stages"] if s["name"] == "Decision")
 

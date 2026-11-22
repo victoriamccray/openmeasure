@@ -235,7 +235,7 @@ The application runs in the browser from GitHub Pages. The same application also
 
 https://victoriamccray.github.io/openmeasure/become-the-signal/
 
-An interactive 3D journey through a neurotechnology system, told from the point of view of one EEG recording from a public dataset (OpenNeuro ds005420). The recording passes through seven stages, from signal to sensor, features, inference, an access decision, action, and feedback. Learners choose safeguards and see what each protects and leaves exposed, and every copy made of the recording stays on the map. Every number is computed by `modules/signal_pipeline/core` and exported by `scripts/build_become_the_signal_data.py`. The source is in `experiences/become-the-signal/`, and the page includes a text view.
+An interactive 3D journey through a neurotechnology system, told from the point of view of one EEG recording from a public dataset (OpenNeuro ds005420). The recording passes through seven stages, from signal to sensor, features, inference, an access decision, action, and feedback. Learners choose safeguards and see what each protects and leaves exposed, and every copy made of the recording stays on the map. Every number is computed by `modules/signal_pipeline/core` and exported by `scripts/build_become_the_signal_data.py`. The first two stages include a neuroanatomy figure: learners see which brain system the recording comes from, compare which systems EEG, fNIRS, fMRI, structural MRI, and body sensors reach, and read any 10-20 electrode label. Those facts and their citations live in `modules/signal_pipeline/core/neuroanatomy.py`. The source is in `experiences/become-the-signal/`, and the page includes a text view.
 
 ### Home
 

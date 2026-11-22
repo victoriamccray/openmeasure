@@ -29,6 +29,7 @@
    "mechanism_refs": ["buzsaki", "barry"],
    "handoff": "a physical signal a sensor can pick up",
    "interaction": "waveform",
+   "anatomy": {"view": "modalities", "title": "Where You Are in the Brain", "text": "You start in the occipital lobe, the visual cortex at the back of the head. Choose a sensor to see which brain systems it reads and what else it captures. Tap a region to learn what it does."},
    "refs": ["barry", "sanchez_gama"],
    "perspectives": {
     "agency": "The person produces you as a side effect of closing or opening the eyes. Later stages read that side effect.",
@@ -44,6 +45,7 @@
    "what_changed": "A continuous rhythm became 500 numbers per second. Numbers can be stored and copied.",
    "handoff": "a raw measured trace",
    "interaction": "threat",
+   "anatomy": {"view": "electrode", "title": "Where the Sensor Sits", "text": "Electrode positions follow the 10-20 system, which places each electrode at 10 or 20 percent of the distance across the head. Each label tells you the region and the side. Tap any electrode to read its label."},
    "copy": "The device's stored recording",
    "threat": {
     "title": "Threat: Injected Brain Activity",

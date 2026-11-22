@@ -12321,6 +12321,859 @@
    }
   }
  ],
+ "neuroanatomy": {
+  "systems": [
+   {
+    "key": "frontal",
+    "name": "Frontal lobe",
+    "location": "Front of the brain, behind the forehead",
+    "role": "Planning, attention, decision making, and control of behavior.",
+    "depth": "surface",
+    "refs": [
+     "kandel"
+    ]
+   },
+   {
+    "key": "sensorimotor",
+    "name": "Sensorimotor cortex",
+    "location": "A strip over the top of the brain, on both sides of the central sulcus",
+    "role": "Sends movement commands and receives touch and body position. Motor imagery brain computer interfaces read this strip.",
+    "depth": "surface",
+    "refs": [
+     "kandel"
+    ]
+   },
+   {
+    "key": "parietal",
+    "name": "Parietal lobe",
+    "location": "Top and back of the brain",
+    "role": "Combines touch, vision, and body position to guide attention and movement in space.",
+    "depth": "surface",
+    "refs": [
+     "kandel"
+    ]
+   },
+   {
+    "key": "temporal",
+    "name": "Temporal lobe",
+    "location": "Side of the brain, above the ear",
+    "role": "Hearing, language comprehension, and recognizing objects and faces.",
+    "depth": "surface",
+    "refs": [
+     "kandel"
+    ]
+   },
+   {
+    "key": "occipital",
+    "name": "Occipital lobe (visual cortex)",
+    "location": "Back of the brain",
+    "role": "Processes vision. The alpha rhythm in this recording is strongest here, and it grows when the eyes close.",
+    "depth": "surface",
+    "refs": [
+     "kandel",
+     "barry"
+    ]
+   },
+   {
+    "key": "thalamus",
+    "name": "Thalamus",
+    "location": "Center of the brain, above the brainstem",
+    "role": "Relays sensory signals to the cortex and helps pace cortical rhythms such as alpha.",
+    "depth": "deep",
+    "refs": [
+     "kandel",
+     "lopes_da_silva"
+    ]
+   },
+   {
+    "key": "hippocampus_amygdala",
+    "name": "Hippocampus and amygdala",
+    "location": "Deep inside the temporal lobe",
+    "role": "Forms new memories (hippocampus) and processes emotion and threat (amygdala).",
+    "depth": "deep",
+    "refs": [
+     "kandel"
+    ]
+   },
+   {
+    "key": "cerebellum",
+    "name": "Cerebellum",
+    "location": "Below the occipital lobe, at the back of the head",
+    "role": "Coordinates and times movement and supports motor learning.",
+    "depth": "surface",
+    "refs": [
+     "kandel"
+    ]
+   },
+   {
+    "key": "brainstem",
+    "name": "Brainstem",
+    "location": "Base of the brain, where it joins the spinal cord",
+    "role": "Regulates heart rate, breathing, and arousal, and links the brain to the body.",
+    "depth": "deep",
+    "refs": [
+     "kandel"
+    ]
+   },
+   {
+    "key": "autonomic",
+    "name": "Autonomic nervous system",
+    "location": "Nerves from the brainstem and spinal cord to the heart, skin, and organs",
+    "role": "Adjusts heart rate, sweating, and pupil size without conscious control.",
+    "depth": "body",
+    "refs": [
+     "kandel",
+     "critchley"
+    ]
+   }
+  ],
+  "modalities": [
+   {
+    "key": "eeg",
+    "name": "Scalp electroencephalography",
+    "short_name": "EEG",
+    "placement": "Electrodes on the scalp",
+    "measures": "Voltage from many cortical neurons firing in step, summed at the scalp.",
+    "reads": "activity",
+    "timing": "Milliseconds. Fast enough to follow each cycle of the 8 to 13 Hz alpha rhythm.",
+    "reach": [
+     {
+      "modality": "eeg",
+      "system": "frontal",
+      "level": "direct",
+      "note": ""
+     },
+     {
+      "modality": "eeg",
+      "system": "sensorimotor",
+      "level": "direct",
+      "note": ""
+     },
+     {
+      "modality": "eeg",
+      "system": "parietal",
+      "level": "direct",
+      "note": ""
+     },
+     {
+      "modality": "eeg",
+      "system": "temporal",
+      "level": "direct",
+      "note": ""
+     },
+     {
+      "modality": "eeg",
+      "system": "occipital",
+      "level": "direct",
+      "note": ""
+     },
+     {
+      "modality": "eeg",
+      "system": "thalamus",
+      "level": "limited",
+      "note": "Seen mostly through the cortical rhythms it helps pace."
+     },
+     {
+      "modality": "eeg",
+      "system": "hippocampus_amygdala",
+      "level": "limited",
+      "note": "Detectable with many electrodes and source modeling, and weak at any single electrode."
+     },
+     {
+      "modality": "eeg",
+      "system": "cerebellum",
+      "level": "limited",
+      "note": "Far from most scalp electrodes."
+     },
+     {
+      "modality": "eeg",
+      "system": "brainstem",
+      "level": "none",
+      "note": ""
+     },
+     {
+      "modality": "eeg",
+      "system": "autonomic",
+      "level": "none",
+      "note": ""
+     }
+    ],
+    "also_captures": "Patterns distinctive enough to identify a person from the signal itself.",
+    "privacy_note": "A recording made for one task also carries information about attention, drowsiness, and health.",
+    "refs": [
+     "buzsaki",
+     "seeber",
+     "bagley"
+    ],
+    "in_journey": true
+   },
+   {
+    "key": "fnirs",
+    "name": "Functional near-infrared spectroscopy",
+    "short_name": "fNIRS",
+    "placement": "Light sources and detectors on the scalp, often over the forehead",
+    "measures": "Changes in blood oxygen in the outer cortex, from how much near-infrared light returns to the detector.",
+    "reads": "activity",
+    "timing": "Seconds. Blood flow follows neural activity with a delay.",
+    "reach": [
+     {
+      "modality": "fnirs",
+      "system": "frontal",
+      "level": "direct",
+      "note": "Outer cortex under the optodes. Many systems cover only the forehead."
+     },
+     {
+      "modality": "fnirs",
+      "system": "sensorimotor",
+      "level": "direct",
+      "note": "Outer cortex under the optodes. Many systems cover only the forehead."
+     },
+     {
+      "modality": "fnirs",
+      "system": "parietal",
+      "level": "direct",
+      "note": "Outer cortex under the optodes. Many systems cover only the forehead."
+     },
+     {
+      "modality": "fnirs",
+      "system": "temporal",
+      "level": "direct",
+      "note": "Outer cortex under the optodes. Many systems cover only the forehead."
+     },
+     {
+      "modality": "fnirs",
+      "system": "occipital",
+      "level": "direct",
+      "note": "Outer cortex under the optodes. Many systems cover only the forehead."
+     },
+     {
+      "modality": "fnirs",
+      "system": "thalamus",
+      "level": "none",
+      "note": ""
+     },
+     {
+      "modality": "fnirs",
+      "system": "hippocampus_amygdala",
+      "level": "none",
+      "note": ""
+     },
+     {
+      "modality": "fnirs",
+      "system": "cerebellum",
+      "level": "none",
+      "note": ""
+     },
+     {
+      "modality": "fnirs",
+      "system": "brainstem",
+      "level": "none",
+      "note": ""
+     },
+     {
+      "modality": "fnirs",
+      "system": "autonomic",
+      "level": "none",
+      "note": ""
+     }
+    ],
+    "also_captures": "Heartbeat and breathing, which ride on the blood oxygen signal.",
+    "privacy_note": "Wearable and portable, so it can record outside the lab during everyday tasks.",
+    "refs": [
+     "pinti"
+    ],
+    "in_journey": false
+   },
+   {
+    "key": "fmri",
+    "name": "Functional magnetic resonance imaging",
+    "short_name": "fMRI",
+    "placement": "Inside an MRI scanner",
+    "measures": "Changes in blood oxygen across the whole brain, called the BOLD signal.",
+    "reads": "activity",
+    "timing": "Seconds. The blood oxygen response peaks several seconds after neural activity.",
+    "reach": [
+     {
+      "modality": "fmri",
+      "system": "frontal",
+      "level": "direct",
+      "note": ""
+     },
+     {
+      "modality": "fmri",
+      "system": "sensorimotor",
+      "level": "direct",
+      "note": ""
+     },
+     {
+      "modality": "fmri",
+      "system": "parietal",
+      "level": "direct",
+      "note": ""
+     },
+     {
+      "modality": "fmri",
+      "system": "temporal",
+      "level": "direct",
+      "note": ""
+     },
+     {
+      "modality": "fmri",
+      "system": "occipital",
+      "level": "direct",
+      "note": ""
+     },
+     {
+      "modality": "fmri",
+      "system": "thalamus",
+      "level": "direct",
+      "note": ""
+     },
+     {
+      "modality": "fmri",
+      "system": "hippocampus_amygdala",
+      "level": "direct",
+      "note": ""
+     },
+     {
+      "modality": "fmri",
+      "system": "cerebellum",
+      "level": "direct",
+      "note": ""
+     },
+     {
+      "modality": "fmri",
+      "system": "brainstem",
+      "level": "direct",
+      "note": ""
+     },
+     {
+      "modality": "fmri",
+      "system": "autonomic",
+      "level": "none",
+      "note": ""
+     }
+    ],
+    "also_captures": "A structural image of the head is usually acquired in the same session, and it includes the face.",
+    "privacy_note": "Sharing the structural image alongside the functional data shares the face too.",
+    "refs": [
+     "logothetis",
+     "schwarz"
+    ],
+    "in_journey": false
+   },
+   {
+    "key": "smri",
+    "name": "Structural magnetic resonance imaging",
+    "short_name": "Structural MRI",
+    "placement": "Inside an MRI scanner",
+    "measures": "Shape and tissue of the brain and the whole head.",
+    "reads": "structure",
+    "timing": "One snapshot of anatomy. It records structure only, with no activity over time.",
+    "reach": [
+     {
+      "modality": "smri",
+      "system": "frontal",
+      "level": "direct",
+      "note": ""
+     },
+     {
+      "modality": "smri",
+      "system": "sensorimotor",
+      "level": "direct",
+      "note": ""
+     },
+     {
+      "modality": "smri",
+      "system": "parietal",
+      "level": "direct",
+      "note": ""
+     },
+     {
+      "modality": "smri",
+      "system": "temporal",
+      "level": "direct",
+      "note": ""
+     },
+     {
+      "modality": "smri",
+      "system": "occipital",
+      "level": "direct",
+      "note": ""
+     },
+     {
+      "modality": "smri",
+      "system": "thalamus",
+      "level": "direct",
+      "note": ""
+     },
+     {
+      "modality": "smri",
+      "system": "hippocampus_amygdala",
+      "level": "direct",
+      "note": ""
+     },
+     {
+      "modality": "smri",
+      "system": "cerebellum",
+      "level": "direct",
+      "note": ""
+     },
+     {
+      "modality": "smri",
+      "system": "brainstem",
+      "level": "direct",
+      "note": ""
+     },
+     {
+      "modality": "smri",
+      "system": "autonomic",
+      "level": "none",
+      "note": ""
+     }
+    ],
+    "also_captures": "The face. Face recognition software matched MRI face reconstructions to photographs for 70 of 84 research participants.",
+    "privacy_note": "Removing the face from the image before sharing, called defacing, is the common safeguard.",
+    "refs": [
+     "schwarz"
+    ],
+    "in_journey": false
+   },
+   {
+    "key": "peripheral",
+    "name": "Peripheral body sensors (skin conductance and heart rate)",
+    "short_name": "Body sensors",
+    "placement": "Sensors on the skin, wrist, or chest",
+    "measures": "Sweat gland activity and the timing of each heartbeat.",
+    "reads": "body response",
+    "timing": "Seconds for skin conductance. Every beat for heart rate.",
+    "reach": [
+     {
+      "modality": "peripheral",
+      "system": "frontal",
+      "level": "none",
+      "note": ""
+     },
+     {
+      "modality": "peripheral",
+      "system": "sensorimotor",
+      "level": "none",
+      "note": ""
+     },
+     {
+      "modality": "peripheral",
+      "system": "parietal",
+      "level": "none",
+      "note": ""
+     },
+     {
+      "modality": "peripheral",
+      "system": "temporal",
+      "level": "none",
+      "note": ""
+     },
+     {
+      "modality": "peripheral",
+      "system": "occipital",
+      "level": "none",
+      "note": ""
+     },
+     {
+      "modality": "peripheral",
+      "system": "thalamus",
+      "level": "none",
+      "note": ""
+     },
+     {
+      "modality": "peripheral",
+      "system": "hippocampus_amygdala",
+      "level": "none",
+      "note": ""
+     },
+     {
+      "modality": "peripheral",
+      "system": "cerebellum",
+      "level": "none",
+      "note": ""
+     },
+     {
+      "modality": "peripheral",
+      "system": "brainstem",
+      "level": "limited",
+      "note": "Read through the body responses it controls."
+     },
+     {
+      "modality": "peripheral",
+      "system": "autonomic",
+      "level": "direct",
+      "note": ""
+     }
+    ],
+    "also_captures": "Arousal and stress responses during everyday life.",
+    "privacy_note": "Common in consumer wearables, so these signals are often collected far outside research settings.",
+    "refs": [
+     "critchley"
+    ],
+    "in_journey": false
+   }
+  ],
+  "recording_electrode": {
+   "label": "O1",
+   "region": "occipital",
+   "system": "occipital",
+   "hemisphere": "left",
+   "naming_note": "O stands for occipital, and 1 is odd, so the left hemisphere.",
+   "refs": [
+    "jasper",
+    "koessler"
+   ]
+  },
+  "electrodes": [
+   {
+    "label": "Fp1",
+    "region": "frontal pole",
+    "system": "frontal",
+    "hemisphere": "left",
+    "naming_note": "Fp stands for frontal pole, and 1 is odd, so the left hemisphere.",
+    "refs": [
+     "jasper",
+     "koessler"
+    ]
+   },
+   {
+    "label": "Fpz",
+    "region": "frontal pole",
+    "system": "frontal",
+    "hemisphere": "midline",
+    "naming_note": "Fp stands for frontal pole, and z means the midline.",
+    "refs": [
+     "jasper",
+     "koessler"
+    ]
+   },
+   {
+    "label": "Fp2",
+    "region": "frontal pole",
+    "system": "frontal",
+    "hemisphere": "right",
+    "naming_note": "Fp stands for frontal pole, and 2 is even, so the right hemisphere.",
+    "refs": [
+     "jasper",
+     "koessler"
+    ]
+   },
+   {
+    "label": "F7",
+    "region": "frontal",
+    "system": "frontal",
+    "hemisphere": "left",
+    "naming_note": "F stands for frontal, and 7 is odd, so the left hemisphere.",
+    "refs": [
+     "jasper",
+     "koessler"
+    ]
+   },
+   {
+    "label": "F3",
+    "region": "frontal",
+    "system": "frontal",
+    "hemisphere": "left",
+    "naming_note": "F stands for frontal, and 3 is odd, so the left hemisphere.",
+    "refs": [
+     "jasper",
+     "koessler"
+    ]
+   },
+   {
+    "label": "Fz",
+    "region": "frontal",
+    "system": "frontal",
+    "hemisphere": "midline",
+    "naming_note": "F stands for frontal, and z means the midline.",
+    "refs": [
+     "jasper",
+     "koessler"
+    ]
+   },
+   {
+    "label": "F4",
+    "region": "frontal",
+    "system": "frontal",
+    "hemisphere": "right",
+    "naming_note": "F stands for frontal, and 4 is even, so the right hemisphere.",
+    "refs": [
+     "jasper",
+     "koessler"
+    ]
+   },
+   {
+    "label": "F8",
+    "region": "frontal",
+    "system": "frontal",
+    "hemisphere": "right",
+    "naming_note": "F stands for frontal, and 8 is even, so the right hemisphere.",
+    "refs": [
+     "jasper",
+     "koessler"
+    ]
+   },
+   {
+    "label": "T3",
+    "region": "temporal",
+    "system": "temporal",
+    "hemisphere": "left",
+    "naming_note": "T stands for temporal, and 3 is odd, so the left hemisphere.",
+    "refs": [
+     "jasper",
+     "koessler"
+    ]
+   },
+   {
+    "label": "T7",
+    "region": "temporal",
+    "system": "temporal",
+    "hemisphere": "left",
+    "naming_note": "T stands for temporal, and 7 is odd, so the left hemisphere.",
+    "refs": [
+     "jasper",
+     "koessler"
+    ]
+   },
+   {
+    "label": "C3",
+    "region": "central",
+    "system": "sensorimotor",
+    "hemisphere": "left",
+    "naming_note": "C stands for central, and 3 is odd, so the left hemisphere.",
+    "refs": [
+     "jasper",
+     "koessler"
+    ]
+   },
+   {
+    "label": "Cz",
+    "region": "central",
+    "system": "sensorimotor",
+    "hemisphere": "midline",
+    "naming_note": "C stands for central, and z means the midline.",
+    "refs": [
+     "jasper",
+     "koessler"
+    ]
+   },
+   {
+    "label": "C4",
+    "region": "central",
+    "system": "sensorimotor",
+    "hemisphere": "right",
+    "naming_note": "C stands for central, and 4 is even, so the right hemisphere.",
+    "refs": [
+     "jasper",
+     "koessler"
+    ]
+   },
+   {
+    "label": "T4",
+    "region": "temporal",
+    "system": "temporal",
+    "hemisphere": "right",
+    "naming_note": "T stands for temporal, and 4 is even, so the right hemisphere.",
+    "refs": [
+     "jasper",
+     "koessler"
+    ]
+   },
+   {
+    "label": "T8",
+    "region": "temporal",
+    "system": "temporal",
+    "hemisphere": "right",
+    "naming_note": "T stands for temporal, and 8 is even, so the right hemisphere.",
+    "refs": [
+     "jasper",
+     "koessler"
+    ]
+   },
+   {
+    "label": "T5",
+    "region": "temporal",
+    "system": "temporal",
+    "hemisphere": "left",
+    "naming_note": "T stands for temporal, and 5 is odd, so the left hemisphere.",
+    "refs": [
+     "jasper",
+     "koessler"
+    ]
+   },
+   {
+    "label": "P7",
+    "region": "parietal",
+    "system": "parietal",
+    "hemisphere": "left",
+    "naming_note": "P stands for parietal, and 7 is odd, so the left hemisphere.",
+    "refs": [
+     "jasper",
+     "koessler"
+    ]
+   },
+   {
+    "label": "P3",
+    "region": "parietal",
+    "system": "parietal",
+    "hemisphere": "left",
+    "naming_note": "P stands for parietal, and 3 is odd, so the left hemisphere.",
+    "refs": [
+     "jasper",
+     "koessler"
+    ]
+   },
+   {
+    "label": "Pz",
+    "region": "parietal",
+    "system": "parietal",
+    "hemisphere": "midline",
+    "naming_note": "P stands for parietal, and z means the midline.",
+    "refs": [
+     "jasper",
+     "koessler"
+    ]
+   },
+   {
+    "label": "P4",
+    "region": "parietal",
+    "system": "parietal",
+    "hemisphere": "right",
+    "naming_note": "P stands for parietal, and 4 is even, so the right hemisphere.",
+    "refs": [
+     "jasper",
+     "koessler"
+    ]
+   },
+   {
+    "label": "T6",
+    "region": "temporal",
+    "system": "temporal",
+    "hemisphere": "right",
+    "naming_note": "T stands for temporal, and 6 is even, so the right hemisphere.",
+    "refs": [
+     "jasper",
+     "koessler"
+    ]
+   },
+   {
+    "label": "P8",
+    "region": "parietal",
+    "system": "parietal",
+    "hemisphere": "right",
+    "naming_note": "P stands for parietal, and 8 is even, so the right hemisphere.",
+    "refs": [
+     "jasper",
+     "koessler"
+    ]
+   },
+   {
+    "label": "O1",
+    "region": "occipital",
+    "system": "occipital",
+    "hemisphere": "left",
+    "naming_note": "O stands for occipital, and 1 is odd, so the left hemisphere.",
+    "refs": [
+     "jasper",
+     "koessler"
+    ]
+   },
+   {
+    "label": "Oz",
+    "region": "occipital",
+    "system": "occipital",
+    "hemisphere": "midline",
+    "naming_note": "O stands for occipital, and z means the midline.",
+    "refs": [
+     "jasper",
+     "koessler"
+    ]
+   },
+   {
+    "label": "O2",
+    "region": "occipital",
+    "system": "occipital",
+    "hemisphere": "right",
+    "naming_note": "O stands for occipital, and 2 is even, so the right hemisphere.",
+    "refs": [
+     "jasper",
+     "koessler"
+    ]
+   }
+  ],
+  "caveat": "Reach levels are teaching simplifications drawn from the cited reviews. Real coverage depends on how many sensors there are, where they sit, and how the data are analyzed.",
+  "caveat_refs": [
+   "buzsaki",
+   "seeber",
+   "pinti"
+  ],
+  "references": [
+   {
+    "key": "kandel",
+    "text": "Kandel, E. R., Koester, J. D., Mack, S. H., & Siegelbaum, S. A. (Eds.). (2021). Principles of Neural Science (6th ed.). McGraw Hill.",
+    "url": ""
+   },
+   {
+    "key": "barry",
+    "text": "Barry, R. J., Clarke, A. R., Johnstone, S. J., Magee, C. A., & Rushby, J. A. (2007). EEG differences between eyes-closed and eyes-open resting conditions. Clinical Neurophysiology, 118(12), 2765-2773.",
+    "url": "https://doi.org/10.1016/j.clinph.2007.07.028"
+   },
+   {
+    "key": "lopes_da_silva",
+    "text": "Lopes da Silva, F. (1991). Neural mechanisms underlying brain waves: From neural membranes to networks. Electroencephalography and Clinical Neurophysiology, 79(2), 81-93.",
+    "url": "https://doi.org/10.1016/0013-4694(91)90044-5"
+   },
+   {
+    "key": "critchley",
+    "text": "Critchley, H. D. (2002). Electrodermal responses: What happens in the brain. The Neuroscientist, 8(2), 132-142.",
+    "url": "https://doi.org/10.1177/107385840200800209"
+   },
+   {
+    "key": "buzsaki",
+    "text": "Buzs\u00e1ki, G., Anastassiou, C. A., & Koch, C. (2012). The origin of extracellular fields and currents: EEG, ECoG, LFP and spikes. Nature Reviews Neuroscience, 13(6), 407-420.",
+    "url": "https://doi.org/10.1038/nrn3241"
+   },
+   {
+    "key": "seeber",
+    "text": "Seeber, M., Cantonas, L.-M., Hoevels, M., Sesia, T., Visser-Vandewalle, V., & Michel, C. M. (2019). Subcortical electrophysiological activity is detectable with high-density EEG source imaging. Nature Communications, 10, 753.",
+    "url": "https://doi.org/10.1038/s41467-019-08725-w"
+   },
+   {
+    "key": "bagley",
+    "text": "Bagley, B. A., Rose, N., Kilbourn, Q., & Canham, M. (2026). Threat vectors and the state of the art in defense methods for security in neurotechnology. arXiv:2607.10451.",
+    "url": "https://arxiv.org/abs/2607.10451"
+   },
+   {
+    "key": "pinti",
+    "text": "Pinti, P., Tachtsidis, I., Hamilton, A., Hirsch, J., Aichelburg, C., Gilbert, S., & Burgess, P. W. (2020). The present and future use of functional near-infrared spectroscopy (fNIRS) for cognitive neuroscience. Annals of the New York Academy of Sciences, 1464(1), 5-29.",
+    "url": "https://doi.org/10.1111/nyas.13948"
+   },
+   {
+    "key": "logothetis",
+    "text": "Logothetis, N. K. (2008). What we can do and what we cannot do with fMRI. Nature, 453(7197), 869-878.",
+    "url": "https://doi.org/10.1038/nature06976"
+   },
+   {
+    "key": "schwarz",
+    "text": "Schwarz, C. G., Kremers, W. K., Therneau, T. M., Sharp, R. R., Gunter, J. L., Vemuri, P., Arani, A., Spychalla, A. J., Kantarci, K., Knopman, D. S., Petersen, R. C., & Jack, C. R., Jr. (2019). Identification of anonymous MRI research participants with face-recognition software. New England Journal of Medicine, 381(17), 1684-1686.",
+    "url": "https://doi.org/10.1056/NEJMc1908881"
+   },
+   {
+    "key": "jasper",
+    "text": "Jasper, H. H. (1958). The ten-twenty electrode system of the International Federation. Electroencephalography and Clinical Neurophysiology, 10(2), 371-375.",
+    "url": "https://doi.org/10.1016/0013-4694(58)90053-1"
+   },
+   {
+    "key": "koessler",
+    "text": "Koessler, L., Maillard, L., Benhadid, A., Vignal, J. P., Felblinger, J., Vespignani, H., & Braun, M. (2009). Automated cortical projection of EEG sensors: Anatomical correlation via the international 10-10 system. NeuroImage, 46(1), 64-72.",
+    "url": "https://doi.org/10.1016/j.neuroimage.2009.02.006"
+   }
+  ]
+ },
  "metadata": {
   "illustrative_fields": {
    "device_serial_number": "SN-48213",

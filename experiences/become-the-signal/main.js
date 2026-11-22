@@ -55,6 +55,11 @@ const state = {
   // cleared, so their copies stay on the map.
   passes: { 1: { device: false, safeguard: null, level: null } },
   textView: false,
+  // Neuroanatomy figure: the sensor shown, the region tapped, and the
+  // electrode read on the 10-20 map.
+  modality: "eeg",
+  anatomySystem: "occipital",
+  electrode: "O1",
 };
 
 // ------------------------------------------------------------------
@@ -65,6 +70,25 @@ const $ = (id) => document.getElementById(id);
 const esc = (text) =>
   String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const pct = (value) => (value === null || value === undefined ? "fails" : `${Math.round(value * 100)}%`);
+
+// The anatomy figure cites from data.json (core/neuroanatomy.py); the rest
+// of the journey cites from content.json. A key in both has the same text,
+// which shared/tests/test_become_the_signal.py checks.
+const REFS = {
+  ...Object.fromEntries(data.neuroanatomy.references.map((r) => [r.key, r])),
+  ...content.references,
+};
+function anatomyRefs(stage) {
+  const a = stage.anatomy;
+  if (!a) return [];
+  const anat = data.neuroanatomy;
+  if (a.view === "electrode") return anat.recording_electrode.refs;
+  return [
+    ...anat.systems.flatMap((s) => s.refs),
+    ...anat.modalities.flatMap((m) => m.refs),
+    ...anat.caveat_refs,
+  ];
+}
 
 // References are numbered by first appearance along the journey, so the
 // numbers read in order as the learner moves forward.
@@ -77,6 +101,7 @@ for (const stage of STAGES) {
     ...(stage.threat ? content.about_data.refs : []),
     ...(stage.second_inference?.refs || []),
     ...(stage.future_inference?.refs || []),
+    ...anatomyRefs(stage),
   ];
   for (const key of keys) if (!refOrder.includes(key)) refOrder.push(key);
 }
@@ -1079,6 +1104,195 @@ function waveformSvg(closed, open, maxAbs = waveMax) {
   );
 }
 
+// ------------------------------------------------------------------
+// Neuroanatomy figure: where the signal comes from, and what other
+// sensors reach. Facts come from data.neuroanatomy (core/neuroanatomy.py);
+// this code only places them on a drawing.
+// ------------------------------------------------------------------
+
+const ANAT = data.neuroanatomy;
+const SYSTEM = Object.fromEntries(ANAT.systems.map((s) => [s.key, s]));
+const MODALITY = Object.fromEntries(ANAT.modalities.map((m) => [m.key, m]));
+const ELECTRODE = Object.fromEntries(ANAT.electrodes.map((e) => [e.label, e]));
+const levelOf = (m, key) => m.reach.find((r) => r.system === key);
+const LEVEL_TEXT = { direct: "Reads directly", limited: "Limited reach", none: "Out of reach" };
+
+// Side view, facing left. Shapes are a simplified teaching drawing.
+const CEREBRUM = "M92,150 C66,132 62,92 84,66 C108,38 150,26 198,28 C248,30 286,52 296,92 C304,124 296,156 270,170 C252,178 232,172 214,170 C196,176 172,182 150,180 C124,178 104,168 92,150 Z";
+const HEAD = "M165,14 C245,8 322,45 326,112 C330,165 300,200 272,214 L270,262 L120,262 L118,224 C95,224 72,216 64,202 C60,194 62,186 58,180 C52,178 48,172 52,166 C46,162 46,156 52,152 C44,148 38,142 36,136 L47,123 C47,111 45,100 49,88 C59,40 105,18 165,14 Z";
+const SHAPES = {
+  frontal: { d: "M0,0 L167,0 L167,28 L140,131 L98,140 L0,150 Z", label: [112, 92, "Frontal"] },
+  sensorimotor: { d: "M167,0 L195,0 L193,32 L164,125 L140,131 L167,28 Z", label: [168, 74, "Motor", -72] },
+  parietal: { d: "M195,0 L254,0 L252,44 L255,124 L210,122 L164,125 L193,32 Z", label: [222, 66, "Parietal"] },
+  occipital: { d: "M254,0 L360,0 L360,270 L262,175 L255,124 L252,44 Z", label: [276, 104, "Occipital"] },
+  temporal: { d: "M0,150 L98,140 L140,131 L164,125 L210,122 L255,124 L262,175 L0,270 Z", label: [128, 166, "Temporal"] },
+};
+const EEG_SITES = [[58, 72], [104, 32], [166, 16], [232, 20], [288, 50], [318, 90]];
+const O1_AT = [323, 128];
+
+function sideSvg(m, { electrodeOnly = false } = {}) {
+  const sel = state.anatomySystem;
+  const fillFor = (key) => {
+    if (electrodeOnly) return key === "occipital" ? "var(--closed)" : "none";
+    const level = levelOf(m, key)?.level;
+    return level === "direct" ? "var(--accent)" : level === "limited" ? "url(#hatch)" : "none";
+  };
+  const op = (key) => (electrodeOnly ? (key === "occipital" ? 0.45 : 0) : levelOf(m, key)?.level === "direct" ? 0.42 : 1);
+  const region = (key, inner) =>
+    `<g class="region${sel === key ? " selected" : ""}" data-system="${key}" role="button" tabindex="0" aria-label="${esc(SYSTEM[key].name)}">${inner}<title>${esc(SYSTEM[key].name)}</title></g>`;
+  const lobes = Object.entries(SHAPES)
+    .map(([k, s]) => region(k, `<path d="${s.d}" fill="${fillFor(k)}" fill-opacity="${op(k)}" stroke="var(--line)" stroke-width="1"/>`))
+    .join("");
+  const lobeLabels = Object.entries(SHAPES)
+    .map(([, s]) => {
+      const [x, y, t, rot] = s.label;
+      return `<text x="${x}" y="${y}" class="lbl" text-anchor="middle"${rot ? ` transform="rotate(${rot} ${x} ${y})"` : ""}>${t}</text>`;
+    })
+    .join("");
+  const deepStroke = (key) => (sel === key ? "var(--text)" : "var(--line-strong)");
+  const deep = (key, shape) =>
+    region(key, shape.replace("/>", ` fill="${fillFor(key)}" fill-opacity="${op(key)}" stroke="${deepStroke(key)}" stroke-dasharray="3 2" stroke-width="1.2"/>`));
+  const face = !electrodeOnly && (m.key === "smri" || m.key === "fmri")
+    ? `<path d="${HEAD}" clip-path="url(#face-clip)" fill="var(--does-not)" fill-opacity="0.22" stroke="var(--does-not)" stroke-width="3"/><text x="22" y="150" class="lbl warn" text-anchor="middle">Face</text>`
+    : "";
+  let sensors = "";
+  if (electrodeOnly || m.key === "eeg") {
+    sensors = EEG_SITES.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="4" class="electrode"/>`).join("") +
+      `<circle cx="${O1_AT[0]}" cy="${O1_AT[1]}" r="6.5" class="electrode o1"/><text x="${O1_AT[0] + 10}" y="${O1_AT[1] + 4}" class="lbl strong">O1</text>`;
+  } else if (m.key === "fnirs") {
+    sensors = `<path d="M52,82 Q86,84 76,46" class="light"/><rect x="47" y="78" width="9" height="9" class="optode"/><rect x="71" y="38" width="9" height="9" class="optode"/><text x="20" y="64" class="lbl">Light</text>`;
+  } else if (m.key === "peripheral") {
+    sensors = `<text x="232" y="256" class="lbl strong">To heart and skin</text>`;
+  }
+  const autonomicOn = !electrodeOnly && levelOf(m, "autonomic")?.level !== "none";
+  const youAre = `<g class="you"><circle cx="284" cy="128" r="5"/><circle cx="284" cy="128" r="5" class="pulse"/></g><text x="284" y="146" class="lbl strong" text-anchor="middle">You</text>`;
+  const description = electrodeOnly
+    ? "Side view of the head facing left. Electrode O1 sits on the scalp over the occipital lobe at the back of the head."
+    : `Side view of the head facing left. ${m.short_name} ${ANAT.systems.map((s) => `${LEVEL_TEXT[levelOf(m, s.key).level].toLowerCase()}: ${s.name}`).join("; ")}.`;
+  return `<svg class="anat" viewBox="0 0 360 270" role="img" aria-label="${esc(description)}">
+    <defs>
+      <clipPath id="brain-clip"><path d="${CEREBRUM}"/></clipPath>
+      <clipPath id="face-clip"><rect x="0" y="84" width="66" height="150"/></clipPath>
+      <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="var(--accent)" fill-opacity="0.08"/><line x1="0" y1="0" x2="0" y2="6" stroke="var(--accent)" stroke-width="2" stroke-opacity="0.7"/></pattern>
+    </defs>
+    <path d="${HEAD}" class="head"/>
+    ${face}
+    ${region("autonomic", `<path d="M215,238 C214,248 216,256 214,268" class="nerve${autonomicOn ? " on" : ""}"/><path d="M200,236 h30 v34 h-30 z" fill="transparent"/>`)}
+    ${region("brainstem", `<path d="M196,166 C200,190 204,214 206,240 L224,240 C222,214 220,190 222,168 Z" fill="${fillFor("brainstem")}" fill-opacity="${op("brainstem")}" stroke="var(--line)"/>`)}
+    ${region("cerebellum", `<ellipse cx="250" cy="186" rx="35" ry="18" fill="${fillFor("cerebellum")}" fill-opacity="${op("cerebellum")}" stroke="var(--line)"/>`)}
+    <path d="${CEREBRUM}" fill="var(--brain)"/>
+    <g clip-path="url(#brain-clip)">${lobes}</g>
+    <path d="${CEREBRUM}" fill="none" stroke="var(--line-strong)" stroke-width="1.4"/>
+    ${deep("thalamus", `<ellipse cx="200" cy="114" rx="15" ry="9"/>`)}
+    ${deep("hippocampus_amygdala", `<ellipse cx="178" cy="148" rx="20" ry="6" transform="rotate(-10 178 148)"/>`)}
+    ${lobeLabels}
+    <text x="200" y="104" class="lbl small" text-anchor="middle">Thalamus</text>
+    <text x="178" y="140" class="lbl small" text-anchor="middle">Hippocampus</text>
+    <text x="250" y="190" class="lbl small" text-anchor="middle">Cerebellum</text>
+    <text x="232" y="230" class="lbl small">Brainstem</text>
+    ${electrodeOnly ? "" : youAre}
+    ${sensors}
+  </svg>`;
+}
+
+// Top view of the 10-20 layout, nose up. Positions are the standard
+// drawing: an outer ring at 36 degree steps and an inner cross.
+const MAP_SITES = (() => {
+  const ring = ["Fp2", "F8", "T8", "P8", "O2", "O1", "P7", "T7", "F7", "Fp1"];
+  const sites = ring.map((label, i) => {
+    const a = ((18 + i * 36) * Math.PI) / 180;
+    return [label, Math.sin(a) * 0.8, -Math.cos(a) * 0.8];
+  });
+  return sites.concat([
+    ["Fpz", 0, -0.8], ["Oz", 0, 0.8], ["Fz", 0, -0.4], ["Cz", 0, 0], ["Pz", 0, 0.4],
+    ["C3", -0.4, 0], ["C4", 0.4, 0], ["F3", -0.34, -0.44], ["F4", 0.34, -0.44], ["P3", -0.34, 0.44], ["P4", 0.34, 0.44],
+  ]);
+})();
+
+function topSvg() {
+  const r = 100;
+  const c = 120;
+  const chosen = state.electrode;
+  const dots = MAP_SITES.map(([label, x, y]) => {
+    const cx = c + x * r;
+    const cy = c + y * r;
+    const cls = `site${label === ANAT.recording_electrode.label ? " o1" : ""}${label === chosen ? " chosen" : ""}`;
+    return `<g class="${cls}" data-electrode="${label}" role="button" tabindex="0" aria-label="Electrode ${label}"><circle cx="${cx}" cy="${cy}" r="11"/><text x="${cx}" y="${cy + 3.5}" text-anchor="middle">${label}</text></g>`;
+  }).join("");
+  return `<svg class="anat top" viewBox="0 0 240 240" role="img" aria-label="Top view of the head with the nose at the top, showing the 10-20 electrode positions. O1 is at the back, left of the midline.">
+    <path d="M${c - 12},${c - r - 2} L${c},${c - r - 16} L${c + 12},${c - r - 2}" class="head"/>
+    <ellipse cx="${c - r - 4}" cy="${c}" rx="7" ry="16" class="head"/><ellipse cx="${c + r + 4}" cy="${c}" rx="7" ry="16" class="head"/>
+    <circle cx="${c}" cy="${c}" r="${r}" class="head"/>
+    <line x1="${c}" y1="${c - r}" x2="${c}" y2="${c + r}" class="midline"/>
+    <text x="10" y="232" class="lbl small">Left</text><text x="230" y="232" class="lbl small" text-anchor="end">Right</text>
+    <text x="${c}" y="12" class="lbl small" text-anchor="middle">Nose</text>
+    ${dots}
+  </svg>`;
+}
+
+function anatomyHtml(stage) {
+  const a = stage.anatomy;
+  if (!a) return "";
+  if (a.view === "electrode") {
+    const e = ELECTRODE[state.electrode] || ANAT.recording_electrode;
+    const sys = SYSTEM[e.system];
+    return `<div class="box anatomy"><h3>${esc(a.title)}</h3><p>${esc(a.text)}${refMarks(e.refs)}</p>
+      ${topSvg()}
+      <p class="electrode-read"><strong>${esc(e.label)}.</strong> ${esc(e.naming_note)} It sits over the ${esc(sys.name.toLowerCase())}.${e.label === ANAT.recording_electrode.label ? " This journey's recording comes from here." : ""}</p>
+      ${sideSvg(MODALITY.eeg, { electrodeOnly: true })}
+      <p class="caveat">Side view: O1 on the scalp above the visual cortex, where the alpha rhythm is strongest.</p></div>`;
+  }
+  const m = MODALITY[state.modality];
+  const chips = ANAT.modalities
+    .map((x) => `<button type="button" class="chip" data-modality="${x.key}" aria-pressed="${x.key === m.key}">${esc(x.short_name)}${x.in_journey ? " · you" : ""}</button>`)
+    .join("");
+  const sel = state.anatomySystem ? SYSTEM[state.anatomySystem] : null;
+  const selReach = sel ? levelOf(m, sel.key) : null;
+  const selected = sel
+    ? `<div class="system-card"><strong>${esc(sel.name)}</strong> <span class="lvl ${selReach.level}">${LEVEL_TEXT[selReach.level]} by ${esc(m.short_name)}</span>
+        <p>${esc(sel.location)}. ${esc(sel.role)}${refMarks(sel.refs)}</p>${selReach.note ? `<p class="caveat">${esc(selReach.note)}</p>` : ""}</div>`
+    : `<p class="caveat">Tap a region on the drawing to see what it does.</p>`;
+  const rows = ANAT.systems
+    .map((s) => {
+      const r = levelOf(m, s.key);
+      return `<li><button type="button" class="sys-row${state.anatomySystem === s.key ? " selected" : ""}" data-system="${s.key}"><span>${esc(s.name)}</span><span class="lvl ${r.level}">${LEVEL_TEXT[r.level]}</span></button></li>`;
+    })
+    .join("");
+  return `<div class="box anatomy"><h3>${esc(a.title)}</h3><p>${esc(a.text)}</p>
+    <div class="chips" role="group" aria-label="Sensor">${chips}</div>
+    ${sideSvg(m)}
+    <div class="legend"><span><i style="background:var(--accent);opacity:.6"></i>Reads directly</span><span><i class="hatch"></i>Limited reach</span><span><i style="border:1px solid var(--line-strong)"></i>Out of reach</span></div>
+    ${selected}
+    <dl class="modality-facts">
+      <dt>Measures</dt><dd>${esc(m.measures)}</dd>
+      <dt>Timing</dt><dd>${esc(m.timing)}</dd>
+      <dt>Also captures</dt><dd>${esc(m.also_captures)} ${esc(m.privacy_note)}${refMarks(m.refs)}</dd>
+    </dl>
+    <details class="systems"><summary>All systems for ${esc(m.short_name)}</summary><ul>${rows}</ul></details>
+    <p class="caveat">${esc(ANAT.caveat)}${refMarks(ANAT.caveat_refs)}</p></div>`;
+}
+
+function anatomyTextHtml(stage) {
+  const a = stage.anatomy;
+  if (!a) return "";
+  if (a.view === "electrode") {
+    const e = ANAT.recording_electrode;
+    return `<h3>${esc(a.title)}</h3><p>${esc(a.text)}${refMarks(e.refs)}</p><p><strong>${esc(e.label)}.</strong> ${esc(e.naming_note)} It sits over the ${esc(SYSTEM[e.system].name.toLowerCase())}.</p>`;
+  }
+  const head = ANAT.modalities.map((m) => `<th>${esc(m.short_name)}</th>`).join("");
+  const body = ANAT.systems
+    .map((s) => `<tr><th scope="row">${esc(s.name)}</th>${ANAT.modalities.map((m) => `<td>${LEVEL_TEXT[levelOf(m, s.key).level]}</td>`).join("")}</tr>`)
+    .join("");
+  const mods = ANAT.modalities
+    .map((m) => `<li><strong>${esc(m.name)} (${esc(m.short_name)}).</strong> ${esc(m.measures)} ${esc(m.timing)} Also captures: ${esc(m.also_captures)}${refMarks(m.refs)}</li>`)
+    .join("");
+  const systems = ANAT.systems.map((s) => `<li><strong>${esc(s.name)}.</strong> ${esc(s.location)}. ${esc(s.role)}${refMarks(s.refs)}</li>`).join("");
+  return `<h3>${esc(a.title)}</h3><p>You start in the ${esc(SYSTEM.occipital.name.toLowerCase())}.</p>
+    <h4>Brain and body systems</h4><ul>${systems}</ul>
+    <h4>What each sensor reaches</h4><div class="table-wrap"><table><thead><tr><th>System</th>${head}</tr></thead><tbody>${body}</tbody></table></div>
+    <ul>${mods}</ul><p class="caveat">${esc(ANAT.caveat)}${refMarks(ANAT.caveat_refs)}</p>`;
+}
+
 function perspectivesHtml(stage) {
   const tabs = Object.entries(content.perspectives)
     .map(([k, p]) => `<button type="button" role="tab" data-persp="${k}" aria-selected="${state.perspective === k}">${esc(p.label)}</button>`)
@@ -1253,6 +1467,7 @@ function renderPanel() {
     <p>${esc(stage.lesson)}${refMarks(stage.interaction === "threat" || stage.interaction === "infer" ? [] : stage.refs)}</p>
     <div class="box changed"><h3>What Changed</h3><p>${esc(stage.what_changed)}</p></div>
     ${interactionHtml(stage)}
+    ${anatomyHtml(stage)}
     ${loopSummaryHtml()}
     ${perspectivesHtml(stage)}
     ${copiesHtml()}
@@ -1361,7 +1576,7 @@ function renderTextView() {
     const persp = Object.entries(content.perspectives).map(([k, p]) => `<li><strong>${esc(p.label)}.</strong> ${esc(s.perspectives[k])}</li>`).join("");
     return `<section><p class="stage-kicker">Stage ${i + 1} of ${STAGES.length}</p><h2>${esc(s.name)}</h2>
       <p><strong>You are:</strong> ${esc(s.you_are)}</p><p>${esc(s.lesson)}${refMarks(s.refs)}</p>
-      <p><strong>What changed:</strong> ${esc(s.what_changed)}</p>${s.mechanism ? `<p>${esc(s.mechanism)}${refMarks(s.mechanism_refs)}</p>` : ""}${extra}${s.threat ? aboutDataHtml() : ""}
+      <p><strong>What changed:</strong> ${esc(s.what_changed)}</p>${s.mechanism ? `<p>${esc(s.mechanism)}${refMarks(s.mechanism_refs)}</p>` : ""}${extra}${anatomyTextHtml(s)}${s.threat ? aboutDataHtml() : ""}
       <ul>${persp}</ul><p class="handoff">Passes on: <strong>${esc(s.handoff)}</strong></p></section>`;
   }).join("");
   $("text-view").innerHTML = `<h1>${esc(content.title)}</h1><p>${esc(content.subtitle)}</p><p class="caveat">${esc(content.audience)}</p>
@@ -1387,7 +1602,7 @@ function setTextView(on) {
 function renderRefs() {
   $("refs-source").textContent = `Every number in this experience is computed from ${data.source.dataset} (${data.source.licence}) by ${data.generated_by}.`;
   $("refs-list").innerHTML = refOrder
-    .map((k) => `<li id="ref-${k}">${esc(content.references[k].text)} <a href="${content.references[k].url}" target="_blank" rel="noopener">${esc(content.references[k].url)}</a></li>`)
+    .map((k) => `<li id="ref-${k}">${esc(REFS[k].text)}${REFS[k].url ? ` <a href="${REFS[k].url}" target="_blank" rel="noopener">${esc(REFS[k].url)}</a>` : ""}</li>`)
     .join("");
 }
 
@@ -1406,7 +1621,30 @@ function openRefs(keyToShow) {
 // Events
 // ------------------------------------------------------------------
 
+// Regions and electrodes on the anatomy drawings, and the system list.
+function anatomyPick(target) {
+  const el = target.closest("[data-system], [data-electrode], [data-modality]");
+  if (!el) return false;
+  if (el.dataset.modality) state.modality = el.dataset.modality;
+  if (el.dataset.system) state.anatomySystem = el.dataset.system;
+  if (el.dataset.electrode) state.electrode = el.dataset.electrode;
+  const scroll = $("panel").scrollTop;
+  renderPanel();
+  $("panel").scrollTop = scroll;
+  return true;
+}
+
+document.addEventListener("keydown", (e) => {
+  if ((e.key === "Enter" || e.key === " ") && e.target.matches?.("g[data-system], g[data-electrode]")) {
+    e.preventDefault();
+    const selector = e.target.dataset.system ? `g[data-system="${e.target.dataset.system}"]` : `g[data-electrode="${e.target.dataset.electrode}"]`;
+    anatomyPick(e.target);
+    document.querySelector(`#panel ${selector}`)?.focus();
+  }
+});
+
 document.addEventListener("click", (e) => {
+  if (anatomyPick(e.target)) return;
   const t = e.target.closest("button");
   if (!t) return;
   if (t.dataset.ref) return openRefs(t.dataset.ref);
