@@ -1070,6 +1070,327 @@
    17.4739
   ]
  },
+ "resting_state": {
+  "study": {
+   "key": "barry_2007",
+   "citation_key": "barry",
+   "participants": "28 university students.",
+   "conditions": [
+    "Eyes closed, resting",
+    "Eyes open, resting"
+   ],
+   "recordings": [
+    "EEG across the scalp, summarized as absolute power in the delta, theta, alpha, and beta bands in 9 scalp regions.",
+    "Skin conductance level, as an index of arousal."
+   ],
+   "protocol": "Participants sat at rest with no task, once with the eyes closed and once with them open. Both are common baselines for other studies, and they differ in visual input and in arousal.",
+   "findings": [
+    "Skin conductance level rose from eyes closed to eyes open.",
+    "With the eyes closed, people with higher skin conductance had lower mean alpha.",
+    "Mean power across the scalp fell in all four bands when the eyes opened.",
+    "Alpha fell evenly across the scalp. The other bands changed in specific places, such as lower posterior theta and lower posterior, higher frontal beta with the eyes open."
+   ],
+   "interpretation": "The authors read the even drop in alpha as a change in overall arousal, and the local changes in other bands as the brain processing visual input. Eyes-closed and eyes-open baselines therefore differ in more than alpha, and a study should choose between them on purpose.",
+   "refs": [
+    "barry"
+   ]
+  },
+  "ageing": {
+   "key": "barry_2017",
+   "citation_key": "barry_2017",
+   "participants": "20 young adults (mean age 20.4) and 20 older adults (mean age 68.2).",
+   "conditions": [
+    "Eyes closed, resting, 3 minutes",
+    "Eyes open, resting, 3 minutes"
+   ],
+   "recordings": [
+    "EEG across the scalp."
+   ],
+   "protocol": "Eyes closed first, then eyes open.",
+   "findings": [
+    "Older adults showed some reduction in alpha.",
+    "Power in all bands dropped when the eyes opened, by similar amounts at both ages.",
+    "Older adults showed more local changes, especially in beta."
+   ],
+   "interpretation": "The eyes-closed to eyes-open change holds in healthy ageing, which matters here: the recording in this journey comes from a woman aged 60 to 80, a different person and dataset from either study.",
+   "refs": [
+    "barry_2017"
+   ]
+  },
+  "measures": [
+   {
+    "key": "frequency",
+    "name": "Frequency",
+    "unit": "Hz (hertz), cycles per second",
+    "what_it_is": "How many times per second a rhythm repeats.",
+    "how_computed": "The recording is split into frequency components. Alpha here is everything from 8 to 13 Hz.",
+    "how_to_read": "A higher number means a faster rhythm. Bands are named ranges of frequency.",
+    "range_kind": "by design",
+    "expected": "The 8 to 13 Hz alpha band is a convention. Each person's alpha peak sits somewhere inside or near it.",
+    "what_shifts_it": "Age and scalp position. Alpha frequency rises through childhood and slows in older adults, and it runs faster over the back of the head. Many people show more than one alpha peak.",
+    "refs": [
+     "chiang",
+     "klimesch"
+    ]
+   },
+   {
+    "key": "voltage",
+    "name": "Voltage",
+    "unit": "\u00b5V (microvolts), millionths of a volt",
+    "what_it_is": "The electrical potential at one electrode, measured against a reference electrode.",
+    "how_computed": "The amplifier samples it 500 times per second. Each sample is one number.",
+    "how_to_read": "Larger swings mean more neurons firing in step under that electrode. The sign depends on the reference.",
+    "range_kind": "within person",
+    "expected": "Compare conditions within one recording. Absolute voltages change with the reference, the amplifier, and the person.",
+    "what_shifts_it": "The reference electrode, skull and scalp thickness, electrode contact, filtering, and movement or blink artifacts.",
+    "refs": [
+     "buzsaki"
+    ]
+   },
+   {
+    "key": "alpha_power",
+    "name": "Alpha power",
+    "unit": "\u00b5V\u00b2 (microvolts squared)",
+    "what_it_is": "How strong the 8 to 13 Hz rhythm is in one second of signal.",
+    "how_computed": "Welch's method estimates power at each frequency for each 1-second window, and the area under that spectrum from 8 to 13 Hz is the alpha power. Power comes from squared voltage, which is why the unit is \u00b5V\u00b2.",
+    "how_to_read": "Higher means a stronger alpha rhythm in that second. Each dot on the strip is one second.",
+    "range_kind": "within person",
+    "expected": "Read it within a person, across conditions. Absolute alpha power has no single normal value.",
+    "what_shifts_it": "Age, scalp position, the reference electrode, the device, and arousal. Alpha power is higher over the back of the head and differs between the sexes.",
+    "refs": [
+     "welch",
+     "chiang",
+     "klimesch"
+    ]
+   },
+   {
+    "key": "reactivity",
+    "name": "Eyes-closed to eyes-open ratio",
+    "unit": "A ratio, with no unit",
+    "what_it_is": "Mean alpha power with the eyes closed divided by mean alpha power with them open.",
+    "how_computed": "Average the eyes-closed windows, average the eyes-open windows, and divide.",
+    "how_to_read": "Above 1 means alpha was stronger with the eyes closed. A value of 1 means no difference.",
+    "range_kind": "direction",
+    "expected": "Above 1 is the expected direction in relaxed, awake adults, young and older. How far above 1 varies from person to person.",
+    "what_shifts_it": "Drowsiness, arousal, attention, age, and scalp position.",
+    "refs": [
+     "barry",
+     "barry_2017"
+    ]
+   },
+   {
+    "key": "accuracy",
+    "name": "Accuracy against chance",
+    "unit": "Percent of 1-second windows labeled correctly",
+    "what_it_is": "How often the threshold rule labeled a second as eyes closed or eyes open correctly.",
+    "how_computed": "Correct windows divided by all windows.",
+    "how_to_read": "With equal numbers of each condition, guessing gets 50% on average. A small sample can beat 50% by luck, so the bar to clear depends on how many windows there are.",
+    "range_kind": "calculated",
+    "expected": "Chance is 50% by design. For 30 windows, 20 correct (67%) is the smallest count that luck alone reaches less than 5% of the time.",
+    "what_shifts_it": "The number of windows, how the threshold was set, and whether it was tested on separate data.",
+    "refs": [
+     "combrisson"
+    ]
+   },
+   {
+    "key": "skin_conductance",
+    "name": "Skin conductance level",
+    "unit": "\u00b5S (microsiemens)",
+    "what_it_is": "How easily a small current passes between two electrodes on the skin, which rises with sweat gland activity.",
+    "how_computed": "Two electrodes, often on the fingers, with a small constant voltage between them. The recording in this journey has no skin conductance channel.",
+    "how_to_read": "Higher means more sympathetic arousal. A slow level (tonic) and quick responses to events (phasic) are read separately.",
+    "range_kind": "within person",
+    "expected": "Rises from eyes closed to eyes open. Absolute levels vary widely between people and setups, so studies compare within a person.",
+    "what_shifts_it": "Temperature, electrode site and gel, hydration, medication, and exercise.",
+    "refs": [
+     "barry",
+     "boucsein",
+     "critchley"
+    ]
+   }
+  ],
+  "bands": [
+   {
+    "name": "Delta",
+    "low_hz": 0.5,
+    "high_hz": 4.0,
+    "plain": "The slowest band shown here."
+   },
+   {
+    "name": "Theta",
+    "low_hz": 4.0,
+    "high_hz": 8.0,
+    "plain": "Linked with encoding new information during memory tasks."
+   },
+   {
+    "name": "Alpha",
+    "low_hz": 8.0,
+    "high_hz": 13.0,
+    "plain": "Strongest in relaxed wakefulness with the eyes closed."
+   },
+   {
+    "name": "Beta",
+    "low_hz": 13.0,
+    "high_hz": 30.0,
+    "plain": "The fastest band shown here."
+   }
+  ],
+  "band_caveat": "Band edges are conventions that vary by about 1 Hz between labs. Anchoring each band on a person's own alpha peak can be more accurate.",
+  "band_refs": [
+   "klimesch",
+   "chiang",
+   "barry"
+  ],
+  "axis_poles": {
+   "state": [
+    "Resting",
+    "Task"
+   ],
+   "scope": [
+    "Domain-general",
+    "Domain-specific"
+   ]
+  },
+  "dichotomies": [
+   {
+    "modality": "EEG",
+    "axis": "state",
+    "first": "Eyes-closed and eyes-open rest, with no task.",
+    "second": "A memory task, where alpha drops briefly (phasic) in response to each item.",
+    "refs": [
+     "barry",
+     "klimesch"
+    ]
+   },
+   {
+    "modality": "EEG",
+    "axis": "scope",
+    "first": "Alpha falling evenly across the scalp, read as overall arousal.",
+    "second": "Theta and beta changing over specific regions, read as visual processing.",
+    "refs": [
+     "barry"
+    ]
+   },
+   {
+    "modality": "fMRI",
+    "axis": "state",
+    "first": "Resting-state scans, where slow fluctuations below 0.1 Hz rise and fall together in connected regions.",
+    "second": "Task scans, where goal-directed work engages task regions and quiets the default mode network.",
+    "refs": [
+     "biswal",
+     "raichle"
+    ]
+   },
+   {
+    "modality": "fMRI",
+    "axis": "scope",
+    "first": "Frontal and parietal regions that respond across many demanding tasks, from arithmetic to working memory.",
+    "second": "Neighboring regions that respond to one kind of content.",
+    "refs": [
+     "fedorenko"
+    ]
+   },
+   {
+    "modality": "Skin conductance",
+    "axis": "state",
+    "first": "The slow tonic level across a resting condition.",
+    "second": "Quick phasic responses to individual events.",
+    "refs": [
+     "barry",
+     "critchley"
+    ]
+   },
+   {
+    "modality": "Skin conductance",
+    "axis": "scope",
+    "first": "Sympathetic arousal shared by emotion, attention, and effort.",
+    "second": "A specific reading needs a task or another signal alongside it, because the same rise accompanies emotion, attention, and effort.",
+    "refs": [
+     "critchley"
+    ]
+   }
+  ],
+  "references": [
+   {
+    "key": "barry",
+    "text": "Barry, R. J., Clarke, A. R., Johnstone, S. J., Magee, C. A., & Rushby, J. A. (2007). EEG differences between eyes-closed and eyes-open resting conditions. Clinical Neurophysiology, 118(12), 2765-2773.",
+    "url": "https://doi.org/10.1016/j.clinph.2007.07.028"
+   },
+   {
+    "key": "barry_2017",
+    "text": "Barry, R. J., & De Blasio, F. M. (2017). EEG differences between eyes-closed and eyes-open resting remain in healthy ageing. Biological Psychology, 129, 293-304.",
+    "url": "https://doi.org/10.1016/j.biopsycho.2017.09.010"
+   },
+   {
+    "key": "klimesch",
+    "text": "Klimesch, W. (1999). EEG alpha and theta oscillations reflect cognitive and memory performance: A review and analysis. Brain Research Reviews, 29(2-3), 169-195.",
+    "url": "https://doi.org/10.1016/s0165-0173(98)00056-3"
+   },
+   {
+    "key": "chiang",
+    "text": "Chiang, A. K. I., Rennie, C. J., Robinson, P. A., van Albada, S. J., & Kerr, C. C. (2011). Age trends and sex differences of alpha rhythms including split alpha peaks. Clinical Neurophysiology, 122(8), 1505-1517.",
+    "url": "https://doi.org/10.1016/j.clinph.2011.01.040"
+   },
+   {
+    "key": "buzsaki",
+    "text": "Buzs\u00e1ki, G., Anastassiou, C. A., & Koch, C. (2012). The origin of extracellular fields and currents: EEG, ECoG, LFP and spikes. Nature Reviews Neuroscience, 13(6), 407-420.",
+    "url": "https://doi.org/10.1038/nrn3241"
+   },
+   {
+    "key": "welch",
+    "text": "Welch, P. D. (1967). The use of fast Fourier transform for the estimation of power spectra: A method based on time averaging over short, modified periodograms. IEEE Transactions on Audio and Electroacoustics, 15(2), 70-73.",
+    "url": "https://doi.org/10.1109/TAU.1967.1161901"
+   },
+   {
+    "key": "combrisson",
+    "text": "Combrisson, E., & Jerbi, K. (2015). Exceeding chance level by chance: The caveat of theoretical chance levels in brain signal classification and statistical assessment of decoding accuracy. Journal of Neuroscience Methods, 250, 126-136.",
+    "url": "https://doi.org/10.1016/j.jneumeth.2015.01.010"
+   },
+   {
+    "key": "boucsein",
+    "text": "Boucsein, W., Fowles, D. C., Grimnes, S., Ben-Shakhar, G., Roth, W. T., Dawson, M. E., Filion, D. L., & Society for Psychophysiological Research Ad Hoc Committee on Electrodermal Measures (2012). Publication recommendations for electrodermal measurements. Psychophysiology, 49(8), 1017-1034.",
+    "url": "https://doi.org/10.1111/j.1469-8986.2012.01384.x"
+   },
+   {
+    "key": "critchley",
+    "text": "Critchley, H. D. (2002). Electrodermal responses: What happens in the brain. The Neuroscientist, 8(2), 132-142.",
+    "url": "https://doi.org/10.1177/107385840200800209"
+   },
+   {
+    "key": "biswal",
+    "text": "Biswal, B., Yetkin, F. Z., Haughton, V. M., & Hyde, J. S. (1995). Functional connectivity in the motor cortex of resting human brain using echo-planar MRI. Magnetic Resonance in Medicine, 34(4), 537-541.",
+    "url": "https://doi.org/10.1002/mrm.1910340409"
+   },
+   {
+    "key": "raichle",
+    "text": "Raichle, M. E., MacLeod, A. M., Snyder, A. Z., Powers, W. J., Gusnard, D. A., & Shulman, G. L. (2001). A default mode of brain function. Proceedings of the National Academy of Sciences, 98(2), 676-682.",
+    "url": "https://doi.org/10.1073/pnas.98.2.676"
+   },
+   {
+    "key": "fedorenko",
+    "text": "Fedorenko, E., Duncan, J., & Kanwisher, N. (2013). Broad domain generality in focal regions of frontal and parietal cortex. Proceedings of the National Academy of Sciences, 110(41), 16616-16621.",
+    "url": "https://doi.org/10.1073/pnas.1315235110"
+   }
+  ],
+  "reactivity": {
+   "mean_closed": 77.8408,
+   "mean_open": 9.2448,
+   "ratio": 8.4199,
+   "direction_as_expected": true
+  },
+  "chance": {
+   "n_correct": 27,
+   "n_trials": 30,
+   "accuracy": 0.9,
+   "chance_accuracy": 0.5,
+   "threshold_correct": 20,
+   "threshold_accuracy": 0.666667,
+   "threshold_p_value": 0.049369,
+   "p_value": 4e-06,
+   "significance": 0.05,
+   "exceeds_threshold": true
+  }
+ },
  "noise": [
   {
    "sd_uv": 0.0,

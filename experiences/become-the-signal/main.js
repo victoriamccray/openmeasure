@@ -60,6 +60,9 @@ const state = {
   modality: "eeg",
   anatomySystem: "occipital",
   electrode: "O1",
+  // Study room: the open tab and the dichotomy axis shown.
+  studyTab: "room",
+  studyAxis: "state",
 };
 
 // ------------------------------------------------------------------
@@ -75,6 +78,7 @@ const pct = (value) => (value === null || value === undefined ? "fails" : `${Mat
 // of the journey cites from content.json. A key in both has the same text,
 // which shared/tests/test_become_the_signal.py checks.
 const REFS = {
+  ...Object.fromEntries(data.resting_state.references.map((r) => [r.key, r])),
   ...Object.fromEntries(data.neuroanatomy.references.map((r) => [r.key, r])),
   ...content.references,
 };
@@ -105,6 +109,8 @@ for (const stage of STAGES) {
   ];
   for (const key of keys) if (!refOrder.includes(key)) refOrder.push(key);
 }
+// The study room's sources, numbered after the journey's own.
+for (const r of data.resting_state.references) if (!refOrder.includes(r.key)) refOrder.push(r.key);
 const refNumber = (key) => refOrder.indexOf(key) + 1;
 const refMarks = (keys = []) =>
   keys.map((k) => `<button type="button" class="ref" data-ref="${k}" aria-label="Reference ${refNumber(k)}">[${refNumber(k)}]</button>`).join("");
@@ -1303,6 +1309,264 @@ function anatomyTextHtml(stage) {
     <ul>${mods}</ul><p class="caveat">${esc(ANAT.caveat)}${refMarks(ANAT.caveat_refs)}</p>`;
 }
 
+// ------------------------------------------------------------------
+// Study room: how an eyes-closed / eyes-open recording is made, what
+// each number means, and the resting / task and domain-general /
+// domain-specific dichotomies. Words and numbers come from
+// data.resting_state (core/resting_state.py); this code draws them.
+// ------------------------------------------------------------------
+
+const RS = data.resting_state;
+const MEASURE = Object.fromEntries(RS.measures.map((m) => [m.key, m]));
+const RANGE_LABEL = {
+  "by design": "Fixed by design",
+  calculated: "Calculated for this sample",
+  direction: "Expected direction",
+  "within person": "Compare within a person",
+};
+const STUDY_TABS = [
+  ["room", "The Recording"],
+  ["numbers", "What the Numbers Mean"],
+  ["dichotomies", "Resting vs Task"],
+];
+
+// A seated participant, side view facing right. Eyes, the O1 glow and
+// the alpha meter follow state.eyes; the trace is the recorded signal.
+function participantSvg() {
+  const closed = state.eyes === "eyes_closed";
+  const glow = closed ? 0.85 : 0.25;
+  const eye = closed
+    ? `<path d="M181,84 q5,3.5 10,0" class="lid"/>`
+    : `<ellipse cx="186" cy="84" rx="5.5" ry="3.6" class="eye-white"/><circle cx="188" cy="84" r="2.2" class="pupil"/>`;
+  const capSites = [[150, 52], [168, 44], [186, 48], [200, 62], [136, 64], [128, 82]];
+  return `<svg class="participant" viewBox="0 0 420 300" role="img" aria-label="A participant seated at rest with ${closed ? "eyes closed" : "eyes open"}, wearing an EEG cap with electrode O1 at the back of the head, and two skin conductance electrodes on the fingers of the left hand. Cables run to two amplifiers.">
+    <defs><radialGradient id="o1g"><stop offset="0" stop-color="#ff9f6b" stop-opacity="${glow}"/><stop offset="1" stop-color="#ff9f6b" stop-opacity="0"/></radialGradient></defs>
+    <rect x="0" y="268" width="420" height="32" class="floor"/>
+    <path d="M92,150 L104,262 M206,196 L214,262 M92,196 H220" class="chair"/>
+    <path d="M86,112 Q80,150 92,200" class="chair back"/>
+    <path d="M120,198 C150,200 196,196 222,200 L232,262 L246,262" class="body"/>
+    <path d="M132,118 C110,140 108,178 120,200 L200,200 C206,170 196,138 176,118 Z" class="body torso"/>
+    <path d="M160,124 C176,150 190,170 230,176" class="body arm"/>
+    <ellipse cx="236" cy="177" rx="10" ry="6" class="skin"/>
+    <rect x="242" y="171" width="7" height="4" rx="1.5" class="scl"/><rect x="242" y="178" width="7" height="4" rx="1.5" class="scl"/>
+    <path d="M249,173 C290,170 300,214 330,226 M249,180 C286,184 296,220 330,232" class="wire"/>
+    <rect x="330" y="214" width="66" height="34" rx="5" class="box"/><text x="363" y="235" class="lbl" text-anchor="middle">Skin cond.</text>
+    <rect x="150" y="104" width="22" height="18" class="skin"/>
+    <circle cx="164" cy="80" r="34" class="skin head"/>
+    <path d="M196,80 L204,92 L196,95 M188,104 q4,2 8,0 M180,76 q6,-3 12,0" class="feature"/>
+    <ellipse cx="160" cy="86" rx="5" ry="8" class="skin"/>
+    ${eye}
+    <path d="M130,78 C130,36 196,30 200,70" class="cap"/>
+    ${capSites.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="3.2" class="site"/>`).join("")}
+    <circle cx="131" cy="96" r="22" fill="url(#o1g)"/>
+    <circle cx="131" cy="96" r="4.5" class="site o1"/><text x="104" y="118" class="lbl strong">O1</text>
+    <path d="M130,80 C90,90 60,160 54,214" class="wire"/>
+    <rect x="16" y="214" width="76" height="34" rx="5" class="box"/><text x="54" y="229" class="lbl" text-anchor="middle">EEG amplifier</text><text x="54" y="241" class="lbl small" text-anchor="middle">500 samples/s</text>
+    <text x="232" y="34" class="lbl strong">${closed ? "Eyes closed" : "Eyes open"}, at rest</text>
+    <text x="232" y="50" class="lbl small">No task. Sitting still.</text>
+  </svg>`;
+}
+
+function liveTraceHtml() {
+  const values = data.waveform[state.eyes];
+  const w = 360;
+  const h = 70;
+  const step = w / (values.length - 1);
+  const d = values.map((v, i) => `${i ? "L" : "M"}${(i * step).toFixed(1)},${(h / 2 - (v / waveMax) * (h / 2 - 3)).toFixed(1)}`).join("");
+  const r = RS.reactivity;
+  const mean = state.eyes === "eyes_closed" ? r.mean_closed : r.mean_open;
+  const pctOfMax = (mean / Math.max(r.mean_closed, r.mean_open)) * 100;
+  return `<div class="live">
+    <p class="live-label">EEG at O1, recorded (${data.waveform.seconds} s, quarter speed)</p>
+    <svg viewBox="0 0 ${w} ${h}" class="trace" role="img" aria-label="Recorded EEG trace, ${state.eyes === "eyes_closed" ? "eyes closed" : "eyes open"}."><path d="${d}" pathLength="1" class="trace-path ${state.eyes}"/></svg>
+    <p class="live-label">Mean alpha power: <strong>${mean.toFixed(1)} µV²</strong></p>
+    <div class="meter-bar"><i class="${state.eyes}" style="width:${pctOfMax.toFixed(0)}%"></i></div>
+    <p class="live-label">Skin conductance: <strong>${state.eyes === "eyes_closed" ? "lower" : "higher"}</strong> ${state.eyes === "eyes_closed" ? "↓" : "↑"}</p>
+    <p class="caveat">Direction from Barry et al. (2007). This dataset has no skin conductance channel, so no value is shown.${refMarks(["barry"])}</p>
+  </div>`;
+}
+
+function studyCard(s, title) {
+  return `<div class="box"><h3>${esc(title)}</h3>
+    <p><strong>Who:</strong> ${esc(s.participants)}</p>
+    <p><strong>Conditions:</strong> ${s.conditions.map(esc).join("; ")}.</p>
+    <p><strong>Recorded:</strong> ${s.recordings.map(esc).join(" ")}</p>
+    <p>${esc(s.protocol)}</p>
+    <ul>${s.findings.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>
+    <p>${esc(s.interpretation)}${refMarks(s.refs)}</p></div>`;
+}
+
+function roomHtml() {
+  const steps = [
+    ["Seated at rest", "Cap on, electrodes checked, no task."],
+    ["Eyes closed", "Alpha strongest. Skin conductance lower."],
+    ["Eyes open", "Alpha drops. Skin conductance rises."],
+    ["Compare", "Same person, two conditions, second by second."],
+  ];
+  return `<div class="choices levels" role="group" aria-label="Condition">
+      <button type="button" class="choice" data-eyes="eyes_closed" aria-pressed="${state.eyes === "eyes_closed"}">Eyes closed</button>
+      <button type="button" class="choice" data-eyes="eyes_open" aria-pressed="${state.eyes === "eyes_open"}">Eyes open</button>
+    </div>
+    <div class="room">${participantSvg()}${liveTraceHtml()}</div>
+    <ol class="protocol">${steps.map(([t, d], i) => `<li class="${(state.eyes === "eyes_closed" && i === 1) || (state.eyes === "eyes_open" && i === 2) ? "now" : ""}"><span class="rail-num">${i + 1}</span><strong>${t}</strong><span>${d}</span></li>`).join("")}</ol>
+    <p class="caveat">Barry and De Blasio (2017) recorded 3 minutes of each, eyes closed first. This journey uses a 15-second excerpt of each condition from one channel.${refMarks(["barry_2017", "sanchez_gama"])}</p>
+    ${studyCard(RS.study, "The Study: Barry et al. (2007)")}
+    ${studyCard(RS.ageing, "Does It Hold With Age? Barry and De Blasio (2017)")}`;
+}
+
+// Range graphics: each draws only what core/resting_state.py supports.
+function bandsSvg() {
+  const max = 30;
+  const x = (hz) => 10 + (hz / max) * 340;
+  const colors = { Delta: "#5a6bd8", Theta: "#9a8cff", Alpha: "#ff9f6b", Beta: "#6fe3d0" };
+  const bars = RS.bands
+    .map((b) => `<rect x="${x(b.low_hz)}" y="18" width="${x(b.high_hz) - x(b.low_hz)}" height="22" fill="${colors[b.name]}" fill-opacity="${b.name === "Alpha" ? 0.9 : 0.35}"/><text x="${(x(b.low_hz) + x(b.high_hz)) / 2}" y="33" text-anchor="middle" class="lbl ${b.name === "Alpha" ? "dark" : ""}">${b.name}</text>`)
+    .join("");
+  const ticks = [0, 4, 8, 13, 20, 30].map((t) => `<text x="${x(t)}" y="54" text-anchor="middle" class="lbl small">${t}</text>`).join("");
+  return `<svg viewBox="0 0 360 62" class="range" role="img" aria-label="Conventional EEG bands from 0 to 30 Hz: delta, theta, alpha from 8 to 13 Hz, and beta.">${bars}${ticks}<text x="350" y="12" text-anchor="end" class="lbl small">Hz</text></svg>`;
+}
+
+function reactivitySvg() {
+  const r = RS.reactivity;
+  const lo = Math.log2(0.25);
+  const hi = Math.log2(32);
+  const x = (v) => 10 + ((Math.log2(v) - lo) / (hi - lo)) * 340;
+  const ticks = [0.5, 1, 2, 4, 8, 16, 32].map((t) => `<text x="${x(t)}" y="58" text-anchor="middle" class="lbl small">${t}×</text>`).join("");
+  return `<svg viewBox="0 0 360 66" class="range" role="img" aria-label="Ratio scale. 1 means no difference. Above 1 is the expected direction. This recording: ${r.ratio.toFixed(1)} times.">
+    <rect x="${x(1)}" y="20" width="${x(32) - x(1)}" height="18" class="expected"/>
+    <line x1="10" y1="29" x2="350" y2="29" class="axis"/>
+    <line x1="${x(1)}" y1="14" x2="${x(1)}" y2="44" class="axis strong"/>
+    <text x="${x(1) + 4}" y="12" class="lbl small">1 = no difference</text>
+    <text x="${x(16)}" y="12" class="lbl small" text-anchor="middle">expected side</text>
+    <circle cx="${x(r.ratio)}" cy="29" r="6" class="mark"/><text x="${x(r.ratio)}" y="50" text-anchor="middle" class="lbl strong">${r.ratio.toFixed(1)}×</text>
+    ${ticks}</svg>`;
+}
+
+function accuracySvg() {
+  const c = RS.chance;
+  const x = (p) => 10 + p * 340;
+  return `<svg viewBox="0 0 360 70" class="range" role="img" aria-label="Accuracy from 0 to 100 percent. Chance is 50 percent. With ${c.n_trials} windows, ${c.threshold_correct} correct (${Math.round(c.threshold_accuracy * 100)} percent) beats chance. This recording: ${Math.round(c.accuracy * 100)} percent.">
+    <rect x="${x(c.threshold_accuracy)}" y="22" width="${x(1) - x(c.threshold_accuracy)}" height="16" class="expected"/>
+    <line x1="10" y1="30" x2="350" y2="30" class="axis"/>
+    <line x1="${x(c.chance_accuracy)}" y1="16" x2="${x(c.chance_accuracy)}" y2="44" class="axis strong"/>
+    <text x="${x(c.chance_accuracy)}" y="12" text-anchor="middle" class="lbl small">chance ${Math.round(c.chance_accuracy * 100)}%</text>
+    <line x1="${x(c.threshold_accuracy)}" y1="16" x2="${x(c.threshold_accuracy)}" y2="44" class="axis dashed"/>
+    <text x="${x(c.threshold_accuracy)}" y="56" text-anchor="middle" class="lbl small">beats chance from ${c.threshold_correct}/${c.n_trials}</text>
+    <circle cx="${x(c.accuracy)}" cy="30" r="6" class="mark"/><text x="${x(c.accuracy)}" y="12" text-anchor="middle" class="lbl strong">${c.n_correct}/${c.n_trials}</text>
+    ${[0, 0.25, 0.5, 0.75, 1].map((t) => `<text x="${x(t)}" y="68" text-anchor="middle" class="lbl small">${t * 100}%</text>`).join("")}</svg>`;
+}
+
+function alphaStripSvg() {
+  const b = data.baseline;
+  const max = Math.max(...b.alpha_power_eyes_closed, ...b.alpha_power_eyes_open);
+  const x = (v) => 70 + (v / max) * 280;
+  const row = (vals, y, cls, label) =>
+    `<text x="0" y="${y + 4}" class="lbl">${label}</text>${vals.map((v) => `<circle cx="${x(v).toFixed(1)}" cy="${y}" r="4" class="dot ${cls}"/>`).join("")}`;
+  return `<svg viewBox="0 0 360 74" class="range" role="img" aria-label="Alpha power per one-second window. Eyes-closed windows sit mostly to the right of eyes-open windows.">
+    ${row(b.alpha_power_eyes_closed, 16, "eyes_closed", "Closed")}
+    ${row(b.alpha_power_eyes_open, 40, "eyes_open", "Open")}
+    <line x1="${x(b.threshold)}" y1="4" x2="${x(b.threshold)}" y2="50" class="axis dashed"/>
+    <text x="${x(b.threshold) + 3}" y="60" class="lbl small">threshold ${b.threshold.toFixed(0)} µV²</text>
+    <text x="350" y="72" text-anchor="end" class="lbl small">µV² per second →</text></svg>`;
+}
+
+function sclSvg() {
+  return `<svg viewBox="0 0 360 60" class="range" role="img" aria-label="Skin conductance rises from eyes closed to eyes open. Direction only, no values.">
+    <text x="20" y="40" class="lbl">Eyes closed</text><path d="M100,40 C160,40 200,18 260,16" class="arrow"/><polygon points="260,10 272,16 260,22" class="arrowhead"/>
+    <text x="280" y="20" class="lbl">Eyes open</text><text x="180" y="54" text-anchor="middle" class="lbl small">direction only: absolute levels vary between people</text></svg>`;
+}
+
+const MEASURE_GRAPHIC = {
+  frequency: bandsSvg,
+  alpha_power: alphaStripSvg,
+  reactivity: reactivitySvg,
+  accuracy: accuracySvg,
+  skin_conductance: sclSvg,
+};
+
+function numbersHtml() {
+  const cards = RS.measures
+    .map((m) => {
+      const graphic = MEASURE_GRAPHIC[m.key] ? MEASURE_GRAPHIC[m.key]() : "";
+      return `<details class="box measure"${m.key === "reactivity" ? " open" : ""}><summary><h3>${esc(m.name)}</h3><span class="unit">${esc(m.unit)}</span></summary>
+        ${graphic}
+        <dl class="modality-facts">
+          <dt>What it is</dt><dd>${esc(m.what_it_is)}</dd>
+          <dt>How it is computed</dt><dd>${esc(m.how_computed)}</dd>
+          <dt>How to read it</dt><dd>${esc(m.how_to_read)}</dd>
+          <dt>${esc(RANGE_LABEL[m.range_kind])}</dt><dd>${esc(m.expected)}</dd>
+          <dt>What shifts it</dt><dd>${esc(m.what_shifts_it)}${refMarks(m.refs)}</dd>
+        </dl></details>`;
+    })
+    .join("");
+  return `<p>Each number in this journey, in plain terms, with the range you can expect and how that range is known.</p>
+    ${cards}
+    <p class="caveat">${esc(RS.band_caveat)}${refMarks(RS.band_refs)}</p>`;
+}
+
+function dichotomiesHtml() {
+  const axis = state.studyAxis;
+  const [a, b] = RS.axis_poles[axis];
+  const rows = RS.dichotomies
+    .filter((d) => d.axis === axis)
+    .map((d) => `<div class="dich-row"><h4>${esc(d.modality)}</h4><div class="dich-pole"><span class="tag">${esc(a)}</span><p>${esc(d.first)}</p></div><div class="dich-pole"><span class="tag alt">${esc(b)}</span><p>${esc(d.second)}${refMarks(d.refs)}</p></div></div>`)
+    .join("");
+  const tabs = Object.entries(RS.axis_poles)
+    .map(([k, [p, q]]) => `<button type="button" role="tab" data-axis="${k}" aria-selected="${k === axis}">${esc(p)} vs ${esc(q)}</button>`)
+    .join("");
+  return `<p>Two questions to ask of any measurement, whatever the sensor. Barry et al. (2007) answers both for EEG: the study is resting, and it found one domain-general change (alpha) and several domain-specific ones.${refMarks(["barry"])}</p>
+    <div class="persp-tabs" role="tablist" aria-label="Dichotomy">${tabs}</div>
+    ${rows}`;
+}
+
+function renderStudy() {
+  $("study-tabs").innerHTML = STUDY_TABS.map(([k, label]) => `<button type="button" role="tab" data-study-tab="${k}" aria-selected="${state.studyTab === k}">${label}</button>`).join("");
+  const body = { room: roomHtml, numbers: numbersHtml, dichotomies: dichotomiesHtml }[state.studyTab]();
+  $("study-body").innerHTML = body;
+}
+
+function openStudy(tab) {
+  if (tab) state.studyTab = tab;
+  renderStudy();
+  const dialog = $("study");
+  if (!dialog.open) dialog.showModal();
+}
+
+function studyTextHtml() {
+  const measures = RS.measures
+    .map((m) => `<li><strong>${esc(m.name)} (${esc(m.unit)}).</strong> ${esc(m.what_it_is)} ${esc(m.how_computed)} ${esc(m.how_to_read)} <em>${esc(RANGE_LABEL[m.range_kind])}:</em> ${esc(m.expected)} What shifts it: ${esc(m.what_shifts_it)}${refMarks(m.refs)}</li>`)
+    .join("");
+  const r = RS.reactivity;
+  const c = RS.chance;
+  const dich = RS.dichotomies
+    .map((d) => `<tr><td>${esc(d.modality)}</td><td>${esc(RS.axis_poles[d.axis].join(" vs "))}</td><td>${esc(d.first)}</td><td>${esc(d.second)}${refMarks(d.refs)}</td></tr>`)
+    .join("");
+  return `<section><h2>The Study Room</h2>
+    ${studyCard(RS.study, "The Study: Barry et al. (2007)")}
+    ${studyCard(RS.ageing, "Does It Hold With Age? Barry and De Blasio (2017)")}
+    <h3>This Recording's Numbers</h3>
+    <p>Mean alpha power ${r.mean_closed.toFixed(1)} µV² with the eyes closed and ${r.mean_open.toFixed(1)} µV² with them open, a ratio of ${r.ratio.toFixed(1)}. Accuracy ${c.n_correct} of ${c.n_trials}; chance is ${Math.round(c.chance_accuracy * 100)}%, and ${c.threshold_correct} of ${c.n_trials} is needed to beat it.${refMarks(["combrisson"])}</p>
+    <h3>What the Numbers Mean</h3><ul>${measures}</ul>
+    <h3>Resting vs Task, Domain-General vs Domain-Specific</h3>
+    <div class="table-wrap"><table><thead><tr><th>Modality</th><th>Axis</th><th>First pole</th><th>Second pole</th></tr></thead><tbody>${dich}</tbody></table></div></section>`;
+}
+
+function studyEntryHtml(stage) {
+  if (stage.interaction === "waveform") {
+    return `<div class="box study-entry"><h3>Step Into the Study</h3>
+      <p>See how an eyes-closed and eyes-open recording is made, what each number means, and how resting studies compare with task studies.</p>
+      <div class="study-buttons">
+        <button type="button" class="primary" data-open-study="room">The recording</button>
+        <button type="button" class="ghost" data-open-study="numbers">What the numbers mean</button>
+        <button type="button" class="ghost" data-open-study="dichotomies">Resting vs task</button>
+      </div></div>`;
+  }
+  if (stage.interaction === "infer") {
+    return `<p><button type="button" class="linklike" data-open-study="numbers">What does ${pct(data.baseline.accuracy)} mean, and what counts as beating chance?</button></p>`;
+  }
+  return "";
+}
+
 function perspectivesHtml(stage) {
   const tabs = Object.entries(content.perspectives)
     .map(([k, p]) => `<button type="button" role="tab" data-persp="${k}" aria-selected="${state.perspective === k}">${esc(p.label)}</button>`)
@@ -1477,6 +1741,7 @@ function renderPanel() {
     <p>${esc(stage.lesson)}${refMarks(stage.interaction === "threat" || stage.interaction === "infer" ? [] : stage.refs)}</p>
     <div class="box changed"><h3>What Changed</h3><p>${esc(stage.what_changed)}</p></div>
     ${interactionHtml(stage)}
+    ${studyEntryHtml(stage)}
     ${anatomyHtml(stage)}
     ${loopSummaryHtml()}
     ${perspectivesHtml(stage)}
@@ -1591,7 +1856,7 @@ function renderTextView() {
   }).join("");
   $("text-view").innerHTML = `<h1>${esc(content.title)}</h1><p>${esc(content.subtitle)}</p><p class="caveat">${esc(content.audience)}</p>
     <p>${esc(content.beginning)}</p>
-    ${stages}<section><h2>End of the Journey</h2><p>${esc(content.ending)}</p><p class="takeaway">${esc(content.takeaway)}</p></section>`;
+    ${stages}${studyTextHtml()}<section><h2>End of the Journey</h2><p>${esc(content.ending)}</p><p class="takeaway">${esc(content.takeaway)}</p></section>`;
 }
 
 function setTextView(on) {
@@ -1632,6 +1897,21 @@ function openRefs(keyToShow) {
 // ------------------------------------------------------------------
 
 // Regions and electrodes on the anatomy drawings, and the system list.
+function studyPick(target) {
+  const el = target.closest("[data-open-study], [data-study-tab], [data-axis]");
+  if (!el) return false;
+  if (el.dataset.openStudy) openStudy(el.dataset.openStudy);
+  if (el.dataset.studyTab) {
+    state.studyTab = el.dataset.studyTab;
+    renderStudy();
+  }
+  if (el.dataset.axis) {
+    state.studyAxis = el.dataset.axis;
+    renderStudy();
+  }
+  return true;
+}
+
 function anatomyPick(target) {
   const el = target.closest("[data-system], [data-electrode], [data-modality]");
   if (!el) return false;
@@ -1654,6 +1934,7 @@ document.addEventListener("keydown", (e) => {
 });
 
 document.addEventListener("click", (e) => {
+  if (studyPick(e.target)) return;
   if (anatomyPick(e.target)) return;
   const t = e.target.closest("button");
   if (!t) return;
@@ -1667,6 +1948,7 @@ document.addEventListener("click", (e) => {
   if (t.dataset.level) return setLevel(Number(t.dataset.level));
   if (t.dataset.eyes) {
     state.eyes = t.dataset.eyes;
+    if ($("study").open) renderStudy();
     return renderPanel();
   }
   switch (t.id) {
@@ -1689,11 +1971,15 @@ document.addEventListener("click", (e) => {
       return openRefs();
     case "close-refs":
       return $("refs").close();
+    case "close-study":
+      return $("study").close();
+    case "open-study-intro":
+      return openStudy("room");
   }
 });
 
 document.addEventListener("keydown", (e) => {
-  if ($("refs").open || !$("intro").hidden || e.target.matches("input")) return;
+  if ($("refs").open || $("study").open || !$("intro").hidden || e.target.matches("input")) return;
   if (e.key === "ArrowRight") goTo(state.stage + 1);
   if (e.key === "ArrowLeft") goTo(state.stage - 1);
   if (/^[1-7]$/.test(e.key)) goTo(Number(e.key) - 1);

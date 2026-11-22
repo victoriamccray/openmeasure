@@ -41,7 +41,7 @@ if str(ROOT) not in sys.path:
 
 # The full package path, not a bare "core": several modules each have a
 # top-level package of that name, and the shared tests import this file.
-from modules.signal_pipeline.core import intervention, neuroanatomy, pipeline  # noqa: E402
+from modules.signal_pipeline.core import intervention, neuroanatomy, pipeline, resting_state  # noqa: E402
 
 SNIPPET = MODULE_DIR / "sample_data" / "ds005420_sub-5_O1_eyes_snippet.csv"
 OUTPUT = ROOT / "experiences" / "become-the-signal" / "data.json"
@@ -87,6 +87,29 @@ def _classification(closed: np.ndarray, opened: np.ndarray, rate: float) -> dict
         "threshold": round(result.threshold, 4),
         "alpha_power_eyes_closed": _round(result.alpha_power_eyes_closed),
         "alpha_power_eyes_open": _round(result.alpha_power_eyes_open),
+    }
+
+
+def _resting_state(baseline: dict) -> dict:
+    """The study, measures, ranges, and dichotomies, with this recording's own numbers."""
+    closed = baseline["alpha_power_eyes_closed"]
+    opened = baseline["alpha_power_eyes_open"]
+    n_trials = len(closed) + len(opened)
+    n_correct = round(baseline["accuracy"] * n_trials)
+    react = resting_state.reactivity(closed, opened)
+    odds = resting_state.chance(n_correct, n_trials)
+    return {
+        "study": dataclasses.asdict(resting_state.STUDY),
+        "ageing": dataclasses.asdict(resting_state.AGEING_NOTE),
+        "measures": [dataclasses.asdict(m) for m in resting_state.MEASURES],
+        "bands": [dataclasses.asdict(b) for b in resting_state.BANDS],
+        "band_caveat": resting_state.BAND_CAVEAT,
+        "band_refs": list(resting_state.BAND_REFS),
+        "axis_poles": {k: list(v) for k, v in resting_state.AXIS_POLES.items()},
+        "dichotomies": [dataclasses.asdict(d) for d in resting_state.DICHOTOMIES],
+        "references": [dataclasses.asdict(r) for r in resting_state.REFERENCES],
+        "reactivity": {k: (round(v, 4) if isinstance(v, float) else v) for k, v in dataclasses.asdict(react).items()},
+        "chance": {k: (round(v, 6) if isinstance(v, float) else v) for k, v in dataclasses.asdict(odds).items()},
     }
 
 
@@ -144,6 +167,8 @@ def build() -> dict:
         "task": "eyes_closed",
     }
 
+    baseline = _classification(signal["eyes_closed"], signal["eyes_open"], rate)
+
     return {
         "generated_by": "scripts/build_become_the_signal_data.py",
         "stages": list(pipeline.STAGES),
@@ -160,7 +185,10 @@ def build() -> dict:
             ),
             **waveform,
         },
-        "baseline": _classification(signal["eyes_closed"], signal["eyes_open"], rate),
+        "baseline": baseline,
+        # Barry et al. (2007) and what the numbers mean, for the study room
+        # and the measures panel at the Signals stage.
+        "resting_state": _resting_state(baseline),
         "noise": noise,
         "noise_seeds": NOISE_SEEDS,
         "downsample": downsample,

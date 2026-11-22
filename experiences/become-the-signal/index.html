@@ -40,6 +40,7 @@
       <div class="intro-actions">
         <button type="button" class="primary" id="begin">Begin</button>
         <button type="button" class="ghost" id="begin-text">Read as text instead</button>
+        <button type="button" class="ghost" id="open-study-intro">See how the recording was made</button>
       </div>
       <p class="hint">Arrow keys or the buttons move between stages. Drag to look around. Tap a pillar or a copy to inspect it.</p>
     </div>
@@ -59,6 +60,15 @@
     </div>
     <p class="refs-note" id="refs-source"></p>
     <ol id="refs-list"></ol>
+  </dialog>
+
+  <dialog class="study" id="study" aria-labelledby="study-title">
+    <div class="refs-head">
+      <h2 id="study-title">The Study Room</h2>
+      <button type="button" class="ghost" id="close-study">Close</button>
+    </div>
+    <div class="study-tabs" role="tablist" aria-label="Study room sections" id="study-tabs"></div>
+    <div id="study-body"></div>
   </dialog>
 
   <noscript><p class="noscript">This experience needs JavaScript. The same content is on the OpenMeasure Multimodal Signal Convergence page.</p></noscript>
